@@ -18,7 +18,7 @@ class RoleMiddleware
         }
 
         $allowedRoles = array_map(
-            fn(string $role) => UserRole::from($role),
+            fn($role) => UserRole::from($role),
             $roles
         );
 
