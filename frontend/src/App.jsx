@@ -14,6 +14,7 @@ import ProfilePage from './pages/staff/ProfilePage'
 
 import CASidebar from './components/layout/CASidebar'
 import StaffSidebar from './components/layout/StaffSidebar'
+import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 
 function CALayout({ children }) {
   return (
@@ -50,6 +51,11 @@ export default function App() {
           <Route path="/ca/tasks" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><TasksPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/ca/tasks/builder" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><TaskBuilderPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
           <Route path="/ca/clients" element={

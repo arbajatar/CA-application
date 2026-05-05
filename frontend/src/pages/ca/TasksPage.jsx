@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -23,6 +23,7 @@ const statuses = [
 
 export default function TasksPage() {
     const location = useLocation()
+    const navigate = useNavigate()
     const [tasks, setTasks] = useState([])
     const [meta, setMeta] = useState(null)
     const [clients, setClients] = useState([])
@@ -199,7 +200,7 @@ export default function TasksPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
                     <p className="text-sm text-gray-400 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
-                <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
+                <button onClick={() => navigate('/ca/tasks/builder')}
                     className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
                     <Plus size={16} /> Create New Task
                 </button>
@@ -279,11 +280,6 @@ export default function TasksPage() {
                     </div>
                 )}
             </div>
-
-            {/* Add Modal */}
-            <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Create New Task" width="max-w-2xl">
-                <TaskForm onSubmit={handleAdd} />
-            </Modal>
 
             {/* Edit Modal */}
             <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Task" width="max-w-2xl">

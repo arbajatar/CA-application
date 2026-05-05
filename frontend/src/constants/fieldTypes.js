@@ -1,0 +1,29 @@
+export const FIELD_TYPES = [
+  { id: "dropdown", name: "Dropdown", icon: "ChevronDown", color: "#10b981" },
+  { id: "text", name: "Text", icon: "Type", color: "#3b82f6" },
+  { id: "date", name: "Date", icon: "Calendar", color: "#f59e0b" },
+  {
+    id: "longtext",
+    name: "Text area (Long Text)",
+    icon: "AlignLeft",
+    color: "#6366f1",
+  },
+  { id: "number", name: "Number", icon: "Hash", color: "#ec4899" },
+  { id: "labels", name: "Labels", icon: "Tags", color: "#8b5cf6" },
+  { id: "checkbox", name: "Checkbox", icon: "CheckSquare", color: "#06b6d4" },
+  {
+    id: "progress_auto",
+    name: "Progress (Auto)",
+    icon: "Zap",
+    color: "#f97316",
+  },
+  { id: "email", name: "Email", icon: "Mail", color: "#ef4444" },
+  { id: "phone", name: "Phone", icon: "Phone", color: "#64748b" },
+  {
+    id: "progress_manual",
+    name: "Progress (Manual)",
+    icon: "Sliders",
+    color: "#2dd4bf",
+  },
+  { id: "time", name: "Time", icon: "Clock", color: "#8b5cf6" },
+];

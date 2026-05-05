@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+/* ============================================================
+   TASK BUILDER — CSS
+   ============================================================ */
+
+@theme {
+  --color-primary: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-surface: #ffffff;
+  --color-background: #f8fafc;
+  --color-text-main: #1e293b;
+  --color-text-muted: #64748b;
+  --color-border: #e2e8f0;
+  --radius-radius: 16px;
+  --font-jakarta: "Plus Jakarta Sans", sans-serif;
+}
+
+/* Body styles removed for integration */
+
+@layer components {
+  .form-card {
+    @apply bg-white rounded-radius border border-border shadow-sm mb-5 p-6 transition-all duration-200 relative;
+  }
+  .form-card:hover {
+    @apply border-slate-300;
+  }
+  .form-card.active {
+    @apply border-primary shadow-md;
+  }
+
+  .input-label {
+    @apply text-base font-bold text-text-main bg-transparent border-none w-full outline-none mb-1;
+  }
+  .input-placeholder {
+    @apply text-[13px] text-text-muted bg-transparent border-none w-full outline-none italic;
+  }
+
+  .field-btn {
+    @apply flex items-center gap-3 p-2.5 mb-2 rounded-xl border border-transparent bg-background cursor-grab transition-all duration-200 w-full text-left;
+  }
+  .field-btn:hover {
+    @apply bg-white border-primary shadow-sm;
+  }
+  .field-btn-icon {
+    @apply w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-sm flex-shrink-0;
+  }
+  .field-btn-text {
+    @apply text-[13px] font-semibold text-text-main;
+  }
+
+  .fab {
+    @apply fixed bottom-8 right-6 w-[60px] h-[60px] bg-primary text-white rounded-[20px] flex items-center justify-center shadow-lg z-[60] lg:hidden;
+  }
+
+  .bottom-sheet {
+    @apply fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-end transition-opacity duration-300;
+  }
+  .bottom-sheet-content {
+    @apply w-full bg-white rounded-t-[24px] p-6 max-h-[85vh] overflow-y-auto transform transition-transform duration-300;
+  }
+
+  .sortable-ghost {
+    @apply opacity-40 bg-primary border-2 border-dashed border-primary;
+    opacity: 0.4 !important;
+    background-color: var(--color-primary) !important;
+    border: 2px dashed var(--color-primary) !important;
+  }
+  .sortable-chosen {
+    @apply cursor-grabbing;
+    cursor: grabbing !important;
+  }
+
+  .drag-handle {
+    @apply cursor-grab flex items-center justify-center p-1.5 text-text-muted rounded-md transition-colors hover:bg-slate-100 hover:text-primary;
+  }
+
+  .create-btn {
+    @apply w-full p-4.5 bg-primary text-white font-bold rounded-[14px] shadow-lg shadow-indigo-200 transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 mt-4;
+  }
+
+  .landing-btn {
+    @apply px-12 py-6 bg-primary text-white text-xl font-extrabold rounded-[24px] shadow-2xl shadow-indigo-200 flex items-center gap-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-indigo-300;
+  }
+
+  .toggle-switch {
+    @apply relative inline-block w-10 h-5;
+  }
+  .toggle-switch input {
+    @apply opacity-0 w-0 h-0;
+  }
+  .slider {
+    @apply absolute cursor-pointer inset-0 bg-slate-200 transition-all duration-300 rounded-full before:absolute before:content-[''] before:h-4 before:w-4 before:left-0.5 before:bottom-0.5 before:bg-white before:transition-all before:duration-300 before:rounded-full;
+  }
+  .toggle-switch input:checked + .slider {
+    @apply bg-primary;
+  }
+  .toggle-switch input:checked + .slider:before {
+    @apply translate-x-5;
+  }
+
+  .main-grid {
+    @apply flex flex-col lg:flex-row gap-8 items-start w-full;
+  }
+  .form-container {
+    @apply flex-1 min-w-0;
+  }
+  .sidebar-container {
+    @apply w-full lg:w-80 flex-shrink-0;
+  }
+  .compact-grid {
+    @apply grid grid-cols-2 sm:grid-cols-3 gap-3;
+  }
+
+  .mobile-field-item {
+    @apply flex flex-col items-center gap-2 p-3 bg-background rounded-2xl text-center border border-transparent cursor-pointer transition-all active:scale-95 active:bg-white active:border-primary;
+  }
+  .mobile-field-icon {
+    @apply w-10 h-10 flex items-center justify-center rounded-xl bg-white shadow-sm;
+  }
+  .mobile-field-text {
+    @apply text-[11px] font-bold text-text-main;
+  }
+
+  .sidebar-card {
+    @apply bg-white rounded-radius border border-border shadow-sm p-6 sticky top-8;
+  }
+
+  .field-preview-area {
+    @apply bg-slate-50/50 border border-slate-100 p-4 sm:p-5 rounded-2xl transition-all;
+  }
+
+  .required-star {
+    @apply text-rose-500 font-bold ml-1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
