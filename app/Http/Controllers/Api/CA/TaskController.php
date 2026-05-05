@@ -13,9 +13,11 @@ use App\Models\TaskLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
 class TaskController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): AnonymousResourceCollection
     {
         $tasks = Task::with(['client', 'workType', 'assignedTo', 'createdBy'])
             ->when($request->filled('staff_id'), fn($q) => $q->where('allocated_to', $request->staff_id))
@@ -32,7 +34,7 @@ class TaskController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 15));
 
-        return response()->json(TaskResource::collection($tasks));
+        return TaskResource::collection($tasks);
     }
 
     public function store(StoreTaskRequest $request): JsonResponse

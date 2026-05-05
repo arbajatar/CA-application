@@ -13,9 +13,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
 class StaffController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): AnonymousResourceCollection
     {
         $staff = User::staff()
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {
@@ -26,7 +28,7 @@ class StaffController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 15));
 
-        return response()->json(StaffResource::collection($staff));
+        return StaffResource::collection($staff);
     }
 
     public function store(StoreStaffRequest $request): JsonResponse

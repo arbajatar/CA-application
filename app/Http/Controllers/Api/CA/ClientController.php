@@ -11,9 +11,11 @@ use App\Models\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
 class ClientController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): AnonymousResourceCollection
     {
         $clients = Client::query()
             ->when($request->filled('status'), fn($q) => $q->where('status', ClientStatus::from($request->status)))
@@ -24,7 +26,7 @@ class ClientController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 15));
 
-        return response()->json(ClientResource::collection($clients));
+        return ClientResource::collection($clients);
     }
 
     public function store(StoreClientRequest $request): JsonResponse

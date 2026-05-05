@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const api = axios.create({
     baseURL: "/api",
@@ -8,7 +9,6 @@ const api = axios.create({
     }
 })
 
-
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token')
     if (token) {
@@ -17,17 +17,27 @@ api.interceptors.request.use((config) => {
     return config
 })
 
-// Auto logout on 401
+// Global response interceptor
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const { status } = error.response || {};
+
+        if (status === 401) {
             localStorage.removeItem('token')
             localStorage.removeItem('user')
-            window.location.href = '/login'
+            // Only redirect if not already on login page to avoid loops
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login'
+            }
         }
+
+        if (status === 403) {
+            toast.error(error.response?.data?.message || 'You do not have permission to perform this action.');
+        }
+
         return Promise.reject(error)
     }
 )
 
-export default api
+export default api;

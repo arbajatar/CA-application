@@ -9,13 +9,15 @@ use App\Http\Resources\WorkTypeResource;
 use App\Models\WorkType;
 use Illuminate\Http\JsonResponse;
 
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
 class WorkTypeController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
         $workTypes = WorkType::orderBy('name')->get();
 
-        return response()->json(WorkTypeResource::collection($workTypes));
+        return WorkTypeResource::collection($workTypes);
     }
 
     public function store(StoreWorkTypeRequest $request): JsonResponse
