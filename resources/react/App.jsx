@@ -18,9 +18,9 @@ import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 
 function CALayout({ children }) {
   return (
-    <div className="flex h-fit min-h-screen bg-[#F5F7FA]">
+    <div className="flex min-h-screen bg-[#F5F7FA]">
       <CASidebar />
-      <main className="flex-1 self-start ml-64 p-8">{children}</main>
+      <main className="flex-1 ml-64 px-8 pt-8 pb-2 flex flex-col">{children}</main>
     </div>
   )
 }
