@@ -35,6 +35,7 @@ export default function TasksPage() {
     const [status, setStatus] = useState('')
     const [staffId, setStaffId] = useState('')
     const [clientId, setClientId] = useState('')
+    const [workTypeId, setWorkTypeId] = useState('')
     const [page, setPage] = useState(1)
 
     const [addOpen, setAddOpen] = useState(false)
@@ -67,7 +68,7 @@ export default function TasksPage() {
         setLoading(true)
         try {
             const res = await api.get('/ca/tasks', {
-                params: { search, status, staff_id: staffId, client_id: clientId, page, per_page: 15 }
+                params: { search, status, staff_id: staffId, client_id: clientId, work_type_id: workTypeId, page, per_page: 15 }
             })
             setTasks(res.data.data || [])
             setMeta(res.data.meta)
@@ -77,7 +78,7 @@ export default function TasksPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, status, staffId, clientId, page])
+    }, [search, status, staffId, clientId, workTypeId, page])
 
     useEffect(() => {
         const params = new URLSearchParams(location.search)
@@ -225,21 +226,31 @@ export default function TasksPage() {
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 {/* Filters */}
-                <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
-                    <div className="relative">
+                <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100 overflow-x-auto whitespace-nowrap scrollbar-hide">
+                    <div className="relative flex-shrink-0">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search tasks..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-56 transition" />
+                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-48 transition" />
                     </div>
                     <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
+                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0">
                         {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                     <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
+                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
                         <option value="">All Clients</option>
                         {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
+                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
+                        <option value="">All Staff</option>
+                        {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
+                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
+                        <option value="">All Work Types</option>
+                        {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </select>
                 </div>
 
