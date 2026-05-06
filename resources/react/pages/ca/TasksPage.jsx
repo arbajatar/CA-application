@@ -34,6 +34,7 @@ export default function TasksPage() {
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('')
     const [staffId, setStaffId] = useState('')
+    const [clientId, setClientId] = useState('')
     const [page, setPage] = useState(1)
 
     const [addOpen, setAddOpen] = useState(false)
@@ -66,7 +67,7 @@ export default function TasksPage() {
         setLoading(true)
         try {
             const res = await api.get('/ca/tasks', {
-                params: { search, status, staff_id: staffId, page, per_page: 15 }
+                params: { search, status, staff_id: staffId, client_id: clientId, page, per_page: 15 }
             })
             setTasks(res.data.data || [])
             setMeta(res.data.meta)
@@ -76,7 +77,7 @@ export default function TasksPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, status, staffId, page])
+    }, [search, status, staffId, clientId, page])
 
     useEffect(() => {
         const params = new URLSearchParams(location.search)
@@ -234,6 +235,11 @@ export default function TasksPage() {
                     <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
                         className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
                         {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                    <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
+                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
+                        <option value="">All Clients</option>
+                        {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
 
