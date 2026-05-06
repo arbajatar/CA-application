@@ -3,7 +3,7 @@ import {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
-  CheckCircle, Clock, Check
+  CheckCircle, Clock, Check, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
@@ -106,6 +106,7 @@ export default function TaskBuilderPage() {
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [toast, setToast] = useState({ show: false, message: '' });
 
   const fieldsContainerRef = useRef(null);
@@ -336,49 +337,52 @@ export default function TaskBuilderPage() {
           <div className="main-grid">
             {/* Form Area */}
             <div className="form-container">
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-3 flex justify-between items-center">
                 <div>
-                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                     {viewMode === 'live' ? 'Active Task Form' : 'Task Builder'}
                   </h2>
-                  <p className="text-sm text-slate-500 mt-2 font-medium">
+                  <p className="text-xs text-slate-400 mt-0.5 font-medium">
                     {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom task entry form below.'}
                   </p>
                 </div>
                 {viewMode === 'live' && (
-                  <button onClick={() => setViewMode('builder')} className="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200 transition">
+                  <button onClick={() => setViewMode('builder')} className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200 transition">
                     Edit Layout
                   </button>
                 )}
               </div>
 
-              <div ref={fieldsContainerRef} id="fieldsContainer">
-                {formSchema.map((field) => (
-                  <FormCard
-                    key={field.id}
-                    field={field}
-                    viewMode={viewMode}
-                    isActive={activeFieldId === field.id && viewMode === 'builder'}
-                    onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
-                    onUpdate={(key, val) => updateField(field.id, key, val)}
-                    onRemove={() => removeField(field.id)}
-                    calculateAutoProgress={calculateAutoProgress}
-                  />
-                ))}
+              {/* Flat form section */}
+              <div className="form-section">
+                <div ref={fieldsContainerRef} id="fieldsContainer">
+                  {formSchema.map((field) => (
+                    <FormCard
+                      key={field.id}
+                      field={field}
+                      viewMode={viewMode}
+                      isActive={activeFieldId === field.id && viewMode === 'builder'}
+                      onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
+                      onUpdate={(key, val) => updateField(field.id, key, val)}
+                      onRemove={() => removeField(field.id)}
+                      calculateAutoProgress={calculateAutoProgress}
+                    />
+                  ))}
+                </div>
               </div>
 
               {formSchema.length === 0 && (
-                <div className="p-16 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Plus className="w-8 h-8 text-slate-300" />
+                <div className="p-12 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <Plus className="w-6 h-6 text-slate-300" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800">Start Building</h3>
-                  <p className="text-sm text-slate-500 mt-1">Add fields from the menu to get started.</p>
+                  <h3 className="text-base font-bold text-slate-800">Start Building</h3>
+                  <p className="text-xs text-slate-400 mt-1">Add fields from the panel to get started.</p>
                 </div>
               )}
 
               {formSchema.length > 0 && (
-                <div className="mt-2 flex justify-start">
+                <div className="mt-3 flex justify-start">
                   <button onClick={submitForm} className="create-btn">
                     {viewMode === 'builder' ? 'Create Form' : 'Submit Form'}
                   </button>
@@ -388,25 +392,40 @@ export default function TaskBuilderPage() {
 
             {/* Desktop Sidebar */}
             {viewMode === 'builder' && (
-              <aside className="hidden lg:block sidebar-container">
-                <div className="sidebar-card">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Available Fields</h3>
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              <aside className={`hidden lg:flex flex-col sidebar-container transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-16'}`}>
+                <div className={`sidebar-card h-full transition-colors duration-300 ${!isSidebarOpen ? 'bg-slate-100 border-slate-200 shadow-none' : 'bg-white'}`}>
+                  {/* Sidebar Header with Toggle */}
+                  <div className={`flex items-center border-b border-slate-200/60 py-2 px-3 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+                    {isSidebarOpen && (
+                      <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Available Fields</h3>
+                    )}
+                    <button
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition"
+                      title={isSidebarOpen ? 'Collapse panel' : 'Expand panel'}
+                    >
+                      {isSidebarOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    </button>
                   </div>
-                  <div ref={sidebarRef} id="fieldsList">
+                  {/* Field list */}
+                  <div ref={sidebarRef} id="fieldsList" className={`${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : ''}`}>
                     {FIELD_TYPES.map(type => (
                       <div
                         key={type.id}
-                        className="field-btn animate-slide-in"
+                        className={`field-btn animate-slide-in ${!isSidebarOpen ? '!p-0 !m-0 !bg-transparent !border-none flex justify-center w-full shadow-none hover:shadow-none transition-transform hover:scale-110 active:scale-95' : ''}`}
                         data-type={type.id}
                         onClick={() => addField(type)}
+                        title={!isSidebarOpen ? type.name : ''}
                       >
-                        <div className="field-btn-icon" style={{ color: type.color }}>
-                          {React.createElement(IconMap[type.icon], { size: 16 })}
+                        <div className={`field-btn-icon ${!isSidebarOpen ? '!w-10 !h-10 bg-white shadow-md border border-slate-200/50 rounded-xl' : ''}`} style={{ color: type.color }}>
+                          {React.createElement(IconMap[type.icon], { size: !isSidebarOpen ? 20 : 14 })}
                         </div>
-                        <span className="field-btn-text">{type.name}</span>
-                        <Plus className="w-3.5 h-3.5 text-slate-300 ml-auto" />
+                        {isSidebarOpen && (
+                          <>
+                            <span className="field-btn-text">{type.name}</span>
+                            <Plus className="w-3 h-3 text-slate-300 ml-auto" />
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -462,32 +481,29 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
 
   return (
     <div
-      className={`form-card animate-slide-in ${isActive ? 'active' : ''} ${isLive ? 'border-emerald-100 shadow-emerald-50/50' : ''}`}
+      className={`form-card animate-slide-in ${isActive ? 'active' : ''}`}
       onClick={onActive}
     >
-      {!isLive && (
-        <div className="drag-handle absolute top-4 right-4 p-2 cursor-grab">
-          <GripVertical className="w-5 h-5 text-slate-300" />
-        </div>
-      )}
+      <div className={`flex items-center gap-2 ${!isLive ? 'pr-6' : ''}`}>
+        {/* Drag handle */}
+        {!isLive && (
+          <div className="drag-handle shrink-0">
+            <GripVertical className="w-4 h-4 text-slate-300" />
+          </div>
+        )}
 
-      <div className={`flex items-start justify-between mb-3 ${!isLive ? 'pr-10' : ''}`}>
-        <div className="flex-1">
+        {/* Label + placeholder */}
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
             {isLive || field.static ? (
-              <span className={`text-sm font-bold ${field.static ? 'text-slate-900' : 'text-slate-700'}`}>
+              <span className={`text-sm font-semibold ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
                 {field.label}
               </span>
             ) : (
               <input
                 type="text"
                 value={field.label}
-                onFocus={(e) => {
-                  if (!field.labelTouched) {
-                    onUpdate('label', '');
-                    onUpdate('labelTouched', true);
-                  }
-                }}
+                onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
                 onChange={(e) => onUpdate('label', e.target.value)}
                 className="input-label"
                 placeholder="Field Label"
@@ -497,19 +513,12 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
           </div>
           {!isLive && (
             field.static ? (
-              <span className="text-xs text-slate-400 font-medium block mt-1 italic">
-                {field.placeholder} (System Field)
-              </span>
+              <span className="text-[11px] text-slate-400 italic">{field.placeholder} (System Field)</span>
             ) : (
               <input
                 type="text"
                 value={field.placeholder}
-                onFocus={(e) => {
-                  if (!field.placeholderTouched) {
-                    onUpdate('placeholder', '');
-                    onUpdate('placeholderTouched', true);
-                  }
-                }}
+                onFocus={() => { if (!field.placeholderTouched) { onUpdate('placeholder', ''); onUpdate('placeholderTouched', true); } }}
                 onChange={(e) => onUpdate('placeholder', e.target.value)}
                 className="input-placeholder"
                 placeholder="Custom Placeholder..."
@@ -517,16 +526,17 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
             )
           )}
           {field.error && (
-            <p className="text-[11px] text-rose-500 font-bold mt-2 flex items-center gap-1">
+            <p className="text-[11px] text-rose-500 font-bold mt-1 flex items-center gap-1">
               <AlertCircle className="w-3 h-3" /> {field.error}
             </p>
           )}
         </div>
 
+        {/* Actions */}
         {!isLive ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full scale-90 sm:scale-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Required</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-full">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">Req</span>
               <label className={`toggle-switch ${field.static ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input
                   type="checkbox"
@@ -538,19 +548,16 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
               </label>
             </div>
             {!field.static && (
-              <button onClick={onRemove} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition">
-                <Trash2 className="w-4.5 h-4.5" />
+              <button onClick={onRemove} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-        ) : (
-          <button onClick={onRemove} className="p-2 text-slate-200 hover:text-rose-500 transition">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
+        ) : null}
       </div>
 
-      <div className={`field-preview-area ${isLive ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100'} p-2.5 sm:p-3 rounded-xl border`}>
+      {/* Field input */}
+      <div className="field-preview-area">
         <FieldInput field={field} onUpdate={onUpdate} calculateAutoProgress={calculateAutoProgress} isLive={isLive} />
       </div>
 

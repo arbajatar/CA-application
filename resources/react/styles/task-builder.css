@@ -19,34 +19,35 @@
 /* Body styles removed for integration */
 
 @layer components {
+  /* Flat form row — replaces old card style */
   .form-card {
-    @apply bg-white rounded-radius border border-border shadow-sm mb-2.5 p-3.5 transition-all duration-200 relative;
+    @apply relative border-b border-slate-100 py-3 px-1 transition-all duration-200;
   }
   .form-card:hover {
-    @apply border-slate-300;
+    @apply bg-slate-50/60;
   }
   .form-card.active {
-    @apply border-primary shadow-md;
+    @apply bg-slate-50;
   }
 
   .input-label {
-    @apply text-base font-bold text-text-main bg-transparent border-none w-full outline-none mb-1;
+    @apply text-sm font-semibold text-text-main bg-transparent border-none w-full outline-none;
   }
   .input-placeholder {
-    @apply text-[13px] text-text-muted bg-transparent border-none w-full outline-none italic;
+    @apply text-[12px] text-text-muted bg-transparent border-none w-full outline-none italic;
   }
 
   .field-btn {
-    @apply flex items-center gap-2.5 p-2 mb-1.5 rounded-xl border border-transparent bg-background cursor-grab transition-all duration-200 w-full text-left;
+    @apply flex items-center gap-2 py-1.5 px-2 mb-1 rounded-lg border border-transparent bg-background cursor-grab transition-all duration-150 w-full text-left;
   }
   .field-btn:hover {
-    @apply bg-white border-primary shadow-sm;
+    @apply bg-white border-slate-200 shadow-sm;
   }
   .field-btn-icon {
-    @apply w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-sm flex-shrink-0;
+    @apply w-7 h-7 flex items-center justify-center rounded-md bg-white shadow-sm flex-shrink-0;
   }
   .field-btn-text {
-    @apply text-[13px] font-semibold text-text-main;
+    @apply text-[12px] font-semibold text-text-main;
   }
 
   .fab {
@@ -72,11 +73,11 @@
   }
 
   .drag-handle {
-    @apply cursor-grab flex items-center justify-center p-1.5 text-text-muted rounded-md transition-colors hover:bg-slate-100 hover:text-primary;
+    @apply cursor-grab flex items-center justify-center p-1 text-text-muted rounded transition-colors hover:bg-slate-100 hover:text-primary;
   }
 
   .create-btn {
-    @apply w-fit px-8 py-2.5 bg-primary text-white text-sm font-bold rounded-xl shadow-md shadow-slate-200 transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 mt-2;
+    @apply w-fit px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-sm transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 mt-3;
   }
 
   .landing-btn {
@@ -84,7 +85,7 @@
   }
 
   .toggle-switch {
-    @apply relative inline-block w-10 h-5;
+    @apply relative inline-block w-9 h-5;
   }
   .toggle-switch input {
     @apply opacity-0 w-0 h-0;
@@ -96,19 +97,19 @@
     @apply bg-primary;
   }
   .toggle-switch input:checked + .slider:before {
-    @apply translate-x-5;
+    @apply translate-x-4;
   }
 
   .main-grid {
-    @apply flex flex-col lg:flex-row gap-6 items-stretch w-full flex-1;
+    @apply flex flex-col lg:flex-row gap-4 items-stretch w-full flex-1;
   }
   .form-container {
-    @apply flex-1 min-w-0 lg:overflow-y-auto lg:pr-3 lg:pb-12;
+    @apply flex-1 min-w-0 lg:overflow-y-auto lg:pb-12;
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
   .sidebar-container {
-    @apply w-full lg:w-72 flex-shrink-0 relative;
+    @apply flex-shrink-0 relative transition-all duration-300;
   }
   .compact-grid {
     @apply grid grid-cols-2 sm:grid-cols-3 gap-3;
@@ -125,31 +126,36 @@
   }
 
   .sidebar-card {
-    @apply bg-white rounded-radius border border-border shadow-sm p-4 sticky top-4 z-10 flex flex-col h-full;
+    @apply bg-white rounded-xl border border-slate-100 shadow-sm sticky top-4 z-10 flex flex-col h-full overflow-hidden;
     @media (min-width: 1024px) {
       max-height: calc(100vh - 40px);
     }
   }
   #fieldsList {
-    @apply overflow-y-auto pr-1 pb-8 flex-1;
+    @apply overflow-y-auto p-3 pb-6 flex-1;
     scrollbar-width: thin;
     scrollbar-color: #e2e8f0 transparent;
   }
 
+  /* Flat form section wrapper */
+  .form-section {
+    @apply bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden;
+  }
+
   .field-preview-area {
-    @apply bg-slate-50/50 border border-slate-100 p-2.5 sm:p-3 rounded-xl transition-all;
+    @apply mt-1.5;
   }
 
   .required-star {
-    @apply text-rose-500 font-bold ml-1;
+    @apply text-rose-500 font-bold ml-0.5;
   }
 }
 
 .animate-slide-in {
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 0.2s ease-out;
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
