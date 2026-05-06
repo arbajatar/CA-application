@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -17,19 +18,21 @@ import StaffSidebar from './components/layout/StaffSidebar'
 import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 
 function CALayout({ children }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <CASidebar />
-      <main className="flex-1 ml-64 px-8 pt-8 pb-2 flex flex-col">{children}</main>
+      <CASidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'} px-8 pt-8 pb-2 flex flex-col`}>{children}</main>
     </div>
   )
 }
 
 function StaffLayout({ children }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <StaffSidebar />
-      <main className="flex-1 self-start ml-64 p-8">{children}</main>
+      <StaffSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <main className={`flex-1 self-start transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'} p-8`}>{children}</main>
     </div>
   )
 }

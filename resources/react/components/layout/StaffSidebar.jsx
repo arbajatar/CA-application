@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ClipboardList, User, LogOut, ShieldCheck } from 'lucide-react'
+import { ClipboardList, User, LogOut, ShieldCheck, Menu } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
@@ -7,7 +7,7 @@ const navItems = [
     { to: '/staff/profile', icon: User, label: 'My Profile' },
 ]
 
-export default function StaffSidebar() {
+export default function StaffSidebar({ isOpen = true, setIsOpen }) {
     const { user, logout } = useAuth()
     const navigate = useNavigate()
 
@@ -17,58 +17,75 @@ export default function StaffSidebar() {
     }
 
     return (
-        <aside className="fixed top-0 left-0 h-screen w-64 bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm">
+        <aside className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm transition-all duration-300 ${isOpen ? 'w-64' : 'w-20'}`}>
             {/* Logo */}
-            <div className="px-6 py-6 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#0f1c2e] rounded-xl flex items-center justify-center">
-                        <ShieldCheck size={20} className="text-white" />
+            <div className={`px-4 py-6 border-b border-gray-100 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
+                {isOpen && (
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-[#0f1c2e] rounded-xl flex items-center justify-center shrink-0">
+                            <ShieldCheck size={20} className="text-white" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-gray-900 whitespace-nowrap">Staff Portal</p>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider whitespace-nowrap">Office Management</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm font-bold text-gray-900">Staff Portal</p>
-                        <p className="text-xs text-gray-400 uppercase tracking-wider">Office Management</p>
-                    </div>
-                </div>
+                )}
+                <button 
+                    onClick={() => setIsOpen && setIsOpen(!isOpen)} 
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
+                    title="Toggle Menu"
+                >
+                    <Menu size={20} />
+                </button>
             </div>
 
             {/* User card */}
-            <div className="mx-4 mt-4 p-3 bg-gray-50 rounded-xl flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold">
+            {isOpen ? (
+                <div className="mx-4 mt-4 p-3 bg-gray-50 rounded-xl flex items-center gap-3 shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold shrink-0">
+                        {user?.name?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="overflow-hidden">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{user?.name}</p>
+                        <p className="text-xs text-green-500 font-medium">● Online</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="mx-auto mt-4 w-10 h-10 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold shrink-0" title={user?.name}>
                     {user?.name?.[0]?.toUpperCase()}
                 </div>
-                <div>
-                    <p className="text-sm font-semibold text-gray-800">{user?.name}</p>
-                    <p className="text-xs text-green-500 font-medium">● Online</p>
-                </div>
-            </div>
+            )}
 
             {/* Nav */}
-            <nav className="flex-1 px-4 py-6 space-y-1">
+            <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto overflow-x-hidden">
                 {navItems.map(({ to, icon: Icon, label }) => (
                     <NavLink
                         key={to}
                         to={to}
                         className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
+                            `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
                                 ? 'bg-[#0f1c2e] text-white'
                                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                             }`
                         }
+                        title={!isOpen ? label : undefined}
                     >
-                        <Icon size={18} />
-                        {label}
+                        <Icon size={18} className="shrink-0" />
+                        {isOpen && <span className="whitespace-nowrap">{label}</span>}
                     </NavLink>
                 ))}
             </nav>
 
             {/* Logout */}
-            <div className="px-4 py-6 border-t border-gray-100">
+            <div className={`px-4 py-6 border-t border-gray-100 flex ${isOpen ? '' : 'justify-center'}`}>
                 <button
                     onClick={handleLogout}
-                    className="flex items-center gap-3 px-4 py-2.5 w-full rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition"
+                    className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
+                    title={!isOpen ? "Sign Out" : undefined}
                 >
-                    <LogOut size={18} />
-                    Sign Out
+                    <LogOut size={18} className="shrink-0" />
+                    {isOpen && <span className="whitespace-nowrap">Sign Out</span>}
                 </button>
             </div>
         </aside>
