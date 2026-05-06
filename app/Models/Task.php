@@ -21,6 +21,7 @@ class Task extends Model
         'date_completed',
         'status',
         'remarks',
+        'dynamic_fields',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class Task extends Model
             'date_inward' => 'date',
             'date_allocated' => 'date',
             'date_completed' => 'date',
+            'dynamic_fields' => 'array',
         ];
     }
 

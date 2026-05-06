@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -39,10 +39,12 @@ export default function TasksPage() {
     const [addOpen, setAddOpen] = useState(false)
     const [editOpen, setEditOpen] = useState(false)
     const [reassignOpen, setReassignOpen] = useState(false)
+    const [viewOpen, setViewOpen] = useState(false)
     const [deleteOpen, setDeleteOpen] = useState(false)
     const [selected, setSelected] = useState(null)
     const [form, setForm] = useState(EMPTY_FORM)
     const [saving, setSaving] = useState(false)
+    const [viewLoading, setViewLoading] = useState(false)
     const [errors, setErrors] = useState({})
 
     const fetchDropdowns = async () => {
@@ -145,6 +147,20 @@ export default function TasksPage() {
         setReassignOpen(true)
     }
 
+    const openView = async (task) => {
+        setViewLoading(true)
+        try {
+            const res = await api.get(`/ca/tasks/${task.id}`)
+            setSelected(res.data.data)
+            setViewOpen(true)
+        } catch (e) {
+            toast.error('Failed to fetch task details')
+            console.error(e)
+        } finally {
+            setViewLoading(false)
+        }
+    }
+
     const Field = ({ label, error, children }) => (
         <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
@@ -227,8 +243,8 @@ export default function TasksPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    {['#', 'Client', 'Nature', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status', 'Remarks', 'Actions'].map(h => (
-                                        <th key={h} className="px-5 py-3 text-left whitespace-nowrap">{h}</th>
+                                    {['#', 'Client', 'Work Type', 'Allocated To', 'Allocated Date', 'Status', 'Actions'].map(h => (
+                                        <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
                             </thead>
@@ -237,10 +253,10 @@ export default function TasksPage() {
                                     <tr><td colSpan={10} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                 ) : tasks?.map((t, i) => (
                                     <tr key={t.id} className="hover:bg-gray-50 transition">
-                                        <td className="px-5 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                        <td className="px-5 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client.name}</td>
-                                        <td className="px-5 py-4 text-gray-600 whitespace-nowrap">{t.work_type.name}</td>
-                                        <td className="px-5 py-4">
+                                        <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
+                                        <td className="px-4 py-3 font-semibold text-gray-800">{t.client.name}</td>
+                                        <td className="px-4 py-3 text-gray-600">{t.work_type.name}</td>
+                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
                                                     {t.allocated_to.name[0]}
@@ -248,13 +264,13 @@ export default function TasksPage() {
                                                 <span className="text-gray-700">{t.allocated_to.name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-4 text-gray-500 whitespace-nowrap">{t.date_inward}</td>
-                                        <td className="px-5 py-4 text-gray-500 whitespace-nowrap">{t.date_allocated}</td>
-                                        <td className="px-5 py-4 text-gray-500 whitespace-nowrap">{t.date_completed ?? '—'}</td>
-                                        <td className="px-5 py-4"><StatusBadge status={t.status} /></td>
-                                        <td className="px-5 py-4 text-gray-400 max-w-[140px] truncate">{t.remarks ?? '—'}</td>
-                                        <td className="px-5 py-4">
+                                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_allocated}</td>
+                                        <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
+                                                <button onClick={() => openView(t)} disabled={viewLoading} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                    <Eye size={15} />
+                                                </button>
                                                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
                                                 <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
                                                 <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
@@ -320,6 +336,68 @@ export default function TasksPage() {
                 message={`Are you sure you want to delete this task for "${selected?.client?.name}"? This action cannot be undone.`}
                 confirmLabel="Delete Task"
             />
+            {/* View Modal */}
+            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Task Details" width="max-w-3xl">
+                {selected && (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Client</h4>
+                                <p className="text-sm font-bold text-gray-900">{selected.client.name}</p>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Work Type</h4>
+                                <p className="text-sm font-bold text-gray-900">{selected.work_type.name}</p>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
+                                <StatusBadge status={selected.status} />
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocated To</h4>
+                                <p className="text-sm font-bold text-gray-900">{selected.allocated_to.name}</p>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
+                                <p className="text-sm font-bold text-gray-900">{selected.date_inward}</p>
+                            </div>
+                            <div>
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation Date</h4>
+                                <p className="text-sm font-bold text-gray-900">{selected.date_allocated}</p>
+                            </div>
+                        </div>
+
+                        {selected.remarks && (
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Remarks</h4>
+                                <p className="text-sm text-gray-600 leading-relaxed">{selected.remarks}</p>
+                            </div>
+                        )}
+
+                        {selected.dynamic_fields && Object.keys(selected.dynamic_fields).length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Custom Fields Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {Object.entries(selected.dynamic_fields).map(([key, val]) => (
+                                        <div key={key} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                                            <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
+                                            <p className="text-sm font-semibold text-indigo-600">
+                                                {Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val))}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end pt-4 border-t border-gray-100">
+                            <button onClick={() => setViewOpen(false)} className="px-6 py-2 bg-[#0f1c2e] text-white text-sm font-bold rounded-xl hover:bg-[#1a2f4a] transition shadow-lg shadow-indigo-100">
+                                Close Details
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     )
 }

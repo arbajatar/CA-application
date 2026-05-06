@@ -25,8 +25,10 @@ class StaffController extends Controller
                     ->orWhere('username', 'like', '%' . $request->search . '%');
             }))
             ->when($request->filled('is_active'), fn($q) => $q->where('is_active', filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN)))
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+            ->latest();
+
+        $perPage = $request->get('per_page', 15);
+        $staff = $perPage == -1 ? $staff->get() : $staff->paginate($perPage);
 
         return StaffResource::collection($staff);
     }

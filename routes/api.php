@@ -30,6 +30,15 @@ Route::middleware('auth:sanctum')->group(function () {
         return response()->json(['data' => $transitions]);
     });
 
+    Route::get('/task-statuses', function () {
+        return response()->json([
+            'data' => array_map(
+                fn($s) => ['value' => $s->value, 'label' => $s->label()],
+                \App\Enums\TaskStatus::cases()
+            )
+        ]);
+    });
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 

@@ -30,6 +30,7 @@ class TaskResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'remarks' => $this->remarks,
+            'dynamic_fields' => $this->dynamic_fields,
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),
         ];

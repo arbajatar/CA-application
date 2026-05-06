@@ -19,7 +19,9 @@ class StoreTaskRequest extends FormRequest
             'date_inward' => ['required', 'date'],
             'allocated_to' => ['required', 'exists:users,id'],
             'date_allocated' => ['required', 'date'],
+            'status' => ['nullable', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:500'],
+            'dynamic_fields' => ['nullable', 'array'],
         ];
     }
 }

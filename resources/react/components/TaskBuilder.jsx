@@ -54,6 +54,19 @@ function TaskBuilder() {
       static: true,
       labelTouched: false,
       placeholderTouched: false
+    },
+    {
+      id: 'static_remarks',
+      type: 'longtext',
+      icon: 'AlignLeft',
+      color: '#6366f1',
+      label: 'Remarks',
+      placeholder: 'Enter additional remarks...',
+      value: '',
+      required: false,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);

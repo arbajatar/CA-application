@@ -6,8 +6,12 @@ import {
   CheckCircle, Clock
 } from 'lucide-react';
 import Sortable from 'sortablejs';
+import api from '../../api/axios';
+import toast_pkg from 'react-hot-toast';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import '../../styles/task-builder.css';
+
+const toast = toast_pkg;
 
 const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
@@ -82,6 +86,19 @@ export default function TaskBuilderPage() {
       options: ['Assigned', 'In Progress', 'Awaiting Information', 'Completed'],
       value: 'Assigned',
       required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
+      id: 'static_remarks',
+      type: 'longtext',
+      icon: 'AlignLeft',
+      color: '#6366f1',
+      label: 'Remarks',
+      placeholder: 'Enter additional remarks...',
+      value: '',
+      required: false,
       static: true,
       labelTouched: false,
       placeholderTouched: false
@@ -182,7 +199,7 @@ export default function TaskBuilderPage() {
     return Math.round((filled.length / otherFields.length) * 100);
   };
 
-  const submitForm = () => {
+  const submitForm = async () => {
     if (viewMode === 'builder') {
       setFormSchema(prev => prev.map(f => ({ ...f, error: '' })));
       setViewMode('live');
@@ -202,8 +219,76 @@ export default function TaskBuilderPage() {
       showToast('Form incomplete. Please fill all required fields.');
       return;
     }
-    showToast('Form submitted successfully!');
+
+    // Prepare data for backend
+    const staticFields = {
+      client_id: formSchema.find(f => f.id === 'static_client_name')?.value,
+      work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
+      allocated_to: formSchema.find(f => f.id === 'static_allocated_to')?.value,
+      date_allocated: formSchema.find(f => f.id === 'static_allocated_date')?.value,
+      status: formSchema.find(f => f.id === 'static_status')?.value,
+      date_inward: new Date().toISOString().split('T')[0], // Defaulting to today
+    };
+
+    const dynamicFields = {};
+    formSchema.forEach(f => {
+      if (!f.static) {
+        dynamicFields[f.label] = f.value;
+      }
+    });
+
+    try {
+      const response = await api.post('/ca/tasks', {
+        ...staticFields,
+        dynamic_fields: dynamicFields,
+        remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
+      });
+
+      showToast('Task created successfully!');
+      // Optionally redirect or reset form
+      setTimeout(() => {
+        window.location.href = '/ca/tasks';
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to create task. ' + (err.response?.data?.message || ''));
+    }
   };
+
+  // Fetch options for static fields
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [clientsRes, workTypesRes, staffRes, statusesRes] = await Promise.all([
+          api.get('/ca/clients?per_page=-1'),
+          api.get('/ca/work-types'),
+          api.get('/ca/staff?per_page=-1'),
+          api.get('/task-statuses')
+        ]);
+
+        setFormSchema(prev => prev.map(field => {
+          if (field.id === 'static_client_name') {
+            return { ...field, options: clientsRes.data.data.map(c => ({ value: c.id, label: c.name })) };
+          }
+          if (field.id === 'static_work_type') {
+            return { ...field, options: workTypesRes.data.data.map(w => ({ value: w.id, label: w.name })) };
+          }
+          if (field.id === 'static_allocated_to') {
+            return { ...field, options: staffRes.data.data.map(s => ({ value: s.id, label: s.name })) };
+          }
+          if (field.id === 'static_status') {
+            return { ...field, options: statusesRes.data.data.map(s => ({ value: s.value, label: s.label })) };
+          }
+          return field;
+        }));
+      } catch (err) {
+        console.error('Error fetching options:', err);
+        showToast('Error loading form options');
+      }
+    };
+
+    fetchOptions();
+  }, []);
 
   useEffect(() => {
     if (viewMode === 'builder' && fieldsContainerRef.current) {
@@ -389,8 +474,10 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
       <div className={`flex items-start justify-between mb-3 ${!isLive ? 'pr-10' : ''}`}>
         <div className="flex-1">
           <div className="flex items-center gap-1">
-            {isLive ? (
-              <span className="text-sm font-bold text-slate-700">{field.label}</span>
+            {isLive || field.static ? (
+              <span className={`text-sm font-bold ${field.static ? 'text-indigo-600' : 'text-slate-700'}`}>
+                {field.label}
+              </span>
             ) : (
               <input
                 type="text"
@@ -409,19 +496,25 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
             {field.required && <span className="required-star" title="Required">*</span>}
           </div>
           {!isLive && (
-            <input
-              type="text"
-              value={field.placeholder}
-              onFocus={(e) => {
-                if (!field.placeholderTouched) {
-                  onUpdate('placeholder', '');
-                  onUpdate('placeholderTouched', true);
-                }
-              }}
-              onChange={(e) => onUpdate('placeholder', e.target.value)}
-              className="input-placeholder"
-              placeholder="Custom Placeholder..."
-            />
+            field.static ? (
+              <span className="text-xs text-slate-400 font-medium block mt-1 italic">
+                {field.placeholder} (System Field)
+              </span>
+            ) : (
+              <input
+                type="text"
+                value={field.placeholder}
+                onFocus={(e) => {
+                  if (!field.placeholderTouched) {
+                    onUpdate('placeholder', '');
+                    onUpdate('placeholderTouched', true);
+                  }
+                }}
+                onChange={(e) => onUpdate('placeholder', e.target.value)}
+                className="input-placeholder"
+                placeholder="Custom Placeholder..."
+              />
+            )
           )}
           {field.error && (
             <p className="text-[11px] text-rose-500 font-bold mt-2 flex items-center gap-1">
@@ -434,11 +527,12 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full scale-90 sm:scale-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Required</span>
-              <label className="toggle-switch">
+              <label className={`toggle-switch ${field.static ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input
                   type="checkbox"
                   checked={field.required}
-                  onChange={(e) => onUpdate('required', e.target.checked)}
+                  onChange={(e) => !field.static && onUpdate('required', e.target.checked)}
+                  disabled={field.static}
                 />
                 <span className="slider"></span>
               </label>
@@ -460,7 +554,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
         <FieldInput field={field} onUpdate={onUpdate} calculateAutoProgress={calculateAutoProgress} isLive={isLive} />
       </div>
 
-      {isActive && (field.type === 'dropdown' || field.type === 'labels') && (
+      {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels') && (
         <FieldSettings field={field} onUpdate={onUpdate} />
       )}
     </div>
@@ -480,7 +574,11 @@ function FieldInput({ field, onUpdate, calculateAutoProgress }) {
         <div className="relative">
           <select value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={`${baseClass} appearance-none`}>
             <option value="">{field.placeholder}</option>
-            {field.options.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+            {field.options.map((opt, i) => {
+              const val = typeof opt === 'object' ? opt.value : opt;
+              const lbl = typeof opt === 'object' ? opt.label : opt;
+              return <option key={i} value={val}>{lbl}</option>;
+            })}
           </select>
           <ChevronDown className="absolute right-4 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
         </div>

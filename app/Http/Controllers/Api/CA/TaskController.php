@@ -39,6 +39,8 @@ class TaskController extends Controller
 
     public function store(StoreTaskRequest $request): JsonResponse
     {
+        $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Assigned;
+
         $task = Task::create([
             'client_id' => $request->client_id,
             'work_type_id' => $request->work_type_id,
@@ -46,15 +48,16 @@ class TaskController extends Controller
             'allocated_to' => $request->allocated_to,
             'created_by' => $request->user()->id,
             'date_allocated' => $request->date_allocated,
-            'status' => TaskStatus::Assigned,
+            'status' => $status,
             'remarks' => $request->remarks,
+            'dynamic_fields' => $request->dynamic_fields,
         ]);
 
         TaskLog::create([
             'task_id' => $task->id,
             'changed_by' => $request->user()->id,
             'old_status' => null,
-            'new_status' => TaskStatus::Assigned->value,
+            'new_status' => $status->value,
             'remarks' => 'Task created and assigned.',
         ]);
 

@@ -23,8 +23,10 @@ class ClientController extends Controller
                 $q->where('name', 'like', '%' . $request->search . '%')
                     ->orWhere('contact', 'like', '%' . $request->search . '%');
             }))
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+            ->latest();
+
+        $perPage = $request->get('per_page', 15);
+        $clients = $perPage == -1 ? $clients->get() : $clients->paginate($perPage);
 
         return ClientResource::collection($clients);
     }
