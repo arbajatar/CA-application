@@ -20,7 +20,7 @@
 
 @layer components {
   .form-card {
-    @apply bg-white rounded-radius border border-border shadow-sm mb-5 p-6 transition-all duration-200 relative;
+    @apply bg-white rounded-radius border border-border shadow-sm mb-2.5 p-3.5 transition-all duration-200 relative;
   }
   .form-card:hover {
     @apply border-slate-300;
@@ -37,7 +37,7 @@
   }
 
   .field-btn {
-    @apply flex items-center gap-3 p-2.5 mb-2 rounded-xl border border-transparent bg-background cursor-grab transition-all duration-200 w-full text-left;
+    @apply flex items-center gap-2.5 p-2 mb-1.5 rounded-xl border border-transparent bg-background cursor-grab transition-all duration-200 w-full text-left;
   }
   .field-btn:hover {
     @apply bg-white border-primary shadow-sm;
@@ -76,7 +76,7 @@
   }
 
   .create-btn {
-    @apply w-full p-4.5 bg-primary text-white font-bold rounded-[14px] shadow-lg shadow-indigo-200 transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 mt-4;
+    @apply w-fit px-8 py-2.5 bg-primary text-white text-sm font-bold rounded-xl shadow-md shadow-indigo-100 transition-all duration-200 hover:bg-primary-hover hover:-translate-y-0.5 mt-2;
   }
 
   .landing-btn {
@@ -100,13 +100,18 @@
   }
 
   .main-grid {
-    @apply flex flex-col lg:flex-row gap-8 items-start w-full;
+    @apply flex flex-col lg:flex-row gap-6 items-start w-full;
   }
   .form-container {
-    @apply flex-1 min-w-0;
+    @apply flex-1 min-w-0 lg:overflow-y-auto lg:pr-3 lg:pb-12;
+    @media (min-width: 1024px) {
+      max-height: calc(100vh - 140px);
+    }
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
   }
   .sidebar-container {
-    @apply w-full lg:w-80 flex-shrink-0;
+    @apply w-full lg:w-72 flex-shrink-0 relative;
   }
   .compact-grid {
     @apply grid grid-cols-2 sm:grid-cols-3 gap-3;
@@ -123,11 +128,19 @@
   }
 
   .sidebar-card {
-    @apply bg-white rounded-radius border border-border shadow-sm p-6 sticky top-8;
+    @apply bg-white rounded-radius border border-border shadow-sm p-4 sticky top-4 z-10 flex flex-col;
+    @media (min-width: 1024px) {
+      max-height: calc(100vh - 140px);
+    }
+  }
+  #fieldsList {
+    @apply overflow-y-auto pr-1 pb-8 flex-1;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
   }
 
   .field-preview-area {
-    @apply bg-slate-50/50 border border-slate-100 p-4 sm:p-5 rounded-2xl transition-all;
+    @apply bg-slate-50/50 border border-slate-100 p-2.5 sm:p-3 rounded-xl transition-all;
   }
 
   .required-star {

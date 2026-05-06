@@ -16,7 +16,77 @@ const IconMap = {
 
 export default function TaskBuilderPage() {
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
-  const [formSchema, setFormSchema] = useState([]);
+  const [formSchema, setFormSchema] = useState([
+    {
+      id: 'static_client_name',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#3b82f6',
+      label: 'Client Name',
+      placeholder: 'Select client name...',
+      options: ['Client 1', 'Client 2'],
+      value: '',
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
+      id: 'static_work_type',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#3b82f6',
+      label: 'Work Type',
+      placeholder: 'Select work type...',
+      options: ['Audit', 'Taxation', 'Accounting'],
+      value: '',
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
+      id: 'static_allocated_to',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#3b82f6',
+      label: 'Allocated To',
+      placeholder: 'Select person...',
+      options: ['Staff A', 'Staff B'],
+      value: '',
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
+      id: 'static_allocated_date',
+      type: 'date',
+      icon: 'Calendar',
+      color: '#ec4899',
+      label: 'Allocated Date',
+      placeholder: 'Select date...',
+      value: new Date().toISOString().split('T')[0],
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
+      id: 'static_status',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'Status',
+      placeholder: 'Select status...',
+      options: ['Assigned', 'In Progress', 'Awaiting Information', 'Completed'],
+      value: 'Assigned',
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    }
+  ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
@@ -41,7 +111,9 @@ export default function TaskBuilderPage() {
       value: type.id === 'labels' ? [] : (type.id === 'progress_manual' ? 50 : (type.id === 'phone' ? '+91 ' : '')),
       options: (type.id === 'dropdown' || type.id === 'labels') ? ['Option 1', 'Option 2'] : [],
       required: false,
-      error: ''
+      error: '',
+      labelTouched: false,
+      placeholderTouched: false
     };
 
     setFormSchema(prev => {
@@ -175,11 +247,11 @@ export default function TaskBuilderPage() {
     <div className="w-full">
       {/* Workspace View */}
       {viewMode !== 'initial' && (
-        <div className="w-full py-4 lg:py-6">
+        <div className="w-full">
           <div className="main-grid">
             {/* Form Area */}
             <div className="form-container">
-              <div className="mb-10 flex justify-between items-center">
+              <div className="mb-4 flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                     {viewMode === 'live' ? 'Active Task Form' : 'Task Builder'}
@@ -221,9 +293,9 @@ export default function TaskBuilderPage() {
               )}
 
               {formSchema.length > 0 && (
-                <div className="mt-8">
+                <div className="mt-2 flex justify-start">
                   <button onClick={submitForm} className="create-btn">
-                    {viewMode === 'builder' ? 'Create Task' : 'Submit Completed Form'}
+                    {viewMode === 'builder' ? 'Create Task' : 'Submit Form'}
                   </button>
                 </div>
               )}
@@ -314,7 +386,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
         </div>
       )}
 
-      <div className={`flex items-start justify-between mb-6 ${!isLive ? 'pr-10' : ''}`}>
+      <div className={`flex items-start justify-between mb-3 ${!isLive ? 'pr-10' : ''}`}>
         <div className="flex-1">
           <div className="flex items-center gap-1">
             {isLive ? (
@@ -323,6 +395,12 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
               <input
                 type="text"
                 value={field.label}
+                onFocus={(e) => {
+                  if (!field.labelTouched) {
+                    onUpdate('label', '');
+                    onUpdate('labelTouched', true);
+                  }
+                }}
                 onChange={(e) => onUpdate('label', e.target.value)}
                 className="input-label"
                 placeholder="Field Label"
@@ -334,6 +412,12 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
             <input
               type="text"
               value={field.placeholder}
+              onFocus={(e) => {
+                if (!field.placeholderTouched) {
+                  onUpdate('placeholder', '');
+                  onUpdate('placeholderTouched', true);
+                }
+              }}
               onChange={(e) => onUpdate('placeholder', e.target.value)}
               className="input-placeholder"
               placeholder="Custom Placeholder..."
@@ -359,9 +443,11 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
                 <span className="slider"></span>
               </label>
             </div>
-            <button onClick={onRemove} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition">
-              <Trash2 className="w-4.5 h-4.5" />
-            </button>
+            {!field.static && (
+              <button onClick={onRemove} className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition">
+                <Trash2 className="w-4.5 h-4.5" />
+              </button>
+            )}
           </div>
         ) : (
           <button onClick={onRemove} className="p-2 text-slate-200 hover:text-rose-500 transition">
@@ -370,7 +456,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
         )}
       </div>
 
-      <div className={`field-preview-area ${isLive ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100'} p-4 sm:p-5 rounded-2xl border`}>
+      <div className={`field-preview-area ${isLive ? 'bg-white border-slate-200' : 'bg-slate-50/50 border-slate-100'} p-2.5 sm:p-3 rounded-xl border`}>
         <FieldInput field={field} onUpdate={onUpdate} calculateAutoProgress={calculateAutoProgress} isLive={isLive} />
       </div>
 
