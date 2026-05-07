@@ -226,30 +226,30 @@ export default function TasksPage() {
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 {/* Filters */}
-                <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
-                    <div className="relative flex-1 min-w-[200px]">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
+                    <div className="relative w-full lg:flex-1">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search tasks..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
+                            className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
                         <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
+                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
                             {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                         <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
                             <option value="">All Clients</option>
                             {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                         <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
                             <option value="">All Staff</option>
                             {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                         <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
-                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
                             <option value="">All Work Types</option>
                             {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>

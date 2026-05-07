@@ -3,11 +3,13 @@ import {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
-  CheckCircle, Clock, Check, ChevronLeft, ChevronRight
+  CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
+  Search
 } from 'lucide-react';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
+import Modal from '../../components/ui/Modal';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import '../../styles/task-builder.css';
 
@@ -17,6 +19,98 @@ const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
   CheckSquare, Zap, Mail, Phone, Sliders, Clock
 };
+
+function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => {
+    const label = typeof opt === 'object' ? opt.label : opt;
+    return label?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const selectedOption = options.find(opt => {
+    const val = typeof opt === 'object' ? opt.value : opt;
+    return val === value;
+  });
+
+  const getLabel = (opt) => typeof opt === 'object' ? opt.label : opt;
+  const getValue = (opt) => typeof opt === 'object' ? opt.value : opt;
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}>
+          {selectedOption ? getLabel(selectedOption) : placeholder}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="p-2 border-b border-slate-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-0"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <div
+                  key={getValue(opt)}
+                  className={`px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer transition ${value === getValue(opt) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
+                  onClick={() => {
+                    onChange(getValue(opt));
+                    setIsOpen(false);
+                  }}
+                >
+                  {getLabel(opt)}
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No results found</div>
+            )}
+            
+            <div 
+              className="p-2 border-t border-slate-50 bg-slate-50/50"
+              onClick={() => {
+                onAddNew(search);
+                setIsOpen(false);
+              }}
+            >
+              <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-800 hover:text-slate-950 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition active:scale-95">
+                <PlusCircle className="w-4 h-4 text-slate-900" />
+                {addNewLabel} {search && <span className="text-slate-400 font-normal">"{search}"</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TaskBuilderPage() {
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
@@ -28,7 +122,7 @@ export default function TaskBuilderPage() {
       color: '#3b82f6',
       label: 'Client Name',
       placeholder: 'Select client name...',
-      options: ['Client 1', 'Client 2'],
+      options: [],
       value: '',
       required: true,
       static: true,
@@ -42,7 +136,7 @@ export default function TaskBuilderPage() {
       color: '#3b82f6',
       label: 'Work Type',
       placeholder: 'Select work type...',
-      options: ['Audit', 'Taxation', 'Accounting'],
+      options: [],
       value: '',
       required: true,
       static: true,
@@ -105,9 +199,20 @@ export default function TaskBuilderPage() {
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toast, setToast] = useState({ show: false, message: '' });
+
+  // Client Modal States
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [clientForm, setClientForm] = useState({ name: '', contact: '', gst_number: '', status: 'active' });
+  const [savingClient, setSavingClient] = useState(false);
+  const [clientErrors, setClientErrors] = useState({});
+
+  // Work Type Modal States
+  const [addWorkTypeOpen, setAddWorkTypeOpen] = useState(false);
+  const [workTypeName, setWorkTypeName] = useState('');
+  const [workTypeError, setWorkTypeError] = useState('');
+  const [savingWorkType, setSavingWorkType] = useState(false);
 
   const fieldsContainerRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -143,6 +248,11 @@ export default function TaskBuilderPage() {
 
     setActiveFieldId(id);
     showToast(`${type.name} added`);
+    
+    // Auto-close sidebar on mobile after adding field
+    if (window.innerWidth <= 1024) {
+      setIsSidebarOpen(false);
+    }
   };
 
   const removeField = (id) => {
@@ -256,6 +366,54 @@ export default function TaskBuilderPage() {
     }
   };
 
+  const fetchClients = async (selectNewId = null) => {
+    try {
+      const res = await api.get('/ca/clients?per_page=-1');
+      const options = res.data.data.map(c => ({ value: c.id, label: c.name }));
+      setFormSchema(prev => prev.map(field => {
+        if (field.id === 'static_client_name') {
+          return { ...field, options, value: selectNewId !== null ? selectNewId : field.value };
+        }
+        return field;
+      }));
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchWorkTypes = async (selectNewId = null) => {
+    try {
+      const res = await api.get('/ca/work-types');
+      const options = res.data.data.map(w => ({ value: w.id, label: w.name }));
+      setFormSchema(prev => prev.map(field => {
+        if (field.id === 'static_work_type') {
+          return { ...field, options, value: selectNewId !== null ? selectNewId : field.value };
+        }
+        return field;
+      }));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSaveClient = async () => {
+    setSavingClient(true); setClientErrors({});
+    try {
+      const res = await api.post('/ca/clients', clientForm);
+      setAddClientOpen(false);
+      showToast('Client added successfully');
+      await fetchClients(res.data.data.id);
+    } catch (e) { setClientErrors(e.response?.data?.errors ?? {}); }
+    finally { setSavingClient(false); }
+  };
+
+  const handleSaveWorkType = async () => {
+    setSavingWorkType(true); setWorkTypeError('');
+    try {
+      const res = await api.post('/ca/work-types', { name: workTypeName });
+      setAddWorkTypeOpen(false);
+      showToast('Work Type added successfully');
+      await fetchWorkTypes(res.data.data.id);
+    } catch (e) { setWorkTypeError(e.response?.data?.errors?.name?.[0] ?? 'Error saving work type'); }
+    finally { setSavingWorkType(false); }
+  };
+
   // Fetch options for static fields
   useEffect(() => {
     const fetchOptions = async () => {
@@ -337,36 +495,63 @@ export default function TaskBuilderPage() {
           <div className="main-grid">
             {/* Form Area */}
             <div className="form-container">
-              <div className="mb-3 flex justify-between items-center">
-                <div>
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+              <div className="sticky top-[65px] lg:relative lg:top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-md lg:backdrop-blur-none py-3 mb-3 flex justify-between items-center -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-slate-200 lg:border-none">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
                     {viewMode === 'live' ? 'Active Task Form' : 'Task Builder'}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                  <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
                     {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom task entry form below.'}
                   </p>
                 </div>
-                {viewMode === 'live' && (
-                  <button onClick={() => setViewMode('builder')} className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200 transition">
-                    Edit Layout
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {viewMode === 'live' ? (
+                    <button 
+                      onClick={() => setViewMode('builder')} 
+                      className="whitespace-nowrap px-4 py-2 bg-slate-500 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition shadow-lg shadow-slate-200"
+                    >
+                      Edit Layout
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all duration-300 border shadow-sm ${
+                        isSidebarOpen 
+                          ? 'bg-slate-900 border-slate-900 text-white shadow-slate-200' 
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Sliders className={`w-4 h-4 ${isSidebarOpen ? 'text-slate-300' : 'text-slate-500'}`} />
+                      <span className="text-[13px] font-bold tracking-tight whitespace-nowrap">
+                        {isSidebarOpen ? 'Hide Panel' : 'Fields'}
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Flat form section */}
               <div className="form-section">
                 <div ref={fieldsContainerRef} id="fieldsContainer">
                   {formSchema.map((field) => (
-                    <FormCard
-                      key={field.id}
-                      field={field}
-                      viewMode={viewMode}
-                      isActive={activeFieldId === field.id && viewMode === 'builder'}
-                      onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
-                      onUpdate={(key, val) => updateField(field.id, key, val)}
-                      onRemove={() => removeField(field.id)}
-                      calculateAutoProgress={calculateAutoProgress}
-                    />
+                      <FormCard
+                        key={field.id}
+                        field={field}
+                        viewMode={viewMode}
+                        isActive={activeFieldId === field.id && viewMode === 'builder'}
+                        onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
+                        onUpdate={(key, val) => updateField(field.id, key, val)}
+                        onRemove={() => removeField(field.id)}
+                        calculateAutoProgress={calculateAutoProgress}
+                        modalActions={{
+                          setAddClientOpen,
+                          setClientForm,
+                          setClientErrors,
+                          setAddWorkTypeOpen,
+                          setWorkTypeName,
+                          setWorkTypeError
+                        }}
+                      />
                   ))}
                 </div>
               </div>
@@ -390,25 +575,30 @@ export default function TaskBuilderPage() {
               )}
             </div>
 
-            {/* Desktop Sidebar */}
+            {/* Responsive Sidebar */}
             {viewMode === 'builder' && (
-              <aside className={`hidden lg:flex flex-col sidebar-container transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-16'}`}>
-                <div className={`sidebar-card h-full transition-colors duration-300 ${!isSidebarOpen ? 'bg-slate-100 border-slate-200 shadow-none' : 'bg-white'}`}>
+              <aside className={`flex flex-col sidebar-container transition-all duration-300 ${isSidebarOpen ? 'w-52 lg:w-64 fixed lg:relative top-[65px] lg:top-0 bottom-0 right-0 z-50 lg:z-0 bg-white/40 lg:bg-transparent backdrop-blur-xl lg:backdrop-blur-none shadow-2xl lg:shadow-none' : 'w-0 lg:w-16 overflow-hidden lg:overflow-visible'}`}>
+                <div className={`sidebar-card h-full transition-colors duration-300 ${!isSidebarOpen ? 'bg-slate-100 border-slate-200 shadow-none' : ''}`}>
                   {/* Sidebar Header with Toggle */}
-                  <div className={`flex items-center border-b border-slate-200/60 py-2 px-3 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+                  <div className={`flex items-center border-b border-slate-200/60 py-5 lg:py-2 px-5 lg:px-3 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
                     {isSidebarOpen && (
-                      <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Available Fields</h3>
+                      <div className="flex items-center justify-between w-full lg:w-auto gap-2">
+                        <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Fields</h3>
+                        <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     )}
                     <button
                       onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                      className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition"
+                      className={`hidden lg:flex p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition`}
                       title={isSidebarOpen ? 'Collapse panel' : 'Expand panel'}
                     >
                       {isSidebarOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                     </button>
                   </div>
                   {/* Field list */}
-                  <div ref={sidebarRef} id="fieldsList" className={`${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : ''}`}>
+                  <div ref={sidebarRef} id="fieldsList" className={`p-5 lg:p-3 ${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : 'space-y-2'}`}>
                     {FIELD_TYPES.map(type => (
                       <div
                         key={type.id}
@@ -436,33 +626,12 @@ export default function TaskBuilderPage() {
         </div>
       )}
 
-      {/* Mobile Floating Button */}
-      {viewMode === 'builder' && (
-        <button onClick={() => setIsMobileSheetOpen(true)} className="fab">
-          <Plus className="w-7 h-7" />
-        </button>
-      )}
-
-      {/* Mobile Bottom Sheet */}
-      {isMobileSheetOpen && (
-        <div className="bottom-sheet" onClick={(e) => e.target === e.currentTarget && setIsMobileSheetOpen(false)}>
-          <div className="bottom-sheet-content">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-extrabold text-slate-900">Add Field</h3>
-              <button onClick={() => setIsMobileSheetOpen(false)} className="p-2 bg-slate-100 rounded-full"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="compact-grid">
-              {FIELD_TYPES.map(type => (
-                <div key={type.id} className="mobile-field-item" onClick={() => { addField(type); setIsMobileSheetOpen(false); }}>
-                  <div className="mobile-field-icon" style={{ color: type.color }}>
-                    {React.createElement(IconMap[type.icon], { size: 20 })}
-                  </div>
-                  <span className="mobile-field-text">{type.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* Mobile Backdrop - Transparent click-outside area */}
+      {isSidebarOpen && window.innerWidth <= 1024 && (
+        <div 
+          className="fixed top-[65px] inset-x-0 bottom-0 z-[40] transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
       )}
 
       {/* Toast Notification */}
@@ -472,11 +641,49 @@ export default function TaskBuilderPage() {
           <span className="text-sm font-bold">{toast.message}</span>
         </div>
       </div>
+
+      {/* Add New Client Modal */}
+      <Modal open={addClientOpen} onClose={() => setAddClientOpen(false)} title="Add New Client">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Client Name *</label>
+            <input type="text" value={clientForm.name} onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter client name" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+            {clientErrors.name && <p className="text-xs text-red-500">{clientErrors.name[0]}</p>}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Number</label>
+            <input type="text" value={clientForm.contact} onChange={e => setClientForm(f => ({ ...f, contact: e.target.value }))} placeholder="e.g. 9876543210" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GST Number</label>
+            <input type="text" value={clientForm.gst_number} onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setAddClientOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+            <button onClick={handleSaveClient} disabled={savingClient} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{savingClient ? 'Saving...' : 'Save Client'}</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add New Work Type Modal */}
+      <Modal open={addWorkTypeOpen} onClose={() => setAddWorkTypeOpen(false)} title="Add Work Type" width="max-w-sm">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Work Type Name *</label>
+            <input type="text" value={workTypeName} onChange={e => setWorkTypeName(e.target.value)} placeholder="e.g. Income Tax Return" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+            {workTypeError && <p className="text-xs text-red-500">{workTypeError}</p>}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setAddWorkTypeOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+            <button onClick={handleSaveWorkType} disabled={savingWorkType} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{savingWorkType ? 'Saving...' : 'Save'}</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, calculateAutoProgress }) {
+function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, calculateAutoProgress, modalActions }) {
   const isLive = viewMode === 'live';
 
   return (
@@ -494,9 +701,9 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
 
         {/* Label + placeholder */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 w-fit max-w-full">
             {isLive || field.static ? (
-              <span className={`text-sm font-semibold ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
+              <span className={`text-sm font-semibold whitespace-nowrap ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
                 {field.label}
               </span>
             ) : (
@@ -505,11 +712,12 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
                 value={field.label}
                 onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
                 onChange={(e) => onUpdate('label', e.target.value)}
-                className="input-label"
+                className="input-label !w-auto min-w-[50px]"
                 placeholder="Field Label"
+                size={Math.max(field.label.length || 0, 10)}
               />
             )}
-            {field.required && <span className="required-star" title="Required">*</span>}
+            {field.required && <span className="required-star shrink-0" title="Required">*</span>}
           </div>
           {!isLive && (
             field.static ? (
@@ -558,7 +766,13 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
 
       {/* Field input */}
       <div className="field-preview-area">
-        <FieldInput field={field} onUpdate={onUpdate} calculateAutoProgress={calculateAutoProgress} isLive={isLive} />
+        <FieldInput 
+          field={field} 
+          onUpdate={onUpdate} 
+          calculateAutoProgress={calculateAutoProgress} 
+          isLive={isLive} 
+          modalActions={modalActions}
+        />
       </div>
 
       {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels') && (
@@ -568,7 +782,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
   );
 }
 
-function FieldInput({ field, onUpdate, calculateAutoProgress }) {
+function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
   const baseClass = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-slate-800 focus:ring-4 focus:ring-slate-200/50 transition-all";
 
   switch (field.type) {
@@ -577,6 +791,29 @@ function FieldInput({ field, onUpdate, calculateAutoProgress }) {
     case 'longtext':
       return <textarea value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} rows="3" placeholder={field.placeholder} />;
     case 'dropdown':
+      if (field.id === 'static_client_name' || field.id === 'static_work_type') {
+        const isClient = field.id === 'static_client_name';
+        return (
+          <SearchableSelect
+            value={field.value}
+            options={field.options}
+            placeholder={field.placeholder}
+            onChange={(val) => onUpdate('value', val)}
+            addNewLabel={isClient ? "Add New Client" : "Add New Type"}
+            onAddNew={(search) => {
+              if (isClient) {
+                modalActions.setClientForm({ name: search, contact: '', gst_number: '', status: 'active' });
+                modalActions.setClientErrors({});
+                modalActions.setAddClientOpen(true);
+              } else {
+                modalActions.setWorkTypeName(search);
+                modalActions.setWorkTypeError('');
+                modalActions.setAddWorkTypeOpen(true);
+              }
+            }}
+          />
+        );
+      }
       return (
         <div className="relative">
           <select value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={`${baseClass} appearance-none`}>
