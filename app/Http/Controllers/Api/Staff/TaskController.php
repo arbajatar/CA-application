@@ -13,10 +13,10 @@ use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
-        $tasks = Task::with(['client', 'workType', 'assignedTo'])
-            ->forStaff($request->user()->id)
+        $tasks = $request->user()->assignedTasks()
+            ->with(['client', 'workType', 'assignedTo'])
             ->when(
                 $request->filled('status'),
                 fn($q) =>
@@ -40,7 +40,7 @@ class TaskController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 15));
 
-        return response()->json(TaskResource::collection($tasks));
+        return TaskResource::collection($tasks);
     }
 
     public function show(Request $request, Task $task): JsonResponse
