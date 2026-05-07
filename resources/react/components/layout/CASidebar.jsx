@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
     { to: '/ca/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -13,8 +15,10 @@ const navItems = [
 export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
     const { logout } = useAuth()
     const navigate = useNavigate()
+    const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
 
     const handleLogout = async () => {
+        setLogoutConfirmOpen(false)
         await logout()
         navigate('/login')
         setIsMobileOpen?.(false)
@@ -80,7 +84,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
             {/* Logout */}
             <div className={`px-4 py-6 border-t border-gray-100 flex ${isOpen ? '' : 'justify-center'}`}>
                 <button
-                    onClick={handleLogout}
+                    onClick={() => setLogoutConfirmOpen(true)}
                     className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
                     title={!isOpen ? "Sign Out" : undefined}
                 >
@@ -88,6 +92,16 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                     {(isOpen || (isMobileOpen && window.innerWidth < 1024)) && <span className="whitespace-nowrap">Sign Out</span>}
                 </button>
             </div>
+
+            <ConfirmDialog
+                open={logoutConfirmOpen}
+                onClose={() => setLogoutConfirmOpen(false)}
+                onConfirm={handleLogout}
+                title="Sign Out"
+                message="Are you sure you want to sign out of your account?"
+                confirmLabel="Sign Out"
+                danger
+            />
         </aside>
     )
 }

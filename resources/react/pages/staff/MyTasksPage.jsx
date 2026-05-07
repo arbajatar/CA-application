@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Activity, Info, CheckCircle, Search } from 'lucide-react'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -40,6 +40,8 @@ export default function MyTasksPage() {
     const [remark, setRemark] = useState('')
     const [saving, setSaving] = useState(false)
     const [updateError, setUpdateError] = useState('')
+    const [viewOpen, setViewOpen] = useState(false)
+    const [viewLoading, setViewLoading] = useState(false)
 
     const fetchSummary = async () => {
         const res = await api.get('/staff/dashboard')
@@ -76,6 +78,18 @@ export default function MyTasksPage() {
         setRemark('')
         setUpdateError('')
         setUpdateOpen(true)
+    }
+
+    const openView = async (task) => {
+        setSelected(task)
+        setViewOpen(true)
+        setViewLoading(true)
+        try {
+            const res = await api.get(`/staff/tasks/${task.id}`)
+            setSelected(res.data.data)
+        } finally {
+            setViewLoading(false)
+        }
     }
 
     const handleUpdateStatus = async () => {
@@ -174,16 +188,21 @@ export default function MyTasksPage() {
                                                 {t.remarks ?? '—'}
                                             </td>
                                             <td className="px-6 py-4">
-                                                {t.status === 'completed' ? (
-                                                    <span className="text-xs text-gray-400">{t.date_completed}</span>
-                                                ) : canUpdate ? (
-                                                    <button
-                                                        onClick={() => openUpdate(t)}
-                                                        className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
-                                                    >
-                                                        Update
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition" title="View Details">
+                                                        <Eye size={15} />
                                                     </button>
-                                                ) : null}
+                                                    {t.status === 'completed' ? (
+                                                        <span className="text-xs text-gray-400">{t.date_completed}</span>
+                                                    ) : canUpdate ? (
+                                                        <button
+                                                            onClick={() => openUpdate(t)}
+                                                            className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
+                                                        >
+                                                            Update
+                                                        </button>
+                                                    ) : null}
+                                                </div>
                                             </td>
                                         </tr>
                                     )
@@ -292,6 +311,67 @@ export default function MyTasksPage() {
                             </button>
                         </div>
                     </div>
+                )}
+            </Modal>
+
+            {/* View Modal */}
+            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Task Details" width="max-w-3xl">
+                {selected && (
+                    viewLoading ? <Spinner /> : (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Client</h4>
+                                    <p className="text-sm font-bold text-gray-900">{selected.client.name}</p>
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Work Type</h4>
+                                    <p className="text-sm font-bold text-gray-900">{selected.work_type.name}</p>
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
+                                    <StatusBadge status={selected.status} />
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
+                                    <p className="text-sm font-bold text-gray-900">{selected.date_inward}</p>
+                                </div>
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation Date</h4>
+                                    <p className="text-sm font-bold text-gray-900">{selected.date_allocated}</p>
+                                </div>
+                                {selected.date_completed && (
+                                    <div>
+                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completion Date</h4>
+                                        <p className="text-sm font-bold text-gray-900">{selected.date_completed}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {selected.remarks && (
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Remarks</h4>
+                                    <p className="text-sm text-gray-600 leading-relaxed">{selected.remarks}</p>
+                                </div>
+                            )}
+
+                            {selected.dynamic_fields && Object.keys(selected.dynamic_fields).length > 0 && (
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Custom Fields Information</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {Object.entries(selected.dynamic_fields).map(([key, val]) => (
+                                            <div key={key} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
+                                                <p className="text-sm font-semibold text-gray-800">
+                                                    {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || '—')}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
                 )}
             </Modal>
         </div>
