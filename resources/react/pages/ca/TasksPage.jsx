@@ -38,15 +38,11 @@ export default function TasksPage() {
     const [workTypeId, setWorkTypeId] = useState('')
     const [page, setPage] = useState(1)
 
-    const [addOpen, setAddOpen] = useState(false)
-    const [editOpen, setEditOpen] = useState(false)
     const [reassignOpen, setReassignOpen] = useState(false)
-    const [viewOpen, setViewOpen] = useState(false)
     const [deleteOpen, setDeleteOpen] = useState(false)
     const [selected, setSelected] = useState(null)
     const [form, setForm] = useState(EMPTY_FORM)
     const [saving, setSaving] = useState(false)
-    const [viewLoading, setViewLoading] = useState(false)
     const [errors, setErrors] = useState({})
 
     const fetchDropdowns = async () => {
@@ -89,25 +85,6 @@ export default function TasksPage() {
 
     useEffect(() => { fetchTasks() }, [fetchTasks])
 
-    const handleAdd = async () => {
-        setSaving(true); setErrors({})
-        try {
-            await api.post('/ca/tasks', form)
-            setAddOpen(false); setForm(EMPTY_FORM); fetchTasks()
-        } catch (e) {
-            setErrors(e.response?.data?.errors ?? {})
-        } finally { setSaving(false) }
-    }
-
-    const handleEdit = async () => {
-        setSaving(true); setErrors({})
-        try {
-            await api.put(`/ca/tasks/${selected.id}`, form)
-            setEditOpen(false); fetchTasks()
-        } catch (e) {
-            setErrors(e.response?.data?.errors ?? {})
-        } finally { setSaving(false) }
-    }
 
     const handleReassign = async () => {
         setSaving(true); setErrors({})
@@ -130,17 +107,7 @@ export default function TasksPage() {
     }
 
     const openEdit = (task) => {
-        setSelected(task)
-        setForm({
-            client_id: task.client.id,
-            work_type_id: task.work_type.id,
-            date_inward: task.date_inward,
-            allocated_to: task.allocated_to.id,
-            date_allocated: task.date_allocated,
-            remarks: task.remarks ?? '',
-        })
-        setErrors({})
-        setEditOpen(true)
+        navigate(`/ca/tasks/${task.id}`);
     }
 
     const openReassign = (task) => {
@@ -149,18 +116,8 @@ export default function TasksPage() {
         setReassignOpen(true)
     }
 
-    const openView = async (task) => {
-        setViewLoading(true)
-        try {
-            const res = await api.get(`/ca/tasks/${task.id}`)
-            setSelected(res.data.data)
-            setViewOpen(true)
-        } catch (e) {
-            toast.error('Failed to fetch task details')
-            console.error(e)
-        } finally {
-            setViewLoading(false)
-        }
+    const openView = (task) => {
+        navigate(`/ca/tasks/${task.id}`);
     }
 
     const Field = ({ label, error, children }) => (
@@ -173,43 +130,6 @@ export default function TasksPage() {
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
-    const TaskForm = ({ onSubmit }) => (
-        <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <Field label="Client" error={errors.client_id?.[0]}>
-                    <select value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))} className={inputCls}>
-                        <option value="">Select client</option>
-                        {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                </Field>
-                <Field label="Nature of Work" error={errors.work_type_id?.[0]}>
-                    <select value={form.work_type_id} onChange={e => setForm(f => ({ ...f, work_type_id: e.target.value }))} className={inputCls}>
-                        <option value="">Select work type</option>
-                        {workTypes?.filter(w => w.is_active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                </Field>
-                <Field label="Date of Inward" error={errors.date_inward?.[0]}>
-                    <input type="date" value={form.date_inward} onChange={e => setForm(f => ({ ...f, date_inward: e.target.value }))} className={inputCls} />
-                </Field>
-                <Field label="Allocated To" error={errors.allocated_to?.[0]}>
-                    <select value={form.allocated_to} onChange={e => setForm(f => ({ ...f, allocated_to: e.target.value }))} className={inputCls}>
-                        <option value="">Select staff</option>
-                        {staff?.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                </Field>
-                <Field label="Date of Allocation" error={errors.date_allocated?.[0]}>
-                    <input type="date" value={form.date_allocated} onChange={e => setForm(f => ({ ...f, date_allocated: e.target.value }))} className={inputCls} />
-                </Field>
-            </div>
-            <Field label="Remarks">
-                <textarea value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} rows={2} placeholder="Optional notes..." className={inputCls} />
-            </Field>
-            <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setAddOpen(false); setEditOpen(false) }} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                <button type="button" onClick={onSubmit} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Task'}</button>
-            </div>
-        </div>
-    )
 
     return (
         <div className="space-y-6">
@@ -287,7 +207,7 @@ export default function TasksPage() {
                                         <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => openView(t)} disabled={viewLoading} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
                                                     <Eye size={15} />
                                                 </button>
                                                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
@@ -315,11 +235,6 @@ export default function TasksPage() {
                     </div>
                 )}
             </div>
-
-            {/* Edit Modal */}
-            <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Task" width="max-w-2xl">
-                <TaskForm onSubmit={handleEdit} />
-            </Modal>
 
             {/* Reassign Modal */}
             <Modal open={reassignOpen} onClose={() => setReassignOpen(false)} title="Reassign Task" width="max-w-sm">
@@ -355,68 +270,6 @@ export default function TasksPage() {
                 message={`Are you sure you want to delete this task for "${selected?.client?.name}"? This action cannot be undone.`}
                 confirmLabel="Delete Task"
             />
-            {/* View Modal */}
-            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Task Details" width="max-w-3xl">
-                {selected && (
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Client</h4>
-                                <p className="text-sm font-bold text-gray-900">{selected.client.name}</p>
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Work Type</h4>
-                                <p className="text-sm font-bold text-gray-900">{selected.work_type.name}</p>
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
-                                <StatusBadge status={selected.status} />
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocated To</h4>
-                                <p className="text-sm font-bold text-gray-900">{selected.allocated_to.name}</p>
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
-                                <p className="text-sm font-bold text-gray-900">{selected.date_inward}</p>
-                            </div>
-                            <div>
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation Date</h4>
-                                <p className="text-sm font-bold text-gray-900">{selected.date_allocated}</p>
-                            </div>
-                        </div>
-
-                        {selected.remarks && (
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Remarks</h4>
-                                <p className="text-sm text-gray-600 leading-relaxed">{selected.remarks}</p>
-                            </div>
-                        )}
-
-                        {selected.dynamic_fields && Object.keys(selected.dynamic_fields).length > 0 && (
-                            <div className="space-y-4">
-                                <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Custom Fields Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {Object.entries(selected.dynamic_fields).map(([key, val]) => (
-                                        <div key={key} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
-                                            <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
-                                            <p className="text-sm font-semibold text-indigo-600">
-                                                {Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val))}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex justify-end pt-4 border-t border-gray-100">
-                            <button onClick={() => setViewOpen(false)} className="px-6 py-2 bg-[#0f1c2e] text-white text-sm font-bold rounded-xl hover:bg-[#1a2f4a] transition shadow-lg shadow-indigo-100">
-                                Close Details
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
         </div>
     )
 }

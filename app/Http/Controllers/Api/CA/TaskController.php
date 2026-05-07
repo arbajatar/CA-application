@@ -44,6 +44,7 @@ class TaskController extends Controller
         $task = Task::create([
             'client_id' => $request->client_id,
             'work_type_id' => $request->work_type_id,
+            'form_name' => $request->form_name,
             'date_inward' => $request->date_inward,
             'allocated_to' => $request->allocated_to,
             'created_by' => $request->user()->id,

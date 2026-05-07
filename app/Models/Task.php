@@ -14,6 +14,7 @@ class Task extends Model
     protected $fillable = [
         'client_id',
         'work_type_id',
+        'form_name',
         'date_inward',
         'allocated_to',
         'created_by',

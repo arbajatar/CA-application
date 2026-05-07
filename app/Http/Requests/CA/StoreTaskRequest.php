@@ -16,6 +16,7 @@ class StoreTaskRequest extends FormRequest
         return [
             'client_id' => ['required', 'exists:clients,id'],
             'work_type_id' => ['required', 'exists:work_types,id'],
+            'form_name' => ['required', 'string', 'max:255'],
             'date_inward' => ['required', 'date'],
             'allocated_to' => ['required', 'exists:users,id'],
             'date_allocated' => ['required', 'date'],

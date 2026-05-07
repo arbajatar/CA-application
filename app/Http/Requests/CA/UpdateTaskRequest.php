@@ -16,11 +16,13 @@ class UpdateTaskRequest extends FormRequest
         return [
             'client_id' => ['sometimes', 'exists:clients,id'],
             'work_type_id' => ['sometimes', 'exists:work_types,id'],
+            'form_name' => ['sometimes', 'string', 'max:255'],
             'date_inward' => ['sometimes', 'date'],
             'allocated_to' => ['sometimes', 'exists:users,id'],
             'date_allocated' => ['sometimes', 'date'],
             'date_completed' => ['nullable', 'date'],
             'remarks' => ['nullable', 'string', 'max:500'],
+            'dynamic_fields' => ['nullable', 'array'],
         ];
     }
 }

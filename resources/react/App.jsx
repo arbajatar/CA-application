@@ -17,6 +17,7 @@ import ProfilePage from './pages/staff/ProfilePage'
 import CASidebar from './components/layout/CASidebar'
 import StaffSidebar from './components/layout/StaffSidebar'
 import TaskBuilderPage from './pages/ca/TaskBuilderPage'
+import TaskDetailPage from './pages/ca/TaskDetailPage'
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -132,6 +133,11 @@ export default function App() {
           <Route path="/ca/tasks/builder" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><TaskBuilderPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/ca/tasks/:id" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><TaskDetailPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
           <Route path="/ca/clients" element={

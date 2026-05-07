@@ -19,6 +19,7 @@ class TaskResource extends JsonResource
                 'id' => $this->workType->id,
                 'name' => $this->workType->name,
             ],
+            'form_name' => $this->form_name,
             'allocated_to' => [
                 'id' => $this->assignedTo->id,
                 'name' => $this->assignedTo->name,

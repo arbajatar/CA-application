@@ -116,6 +116,19 @@ export default function TaskBuilderPage() {
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
     {
+      id: 'static_form_name',
+      type: 'text',
+      icon: 'Type',
+      color: '#6366f1',
+      label: 'Form Name',
+      placeholder: 'Enter form name...',
+      value: '',
+      required: true,
+      static: true,
+      labelTouched: false,
+      placeholderTouched: false
+    },
+    {
       id: 'static_client_name',
       type: 'dropdown',
       icon: 'ChevronDown',
@@ -333,6 +346,7 @@ export default function TaskBuilderPage() {
 
     // Prepare data for backend
     const staticFields = {
+      form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
       client_id: formSchema.find(f => f.id === 'static_client_name')?.value,
       work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
       allocated_to: formSchema.find(f => f.id === 'static_allocated_to')?.value,
