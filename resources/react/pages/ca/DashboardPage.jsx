@@ -177,14 +177,6 @@ export default function DashboardPage() {
                         >
                             {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
-                        {/* Export */}
-                        <button
-                            onClick={handleExport}
-                            className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition flex-1 sm:flex-none"
-                        >
-                            <Download size={15} />
-                            <span>Export</span>
-                        </button>
                     </div>
                 </div>
 
