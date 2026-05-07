@@ -92,24 +92,24 @@ export default function ClientsPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Client Directory</h1>
                     <p className="text-sm text-gray-400 mt-1">Manage and monitor all registered business clients.</p>
                 </div>
                 <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                    className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
+                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
                     <Plus size={16} /> Add New Client
                 </button>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
-                    <div className="relative">
+                    <div className="relative flex-1 sm:flex-none">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search clients..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-56 transition" />
+                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-56 transition" />
                     </div>
                     <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
                         className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">

@@ -68,19 +68,21 @@ export default function MyTasksPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900">My Assigned Tasks</h1>
-                <p className="text-sm text-gray-400 mt-1">Manage and update the progress of your assigned work.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">My Assigned Tasks</h1>
+                    <p className="text-sm text-gray-400 mt-1">Manage and update the progress of your assigned work.</p>
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 {/* Filters */}
                 <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
-                    <div className="relative">
+                    <div className="relative flex-1 sm:flex-none">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search tasks..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-64 transition" />
+                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-64 transition" />
                     </div>
                     <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
                         className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">

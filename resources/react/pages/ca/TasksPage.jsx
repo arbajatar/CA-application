@@ -213,45 +213,47 @@ export default function TasksPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
                     <p className="text-sm text-gray-400 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
                 <button onClick={() => navigate('/ca/tasks/builder')}
-                    className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
+                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
                     <Plus size={16} /> Create New Task
                 </button>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 {/* Filters */}
-                <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                    <div className="relative flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
+                    <div className="relative flex-1 min-w-[200px]">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search tasks..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-48 transition" />
+                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                     </div>
-                    <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0">
-                        {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                    <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
-                        <option value="">All Clients</option>
-                        {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                    <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
-                        <option value="">All Staff</option>
-                        {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                    <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-shrink-0 max-w-[150px]">
-                        <option value="">All Work Types</option>
-                        {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
+                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
+                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
+                            {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                        <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
+                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            <option value="">All Clients</option>
+                            {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
+                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            <option value="">All Staff</option>
+                            {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                        <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
+                            className="flex-1 lg:flex-none py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition lg:max-w-[150px]">
+                            <option value="">All Work Types</option>
+                            {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Table */}

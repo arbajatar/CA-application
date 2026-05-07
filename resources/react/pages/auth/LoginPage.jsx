@@ -42,8 +42,8 @@ export default function LoginPage() {
 
                 {/* Icon */}
                 <div className="flex flex-col items-center mb-8">
-                    <div className="w-16 h-16 bg-[#0f1c2e] rounded-2xl flex items-center justify-center mb-4">
-                        <ShieldCheck size={32} className="text-white" />
+                    <div className="w-24 h-24 flex items-center justify-center mb-4 overflow-hidden">
+                        <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
                     </div>
                     <h1 className="text-2xl font-bold text-gray-900">CA Management</h1>
                     <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Executive Work Suite</p>

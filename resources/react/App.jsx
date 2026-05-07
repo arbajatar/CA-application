@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { LayoutDashboard, Menu } from 'lucide-react'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
 import RoleRoute from './routes/RoleRoute'
@@ -19,20 +20,92 @@ import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <CASidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'} px-8 pt-8 pb-2 flex flex-col`}>{children}</main>
+      <CASidebar 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen} 
+        isMobileOpen={isMobileMenuOpen}
+        setIsMobileOpen={setIsMobileMenuOpen}
+      />
+      
+      {/* Overlay for mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <header className="lg:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="font-bold text-gray-900">CA Office</span>
+          </div>
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
+          >
+            <Menu size={20} />
+          </button>
+        </header>
+
+        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 flex flex-col`}>
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
 
 function StaffLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <StaffSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-      <main className={`flex-1 self-start transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'} p-8`}>{children}</main>
+      <StaffSidebar 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen} 
+        isMobileOpen={isMobileMenuOpen}
+        setIsMobileOpen={setIsMobileMenuOpen}
+      />
+
+      {/* Overlay for mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        <header className="lg:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
+            </div>
+            <span className="font-bold text-gray-900">Staff Portal</span>
+          </div>
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
+          >
+            <Menu size={20} />
+          </button>
+        </header>
+
+        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 flex flex-col`}>
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

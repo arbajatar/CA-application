@@ -155,35 +155,35 @@ export default function DashboardPage() {
 
             {/* All Tasks */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-gray-100">
-                    <h2 className="text-lg font-semibold text-gray-800">All Tasks</h2>
-                    <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-lg font-semibold text-gray-800 whitespace-nowrap">All Tasks</h2>
+                    <div className="flex flex-wrap items-center gap-3">
                         {/* Search */}
-                        <div className="relative">
+                        <div className="relative flex-1 sm:flex-none">
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
                                 placeholder="Search tasks..."
                                 value={search}
                                 onChange={e => { setSearch(e.target.value); setPage(1) }}
-                                className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-56 transition"
+                                className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-56 transition"
                             />
                         </div>
                         {/* Status filter */}
                         <select
                             value={status}
                             onChange={e => { setStatus(e.target.value); setPage(1) }}
-                            className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
+                            className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-1 sm:flex-none"
                         >
                             {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                         {/* Export */}
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                            className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition flex-1 sm:flex-none"
                         >
                             <Download size={15} />
-                            Export
+                            <span>Export</span>
                         </button>
                     </div>
                 </div>

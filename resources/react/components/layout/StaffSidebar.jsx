@@ -7,23 +7,30 @@ const navItems = [
     { to: '/staff/profile', icon: User, label: 'My Profile' },
 ]
 
-export default function StaffSidebar({ isOpen = true, setIsOpen }) {
+export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
     const { user, logout } = useAuth()
     const navigate = useNavigate()
 
     const handleLogout = async () => {
         await logout()
         navigate('/login')
+        setIsMobileOpen?.(false)
     }
 
+    const sidebarClasses = `
+        fixed top-0 left-0 h-screen bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm transition-all duration-300
+        ${isOpen ? 'w-64' : 'w-20'}
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+    `
+
     return (
-        <aside className={`fixed top-0 left-0 h-screen bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm transition-all duration-300 ${isOpen ? 'w-64' : 'w-20'}`}>
+        <aside className={sidebarClasses}>
             {/* Logo */}
             <div className={`px-4 py-6 border-b border-gray-100 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
-                {isOpen && (
+                {(isOpen || isMobileOpen) && (
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[#0f1c2e] rounded-xl flex items-center justify-center shrink-0">
-                            <ShieldCheck size={20} className="text-white" />
+                        <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
+                            <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
                         </div>
                         <div>
                             <p className="text-sm font-bold text-gray-900 whitespace-nowrap">Staff Portal</p>
@@ -32,7 +39,13 @@ export default function StaffSidebar({ isOpen = true, setIsOpen }) {
                     </div>
                 )}
                 <button 
-                    onClick={() => setIsOpen && setIsOpen(!isOpen)} 
+                    onClick={() => {
+                        if (window.innerWidth < 1024) {
+                            setIsMobileOpen?.(false)
+                        } else {
+                            setIsOpen && setIsOpen(!isOpen)
+                        }
+                    }} 
                     className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
                     title="Toggle Menu"
                 >
@@ -41,7 +54,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen }) {
             </div>
 
             {/* User card */}
-            {isOpen ? (
+            {(isOpen || isMobileOpen) ? (
                 <div className="mx-4 mt-4 p-3 bg-gray-50 rounded-xl flex items-center gap-3 shrink-0">
                     <div className="w-9 h-9 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold shrink-0">
                         {user?.name?.[0]?.toUpperCase()}
@@ -63,6 +76,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen }) {
                     <NavLink
                         key={to}
                         to={to}
+                        onClick={() => setIsMobileOpen?.(false)}
                         className={({ isActive }) =>
                             `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
                                 ? 'bg-[#0f1c2e] text-white'
@@ -72,7 +86,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen }) {
                         title={!isOpen ? label : undefined}
                     >
                         <Icon size={18} className="shrink-0" />
-                        {isOpen && <span className="whitespace-nowrap">{label}</span>}
+                        {(isOpen || (isMobileOpen && window.innerWidth < 1024)) && <span className="whitespace-nowrap">{label}</span>}
                     </NavLink>
                 ))}
             </nav>
@@ -85,7 +99,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen }) {
                     title={!isOpen ? "Sign Out" : undefined}
                 >
                     <LogOut size={18} className="shrink-0" />
-                    {isOpen && <span className="whitespace-nowrap">Sign Out</span>}
+                    {(isOpen || (isMobileOpen && window.innerWidth < 1024)) && <span className="whitespace-nowrap">Sign Out</span>}
                 </button>
             </div>
         </aside>

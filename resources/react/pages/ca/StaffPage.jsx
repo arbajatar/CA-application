@@ -79,25 +79,25 @@ export default function StaffPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Team Members</h1>
                     <p className="text-sm text-gray-400 mt-1">Manage your office staff, roles, and access credentials.</p>
                 </div>
                 <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                    className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">
+                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
                     <Plus size={16} /> Add New Member
                 </button>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                    <h2 className="text-base font-semibold text-gray-700">Staff Directory</h2>
-                    <div className="relative">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-gray-100 gap-4">
+                    <h2 className="text-base font-semibold text-gray-700 whitespace-nowrap">Staff Directory</h2>
+                    <div className="relative w-full sm:w-52">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input type="text" placeholder="Search staff..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-52 transition" />
+                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                     </div>
                 </div>
 
