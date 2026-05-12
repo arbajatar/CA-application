@@ -100,9 +100,11 @@ export default function TasksPage() {
         setSaving(true)
         try {
             await api.delete(`/ca/tasks/${selected.id}`)
-            setDeleteOpen(false); fetchTasks()
+            toast.success('Task deleted successfully')
+            setDeleteOpen(false)
+            fetchTasks()
         } catch (e) {
-            console.error('Delete failed', e)
+            toast.error(e.response?.data?.message || 'Failed to delete task')
         } finally { setSaving(false) }
     }
 
@@ -120,7 +122,7 @@ export default function TasksPage() {
         navigate(`/ca/tasks/${task.id}`);
     }
 
-    const Field = ({ label, error, children }) => (
+    const renderField = (label, error, children) => (
         <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
             {children}

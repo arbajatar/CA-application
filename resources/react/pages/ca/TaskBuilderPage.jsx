@@ -112,6 +112,100 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
   );
 }
 
+function MultiSearchableSelect({ value = [], options, placeholder, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => {
+    const label = typeof opt === 'object' ? opt.label : opt;
+    return label?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const getLabel = (opt) => typeof opt === 'object' ? opt.label : opt;
+  const getValue = (opt) => typeof opt === 'object' ? opt.value : opt;
+
+  const toggleOption = (val) => {
+    if (value.includes(val)) {
+      onChange(value.filter(v => v !== val));
+    } else {
+      onChange([...value, val]);
+    }
+  };
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex flex-wrap gap-2 items-center cursor-pointer min-h-[46px]"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {value.length > 0 ? (
+          value.map(v => {
+            const opt = options.find(o => getValue(o) === v);
+            return (
+              <span key={v} className="bg-slate-100 text-slate-800 px-2 py-1 rounded-lg text-xs font-bold border border-slate-200 flex items-center gap-1">
+                {opt ? getLabel(opt) : v}
+                <X className="w-3 h-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleOption(v); }} />
+              </span>
+            );
+          })
+        ) : (
+          <span className="text-slate-400 font-medium">{placeholder}</span>
+        )}
+        <ChevronDown className={`w-4 h-4 text-slate-400 ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="p-2 border-b border-slate-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-0"
+                placeholder="Search staff..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => {
+                const val = getValue(opt);
+                const isSelected = value.includes(val);
+                return (
+                  <div
+                    key={val}
+                    className={`px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer transition flex items-center justify-between ${isSelected ? 'bg-slate-50 text-slate-900 font-bold' : 'text-slate-600'}`}
+                    onClick={() => toggleOption(val)}
+                  >
+                    {getLabel(opt)}
+                    {isSelected && <Check className="w-4 h-4 text-slate-900" />}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No staff found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TaskBuilderPage() {
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
@@ -157,14 +251,13 @@ export default function TaskBuilderPage() {
       placeholderTouched: false
     },
     {
-      id: 'static_allocated_to',
-      type: 'dropdown',
-      icon: 'ChevronDown',
+      id: 'static_subtasks',
+      type: 'subtasks_list',
+      icon: 'PlusCircle',
       color: '#3b82f6',
-      label: 'Allocated To',
-      placeholder: 'Select person...',
-      options: ['Staff A', 'Staff B'],
-      value: '',
+      label: 'Subtasks Assignment',
+      placeholder: 'Add subtasks for staff...',
+      value: [], // Array of { title, assigned_to, priority, due_date, remarks }
       required: true,
       static: true,
       labelTouched: false,
@@ -349,11 +442,16 @@ export default function TaskBuilderPage() {
       form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
       client_id: formSchema.find(f => f.id === 'static_client_name')?.value,
       work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
-      allocated_to: formSchema.find(f => f.id === 'static_allocated_to')?.value,
       date_allocated: formSchema.find(f => f.id === 'static_allocated_date')?.value,
       status: formSchema.find(f => f.id === 'static_status')?.value,
-      date_inward: new Date().toISOString().split('T')[0], // Defaulting to today
+      subtasks: formSchema.find(f => f.id === 'static_subtasks')?.value,
+      date_inward: new Date().toISOString().split('T')[0],
     };
+
+    // Pick first subtask assignee as lead for DB compatibility
+    if (staticFields.subtasks && staticFields.subtasks.length > 0) {
+      staticFields.allocated_to = staticFields.subtasks[0].assigned_to;
+    }
 
     const dynamicFields = {};
     formSchema.forEach(f => {
@@ -446,7 +544,7 @@ export default function TaskBuilderPage() {
           if (field.id === 'static_work_type') {
             return { ...field, options: workTypesRes.data.data.map(w => ({ value: w.id, label: w.name })) };
           }
-          if (field.id === 'static_allocated_to') {
+          if (field.id === 'static_subtasks') {
             return { ...field, options: staffRes.data.data.map(s => ({ value: s.id, label: s.name })) };
           }
           if (field.id === 'static_status') {
@@ -841,6 +939,14 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
           <ChevronDown className="absolute right-4 top-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
       );
+    case 'subtasks_list':
+      return (
+        <SubtasksAssignment
+          value={field.value}
+          staffOptions={field.options}
+          onChange={(val) => onUpdate('value', val)}
+        />
+      );
     case 'date':
       return <input type="date" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} />;
     case 'number':
@@ -960,6 +1066,127 @@ function FieldSettings({ field, onUpdate }) {
           <Plus className="w-3.5 h-3.5" /> Add Option
         </button>
       </div>
+    </div>
+  );
+}
+
+function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
+  const addSubtask = () => {
+    onChange([...value, { 
+      title: '', 
+      assigned_to: '', 
+      priority: 'medium', 
+      status: 'assigned',
+      due_date: new Date().toISOString().split('T')[0], 
+      remarks: '' 
+    }]);
+  };
+
+  const removeSubtask = (index) => {
+    onChange(value.filter((_, i) => i !== index));
+  };
+
+  const updateSubtask = (index, key, val) => {
+    const newList = [...value];
+    newList[index] = { ...newList[index], [key]: val };
+    onChange(newList);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left">
+          <thead>
+            <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
+              <th className="pb-2 pl-2">Staff</th>
+              <th className="pb-2">Subtask Name</th>
+              <th className="pb-2">Priority</th>
+              <th className="pb-2">Status</th>
+              <th className="pb-2">Due Date</th>
+              <th className="pb-2">Remarks</th>
+              <th className="pb-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {value.map((st, i) => (
+              <tr key={i} className="group">
+                <td className="py-2 pr-2 min-w-[150px]">
+                  <select 
+                    value={st.assigned_to} 
+                    onChange={e => updateSubtask(i, 'assigned_to', e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                  >
+                    <option value="">Select Staff</option>
+                    {staffOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 pr-2">
+                  <input 
+                    type="text" 
+                    value={st.title} 
+                    onChange={e => updateSubtask(i, 'title', e.target.value)}
+                    placeholder="e.g. Data Entry"
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                  />
+                </td>
+                <td className="py-2 pr-2">
+                  <select 
+                    value={st.priority} 
+                    onChange={e => updateSubtask(i, 'priority', e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 capitalize"
+                  >
+                    {['low', 'medium', 'high', 'urgent'].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 pr-2">
+                  <select 
+                    value={st.status} 
+                    onChange={e => updateSubtask(i, 'status', e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 capitalize"
+                  >
+                    {['assigned', 'in_progress', 'awaiting_information', 'completed'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 pr-2">
+                  <input 
+                    type="date" 
+                    value={st.due_date} 
+                    onChange={e => updateSubtask(i, 'due_date', e.target.value)}
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                  />
+                </td>
+                <td className="py-2 pr-2">
+                  <input 
+                    type="text" 
+                    value={st.remarks} 
+                    onChange={e => updateSubtask(i, 'remarks', e.target.value)}
+                    placeholder="Notes..."
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                  />
+                </td>
+                <td className="py-2 text-right">
+                  <button onClick={() => removeSubtask(i)} className="p-1.5 text-slate-300 hover:text-rose-500 transition">
+                    <Trash2 size={14} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {value.length === 0 && (
+        <p className="text-center py-4 text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+          No subtasks added yet. Assign at least one person to continue.
+        </p>
+      )}
+
+      <button 
+        onClick={addSubtask}
+        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition shadow-md shadow-slate-200"
+      >
+        <Plus size={14} /> Add Staff Assignment
+      </button>
     </div>
   );
 }

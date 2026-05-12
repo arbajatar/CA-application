@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -46,8 +47,17 @@ export default function ClientsPage() {
     }
 
     const handleDelete = async () => {
-        await api.delete(`/ca/clients/${selected.id}`)
-        fetchClients()
+        setSaving(true)
+        try {
+            await api.delete(`/ca/clients/${selected.id}`)
+            toast.success('Client archived successfully')
+            setDeleteOpen(false)
+            fetchClients()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to archive client')
+        } finally {
+            setSaving(false)
+        }
     }
 
     const openEdit = (c) => {
@@ -58,7 +68,8 @@ export default function ClientsPage() {
     }
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
-    const Field = ({ label, error, children }) => (
+
+    const renderField = (label, error, children) => (
         <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
             {children}
@@ -66,23 +77,23 @@ export default function ClientsPage() {
         </div>
     )
 
-    const ClientForm = () => (
+    const renderClientForm = () => (
         <div className="space-y-4">
-            <Field label="Client Name *" error={errors.name?.[0]}>
+            {renderField("Client Name *", errors.name?.[0], (
                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter client name" className={inputCls} />
-            </Field>
-            <Field label="Contact Number" error={errors.contact?.[0]}>
+            ))}
+            {renderField("Contact Number", errors.contact?.[0], (
                 <input type="text" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} placeholder="e.g. 9876543210" className={inputCls} />
-            </Field>
-            <Field label="GST Number" error={errors.gst_number?.[0]}>
+            ))}
+            {renderField("GST Number", errors.gst_number?.[0], (
                 <input type="text" value={form.gst_number} onChange={e => setForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className={inputCls} />
-            </Field>
-            <Field label="Status">
+            ))}
+            {renderField("Status", null, (
                 <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                 </select>
-            </Field>
+            ))}
             <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => { setAddOpen(false); setEditOpen(false) }} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                 <button onClick={handleSave} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Client'}</button>
@@ -173,7 +184,7 @@ export default function ClientsPage() {
             </div>
 
             <Modal open={addOpen || editOpen} onClose={() => { setAddOpen(false); setEditOpen(false) }} title={editOpen ? 'Edit Client' : 'Add New Client'}>
-                <ClientForm />
+                {renderClientForm()}
             </Modal>
             <ConfirmDialog open={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} danger loading={saving}
                 title="Archive Client" message={`Archive "${selected?.name}"? They will be removed from active client list.`} confirmLabel="Archive" />

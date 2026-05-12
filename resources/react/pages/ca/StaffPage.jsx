@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, KeyRound, UserMinus } from 'lucide-react'
+import { Plus, Search, Pencil, KeyRound, UserMinus, Eye, EyeOff } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -22,6 +23,8 @@ export default function StaffPage() {
     const [selected, setSelected] = useState(null)
     const [form, setForm] = useState(EMPTY_FORM)
     const [resetPass, setResetPass] = useState({ password: '', password_confirmation: '' })
+    const [showPassword, setShowPassword] = useState(false)
+    const [showResetPassword, setShowResetPassword] = useState(false)
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
 
@@ -64,12 +67,22 @@ export default function StaffPage() {
     }
 
     const handleDeactivate = async () => {
-        await api.patch(`/ca/staff/${selected.id}/deactivate`)
-        fetchStaff()
+        setSaving(true)
+        try {
+            await api.patch(`/ca/staff/${selected.id}/deactivate`)
+            toast.success('Staff member deactivated successfully')
+            setDeactivateOpen(false)
+            fetchStaff()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to deactivate staff')
+        } finally {
+            setSaving(false)
+        }
     }
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
-    const Field = ({ label, error, children }) => (
+
+    const renderField = (label, error, children) => (
         <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
             {children}
@@ -169,9 +182,26 @@ export default function StaffPage() {
             {/* Add Modal */}
             <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add New Staff Member">
                 <div className="space-y-4">
-                    <Field label="Full Name *" error={errors.name?.[0]}><input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} /></Field>
-                    <Field label="Username *" error={errors.username?.[0]}><input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} /></Field>
-                    <Field label="Password *" error={errors.password?.[0]}><input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" className={inputCls} /></Field>
+                    {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
+                    {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
+                    {renderField("Password *", errors.password?.[0], (
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                value={form.password}
+                                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                                placeholder="Min 6 characters"
+                                className={`${inputCls} pr-10`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                            >
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                    ))}
                     <div className="flex justify-end gap-3 pt-2">
                         <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                         <button onClick={handleAdd} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Add Member'}</button>
@@ -182,8 +212,8 @@ export default function StaffPage() {
             {/* Edit Modal */}
             <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Staff Member">
                 <div className="space-y-4">
-                    <Field label="Full Name *" error={errors.name?.[0]}><input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
-                    <Field label="Username *" error={errors.username?.[0]}><input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} /></Field>
+                    {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />)}
+                    {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
                     <div className="flex justify-end gap-3 pt-2">
                         <button onClick={() => setEditOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                         <button onClick={handleEdit} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Changes'}</button>
@@ -194,8 +224,36 @@ export default function StaffPage() {
             {/* Reset Password Modal */}
             <Modal open={resetOpen} onClose={() => setResetOpen(false)} title={`Reset Password — ${selected?.name}`}>
                 <div className="space-y-4">
-                    <Field label="New Password *" error={errors.password?.[0]}><input type="password" value={resetPass.password} onChange={e => setResetPass(r => ({ ...r, password: e.target.value }))} placeholder="Min 6 characters" className={inputCls} /></Field>
-                    <Field label="Confirm Password *" error={errors.password_confirmation?.[0]}><input type="password" value={resetPass.password_confirmation} onChange={e => setResetPass(r => ({ ...r, password_confirmation: e.target.value }))} placeholder="Repeat password" className={inputCls} /></Field>
+                    {renderField("New Password *", errors.password?.[0], (
+                        <div className="relative">
+                            <input
+                                type={showResetPassword ? 'text' : 'password'}
+                                value={resetPass.password}
+                                onChange={e => setResetPass(r => ({ ...r, password: e.target.value }))}
+                                placeholder="Min 6 characters"
+                                className={`${inputCls} pr-10`}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowResetPassword(!showResetPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                            >
+                                {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                    ))}
+                    {renderField("Confirm Password *", errors.password_confirmation?.[0], (
+                        <div className="relative">
+                            <input
+                                type={showResetPassword ? 'text' : 'password'}
+                                value={resetPass.password_confirmation}
+                                onChange={e => setResetPass(r => ({ ...r, password_confirmation: e.target.value }))}
+                                placeholder="Repeat password"
+                                className={`${inputCls} pr-10`}
+                            />
+
+                        </div>
+                    ))}
                     <div className="flex justify-end gap-3 pt-2">
                         <button onClick={() => setResetOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                         <button onClick={handleReset} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Resetting...' : 'Reset Password'}</button>

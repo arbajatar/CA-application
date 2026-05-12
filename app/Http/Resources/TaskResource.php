@@ -30,8 +30,12 @@ class TaskResource extends JsonResource
             'date_completed' => $this->date_completed?->toDateString(),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'priority' => $this->priority?->value ?? 'medium',
+            'priority_label' => $this->priority?->label() ?? 'Medium',
+            'due_date' => $this->due_date?->toDateString(),
             'remarks' => $this->remarks,
             'dynamic_fields' => $this->dynamic_fields,
+            'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),
         ];

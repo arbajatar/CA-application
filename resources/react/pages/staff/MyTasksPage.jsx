@@ -29,9 +29,11 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub }) {
 export default function MyTasksPage() {
     const [summary, setSummary] = useState(null)
     const [tasks, setTasks] = useState([])
+    const [subTasks, setSubTasks] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('')
+    const [activeTab, setActiveTab] = useState('tasks') // 'tasks' or 'subtasks'
     const [transitions, setTransitions] = useState({})
 
     const [updateOpen, setUpdateOpen] = useState(false)
@@ -51,13 +53,16 @@ export default function MyTasksPage() {
     const fetchTasks = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await api.get('/staff/tasks', {
-                params: { search, status: statusFilter, per_page: 50 }
-            })
-            setTasks(res.data.data || [])
+            const [tasksRes, subTasksRes] = await Promise.all([
+                api.get('/staff/tasks', { params: { search, status: statusFilter, per_page: 50 } }),
+                api.get('/staff/sub-tasks', { params: { search, status: statusFilter } })
+            ])
+            setTasks(tasksRes.data.data || [])
+            setSubTasks(subTasksRes.data.data || [])
         } catch (error) {
             console.error('Failed to fetch tasks', error)
             setTasks([])
+            setSubTasks([])
         } finally { setLoading(false) }
     }, [search, statusFilter])
 
@@ -80,13 +85,16 @@ export default function MyTasksPage() {
         setUpdateOpen(true)
     }
 
-    const openView = async (task) => {
-        setSelected(task)
+    const openView = async (item) => {
+        const taskId = item.task_id || item.id;
+        setSelected(item)
         setViewOpen(true)
         setViewLoading(true)
         try {
-            const res = await api.get(`/staff/tasks/${task.id}`)
+            const res = await api.get(`/staff/tasks/${taskId}`)
             setSelected(res.data.data)
+        } catch (error) {
+            console.error("Failed to fetch task details", error)
         } finally {
             setViewLoading(false)
         }
@@ -96,10 +104,19 @@ export default function MyTasksPage() {
         if (!newStatus) { setUpdateError('Please select a status.'); return }
         setSaving(true); setUpdateError('')
         try {
-            await api.patch(`/staff/tasks/${selected.id}/status`, {
-                status: newStatus,
-                remarks: remark || undefined,
-            })
+            if (selected.task_id) {
+                // It's a subtask (it has task_id)
+                await api.patch(`/staff/sub-tasks/${selected.id}/status`, {
+                    status: newStatus,
+                    remarks: remark || undefined,
+                })
+            } else {
+                // It's a main task
+                await api.patch(`/staff/tasks/${selected.id}/status`, {
+                    status: newStatus,
+                    remarks: remark || undefined,
+                })
+            }
             setUpdateOpen(false)
             await Promise.all([fetchSummary(), fetchTasks()])
         } catch (e) {
@@ -126,16 +143,40 @@ export default function MyTasksPage() {
 
             {/* Summary Cards */}
             {summary ? (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
+                    <SummaryCard
+                        icon={ClipboardList}
+                        iconBg="bg-indigo-50"
+                        iconColor="text-indigo-500"
+                        label="My Subtasks"
+                        value={subTasks.length}
+                        sub="Assigned subtasks"
+                    />
                 </div>
             ) : <Spinner />}
 
             {/* Task List */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
 
+                {/* Tabs */}
+                <div className="flex border-b border-gray-100 px-6">
+                    <button
+                        onClick={() => setActiveTab('tasks')}
+                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'tasks' ? 'border-[#1F5C99] text-[#1F5C99]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Main Tasks ({tasks.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('subtasks')}
+                        className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'subtasks' ? 'border-[#1F5C99] text-[#1F5C99]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Subtasks ({subTasks.length})
+                    </button>
+                </div>
+
                 {/* Filters */}
-                <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
                     <div className="relative">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
@@ -163,50 +204,64 @@ export default function MyTasksPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    {['#', 'Client', 'Nature', 'Inward', 'Status', 'Remarks', 'Actions'].map(h => (
-                                        <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
-                                    ))}
+                                    {activeTab === 'tasks' ? (
+                                        ['#', 'Client', 'Nature', 'Inward', 'Status', 'Remarks', 'Actions'].map(h => (
+                                            <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
+                                        ))
+                                    ) : (
+                                        ['#', 'Subtask Title', 'Parent Task', 'Client', 'Priority', 'Status', 'Actions'].map(h => (
+                                            <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
+                                        ))
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {tasks?.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={7} className="text-center py-12 text-gray-400">
-                                            No tasks found
-                                        </td>
-                                    </tr>
-                                ) : tasks?.map((t, i) => {
-                                    const canUpdate = (transitions[t.status] ?? []).length > 0
-                                    return (
+                                {activeTab === 'tasks' ? (
+                                    tasks?.length === 0 ? (
+                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                    ) : tasks?.map((t, i) => (
                                         <tr key={t.id} className="hover:bg-gray-50 transition">
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
-                                            <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client.name}</td>
-                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type.name}</td>
+                                            <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client?.name || 'N/A'}</td>
+                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{t.date_inward}</td>
                                             <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
-                                            <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">
-                                                {t.remarks ?? '—'}
-                                            </td>
+                                            <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">{t.remarks ?? '—'}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition" title="View Details">
-                                                        <Eye size={15} />
-                                                    </button>
-                                                    {t.status === 'completed' ? (
-                                                        <span className="text-xs text-gray-400">{t.date_completed}</span>
-                                                    ) : canUpdate ? (
-                                                        <button
-                                                            onClick={() => openUpdate(t)}
-                                                            className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
-                                                        >
-                                                            Update
-                                                        </button>
-                                                    ) : null}
+                                                    <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
+                                                    {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && (
+                                                        <button onClick={() => openUpdate(t)} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
-                                    )
-                                })}
+                                    ))
+                                ) : (
+                                    subTasks?.length === 0 ? (
+                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
+                                    ) : subTasks?.map((st, i) => (
+                                        <tr key={st.id} className="hover:bg-gray-50 transition">
+                                            <td className="px-6 py-4 text-gray-400">{i + 1}</td>
+                                            <td className="px-6 py-4 font-semibold text-gray-800">{st.title}</td>
+                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{st.task?.work_type || 'N/A'}</td>
+                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{st.task?.client || 'N/A'}</td>
+                                            <td className="px-6 py-4 capitalize font-medium">{st.priority}</td>
+                                            <td className="px-6 py-4"><StatusBadge status={st.status} /></td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => openView(st)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
+                                                    <button
+                                                        onClick={() => openUpdate(st)}
+                                                        className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
+                                                    >
+                                                        Update
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     )}
@@ -225,10 +280,14 @@ export default function MyTasksPage() {
 
                         {/* Task info */}
                         <div className="bg-gray-50 rounded-xl p-4 space-y-1">
-                            <p className="text-sm font-semibold text-gray-800">{selected.client.name}</p>
-                            <p className="text-xs text-gray-500">{selected.work_type.name}</p>
+                            <p className="text-sm font-semibold text-gray-800">
+                                {selected.task_id ? selected.title : (selected.client?.name || 'N/A')}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {selected.task_id ? `Part of: ${selected.task?.work_type || 'N/A'}` : (selected.work_type?.name || 'N/A')}
+                            </p>
                             <div className="flex items-center gap-2 mt-2">
-                                <span className="text-xs text-gray-400">Current:</span>
+                                <span className="text-xs text-gray-400">Current Status:</span>
                                 <StatusBadge status={selected.status} />
                             </div>
                         </div>
@@ -238,14 +297,12 @@ export default function MyTasksPage() {
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                 New Status
                             </label>
-                            {allowedTransitions.length === 0 ? (
-                                <p className="text-sm text-gray-400 italic">No transitions available.</p>
-                            ) : (
+                            {selected.task_id ? (
                                 <div className="space-y-2">
-                                    {allowedTransitions.map(t => (
+                                    {['assigned', 'in_progress', 'awaiting_information', 'completed'].map(s => (
                                         <label
-                                            key={t.value}
-                                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${newStatus === t.value
+                                            key={s}
+                                            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${newStatus === s
                                                 ? 'border-[#1F5C99] bg-[#EEF4FB]'
                                                 : 'border-gray-100 hover:border-gray-200'
                                                 }`}
@@ -253,15 +310,41 @@ export default function MyTasksPage() {
                                             <input
                                                 type="radio"
                                                 name="status"
-                                                value={t.value}
-                                                checked={newStatus === t.value}
-                                                onChange={() => setNewStatus(t.value)}
+                                                value={s}
+                                                checked={newStatus === s}
+                                                onChange={() => setNewStatus(s)}
                                                 className="accent-[#1F5C99]"
                                             />
-                                            <StatusBadge status={t.value} />
+                                            <StatusBadge status={s} />
                                         </label>
                                     ))}
                                 </div>
+                            ) : (
+                                allowedTransitions.length === 0 ? (
+                                    <p className="text-sm text-gray-400 italic">No transitions available.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {allowedTransitions.map(t => (
+                                            <label
+                                                key={t.value}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${newStatus === t.value
+                                                    ? 'border-[#1F5C99] bg-[#EEF4FB]'
+                                                    : 'border-gray-100 hover:border-gray-200'
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="status"
+                                                    value={t.value}
+                                                    checked={newStatus === t.value}
+                                                    onChange={() => setNewStatus(t.value)}
+                                                    className="accent-[#1F5C99]"
+                                                />
+                                                <StatusBadge status={t.value} />
+                                            </label>
+                                        ))}
+                                    </div>
+                                )
                             )}
                         </div>
 
@@ -322,11 +405,11 @@ export default function MyTasksPage() {
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Client</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.client.name}</p>
+                                    <p className="text-sm font-bold text-gray-900">{selected.client?.name || selected.task?.client || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Work Type</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.work_type.name}</p>
+                                    <p className="text-sm font-bold text-gray-900">{selected.work_type?.name || selected.task?.work_type || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
@@ -334,16 +417,16 @@ export default function MyTasksPage() {
                                 </div>
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.date_inward}</p>
+                                    <p className="text-sm font-bold text-gray-900">{selected.date_inward || selected.task?.date_inward || '—'}</p>
                                 </div>
                                 <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.date_allocated}</p>
+                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation / Due Date</h4>
+                                    <p className="text-sm font-bold text-gray-900">{selected.date_allocated || selected.due_date || '—'}</p>
                                 </div>
-                                {selected.date_completed && (
+                                {(selected.date_completed || selected.completed_at || selected.task?.date_completed) && (
                                     <div>
                                         <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completion Date</h4>
-                                        <p className="text-sm font-bold text-gray-900">{selected.date_completed}</p>
+                                        <p className="text-sm font-bold text-gray-900">{selected.date_completed || selected.completed_at || selected.task?.date_completed}</p>
                                     </div>
                                 )}
                             </div>

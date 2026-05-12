@@ -54,12 +54,26 @@ class TaskController extends Controller
             'dynamic_fields' => $request->dynamic_fields,
         ]);
 
+        // Handle detailed subtasks assignment
+        if ($request->has('subtasks') && is_array($request->subtasks)) {
+            foreach ($request->subtasks as $stData) {
+                $task->subTasks()->create([
+                    'title' => $stData['title'],
+                    'assigned_to' => $stData['assigned_to'],
+                    'status' => $stData['status'] ?? TaskStatus::Assigned,
+                    'priority' => $stData['priority'],
+                    'due_date' => $stData['due_date'],
+                    'remarks' => $stData['remarks'] ?? null,
+                ]);
+            }
+        }
+
         TaskLog::create([
             'task_id' => $task->id,
             'changed_by' => $request->user()->id,
             'old_status' => null,
             'new_status' => $status->value,
-            'remarks' => 'Task created and assigned.',
+            'remarks' => 'Task created with ' . count($request->subtasks) . ' assigned subtasks.',
         ]);
 
         return response()->json([
@@ -71,13 +85,24 @@ class TaskController extends Controller
     public function show(Task $task): JsonResponse
     {
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo'])),
         ]);
     }
 
     public function update(UpdateTaskRequest $request, Task $task): JsonResponse
     {
+        $oldStatus = $task->status;
         $task->update($request->validated());
+
+        if ($request->has('status') && $task->status !== $oldStatus) {
+            TaskLog::create([
+                'task_id' => $task->id,
+                'changed_by' => $request->user()->id,
+                'old_status' => $oldStatus->value,
+                'new_status' => $task->status->value,
+                'remarks' => 'Status updated by Admin. ' . ($request->remarks ?? ''),
+            ]);
+        }
 
         return response()->json([
             'message' => 'Task updated successfully.',

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Pencil, ToggleLeft, ToggleRight, Save } from 'lucide-react'
+import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
@@ -33,8 +34,14 @@ export default function SettingsPage() {
         try {
             if (editWt) await api.put(`/ca/work-types/${editWt.id}`, { name: wtName })
             else await api.post('/ca/work-types', { name: wtName })
+
+            toast.success(`Work type ${editWt ? 'updated' : 'added'} successfully`)
             setWtModal(false); setWtName(''); setEditWt(null); fetchWorkTypes()
-        } catch (e) { setWtError(e.response?.data?.errors?.name?.[0] ?? 'Error saving work type') }
+        } catch (e) {
+            const msg = e.response?.data?.errors?.name?.[0] ?? 'Error saving work type'
+            setWtError(msg)
+            toast.error(msg)
+        }
         finally { setSaving(false) }
     }
 
@@ -42,8 +49,10 @@ export default function SettingsPage() {
         setSaving(true)
         try {
             await api.patch(`/ca/work-types/${wt.id}/toggle`)
+            toast.success(`Work type ${wt.is_active ? 'deactivated' : 'activated'} successfully`)
             fetchWorkTypes()
         } catch (err) {
+            toast.error('Failed to toggle work type status')
             console.error('Toggle failed', err)
         } finally {
             setSaving(false)
@@ -55,10 +64,13 @@ export default function SettingsPage() {
         setPassSaving(true); setPassError(''); setPassSuccess('')
         try {
             await api.patch('/ca/settings/change-password', passForm)
+            toast.success('Security credentials updated successfully')
             setPassSuccess('Password changed successfully.')
             setPassForm({ current_password: '', password: '', password_confirmation: '' })
         } catch (err) {
-            setPassError(err.response?.data?.message ?? 'Something went wrong.')
+            const msg = err.response?.data?.message ?? 'Something went wrong.'
+            setPassError(msg)
+            toast.error(msg)
         } finally { setPassSaving(false) }
     }
 
@@ -91,10 +103,13 @@ export default function SettingsPage() {
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => { setEditWt(wt); setWtName(wt.name); setWtError(''); setWtModal(true) }}
+                                            title="Edit Work Type"
                                             className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition">
                                             <Pencil size={14} />
                                         </button>
-                                        <button onClick={() => handleToggle(wt)} className="text-gray-400 hover:text-gray-600 transition">
+                                        <button onClick={() => handleToggle(wt)} 
+                                            title={wt.is_active ? 'Deactivate' : 'Activate'}
+                                            className="text-gray-400 hover:text-gray-600 transition">
                                             {wt.is_active
                                                 ? <ToggleRight size={22} className="text-green-500" />
                                                 : <ToggleLeft size={22} />}

@@ -21,6 +21,7 @@ class UpdateTaskRequest extends FormRequest
             'allocated_to' => ['sometimes', 'exists:users,id'],
             'date_allocated' => ['sometimes', 'date'],
             'date_completed' => ['nullable', 'date'],
+            'status' => ['sometimes', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:500'],
             'dynamic_fields' => ['nullable', 'array'],
         ];

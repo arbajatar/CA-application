@@ -4,6 +4,7 @@ import { LayoutDashboard, Menu } from 'lucide-react'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
 import RoleRoute from './routes/RoleRoute'
+import { Toaster } from 'react-hot-toast'
 
 import LoginPage from './pages/auth/LoginPage'
 import DashboardPage from './pages/ca/DashboardPage'
@@ -25,16 +26,16 @@ function CALayout({ children }) {
 
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <CASidebar 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen} 
+      <CASidebar
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
       />
-      
+
       {/* Overlay for mobile */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -49,7 +50,7 @@ function CALayout({ children }) {
             </div>
             <span className="font-bold text-gray-900">CA Office</span>
           </div>
-          <button 
+          <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
           >
@@ -71,16 +72,16 @@ function StaffLayout({ children }) {
 
   return (
     <div className="flex min-h-screen bg-[#F5F7FA]">
-      <StaffSidebar 
-        isOpen={isSidebarOpen} 
-        setIsOpen={setIsSidebarOpen} 
+      <StaffSidebar
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
       />
 
       {/* Overlay for mobile */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -95,7 +96,7 @@ function StaffLayout({ children }) {
             </div>
             <span className="font-bold text-gray-900">Staff Portal</span>
           </div>
-          <button 
+          <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
           >
@@ -169,6 +170,7 @@ export default function App() {
           } />
         </Routes>
       </BrowserRouter>
+      <Toaster position="top-right" />
     </AuthProvider>
   )
 }

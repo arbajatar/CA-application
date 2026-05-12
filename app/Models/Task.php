@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,8 @@ class Task extends Model
         'status',
         'remarks',
         'dynamic_fields',
+        'priority',
+        'due_date',
     ];
 
     protected function casts(): array
@@ -33,6 +36,8 @@ class Task extends Model
             'date_allocated' => 'date',
             'date_completed' => 'date',
             'dynamic_fields' => 'array',
+            'priority' => TaskPriority::class,
+            'due_date' => 'date',
         ];
     }
 
@@ -60,6 +65,11 @@ class Task extends Model
     public function logs()
     {
         return $this->hasMany(TaskLog::class)->latest();
+    }
+
+    public function subTasks()
+    {
+        return $this->hasMany(SubTask::class);
     }
 
     // ── Scopes ─────────────────────────────────────────────────────

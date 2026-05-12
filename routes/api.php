@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CA\DashboardController;
 use App\Http\Controllers\Api\CA\SettingsController;
 use App\Http\Controllers\Api\CA\StaffController;
 use App\Http\Controllers\Api\CA\TaskController;
+use App\Http\Controllers\Api\CA\SubTaskController as CASubTaskController;
 use App\Http\Controllers\Api\CA\WorkTypeController;
 use Illuminate\Support\Facades\Route;
 
@@ -53,6 +54,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Tasks
         Route::patch('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
         Route::apiResource('/tasks', TaskController::class);
+        Route::post('/tasks/{task}/sub-tasks', [CASubTaskController::class, 'store']);
+        Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'update']);
+        Route::delete('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'destroy']);
 
         // Staff
         Route::patch('/staff/{staff}/deactivate', [StaffController::class, 'deactivate']);
@@ -77,6 +81,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
         Route::get('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'show']);
         Route::patch('/tasks/{task}/status', [App\Http\Controllers\Api\Staff\TaskController::class, 'updateStatus']);
+
+        // Sub Tasks
+        Route::get('/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'index']);
+        Route::patch('/sub-tasks/{sub_task}/status', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'updateStatus']);
 
         // Profile
         Route::get('/profile', [App\Http\Controllers\Api\Staff\ProfileController::class, 'show']);
