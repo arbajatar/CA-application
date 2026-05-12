@@ -279,46 +279,90 @@ export default function TaskDetailPage() {
         const XLSX = await import('xlsx');
         const data = [];
 
-        // Task Info
-        data.push(["TASK DETAILS"]);
-        data.push(["Form Name", formName]);
-        data.push(["Client", task.client?.name || 'N/A']);
-        data.push(["Work Type", task.work_type?.name || 'N/A']);
-        data.push(["Allocated Date", task.date_allocated || 'N/A']);
-        data.push(["Global Status", globalStatus]);
-        data.push(["Global Remarks", globalRemarks]);
-        data.push([]);
+        // 1. Extract Dynamic Fields (excluding system keys)
+        const dynamicFieldEntries = Object.entries(task.dynamic_fields || {}).filter(([label]) =>
+            !['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)
+        );
+        const dynamicHeaders = dynamicFieldEntries.map(([label]) => label);
 
-        // Dynamic Fields
-        data.push(["DYNAMIC FIELDS"]);
-        data.push(["Field", "Value"]);
-        Object.entries(task.dynamic_fields || {}).forEach(([label, value]) => {
-            if (['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)) return;
-            const displayValue = Array.isArray(value) ? value.join('; ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'));
-            data.push([label, displayValue]);
-        });
-        data.push([]);
+        // 2. Define Comprehensive Headers
+        const headers = [
+            "SR NO",
+            "Client Name",
+            "Mobile No",
+            "Work Type",
+            "Form Name",
+            "Date Allocated",
+            "Global Status",
+            "Global Remarks",
+            ...dynamicHeaders, // Insert dynamic fields as columns
+            "Subtask Name",
+            "Assignee",
+            "Priority",
+            "Subtask Status",
+            "Due Date",
+            "Subtask Remarks"
+        ];
+        data.push(headers);
 
-        // Subtasks
-        data.push(["SUBTASKS"]);
-        data.push(["Name", "Assignee", "Priority", "Status", "Due Date", "Remarks"]);
-        task.sub_tasks?.forEach(st => {
+        // 3. Helper for value formatting
+        const formatVal = (val) => {
+            if (Array.isArray(val)) return val.join(', ');
+            if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+            return val || 'N/A';
+        };
+
+        // 4. Shared Task-Level Data for every row
+        const baseData = [
+            task.client?.name || 'N/A',
+            task.client?.contact || 'N/A',
+            task.work_type?.name || 'N/A',
+            task.form_name || 'N/A',
+            task.date_allocated || 'N/A',
+            globalStatus || 'N/A',
+            globalRemarks || '',
+            ...dynamicFieldEntries.map(([, val]) => formatVal(val))
+        ];
+
+        // 5. Generate Rows (one per subtask)
+        if (task.sub_tasks && task.sub_tasks.length > 0) {
+            task.sub_tasks.forEach((st, index) => {
+                data.push([
+                    index + 1,
+                    ...baseData,
+                    st.title,
+                    st.assigned_to?.name || 'Unassigned',
+                    st.priority,
+                    st.status_label || st.status,
+                    st.due_date || 'N/A',
+                    st.remarks || ''
+                ]);
+            });
+        } else {
+            // Row for task with no subtasks
             data.push([
-                st.title,
-                st.assigned_to?.name || 'Unassigned',
-                st.priority,
-                st.status,
-                st.due_date || 'N/A',
-                st.remarks || ''
+                1,
+                ...baseData,
+                'No Subtasks',
+                'N/A',
+                'N/A',
+                'N/A',
+                'N/A',
+                'N/A'
             ]);
-        });
+        }
 
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Task Details");
-        XLSX.writeFile(wb, `${formName.replace(/\s+/g, '_')}_Task_Details.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "Comprehensive Task Export");
 
-        toast.success('Excel export started');
+        // Set flexible column widths
+        const colWidths = headers.map(() => ({ wch: 25 }));
+        colWidths[0] = { wch: 8 }; // SR NO
+        ws['!cols'] = colWidths;
+
+        XLSX.writeFile(wb, `${task.client?.name || 'Task'}_Complete_Export.xlsx`);
+        toast.success('Comprehensive Excel export started');
     };
 
     if (loading) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;
