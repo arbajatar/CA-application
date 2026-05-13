@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Tasks
         Route::patch('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
+        Route::post('/tasks/import', [TaskController::class, 'import']);
         Route::apiResource('/tasks', TaskController::class);
         Route::post('/tasks/{task}/sub-tasks', [CASubTaskController::class, 'store']);
         Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'update']);

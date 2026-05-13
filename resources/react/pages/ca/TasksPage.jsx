@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -44,6 +44,8 @@ export default function TasksPage() {
     const [form, setForm] = useState(EMPTY_FORM)
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
+    const [duplicateOpen, setDuplicateOpen] = useState(false)
+    const fileInputRef = useRef(null)
 
     const fetchDropdowns = async () => {
         try {
@@ -108,6 +110,262 @@ export default function TasksPage() {
         } finally { setSaving(false) }
     }
 
+    const handleImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const XLSX = await import('xlsx');
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(ws);
+
+                if (rawData.length === 0) {
+                    toast.error('Excel file is empty');
+                    return;
+                }
+
+                const taskGroups = {};
+
+                // Helper to find value by multiple possible header names
+                const getVal = (row, options) => {
+                    const key = Object.keys(row).find(k => options.some(opt => k.toLowerCase().trim() === opt.toLowerCase().trim()));
+                    return key ? row[key]?.toString().trim() : null;
+                };
+
+                rawData.forEach(row => {
+                    const clientName = getVal(row, ['Client Name', 'NAME OF CLIENT', 'Client', 'CLIENT NAME']);
+                    const workTypeName = getVal(row, ['Work Type', 'MAIN TASK', 'RELATED MATTER', 'Task Type']);
+                    const formName = getVal(row, ['Form Name', 'RELATED MATTER DETAILED']);
+                    const dateAllocated = getVal(row, ['Date Allocated', 'DATE', 'DATE OF CREATION OF TASK', 'Date']);
+                    const globalRemarks = getVal(row, ['Global Remark', 'Global Remarks', 'FINAL REMARK', 'Remarks', 'TASK/ FOLLOW UP REMARKS']);
+
+                    if (!clientName || !workTypeName) return;
+
+                    const key = `${clientName}|${workTypeName}|${dateAllocated || ''}|${formName || ''}`;
+
+                    if (!taskGroups[key]) {
+                        taskGroups[key] = {
+                            clientName,
+                            workTypeName,
+                            formName,
+                            dateAllocated,
+                            remarks: globalRemarks || '',
+                            subtasks: []
+                        };
+                    }
+
+                    const subtaskName = getVal(row, ['Subtask Name', 'SUB TASK', 'WHAT TO DO', 'Title', 'SUB TASK DESCRIPTION']);
+                    const assigneeName = getVal(row, ['Assignee', 'TEAM MEMBER NAME', 'TASK ALLOCATION TO', 'Assignee Name']);
+
+                    if (subtaskName || assigneeName) {
+                        taskGroups[key].subtasks.push({
+                            title: subtaskName || workTypeName, // Default to work type if subtask name missing
+                            assigneeName: assigneeName,
+                            priority: getVal(row, ['Priority', 'Importance']) || 'medium',
+                            status: getVal(row, ['Subtask Status', 'TASK STATUS', 'TASK/ FOLLOW UP STATUS', 'Status']) || 'assigned',
+                            due_date: getVal(row, ['Due Date', 'TASK/ FOLLOW UP DATE', 'Target Date']),
+                            remarks: getVal(row, ['Subtask Remarks', 'CA REMARK', 'Remark']) || ''
+                        });
+                    }
+                });
+
+                const failedMatches = [];
+                const importedTasks = Object.values(taskGroups).map(group => {
+                    const client = clients.find(c => c.name.toLowerCase().trim() === group.clientName.toLowerCase().trim());
+                    const workType = workTypes.find(w => w.name.toLowerCase().trim() === group.workTypeName.toLowerCase().trim());
+
+                    if (!client || !workType) {
+                        if (!client) failedMatches.push(`Client: "${group.clientName}"`);
+                        if (!workType) failedMatches.push(`Work Type: "${group.workTypeName}"`);
+                        return null;
+                    }
+
+                    const processedSubtasks = group.subtasks.map(st => {
+                        const staffMember = staff.find(s => s.name.toLowerCase().trim() === st.assigneeName?.toLowerCase().trim());
+                        return {
+                            ...st,
+                            assigned_to: staffMember?.id || staff[0]?.id
+                        };
+                    });
+
+                    const formatDate = (d) => {
+                        if (!d) return null;
+                        if (d instanceof Date) return d.toISOString().split('T')[0];
+                        if (typeof d === 'number') {
+                            const date = new Date((d - 25569) * 86400 * 1000);
+                            return date.toISOString().split('T')[0];
+                        }
+                        return d.toString().split(' ')[0];
+                    };
+
+                    const mainAssigneeId = processedSubtasks.find(s => s.assigned_to)?.assigned_to || staff[0]?.id;
+
+                    return {
+                        client_id: client.id,
+                        work_type_id: workType.id,
+                        form_name: group.formName,
+                        allocated_to: mainAssigneeId,
+                        date_allocated: formatDate(group.dateAllocated) || new Date().toISOString().split('T')[0],
+                        remarks: group.remarks,
+                        subtasks: processedSubtasks
+                    };
+                }).filter(Boolean);
+
+                if (importedTasks.length === 0) {
+                    const uniqueFailures = [...new Set(failedMatches)].slice(0, 3).join(', ');
+                    toast.error(`No matches found for: ${uniqueFailures}${failedMatches.length > 3 ? '...' : ''}. Please check names in database.`);
+                    return;
+                }
+
+                setSaving(true);
+                const res = await api.post('/ca/tasks/import', { tasks: importedTasks });
+                toast.success(res.data.message);
+                fetchTasks();
+            } catch (err) {
+                console.error('Import Error:', err);
+                toast.error('Error processing Excel file. Check console for details.');
+            } finally {
+                setSaving(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    const handleExport = async () => {
+        setSaving(true);
+        try {
+            const XLSX = await import('xlsx');
+            const res = await api.get('/ca/tasks', {
+                params: {
+                    search,
+                    status,
+                    staff_id: staffId,
+                    client_id: clientId,
+                    work_type_id: workTypeId,
+                    per_page: 'all',
+                    with_subtasks: 1
+                }
+            });
+            const allTasks = res.data.data;
+
+            if (!allTasks || allTasks.length === 0) {
+                toast.error('No tasks found to export');
+                return;
+            }
+
+            const exportData = [];
+            const allDynamicHeadersSet = new Set();
+            allTasks.forEach(t => {
+                Object.keys(t.dynamic_fields || {}).forEach(k => {
+                    if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                        allDynamicHeadersSet.add(k);
+                    }
+                });
+            });
+            const dynamicHeaders = Array.from(allDynamicHeadersSet);
+
+            const headers = [
+                "SR NO", "Client Name", "Mobile No", "Work Type", "Form Name",
+                "Date Allocated", "Global Status", "Global Remarks",
+                ...dynamicHeaders,
+                "Subtask Name", "Assignee", "Priority", "Subtask Status", "Due Date", "Subtask Remarks"
+            ];
+            exportData.push(headers);
+
+            const formatVal = (val) => {
+                if (Array.isArray(val)) return val.join(', ');
+                if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+                return val || '';
+            };
+
+            let srNo = 1;
+            allTasks.forEach(task => {
+                const baseData = [
+                    task.client?.name || '',
+                    task.client?.contact || '',
+                    task.work_type?.name || '',
+                    task.form_name || '',
+                    task.date_allocated || '',
+                    task.status_label || task.status,
+                    task.remarks || '',
+                    ...dynamicHeaders.map(h => formatVal(task.dynamic_fields?.[h]))
+                ];
+
+                if (task.sub_tasks && task.sub_tasks.length > 0) {
+                    task.sub_tasks.forEach(st => {
+                        exportData.push([
+                            srNo++, ...baseData,
+                            st.title,
+                            st.assigned_to?.name || 'Unassigned',
+                            st.priority_label || st.priority,
+                            st.status_label || st.status,
+                            st.due_date || '',
+                            st.remarks || ''
+                        ]);
+                    });
+                } else {
+                    exportData.push([
+                        srNo++, ...baseData,
+                        'No Subtasks', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A'
+                    ]);
+                }
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Tasks Export");
+            XLSX.writeFile(wb, `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+            toast.success('Tasks exported successfully');
+        } catch (err) {
+            console.error('Export Error:', err);
+            toast.error('Failed to export tasks');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDuplicate = async (withData) => {
+        setSaving(true);
+        try {
+            // Fetch FULL task details to get dynamic fields and subtasks
+            const res = await api.get(`/ca/tasks/${selected.id}`);
+            const fullTask = res.data.data;
+
+            // Prepare pre-filled data for TaskBuilder
+            const duplicateData = {
+                form_name: withData ? fullTask.form_name : '',
+                client_id: withData ? fullTask.client.id : '',
+                work_type_id: withData ? fullTask.work_type.id : '',
+                remarks: withData ? fullTask.remarks : '',
+                // If without data, we still keep the custom field structure but clear their values
+                dynamic_fields: withData ? fullTask.dynamic_fields : Object.fromEntries(
+                    Object.keys(fullTask.dynamic_fields || {}).map(k => [k, ''])
+                ),
+                subtasks: (fullTask.sub_tasks || []).map(st => ({
+                    title: st.title,
+                    assigned_to: withData ? st.assigned_to?.id : null,
+                    priority: withData ? st.priority : 'medium',
+                    status: 'assigned', // Always reset status for new task
+                    due_date: withData ? st.due_date : null,
+                    remarks: withData ? st.remarks : ''
+                }))
+            };
+
+            setDuplicateOpen(false);
+            navigate('/ca/tasks/builder', { state: { duplicateData } });
+        } catch (err) {
+            console.error('Duplication Error:', err);
+            toast.error('Failed to load task details for duplication');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const openEdit = (task) => {
         navigate(`/ca/tasks/${task.id}`);
     }
@@ -140,10 +398,26 @@ export default function TasksPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
                     <p className="text-sm text-gray-400 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
-                <button onClick={() => navigate('/ca/tasks/builder')}
-                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
-                    <Plus size={16} /> Create New Task
-                </button>
+                <div className="flex items-center gap-3">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImport}
+                        accept=".xlsx, .xls, .csv"
+                        className="hidden"
+                    />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={saving}
+                        className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
+                    >
+                        Import Data
+                    </button>
+                    <button onClick={() => navigate('/ca/tasks/builder')}
+                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
+                        <Plus size={16} /> Create New Task
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -175,6 +449,13 @@ export default function TasksPage() {
                             <option value="">All Work Types</option>
                             {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                         </select>
+                        <button
+                            onClick={handleExport}
+                            disabled={saving}
+                            className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm disabled:opacity-50 h-[38px] whitespace-nowrap"
+                        >
+                            <Download size={16} /> Export
+                        </button>
                     </div>
                 </div>
 
@@ -213,6 +494,9 @@ export default function TasksPage() {
                                                     <Eye size={15} />
                                                 </button>
                                                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Task">
+                                                    <Copy size={15} />
+                                                </button>
                                                 <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
                                                 <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
                                             </div>
@@ -272,6 +556,43 @@ export default function TasksPage() {
                 message={`Are you sure you want to delete this task for "${selected?.client?.name}"? This action cannot be undone.`}
                 confirmLabel="Delete Task"
             />
+
+            {/* Duplicate Modal */}
+            <Modal open={duplicateOpen} onClose={() => setDuplicateOpen(false)} title="Duplicate Task" width="max-w-sm">
+                <div className="space-y-6 py-2">
+                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <p className="text-sm text-emerald-800 leading-relaxed font-medium">
+                            Duplicate task for <span className="font-bold underline">{selected?.client?.name}</span>
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                        <button
+                            onClick={() => handleDuplicate(true)}
+                            disabled={saving}
+                            className="flex flex-col items-start p-4 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50/30 transition group text-left w-full"
+                        >
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-emerald-700">Duplicate with Data</span>
+                            <span className="text-[11px] text-gray-400 mt-1">Copies all dynamic fields and subtasks</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleDuplicate(false)}
+                            disabled={saving}
+                            className="flex flex-col items-start p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-500 hover:bg-blue-50/30 transition group text-left w-full"
+                        >
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-blue-700">Duplicate without Data</span>
+                            <span className="text-[11px] text-gray-400 mt-1">Only copies core structure (Client, Work Type)</span>
+                        </button>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <button onClick={() => setDuplicateOpen(false)} className="px-5 py-2 text-sm text-gray-500 hover:text-gray-800 font-semibold transition">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     )
 }

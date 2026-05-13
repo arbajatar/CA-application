@@ -6,6 +6,7 @@ import {
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
   Search
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
@@ -207,6 +208,7 @@ function MultiSearchableSelect({ value = [], options, placeholder, onChange }) {
 }
 
 export default function TaskBuilderPage() {
+  const location = useLocation();
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
     {
@@ -560,6 +562,56 @@ export default function TaskBuilderPage() {
 
     fetchOptions();
   }, []);
+
+  // Handle Duplication Data
+  useEffect(() => {
+    if (location.state?.duplicateData) {
+      const data = location.state.duplicateData;
+      setFormSchema(prev => {
+        // First, reset to static fields only to avoid duplicates if this effect runs twice
+        const staticOnly = prev.filter(f => f.static);
+
+        let updated = staticOnly.map(field => {
+          if (field.id === 'static_form_name') return { ...field, value: data.form_name };
+          if (field.id === 'static_client_name') return { ...field, value: data.client_id };
+          if (field.id === 'static_work_type') return { ...field, value: data.work_type_id };
+          if (field.id === 'static_remarks') return { ...field, value: data.remarks };
+          if (field.id === 'static_subtasks') return { ...field, value: data.subtasks || [] };
+          return field;
+        });
+
+        // Add dynamic fields if any
+        if (data.dynamic_fields && Object.keys(data.dynamic_fields).length > 0) {
+          const dynamicFields = Object.entries(data.dynamic_fields).map(([label, val]) => {
+            // Determine type (very basic guessing)
+            let type = 'text';
+            let icon = 'Type';
+            let color = '#64748b';
+
+            if (typeof val === 'boolean') { type = 'checkbox'; icon = 'CheckSquare'; }
+            else if (val && val.toString().includes('\n')) { type = 'longtext'; icon = 'AlignLeft'; }
+            
+            return {
+              id: 'f_' + Math.random().toString(36).substr(2, 9),
+              type,
+              icon,
+              color,
+              label,
+              placeholder: `Enter ${label}...`,
+              value: val,
+              required: false,
+              labelTouched: true,
+              placeholderTouched: true
+            };
+          });
+          updated = [...updated, ...dynamicFields];
+        }
+        return updated;
+      });
+      
+      showToast('Task data loaded. You can now edit and save.');
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (viewMode === 'builder' && fieldsContainerRef.current) {

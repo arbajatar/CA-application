@@ -19,7 +19,7 @@ class TaskController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $tasks = Task::with(['client', 'workType', 'assignedTo', 'createdBy'])
+        $query = Task::with(['client', 'workType', 'assignedTo', 'createdBy'])
             ->when($request->filled('staff_id'), fn($q) => $q->where('allocated_to', $request->staff_id))
             ->when($request->filled('status'), fn($q) => $q->where('status', TaskStatus::from($request->status)))
             ->when($request->filled('work_type_id'), fn($q) => $q->where('work_type_id', $request->work_type_id))
@@ -31,8 +31,19 @@ class TaskController extends Controller
                 fn($cq) =>
                 $cq->where('name', 'like', '%' . $request->search . '%')
             ))
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+            ->latest();
+
+        if ($request->boolean('with_subtasks')) {
+            $query->with(['subTasks.assignedTo']);
+        }
+
+        $perPage = $request->get('per_page', 15);
+        if ($perPage === 'all') {
+            $tasks = $query->get();
+            return TaskResource::collection($tasks);
+        }
+
+        $tasks = $query->paginate(min($perPage, 1000));
 
         return TaskResource::collection($tasks);
     }
@@ -131,6 +142,70 @@ class TaskController extends Controller
             'message' => 'Task reassigned successfully.',
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy'])),
         ]);
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'tasks' => 'required|array',
+                'tasks.*.client_id' => 'required|exists:clients,id',
+                'tasks.*.work_type_id' => 'required|exists:work_types,id',
+                'tasks.*.allocated_to' => 'required|exists:users,id',
+            ]);
+
+            foreach ($request->tasks as $taskData) {
+                $task = Task::create([
+                    'client_id' => $taskData['client_id'],
+                    'work_type_id' => $taskData['work_type_id'],
+                    'allocated_to' => $taskData['allocated_to'],
+                    'created_by' => $request->user()->id,
+                    'date_allocated' => $taskData['date_allocated'] ?? now()->toDateString(),
+                    'date_inward' => $taskData['date_inward'] ?? now()->toDateString(),
+                    'status' => TaskStatus::Assigned,
+                    'remarks' => $taskData['remarks'] ?? null,
+                    'form_name' => $taskData['form_name'] ?? null,
+                ]);
+
+                // Handle nested subtasks from import
+                if (isset($taskData['subtasks']) && is_array($taskData['subtasks'])) {
+                    foreach ($taskData['subtasks'] as $st) {
+                        // Resolve status and priority from strings safely
+                        $status = TaskStatus::Assigned;
+                        if (isset($st['status'])) {
+                            foreach (TaskStatus::cases() as $case) {
+                                if (strtolower($case->value) === strtolower($st['status']) || strtolower($case->label()) === strtolower($st['status'])) {
+                                    $status = $case;
+                                    break;
+                                }
+                            }
+                        }
+
+                        $task->subTasks()->create([
+                            'title' => $st['title'] ?? 'Subtask',
+                            'assigned_to' => $st['assigned_to'] ?? $task->allocated_to,
+                            'status' => $status,
+                            'priority' => 'medium', // Default for now
+                            'due_date' => $st['due_date'] ?? null,
+                            'remarks' => $st['remarks'] ?? null,
+                        ]);
+                    }
+                }
+
+                TaskLog::create([
+                    'task_id' => $task->id,
+                    'changed_by' => $request->user()->id,
+                    'old_status' => null,
+                    'new_status' => TaskStatus::Assigned->value,
+                    'remarks' => 'Task created via Excel import.',
+                ]);
+            }
+
+            return response()->json(['message' => count($request->tasks) . ' tasks imported successfully.']);
+        } catch (\Exception $e) {
+            \Log::error('Import Error: ' . $e->getMessage());
+            return response()->json(['message' => 'Import failed: ' . $e->getMessage()], 500);
+        }
     }
 
     public function destroy(Task $task): JsonResponse
