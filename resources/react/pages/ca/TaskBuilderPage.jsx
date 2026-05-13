@@ -11,6 +11,7 @@ import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import '../../styles/task-builder.css';
 
@@ -307,8 +308,12 @@ export default function TaskBuilderPage() {
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
+  const [selectedFields, setSelectedFields] = useState([]);
+  const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toast, setToast] = useState({ show: false, message: '' });
+  
+  const isDuplicating = !!location.state?.duplicateData;
 
   // Client Modal States
   const [addClientOpen, setAddClientOpen] = useState(false);
@@ -366,6 +371,26 @@ export default function TaskBuilderPage() {
   const removeField = (id) => {
     setFormSchema(prev => prev.filter(f => f.id !== id));
     if (activeFieldId === id) setActiveFieldId(null);
+    setSelectedFields(prev => prev.filter(fid => fid !== id));
+  };
+
+  const removeSelectedFields = () => {
+    if (selectedFields.length === 0) return;
+    setDeleteBulkOpen(true);
+  };
+
+  const handleConfirmBulkDelete = () => {
+    setFormSchema(prev => prev.filter(f => !selectedFields.includes(f.id)));
+    setSelectedFields([]);
+    setActiveFieldId(null);
+    setDeleteBulkOpen(false);
+    showToast(`${selectedFields.length} fields removed`);
+  };
+
+  const toggleSelectField = (id) => {
+    setSelectedFields(prev => 
+      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
+    );
   };
 
   const updateField = (id, key, val) => {
@@ -691,6 +716,15 @@ export default function TaskBuilderPage() {
                       </span>
                     </button>
                   )}
+                  {isDuplicating && selectedFields.length > 0 && (
+                    <button 
+                      onClick={removeSelectedFields}
+                      className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition shadow-lg shadow-rose-200"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete ({selectedFields.length})</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -706,6 +740,9 @@ export default function TaskBuilderPage() {
                         onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
                         onUpdate={(key, val) => updateField(field.id, key, val)}
                         onRemove={() => removeField(field.id)}
+                        isDuplicating={isDuplicating}
+                        isSelected={selectedFields.includes(field.id)}
+                        onToggleSelect={() => toggleSelectField(field.id)}
                         calculateAutoProgress={calculateAutoProgress}
                         modalActions={{
                           setAddClientOpen,
@@ -843,11 +880,21 @@ export default function TaskBuilderPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={deleteBulkOpen}
+        onClose={() => setDeleteBulkOpen(false)}
+        onConfirm={handleConfirmBulkDelete}
+        title="Delete Multiple Fields"
+        message={`Are you sure you want to delete ${selectedFields.length} selected fields? This action cannot be undone.`}
+        confirmLabel={`Delete ${selectedFields.length} Fields`}
+        danger
+      />
     </div>
   );
 }
 
-function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, calculateAutoProgress, modalActions }) {
+function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isDuplicating, isSelected, onToggleSelect, calculateAutoProgress, modalActions }) {
   const isLive = viewMode === 'live';
 
   return (
@@ -858,8 +905,18 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
       <div className={`flex items-center gap-2 ${!isLive ? 'pr-6' : ''}`}>
         {/* Drag handle */}
         {!isLive && (
-          <div className="drag-handle shrink-0">
-            <GripVertical className="w-4 h-4 text-slate-300" />
+          <div className="flex items-center gap-2 shrink-0">
+            {isDuplicating && (
+              <input 
+                type="checkbox" 
+                checked={isSelected} 
+                onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+                className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+              />
+            )}
+            <div className="drag-handle">
+              <GripVertical className="w-4 h-4 text-slate-300" />
+            </div>
           </div>
         )}
 
@@ -919,11 +976,9 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, cal
                 <span className="slider"></span>
               </label>
             </div>
-            {!field.static && (
-              <button onClick={onRemove} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <button onClick={onRemove} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         ) : null}
       </div>
