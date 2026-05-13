@@ -26,6 +26,10 @@ class Task extends Model
         'dynamic_fields',
         'priority',
         'due_date',
+        'task_particular',
+        'sub_status',
+        'feedback',
+        'entry_date',
     ];
 
     protected function casts(): array
@@ -38,6 +42,7 @@ class Task extends Model
             'dynamic_fields' => 'array',
             'priority' => TaskPriority::class,
             'due_date' => 'date',
+            'entry_date' => 'date',
         ];
     }
 

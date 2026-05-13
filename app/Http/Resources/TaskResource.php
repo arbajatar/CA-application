@@ -21,10 +21,10 @@ class TaskResource extends JsonResource
                 'name' => $this->workType->name,
             ],
             'form_name' => $this->form_name,
-            'allocated_to' => [
+            'allocated_to' => $this->assignedTo ? [
                 'id' => $this->assignedTo->id,
                 'name' => $this->assignedTo->name,
-            ],
+            ] : null,
             'created_by' => $this->createdBy?->name,
             'date_inward' => $this->date_inward?->toDateString(),
             'date_allocated' => $this->date_allocated?->toDateString(),
@@ -36,6 +36,10 @@ class TaskResource extends JsonResource
             'due_date' => $this->due_date?->toDateString(),
             'remarks' => $this->remarks,
             'dynamic_fields' => $this->dynamic_fields,
+            'task_particular' => $this->task_particular,
+            'sub_status' => $this->sub_status,
+            'feedback' => $this->feedback,
+            'entry_date' => $this->entry_date?->toDateString(),
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),

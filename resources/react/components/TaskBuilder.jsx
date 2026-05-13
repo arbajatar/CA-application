@@ -246,10 +246,10 @@ function TaskBuilder() {
               <div className="mb-6 flex justify-between items-center">
                 <div>
                   <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                    {viewMode === 'live' ? 'Active Task Form' : 'Task Builder'}
+                    {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
                   </h2>
                   <p className="text-sm text-slate-500 mt-2 font-medium">
-                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom task entry form below.'}
+                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
                   </p>
                 </div>
                 {viewMode === 'live' && (

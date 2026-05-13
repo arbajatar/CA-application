@@ -6,7 +6,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
     { to: '/ca/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/ca/tasks', icon: ClipboardList, label: 'Tasks' },
+    { to: '/ca/tasks', icon: ClipboardList, label: 'Sheets' },
     { to: '/ca/clients', icon: Users, label: 'Clients' },
     { to: '/ca/staff', icon: UserCog, label: 'Staff' },
     { to: '/ca/settings', icon: Settings, label: 'Settings' },
@@ -45,14 +45,14 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                         </div>
                     </div>
                 )}
-                <button 
+                <button
                     onClick={() => {
                         if (window.innerWidth < 1024) {
                             setIsMobileOpen?.(false)
                         } else {
                             setIsOpen && setIsOpen(!isOpen)
                         }
-                    }} 
+                    }}
                     className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
                     title="Toggle Menu"
                 >

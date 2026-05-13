@@ -372,7 +372,7 @@ export default function TasksPage() {
 
     const openReassign = (task) => {
         setSelected(task)
-        setForm({ allocated_to: task.allocated_to.id })
+        setForm({ allocated_to: task.allocated_to?.id ?? '' })
         setReassignOpen(true)
     }
 
@@ -395,7 +395,7 @@ export default function TasksPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Sheets Management</h1>
                     <p className="text-sm text-gray-400 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -415,7 +415,7 @@ export default function TasksPage() {
                     </button>
                     <button onClick={() => navigate('/ca/tasks/builder')}
                         className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
-                        <Plus size={16} /> Create New Task
+                        <Plus size={16} /> Create New Sheet
                     </button>
                 </div>
             </div>
@@ -425,7 +425,7 @@ export default function TasksPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
                     <div className="relative w-full lg:flex-1">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="Search tasks..." value={search}
+                        <input type="text" placeholder="Search by sheet name..." value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
                             className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                     </div>
@@ -465,29 +465,22 @@ export default function TasksPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    {['#', 'Client', 'Work Type', 'Allocated To', 'Allocated Date', 'Status', 'Actions'].map(h => (
+                                    {['#', 'Sheet Name', 'Work Type', 'Create Date', 'Sheet Status', 'Remarks', 'Actions'].map(h => (
                                         <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {tasks?.length === 0 ? (
-                                    <tr><td colSpan={10} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                    <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
                                 ) : tasks?.map((t, i) => (
                                     <tr key={t.id} className="hover:bg-gray-50 transition">
                                         <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                        <td className="px-4 py-3 font-semibold text-gray-800">{t.client.name}</td>
-                                        <td className="px-4 py-3 text-gray-600">{t.work_type.name}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
-                                                    {t.allocated_to.name[0]}
-                                                </div>
-                                                <span className="text-gray-700">{t.allocated_to.name}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_allocated}</td>
+                                        <td className="px-4 py-3 font-semibold text-gray-800">{t.form_name || '—'}</td>
+                                        <td className="px-4 py-3 text-gray-600">{t.work_type?.name || '—'}</td>
+                                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
                                         <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                                        <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">

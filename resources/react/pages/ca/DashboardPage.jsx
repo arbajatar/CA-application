@@ -198,7 +198,7 @@ export default function DashboardPage() {
                                         <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                         <td className="px-6 py-4 font-semibold text-gray-800">{t.client.name}</td>
                                         <td className="px-6 py-4 text-gray-600">{t.work_type.name}</td>
-                                        <td className="px-6 py-4 text-gray-600">{t.allocated_to.name}</td>
+                                        <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
                                         <td className="px-6 py-4 text-gray-500">{t.date_inward}</td>
                                         <td className="px-6 py-4 text-gray-500">{t.date_allocated}</td>
                                         <td className="px-6 py-4 text-gray-500">{t.date_completed ?? '—'}</td>

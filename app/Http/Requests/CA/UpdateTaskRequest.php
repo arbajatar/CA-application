@@ -24,6 +24,10 @@ class UpdateTaskRequest extends FormRequest
             'status' => ['sometimes', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:500'],
             'dynamic_fields' => ['nullable', 'array'],
+            'task_particular' => ['nullable', 'string', 'max:255'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
+            'feedback' => ['nullable', 'string'],
+            'entry_date' => ['nullable', 'date'],
         ];
     }
 }

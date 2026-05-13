@@ -26,11 +26,7 @@ class TaskController extends Controller
             ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->client_id))
             ->when($request->filled('date_from'), fn($q) => $q->whereDate('date_inward', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn($q) => $q->whereDate('date_inward', '<=', $request->date_to))
-            ->when($request->filled('search'), fn($q) => $q->whereHas(
-                'client',
-                fn($cq) =>
-                $cq->where('name', 'like', '%' . $request->search . '%')
-            ))
+            ->when($request->filled('search'), fn($q) => $q->where('form_name', 'like', '%' . $request->search . '%'))
             ->latest();
 
         if ($request->boolean('with_subtasks')) {
@@ -63,6 +59,10 @@ class TaskController extends Controller
             'status' => $status,
             'remarks' => $request->remarks,
             'dynamic_fields' => $request->dynamic_fields,
+            'task_particular' => $request->task_particular,
+            'sub_status' => $request->sub_status,
+            'feedback' => $request->feedback,
+            'entry_date' => $request->entry_date,
         ]);
 
         // Handle detailed subtasks assignment
@@ -84,7 +84,7 @@ class TaskController extends Controller
             'changed_by' => $request->user()->id,
             'old_status' => null,
             'new_status' => $status->value,
-            'remarks' => 'Task created with ' . count($request->subtasks) . ' assigned subtasks.',
+            'remarks' => 'Task created with ' . count($request->subtasks ?? []) . ' assigned subtasks.',
         ]);
 
         return response()->json([

@@ -94,8 +94,8 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
             ) : (
               <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No results found</div>
             )}
-            
-            <div 
+
+            <div
               className="p-2 border-t border-slate-50 bg-slate-50/50"
               onClick={() => {
                 onAddNew(search);
@@ -212,32 +212,18 @@ export default function TaskBuilderPage() {
   const location = useLocation();
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
+    // SECTION 1: Sheet Meta Information
     {
       id: 'static_form_name',
       type: 'text',
       icon: 'Type',
       color: '#6366f1',
-      label: 'Form Name',
-      placeholder: 'Enter form name...',
+      label: 'Sheet Name',
+      placeholder: 'Enter sheet name...',
       value: '',
       required: true,
       static: true,
-      labelTouched: false,
-      placeholderTouched: false
-    },
-    {
-      id: 'static_client_name',
-      type: 'dropdown',
-      icon: 'ChevronDown',
-      color: '#3b82f6',
-      label: 'Client Name',
-      placeholder: 'Select client name...',
-      options: [],
-      value: '',
-      required: true,
-      static: true,
-      labelTouched: false,
-      placeholderTouched: false
+      section: 1
     },
     {
       id: 'static_work_type',
@@ -250,61 +236,154 @@ export default function TaskBuilderPage() {
       value: '',
       required: true,
       static: true,
-      labelTouched: false,
-      placeholderTouched: false
+      section: 1
     },
     {
-      id: 'static_subtasks',
-      type: 'subtasks_list',
-      icon: 'PlusCircle',
-      color: '#3b82f6',
-      label: 'Subtasks Assignment',
-      placeholder: 'Add subtasks for staff...',
-      value: [], // Array of { title, assigned_to, priority, due_date, remarks }
-      required: true,
-      static: true,
-      labelTouched: false,
-      placeholderTouched: false
-    },
-    {
-      id: 'static_allocated_date',
+      id: 'static_created_date',
       type: 'date',
       icon: 'Calendar',
-      color: '#ec4899',
-      label: 'Allocated Date',
+      color: '#f43f5e',
+      label: 'Created Date',
       placeholder: 'Select date...',
       value: new Date().toISOString().split('T')[0],
       required: true,
       static: true,
-      labelTouched: false,
-      placeholderTouched: false
+      section: 1
     },
     {
-      id: 'static_status',
+      id: 'static_sheet_status',
       type: 'dropdown',
-      icon: 'ChevronDown',
+      icon: 'CheckCircle',
       color: '#10b981',
-      label: 'Status',
+      label: 'Sheet Status',
       placeholder: 'Select status...',
-      options: ['Assigned', 'In Progress', 'Awaiting Information', 'Completed'],
-      value: 'Assigned',
+      options: [
+        { value: 'assigned', label: 'Assigned' },
+        { value: 'in_progress', label: 'In progress' },
+        { value: 'completed', label: 'Completed' }
+      ],
+      value: 'assigned',
       required: true,
       static: true,
-      labelTouched: false,
-      placeholderTouched: false
+      section: 1
     },
     {
       id: 'static_remarks',
       type: 'longtext',
       icon: 'AlignLeft',
-      color: '#0f172a',
+      color: '#64748b',
       label: 'Remarks',
-      placeholder: 'Enter additional remarks...',
+      placeholder: 'Enter meta remarks...',
+      value: '',
+      required: true,
+      static: true,
+      section: 1
+    },
+
+    // SECTION 2: Task Assignment Section
+    {
+      id: 'static_entry_date',
+      type: 'date',
+      icon: 'Clock',
+      color: '#8b5cf6',
+      label: 'Date of entry',
+      placeholder: 'Select entry date...',
+      value: new Date().toISOString().split('T')[0],
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_task_particular',
+      type: 'text',
+      icon: 'Zap',
+      color: '#f59e0b',
+      label: 'Task/Particular',
+      placeholder: 'Enter task description...',
       value: '',
       required: false,
       static: true,
-      labelTouched: false,
-      placeholderTouched: false
+      section: 2
+    },
+    {
+      id: 'static_assignee',
+      type: 'dropdown',
+      icon: 'PlusCircle',
+      color: '#3b82f6',
+      label: 'Assignee',
+      placeholder: 'Select staff...',
+      options: [],
+      value: '',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_due_date',
+      type: 'date',
+      icon: 'Calendar',
+      color: '#ec4899',
+      label: 'Due Date',
+      placeholder: 'Select deadline...',
+      value: '',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_task_status',
+      type: 'dropdown',
+      icon: 'Sliders',
+      color: '#10b981',
+      label: 'Status',
+      placeholder: 'Select task status...',
+      options: [
+        { value: 'assigned', label: 'Assigned' },
+        { value: 'in_progress', label: 'In Progress' },
+        { value: 'awaiting_information', label: 'Awaiting Info' },
+        { value: 'completed', label: 'Completed' }
+      ],
+      value: 'assigned',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_sub_status',
+      type: 'text',
+      icon: 'Tags',
+      color: '#6366f1',
+      label: 'Sub status',
+      placeholder: 'e.g. Documentation pending',
+      value: '',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_feedback',
+      type: 'longtext',
+      icon: 'Mail',
+      color: '#94a3b8',
+      label: 'Feedback',
+      placeholder: 'Enter feedback...',
+      value: '',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_client_name',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#3b82f6',
+      label: 'Client',
+      placeholder: 'Select client (optional)',
+      options: [],
+      value: '',
+      required: false,
+      static: true,
+      section: 2
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
@@ -312,7 +391,7 @@ export default function TaskBuilderPage() {
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toast, setToast] = useState({ show: false, message: '' });
-  
+
   const isDuplicating = !!location.state?.duplicateData;
 
   // Client Modal States
@@ -361,7 +440,7 @@ export default function TaskBuilderPage() {
 
     setActiveFieldId(id);
     showToast(`${type.name} added`);
-    
+
     // Auto-close sidebar on mobile after adding field
     if (window.innerWidth <= 1024) {
       setIsSidebarOpen(false);
@@ -388,7 +467,7 @@ export default function TaskBuilderPage() {
   };
 
   const toggleSelectField = (id) => {
-    setSelectedFields(prev => 
+    setSelectedFields(prev =>
       prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
     );
   };
@@ -469,16 +548,17 @@ export default function TaskBuilderPage() {
       form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
       client_id: formSchema.find(f => f.id === 'static_client_name')?.value,
       work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
-      date_allocated: formSchema.find(f => f.id === 'static_allocated_date')?.value,
-      status: formSchema.find(f => f.id === 'static_status')?.value,
-      subtasks: formSchema.find(f => f.id === 'static_subtasks')?.value,
-      date_inward: new Date().toISOString().split('T')[0],
+      allocated_to: formSchema.find(f => f.id === 'static_assignee')?.value,
+      date_inward: formSchema.find(f => f.id === 'static_created_date')?.value,
+      date_allocated: formSchema.find(f => f.id === 'static_created_date')?.value,
+      due_date: formSchema.find(f => f.id === 'static_due_date')?.value,
+      status: formSchema.find(f => f.id === 'static_sheet_status')?.value,
+      remarks: formSchema.find(f => f.id === 'static_remarks')?.value,
+      task_particular: formSchema.find(f => f.id === 'static_task_particular')?.value,
+      sub_status: formSchema.find(f => f.id === 'static_sub_status')?.value,
+      feedback: formSchema.find(f => f.id === 'static_feedback')?.value,
+      entry_date: formSchema.find(f => f.id === 'static_entry_date')?.value
     };
-
-    // Pick first subtask assignee as lead for DB compatibility
-    if (staticFields.subtasks && staticFields.subtasks.length > 0) {
-      staticFields.allocated_to = staticFields.subtasks[0].assigned_to;
-    }
 
     const dynamicFields = {};
     formSchema.forEach(f => {
@@ -571,11 +651,12 @@ export default function TaskBuilderPage() {
           if (field.id === 'static_work_type') {
             return { ...field, options: workTypesRes.data.data.map(w => ({ value: w.id, label: w.name })) };
           }
-          if (field.id === 'static_subtasks') {
+          if (field.id === 'static_assignee') {
             return { ...field, options: staffRes.data.data.map(s => ({ value: s.id, label: s.name })) };
           }
-          if (field.id === 'static_status') {
-            return { ...field, options: statusesRes.data.data.map(s => ({ value: s.value, label: s.label })) };
+          if (field.id === 'static_sheet_status') {
+            // Keep default options but we could also fetch them
+            return field;
           }
           return field;
         }));
@@ -615,7 +696,7 @@ export default function TaskBuilderPage() {
 
             if (typeof val === 'boolean') { type = 'checkbox'; icon = 'CheckSquare'; }
             else if (val && val.toString().includes('\n')) { type = 'longtext'; icon = 'AlignLeft'; }
-            
+
             return {
               id: 'f_' + Math.random().toString(36).substr(2, 9),
               type,
@@ -633,7 +714,7 @@ export default function TaskBuilderPage() {
         }
         return updated;
       });
-      
+
       showToast('Task data loaded. You can now edit and save.');
     }
   }, [location.state]);
@@ -687,28 +768,27 @@ export default function TaskBuilderPage() {
               <div className="sticky top-[65px] lg:relative lg:top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-md lg:backdrop-blur-none py-3 mb-3 flex justify-between items-center -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-slate-200 lg:border-none">
                 <div className="flex-1 min-w-0">
                   <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
-                    {viewMode === 'live' ? 'Active Task Form' : 'Task Builder'}
+                    {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
                   </h2>
                   <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
-                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom task entry form below.'}
+                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {viewMode === 'live' ? (
-                    <button 
-                      onClick={() => setViewMode('builder')} 
+                    <button
+                      onClick={() => setViewMode('builder')}
                       className="whitespace-nowrap px-4 py-2 bg-slate-500 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition shadow-lg shadow-slate-200"
                     >
                       Edit Layout
                     </button>
                   ) : (
-                    <button 
-                      onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all duration-300 border shadow-sm ${
-                        isSidebarOpen 
-                          ? 'bg-slate-900 border-slate-900 text-white shadow-slate-200' 
-                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
+                    <button
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all duration-300 border shadow-sm ${isSidebarOpen
+                        ? 'bg-slate-900 border-slate-900 text-white shadow-slate-200'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
                     >
                       <Sliders className={`w-4 h-4 ${isSidebarOpen ? 'text-slate-300' : 'text-slate-500'}`} />
                       <span className="text-[13px] font-bold tracking-tight whitespace-nowrap">
@@ -717,7 +797,7 @@ export default function TaskBuilderPage() {
                     </button>
                   )}
                   {isDuplicating && selectedFields.length > 0 && (
-                    <button 
+                    <button
                       onClick={removeSelectedFields}
                       className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition shadow-lg shadow-rose-200"
                     >
@@ -729,9 +809,15 @@ export default function TaskBuilderPage() {
               </div>
 
               {/* Flat form section */}
-              <div className="form-section">
-                <div ref={fieldsContainerRef} id="fieldsContainer">
-                  {formSchema.map((field) => (
+              <div className="form-section space-y-8">
+                {/* SECTION 1 */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1 h-6 bg-slate-900 rounded-full"></div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Meta Information</h3>
+                  </div>
+                  <div ref={fieldsContainerRef} id="fieldsContainer1">
+                    {formSchema.filter(f => f.section === 1).map((field) => (
                       <FormCard
                         key={field.id}
                         field={field}
@@ -753,7 +839,41 @@ export default function TaskBuilderPage() {
                           setWorkTypeError
                         }}
                       />
-                  ))}
+                    ))}
+                  </div>
+                </div>
+
+                {/* SECTION 2 */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1 h-6 bg-blue-600 rounded-full"></div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Task Assignment Section</h3>
+                  </div>
+                  <div id="fieldsContainer2">
+                    {formSchema.filter(f => f.section !== 1).map((field) => (
+                      <FormCard
+                        key={field.id}
+                        field={field}
+                        viewMode={viewMode}
+                        isActive={activeFieldId === field.id && viewMode === 'builder'}
+                        onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
+                        onUpdate={(key, val) => updateField(field.id, key, val)}
+                        onRemove={() => removeField(field.id)}
+                        isDuplicating={isDuplicating}
+                        isSelected={selectedFields.includes(field.id)}
+                        onToggleSelect={() => toggleSelectField(field.id)}
+                        calculateAutoProgress={calculateAutoProgress}
+                        modalActions={{
+                          setAddClientOpen,
+                          setClientForm,
+                          setClientErrors,
+                          setAddWorkTypeOpen,
+                          setWorkTypeName,
+                          setWorkTypeError
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -829,7 +949,7 @@ export default function TaskBuilderPage() {
 
       {/* Mobile Backdrop - Transparent click-outside area */}
       {isSidebarOpen && window.innerWidth <= 1024 && (
-        <div 
+        <div
           className="fixed top-[65px] inset-x-0 bottom-0 z-[40] transition-opacity"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -907,9 +1027,9 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         {!isLive && (
           <div className="flex items-center gap-2 shrink-0">
             {isDuplicating && (
-              <input 
-                type="checkbox" 
-                checked={isSelected} 
+              <input
+                type="checkbox"
+                checked={isSelected}
                 onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
                 className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
               />
@@ -985,11 +1105,11 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
 
       {/* Field input */}
       <div className="field-preview-area">
-        <FieldInput 
-          field={field} 
-          onUpdate={onUpdate} 
-          calculateAutoProgress={calculateAutoProgress} 
-          isLive={isLive} 
+        <FieldInput
+          field={field}
+          onUpdate={onUpdate}
+          calculateAutoProgress={calculateAutoProgress}
+          isLive={isLive}
           modalActions={modalActions}
         />
       </div>
@@ -1179,13 +1299,13 @@ function FieldSettings({ field, onUpdate }) {
 
 function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
   const addSubtask = () => {
-    onChange([...value, { 
-      title: '', 
-      assigned_to: '', 
-      priority: 'medium', 
+    onChange([...value, {
+      title: '',
+      assigned_to: '',
+      priority: 'medium',
       status: 'assigned',
-      due_date: new Date().toISOString().split('T')[0], 
-      remarks: '' 
+      due_date: new Date().toISOString().split('T')[0],
+      remarks: ''
     }]);
   };
 
@@ -1218,8 +1338,8 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
             {value.map((st, i) => (
               <tr key={i} className="group">
                 <td className="py-2 pr-2 min-w-[150px]">
-                  <select 
-                    value={st.assigned_to} 
+                  <select
+                    value={st.assigned_to}
                     onChange={e => updateSubtask(i, 'assigned_to', e.target.value)}
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
                   >
@@ -1228,17 +1348,17 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   </select>
                 </td>
                 <td className="py-2 pr-2">
-                  <input 
-                    type="text" 
-                    value={st.title} 
+                  <input
+                    type="text"
+                    value={st.title}
                     onChange={e => updateSubtask(i, 'title', e.target.value)}
                     placeholder="e.g. Data Entry"
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
                   />
                 </td>
                 <td className="py-2 pr-2">
-                  <select 
-                    value={st.priority} 
+                  <select
+                    value={st.priority}
                     onChange={e => updateSubtask(i, 'priority', e.target.value)}
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 capitalize"
                   >
@@ -1246,8 +1366,8 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   </select>
                 </td>
                 <td className="py-2 pr-2">
-                  <select 
-                    value={st.status} 
+                  <select
+                    value={st.status}
                     onChange={e => updateSubtask(i, 'status', e.target.value)}
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 capitalize"
                   >
@@ -1255,17 +1375,17 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   </select>
                 </td>
                 <td className="py-2 pr-2">
-                  <input 
-                    type="date" 
-                    value={st.due_date} 
+                  <input
+                    type="date"
+                    value={st.due_date}
                     onChange={e => updateSubtask(i, 'due_date', e.target.value)}
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
                   />
                 </td>
                 <td className="py-2 pr-2">
-                  <input 
-                    type="text" 
-                    value={st.remarks} 
+                  <input
+                    type="text"
+                    value={st.remarks}
                     onChange={e => updateSubtask(i, 'remarks', e.target.value)}
                     placeholder="Notes..."
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
@@ -1288,7 +1408,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
         </p>
       )}
 
-      <button 
+      <button
         onClick={addSubtask}
         className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition shadow-md shadow-slate-200"
       >
