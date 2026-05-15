@@ -19,6 +19,7 @@ import CASidebar from './components/layout/CASidebar'
 import StaffSidebar from './components/layout/StaffSidebar'
 import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 import TaskDetailPage from './pages/ca/TaskDetailPage'
+import ThingsToKnowPage from './pages/common/ThingsToKnowPage'
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -156,6 +157,11 @@ export default function App() {
               <CALayout><SettingsPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
+          <Route path="/ca/things-to-know" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><ThingsToKnowPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
 
           {/* Staff Routes */}
           <Route path="/staff/tasks" element={
@@ -166,6 +172,11 @@ export default function App() {
           <Route path="/staff/profile" element={
             <ProtectedRoute><RoleRoute role="staff">
               <StaffLayout><ProfilePage /></StaffLayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/staff/things-to-know" element={
+            <ProtectedRoute><RoleRoute role="staff">
+              <StaffLayout><ThingsToKnowPage /></StaffLayout>
             </RoleRoute></ProtectedRoute>
           } />
         </Routes>

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ClipboardList, User, LogOut, ShieldCheck, Menu } from 'lucide-react'
+import { ClipboardList, User, LogOut, ShieldCheck, Menu, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
     { to: '/staff/tasks', icon: ClipboardList, label: 'My Tasks' },
     { to: '/staff/profile', icon: User, label: 'My Profile' },
+    { to: '/staff/things-to-know', icon: Info, label: 'Learning Library' },
 ]
 
 export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
@@ -42,14 +43,14 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
                         </div>
                     </div>
                 )}
-                <button 
+                <button
                     onClick={() => {
                         if (window.innerWidth < 1024) {
                             setIsMobileOpen?.(false)
                         } else {
                             setIsOpen && setIsOpen(!isOpen)
                         }
-                    }} 
+                    }}
                     className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
                     title="Toggle Menu"
                 >

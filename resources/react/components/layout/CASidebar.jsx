@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
@@ -10,6 +10,7 @@ const navItems = [
     { to: '/ca/clients', icon: Users, label: 'Clients' },
     { to: '/ca/staff', icon: UserCog, label: 'Staff' },
     { to: '/ca/settings', icon: Settings, label: 'Settings' },
+    { to: '/ca/things-to-know', icon: Info, label: 'Learning Library' },
 ]
 
 export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
