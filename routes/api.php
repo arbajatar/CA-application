@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CA\ClientController;
 use App\Http\Controllers\Api\CA\DashboardController;
 use App\Http\Controllers\Api\CA\SettingsController;
+use App\Http\Controllers\Api\CA\PortalController;
 use App\Http\Controllers\Api\CA\StaffController;
 use App\Http\Controllers\Api\CA\TaskController;
 use App\Http\Controllers\Api\CA\SubTaskController as CASubTaskController;
@@ -70,6 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Settings
         Route::patch('/settings/change-password', [SettingsController::class, 'changePassword']);
+
+        // Portals
+        Route::apiResource('/portals', PortalController::class);
     });
 
     // ── Staff routes  ─────────────────────────────────────────────

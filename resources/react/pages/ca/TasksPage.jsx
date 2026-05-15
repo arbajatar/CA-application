@@ -475,9 +475,9 @@ export default function TasksPage() {
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
-    const FolderCard = ({ name, iconBg, iconColor, onDoubleClick }) => (
+    const FolderCard = ({ name, iconBg, iconColor, onClick }) => (
         <div
-            onDoubleClick={onDoubleClick}
+            onClick={onClick}
             className="group cursor-pointer p-5 bg-white rounded-2xl border border-gray-100 hover:border-[#1F5C99] hover:shadow-xl transition-all duration-300 flex flex-col items-center gap-4 text-center select-none"
         >
             <div className={`w-16 h-16 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
@@ -485,7 +485,6 @@ export default function TasksPage() {
             </div>
             <div>
                 <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">{name}</h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Double click to open</p>
             </div>
         </div>
     );
@@ -540,7 +539,7 @@ export default function TasksPage() {
                                 name="All Sheets"
                                 iconBg="bg-slate-50"
                                 iconColor="text-slate-500"
-                                onDoubleClick={() => {
+                                onClick={() => {
                                     setWorkTypeId('');
                                     setPage(1);
                                     setCurrentFolder('all');
@@ -552,7 +551,7 @@ export default function TasksPage() {
                                     name={wt.name}
                                     iconBg="bg-blue-50"
                                     iconColor="text-blue-500"
-                                    onDoubleClick={() => {
+                                    onClick={() => {
                                         setWorkTypeId(wt.id);
                                         setPage(1);
                                         setCurrentFolder(wt.id);

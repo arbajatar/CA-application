@@ -11,6 +11,7 @@ import DashboardPage from './pages/ca/DashboardPage'
 import TasksPage from './pages/ca/TasksPage'
 import ClientsPage from './pages/ca/ClientsPage'
 import StaffPage from './pages/ca/StaffPage'
+import PortalListPage from './pages/ca/PortalListPage'
 import SettingsPage from './pages/ca/SettingsPage'
 import MyTasksPage from './pages/staff/MyTasksPage'
 import ProfilePage from './pages/staff/ProfilePage'
@@ -151,6 +152,11 @@ export default function App() {
               <CALayout><StaffPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
+          <Route path="/ca/portals" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><PortalListPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
           <Route path="/ca/settings" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><SettingsPage /></CALayout>
@@ -170,7 +176,13 @@ export default function App() {
           } />
         </Routes>
       </BrowserRouter>
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        containerStyle={{ zIndex: 1000000 }}
+        toastOptions={{
+          style: { zIndex: 1000000 }
+        }} 
+      />
     </AuthProvider>
   )
 }
