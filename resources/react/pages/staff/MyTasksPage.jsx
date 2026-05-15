@@ -220,7 +220,7 @@ export default function MyTasksPage() {
                                     tasks?.length === 0 ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                     ) : tasks?.map((t, i) => (
-                                        <tr key={t.id} className="hover:bg-gray-50 transition">
+                                        <tr key={t.id} className="hover:bg-gray-100 transition">
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
                                             <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
@@ -241,7 +241,7 @@ export default function MyTasksPage() {
                                     subTasks?.length === 0 ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
                                     ) : subTasks?.map((st, i) => (
-                                        <tr key={st.id} className="hover:bg-gray-50 transition">
+                                        <tr key={st.id} className="hover:bg-gray-100 transition">
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
                                             <td className="px-6 py-4 font-semibold text-gray-800">{st.title}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{st.task?.work_type || 'N/A'}</td>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -45,6 +45,7 @@ export default function TasksPage() {
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
     const [duplicateOpen, setDuplicateOpen] = useState(false)
+    const [currentFolder, setCurrentFolder] = useState(null)
     const fileInputRef = useRef(null)
 
     const fetchDropdowns = async () => {
@@ -81,7 +82,12 @@ export default function TasksPage() {
     useEffect(() => {
         const params = new URLSearchParams(location.search)
         const sId = params.get('staff_id')
+        const wId = params.get('work_type_id')
         if (sId) setStaffId(sId)
+        if (wId) {
+            setWorkTypeId(wId)
+            setCurrentFolder(wId)
+        }
         fetchDropdowns()
     }, [location.search])
 
@@ -239,7 +245,7 @@ export default function TasksPage() {
     const handleExport = async () => {
         setSaving(true);
         try {
-            const XLSX = await import('xlsx');
+            const ExcelJS = await import('exceljs');
             const res = await api.get('/ca/tasks', {
                 params: {
                     search,
@@ -258,7 +264,10 @@ export default function TasksPage() {
                 return;
             }
 
-            const exportData = [];
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Tasks Export');
+
+            // 1. Identify dynamic headers
             const allDynamicHeadersSet = new Set();
             allTasks.forEach(t => {
                 Object.keys(t.dynamic_fields || {}).forEach(k => {
@@ -269,14 +278,47 @@ export default function TasksPage() {
             });
             const dynamicHeaders = Array.from(allDynamicHeadersSet);
 
-            const headers = [
-                "SR NO", "Client Name", "Mobile No", "Work Type", "Form Name",
-                "Date Allocated", "Global Status", "Global Remarks",
-                ...dynamicHeaders,
-                "Subtask Name", "Assignee", "Priority", "Subtask Status", "Due Date", "Subtask Remarks"
+            // 2. Define columns
+            const columns = [
+                { header: 'SR NO', key: 'sr_no' },
+                { header: 'Client Name', key: 'client_name' },
+                { header: 'Mobile No', key: 'mobile' },
+                { header: 'Work Type', key: 'work_type' },
+                { header: 'Form Name', key: 'form_name' },
+                { header: 'Date Allocated', key: 'date_allocated' },
+                { header: 'Global Status', key: 'status' },
+                { header: 'Global Remarks', key: 'remarks' },
+                ...dynamicHeaders.map(h => ({ header: h, key: `dyn_${h}` })),
+                { header: 'Subtask Name', key: 'st_name' },
+                { header: 'Assignee', key: 'st_assignee' },
+                { header: 'Priority', key: 'st_priority' },
+                { header: 'Subtask Status', key: 'st_status' },
+                { header: 'Due Date', key: 'st_due_date' },
+                { header: 'Subtask Remarks', key: 'st_remarks' },
             ];
-            exportData.push(headers);
 
+            worksheet.columns = columns;
+
+            // 3. Format header row
+            const headerRow = worksheet.getRow(1);
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF0F1C2E' } // Matches theme color #0f1c2e
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+            headerRow.height = 25;
+
+            // 4. Add data rows
             const formatVal = (val) => {
                 if (Array.isArray(val)) return val.join(', ');
                 if (typeof val === 'boolean') return val ? 'Yes' : 'No';
@@ -285,41 +327,84 @@ export default function TasksPage() {
 
             let srNo = 1;
             allTasks.forEach(task => {
-                const baseData = [
-                    task.client?.name || '',
-                    task.client?.contact || '',
-                    task.work_type?.name || '',
-                    task.form_name || '',
-                    task.date_allocated || '',
-                    task.status_label || task.status,
-                    task.remarks || '',
-                    ...dynamicHeaders.map(h => formatVal(task.dynamic_fields?.[h]))
-                ];
+                const baseData = {
+                    client_name: task.client?.name || '',
+                    mobile: task.client?.contact || '',
+                    work_type: task.work_type?.name || '',
+                    form_name: task.form_name || '',
+                    date_allocated: task.date_allocated || '',
+                    status: task.status_label || task.status,
+                    remarks: task.remarks || '',
+                };
+
+                dynamicHeaders.forEach(h => {
+                    baseData[`dyn_${h}`] = formatVal(task.dynamic_fields?.[h]);
+                });
 
                 if (task.sub_tasks && task.sub_tasks.length > 0) {
                     task.sub_tasks.forEach(st => {
-                        exportData.push([
-                            srNo++, ...baseData,
-                            st.title,
-                            st.assigned_to?.name || 'Unassigned',
-                            st.priority_label || st.priority,
-                            st.status_label || st.status,
-                            st.due_date || '',
-                            st.remarks || ''
-                        ]);
+                        worksheet.addRow({
+                            sr_no: srNo++,
+                            ...baseData,
+                            st_name: st.title,
+                            st_assignee: st.assigned_to?.name || 'Unassigned',
+                            st_priority: st.priority_label || st.priority,
+                            st_status: st.status_label || st.status,
+                            st_due_date: st.due_date || '',
+                            st_remarks: st.remarks || ''
+                        });
                     });
                 } else {
-                    exportData.push([
-                        srNo++, ...baseData,
-                        'No Subtasks', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A'
-                    ]);
+                    worksheet.addRow({
+                        sr_no: srNo++,
+                        ...baseData,
+                        st_name: 'No Subtasks',
+                        st_assignee: 'N/A',
+                        st_priority: 'N/A',
+                        st_status: 'N/A',
+                        st_due_date: 'N/A',
+                        st_remarks: 'N/A'
+                    });
                 }
             });
 
-            const ws = XLSX.utils.aoa_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Tasks Export");
-            XLSX.writeFile(wb, `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+            // 5. Style data rows and Auto-size columns
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 1) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        };
+                        cell.alignment = { vertical: 'middle', wrapText: true };
+                    });
+                }
+            });
+
+            // Automatic column resizing
+            worksheet.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 10;
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength;
+                    }
+                });
+                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);
+            });
+
+            // 6. Generate and Download
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+
             toast.success('Tasks exported successfully');
         } catch (err) {
             console.error('Export Error:', err);
@@ -390,13 +475,36 @@ export default function TasksPage() {
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
+    const FolderCard = ({ name, iconBg, iconColor, onDoubleClick }) => (
+        <div
+            onDoubleClick={onDoubleClick}
+            className="group cursor-pointer p-5 bg-white rounded-2xl border border-gray-100 hover:border-[#1F5C99] hover:shadow-xl transition-all duration-300 flex flex-col items-center gap-4 text-center select-none"
+        >
+            <div className={`w-16 h-16 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+                <FolderIcon size={32} className={iconColor} fill="currentColor" fillOpacity={0.2} />
+            </div>
+            <div>
+                <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">{name}</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Double click to open</p>
+            </div>
+        </div>
+    );
+
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Sheets Management</h1>
-                    <p className="text-sm text-gray-400 mt-1">Monitor, assign, and manage all office work entries.</p>
+                    <div className="flex items-center gap-2 mb-1">
+                        <h1 className="text-3xl font-bold text-gray-900">Sheets Management</h1>
+                        {currentFolder && (
+                            <div className="flex items-center text-gray-400 text-lg font-medium">
+                                <span className="mx-1">/</span>
+                                <span className="text-[#1F5C99]">{currentFolder === 'all' ? 'All Sheets' : workTypes.find(w => w.id == currentFolder)?.name}</span>
+                            </div>
+                        )}
+                    </div>
+                    <p className="text-sm text-gray-400">Monitor, assign, and manage all office work entries.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input
@@ -413,105 +521,155 @@ export default function TasksPage() {
                     >
                         Import Data
                     </button>
-                    <button onClick={() => navigate('/ca/tasks/builder')}
+                    <button onClick={() => navigate('/ca/tasks/builder', { state: { workTypeId: currentFolder && currentFolder !== 'all' ? currentFolder : '' } })}
                         className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
                         <Plus size={16} /> Create New Sheet
                     </button>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                {/* Filters */}
-                <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
-                    <div className="relative w-full lg:flex-1">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="Search by sheet name..." value={search}
-                            onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
-                    </div>
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
-                        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
-                            {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                        </select>
-                        <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                            <option value="">All Clients</option>
-                            {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                            <option value="">All Staff</option>
-                            {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                        <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
-                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
-                            <option value="">All Work Types</option>
-                            {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                        </select>
-                        <button
-                            onClick={handleExport}
-                            disabled={saving}
-                            className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm disabled:opacity-50 h-[38px] whitespace-nowrap"
-                        >
-                            <Download size={16} /> Export
-                        </button>
-                    </div>
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto">
-                    {loading ? <Spinner /> : (
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    {['#', 'Sheet Name', 'Work Type', 'Create Date', 'Sheet Status', 'Remarks', 'Actions'].map(h => (
-                                        <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {tasks?.length === 0 ? (
-                                    <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
-                                ) : tasks?.map((t, i) => (
-                                    <tr key={t.id} className="hover:bg-gray-50 transition">
-                                        <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                        <td className="px-4 py-3 font-semibold text-gray-800">{t.form_name || '—'}</td>
-                                        <td className="px-4 py-3 text-gray-600">{t.work_type?.name || '—'}</td>
-                                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
-                                        <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
-                                        <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
-                                                    <Eye size={15} />
-                                                </button>
-                                                <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
-                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Task">
-                                                    <Copy size={15} />
-                                                </button>
-                                                <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
-                                                <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-
-                {/* Pagination */}
-                {meta && meta.last_page > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                        <p className="text-xs text-gray-400">Showing {meta.from}–{meta.to} of {meta.total}</p>
-                        <div className="flex gap-2">
-                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
-                            <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
-                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[400px]">
+                {!currentFolder ? (
+                    <div className="p-8">
+                        <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <FolderIcon size={20} className="text-[#1F5C99]" />
+                            All Folders
+                        </h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                            <FolderCard
+                                name="All Sheets"
+                                iconBg="bg-slate-50"
+                                iconColor="text-slate-500"
+                                onDoubleClick={() => {
+                                    setWorkTypeId('');
+                                    setPage(1);
+                                    setCurrentFolder('all');
+                                }}
+                            />
+                            {workTypes.map(wt => (
+                                <FolderCard
+                                    key={wt.id}
+                                    name={wt.name}
+                                    iconBg="bg-blue-50"
+                                    iconColor="text-blue-500"
+                                    onDoubleClick={() => {
+                                        setWorkTypeId(wt.id);
+                                        setPage(1);
+                                        setCurrentFolder(wt.id);
+                                    }}
+                                />
+                            ))}
                         </div>
                     </div>
+                ) : (
+                    <>
+                        {/* Filters */}
+                        <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
+                            <button
+                                onClick={() => {
+                                    setCurrentFolder(null);
+                                    setWorkTypeId('');
+                                    setPage(1);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 text-gray-500 hover:text-[#1F5C99] font-bold text-sm transition group"
+                            >
+                                <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                                Back to Folders
+                            </button>
+                            <div className="h-6 w-[1px] bg-gray-200 mx-2 hidden lg:block" />
+                            <div className="relative w-full lg:flex-1">
+                                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input type="text" placeholder="Search in this folder..." value={search}
+                                    onChange={e => { setSearch(e.target.value); setPage(1) }}
+                                    className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
+                            </div>
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
+                                <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
+                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
+                                    {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                </select>
+                                <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
+                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
+                                    <option value="">All Clients</option>
+                                    {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                                <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
+                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
+                                    <option value="">All Staff</option>
+                                    {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                                {currentFolder === 'all' && (
+                                    <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
+                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
+                                        <option value="">All Work Types</option>
+                                        {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                    </select>
+                                )}
+                                <button
+                                    onClick={handleExport}
+                                    disabled={saving}
+                                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm disabled:opacity-50 h-[38px] whitespace-nowrap"
+                                >
+                                    <Download size={16} /> Export
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        <div className="overflow-x-auto">
+                            {loading ? <Spinner /> : (
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                            {['#', 'Sheet Name', 'Work Type', 'Create Date', 'Sheet Status', 'Remarks', 'Actions'].map(h => (
+                                                <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {tasks?.length === 0 ? (
+                                            <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found in this folder</td></tr>
+                                        ) : tasks?.map((t, i) => (
+                                            <tr key={t.id} className="hover:bg-gray-100 transition">
+                                                <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
+                                                <td className="px-4 py-3 font-semibold text-gray-800">{t.form_name || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-600">{t.work_type?.name || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
+                                                <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                                                <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                            <Eye size={15} />
+                                                        </button>
+                                                        <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                        <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Task">
+                                                            <Copy size={15} />
+                                                        </button>
+                                                        <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
+                                                        <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        {/* Pagination */}
+                        {meta && meta.last_page > 1 && (
+                            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                                <p className="text-xs text-gray-400">Showing {meta.from}–{meta.to} of {meta.total}</p>
+                                <div className="flex gap-2">
+                                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
+                                    <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
+                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 

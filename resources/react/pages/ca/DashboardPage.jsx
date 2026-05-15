@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     FileText, Activity, CheckCircle, AlertTriangle,
-    Briefcase, Users, Search, Download, SlidersHorizontal
+    Briefcase, Users, Search, Download, SlidersHorizontal,
+    LayoutGrid, ExternalLink, Folder
 } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -44,6 +45,7 @@ export default function DashboardPage() {
     const [staffData, setStaffData] = useState([])
     const [tasks, setTasks] = useState([])
     const [tasksMeta, setTasksMeta] = useState(null)
+    const [workTypes, setWorkTypes] = useState([])
     const [loading, setLoading] = useState(true)
     const [taskLoading, setTaskLoading] = useState(false)
 
@@ -52,12 +54,14 @@ export default function DashboardPage() {
     const [page, setPage] = useState(1)
 
     const fetchSummary = async () => {
-        const [s, st] = await Promise.all([
+        const [s, st, wt] = await Promise.all([
             api.get('/ca/dashboard/summary'),
             api.get('/ca/dashboard/staff-summary'),
+            api.get('/ca/work-types'),
         ])
         setSummary(s.data)
         setStaffData(st.data.data)
+        setWorkTypes(wt.data.data || [])
     }
 
     const fetchTasks = useCallback(async () => {
@@ -107,6 +111,51 @@ export default function DashboardPage() {
                 {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
             </div>
 
+            {/* Quick Links */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white shadow-lg">
+                        <LayoutGrid size={20} />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800">Quick Links</h2>
+                        <p className="text-sm text-gray-400">Access all services at your fingertips</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                    {workTypes.map((wt, i) => {
+                        const colors = [
+                            { bg: 'bg-blue-500', icon: 'text-white' },
+                            { bg: 'bg-orange-500', icon: 'text-white' },
+                            { bg: 'bg-emerald-500', icon: 'text-white' },
+                            { bg: 'bg-sky-500', icon: 'text-white' },
+                            { bg: 'bg-teal-500', icon: 'text-white' },
+                            { bg: 'bg-red-500', icon: 'text-white' },
+                            { bg: 'bg-indigo-500', icon: 'text-white' },
+                            { bg: 'bg-purple-500', icon: 'text-white' },
+                            { bg: 'bg-pink-500', icon: 'text-white' },
+                        ];
+                        const color = colors[i % colors.length];
+
+                        return (
+                            <div
+                                key={wt.id}
+                                onClick={() => navigate(`/ca/tasks?work_type_id=${wt.id}`)}
+                                className="group cursor-pointer bg-white p-5 rounded-2xl border border-gray-100 hover:border-blue-500 hover:shadow-xl transition-all duration-300 flex flex-col items-center gap-4 text-center select-none"
+                            >
+                                <div className={`w-14 h-14 rounded-2xl ${color.bg} ${color.icon} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md`}>
+                                    <Folder size={24} fill="currentColor" fillOpacity={0.2} />
+                                </div>
+                                <h3 className="font-bold text-gray-700 text-xs leading-tight group-hover:text-blue-600 transition-colors">
+                                    {wt.name}
+                                </h3>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+
             {/* Staff-wise Summary */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -127,7 +176,7 @@ export default function DashboardPage() {
                                 <tr
                                     key={s.id}
                                     onClick={() => navigate(`/ca/tasks?staff_id=${s.id}`)}
-                                    className="hover:bg-gray-50 cursor-pointer transition"
+                                    className="hover:bg-gray-100 cursor-pointer transition"
                                 >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
@@ -194,7 +243,7 @@ export default function DashboardPage() {
                                 {tasks?.length === 0 ? (
                                     <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                 ) : tasks?.map((t, i) => (
-                                    <tr key={t.id} className="hover:bg-gray-50 transition">
+                                    <tr key={t.id} className="hover:bg-gray-100 transition">
                                         <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                         <td className="px-6 py-4 font-semibold text-gray-800">{t.client.name}</td>
                                         <td className="px-6 py-4 text-gray-600">{t.work_type.name}</td>
