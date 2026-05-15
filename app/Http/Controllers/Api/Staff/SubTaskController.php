@@ -34,14 +34,21 @@ class SubTaskController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'screenshot' => ['nullable', 'image', 'max:2048'],
         ]);
 
         $newStatus = TaskStatus::from($validated['status']);
         
+        $screenshotPath = $subTask->screenshot;
+        if ($request->hasFile('screenshot')) {
+            $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
+        }
+
         // Simple status update for now, maybe add transition logic later like in TaskController
         $updateData = [
             'status' => $newStatus,
             'remarks' => $validated['remarks'] ?? $subTask->remarks,
+            'screenshot' => $screenshotPath,
         ];
 
         if ($newStatus === TaskStatus::Completed) {

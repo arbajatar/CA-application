@@ -14,6 +14,7 @@ class TaskLogResource extends JsonResource
             'old_status' => $this->old_status,
             'new_status' => $this->new_status,
             'remarks' => $this->remarks,
+            'screenshot_url' => $this->screenshot_url,
             'changed_by' => $this->changedBy?->name,
             'changed_at' => $this->created_at->toDateTimeString(),
         ];

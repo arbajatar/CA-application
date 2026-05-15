@@ -18,7 +18,15 @@ class TaskLog extends Model
         'old_status',
         'new_status',
         'remarks',
+        'screenshot',
     ];
+
+    protected $appends = ['screenshot_url'];
+
+    public function getScreenshotUrlAttribute()
+    {
+        return $this->screenshot ? asset('storage/' . $this->screenshot) : null;
+    }
 
     public function task()
     {
