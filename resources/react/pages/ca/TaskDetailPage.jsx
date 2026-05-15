@@ -4,7 +4,7 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -25,6 +25,15 @@ export default function TaskDetailPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
+
+    const handleCopy = (text) => {
+        if (!text) {
+            toast.error('Nothing to copy!');
+            return;
+        }
+        navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard!');
+    };
 
     // Sidebar state
     const [sidebarMode, setSidebarMode] = useState('fields'); // 'fields' or 'settings'
@@ -490,15 +499,24 @@ export default function TaskDetailPage() {
                     {/* Static Fields */}
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</label>
-                        <p className="text-sm font-bold text-slate-700">{task.client.name}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.client.name}</p>
+                            <button onClick={() => handleCopy(task.client.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Work Type</label>
-                        <p className="text-sm font-bold text-slate-700">{task.work_type.name}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.work_type.name}</p>
+                            <button onClick={() => handleCopy(task.work_type.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocated Date</label>
-                        <p className="text-sm font-bold text-slate-700">{task.date_allocated}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.date_allocated}</p>
+                            <button onClick={() => handleCopy(task.date_allocated)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
 
                     {/* Dynamic Fields */}
@@ -507,11 +525,22 @@ export default function TaskDetailPage() {
                         if (['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)) return null;
 
                         return (
-                            <div key={label} className="space-y-1">
+                            <div key={label} className="space-y-1 group">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                                <p className="text-sm font-bold text-slate-700">
-                                    {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
-                                </p>
+                                <div className="flex items-center">
+                                    <p className="text-sm font-bold text-slate-700">
+                                        {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
+                                    </p>
+                                    {value && typeof value !== 'boolean' && (
+                                        <button 
+                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())} 
+                                            className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" 
+                                            title="Copy"
+                                        >
+                                            <Copy size={12} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -562,11 +591,14 @@ export default function TaskDetailPage() {
                                             >
                                                 {st.status === 'completed' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                             </button>
-                                            <input
-                                                defaultValue={st.title}
-                                                onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'completed' ? 'line-through text-slate-300' : ''}`}
-                                            />
+                                            <div className="flex-1 flex items-center group/title">
+                                                <input
+                                                    defaultValue={st.title}
+                                                    onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
+                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'completed' ? 'line-through text-slate-300' : ''}`}
+                                                />
+                                                <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-5">
@@ -612,13 +644,18 @@ export default function TaskDetailPage() {
                                         />
                                     </td>
                                     <td className="px-6 py-5">
-                                        <textarea
-                                            defaultValue={st.remarks}
-                                            onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
-                                            placeholder="Remarks..."
-                                            rows="1"
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full resize-y min-h-[30px]"
-                                        />
+                                        <div className="flex items-center group/rem">
+                                            <textarea
+                                                defaultValue={st.remarks}
+                                                onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
+                                                placeholder="Remarks..."
+                                                rows="1"
+                                                className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full resize-y min-h-[30px]"
+                                            />
+                                            {st.remarks && (
+                                                <button onClick={() => handleCopy(st.remarks)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-5 text-center">
                                         {st.screenshot_url ? (
