@@ -612,11 +612,12 @@ export default function TaskDetailPage() {
                                         />
                                     </td>
                                     <td className="px-6 py-5">
-                                        <input
+                                        <textarea
                                             defaultValue={st.remarks}
                                             onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
                                             placeholder="Remarks..."
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full"
+                                            rows="1"
+                                            className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full resize-y min-h-[30px]"
                                         />
                                     </td>
                                     <td className="px-6 py-5 text-center">

@@ -295,8 +295,8 @@ export default function TaskBuilderPage() {
     },
     {
       id: 'static_task_particular',
-      type: 'text',
-      icon: 'Zap',
+      type: 'longtext',
+      icon: 'AlignLeft',
       color: '#f59e0b',
       label: 'Task/Particular',
       placeholder: 'Enter task description...',
@@ -350,8 +350,8 @@ export default function TaskBuilderPage() {
     },
     {
       id: 'static_sub_status',
-      type: 'text',
-      icon: 'Tags',
+      type: 'longtext',
+      icon: 'AlignLeft',
       color: '#6366f1',
       label: 'Sub status',
       placeholder: 'e.g. Documentation pending',
@@ -1383,12 +1383,12 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   />
                 </td>
                 <td className="py-2 pr-2">
-                  <input
-                    type="text"
+                  <textarea
                     value={st.remarks}
                     onChange={e => updateSubtask(i, 'remarks', e.target.value)}
                     placeholder="Notes..."
-                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                    rows="1"
+                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 text-[11px] resize-y min-h-[38px]"
                   />
                 </td>
                 <td className="py-2 text-right">
