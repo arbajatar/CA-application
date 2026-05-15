@@ -34,7 +34,7 @@ export default function ThingsToKnowPage() {
         setLoading(true)
         try {
             const res = await api.get('/things-to-know/videos')
-            setVideos(res.data.data)
+            setVideos(res.data.data || [])
         } catch (e) {
             toast.error('Failed to load videos')
         } finally {
@@ -46,7 +46,7 @@ export default function ThingsToKnowPage() {
         setLoading(true)
         try {
             const res = await api.get('/things-to-know/brochures')
-            setBrochures(res.data.data)
+            setBrochures(res.data.data || [])
         } catch (e) {
             toast.error('Failed to load brochures')
         } finally {
@@ -213,7 +213,7 @@ export default function ThingsToKnowPage() {
 
                         {loading ? (
                             <Spinner />
-                        ) : videos.length === 0 ? (
+                        ) : (videos?.length ?? 0) === 0 ? (
                             <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
                                 <Video size={48} className="text-gray-200 mb-4" />
                                 <p className="text-gray-400 font-medium text-lg">No videos added yet.</p>
@@ -297,7 +297,7 @@ export default function ThingsToKnowPage() {
 
                         {loading ? (
                             <Spinner />
-                        ) : brochures.length === 0 ? (
+                        ) : (brochures?.length ?? 0) === 0 ? (
                             <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
                                 <FileText size={48} className="text-gray-200 mb-4" />
                                 <p className="text-gray-400 font-medium text-lg">No brochures added yet.</p>

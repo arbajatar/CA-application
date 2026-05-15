@@ -7,7 +7,7 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
-const EMPTY_FORM = { name: '', contact: '', gst_number: '', status: 'active' }
+const EMPTY_FORM = { name: '', contact: '', email: '', dob: '', city: '', gst_number: '', status: 'active' }
 
 export default function ClientsPage() {
     const [clients, setClients] = useState([])
@@ -62,7 +62,15 @@ export default function ClientsPage() {
 
     const openEdit = (c) => {
         setSelected(c)
-        setForm({ name: c.name, contact: c.contact ?? '', gst_number: c.gst_number ?? '', status: c.status })
+        setForm({ 
+            name: c.name, 
+            contact: c.contact ?? '', 
+            email: c.email ?? '',
+            dob: c.dob ?? '',
+            city: c.city ?? '',
+            gst_number: c.gst_number ?? '', 
+            status: c.status 
+        })
         setErrors({})
         setEditOpen(true)
     }
@@ -85,9 +93,22 @@ export default function ClientsPage() {
             {renderField("Contact Number", errors.contact?.[0], (
                 <input type="text" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} placeholder="e.g. 9876543210" className={inputCls} />
             ))}
-            {renderField("GST Number", errors.gst_number?.[0], (
-                <input type="text" value={form.gst_number} onChange={e => setForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className={inputCls} />
-            ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {renderField("Email Address", errors.email?.[0], (
+                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="client@example.com" className={inputCls} />
+                ))}
+                {renderField("City", errors.city?.[0], (
+                    <input type="text" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} placeholder="Enter city" className={inputCls} />
+                ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {renderField("Date of Birth", errors.dob?.[0], (
+                    <input type="date" value={form.dob} onChange={e => setForm(f => ({ ...f, dob: e.target.value }))} className={inputCls} />
+                ))}
+                {renderField("GST Number", errors.gst_number?.[0], (
+                    <input type="text" value={form.gst_number} onChange={e => setForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className={inputCls} />
+                ))}
+            </div>
             {renderField("Status", null, (
                 <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
                     <option value="active">Active</option>
@@ -135,7 +156,7 @@ export default function ClientsPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                    {['Client Name', 'Contact Information', 'GST Number', 'Status', 'Actions'].map(h => (
+                                    {['Client Name', 'Contact & Email', 'GST Number', 'Status', 'Actions'].map(h => (
                                         <th key={h} className="px-6 py-3 text-left">{h}</th>
                                     ))}
                                 </tr>
@@ -152,11 +173,16 @@ export default function ClientsPage() {
                                                 </div>
                                                 <div>
                                                     <p className="font-semibold text-gray-800">{c.name}</p>
-                                                    <p className="text-xs text-gray-400">Business Client</p>
+                                                    <p className="text-xs text-gray-400">{c.city ? `${c.city} • ` : ''}Business Client</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-gray-600">{c.contact ?? '—'}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-gray-700">{c.contact ?? '—'}</span>
+                                                <span className="text-xs text-gray-400">{c.email ?? ''}</span>
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-4 text-gray-600">{c.gst_number ?? 'Not Provided'}</td>
                                         <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                                         <td className="px-6 py-4">

@@ -74,7 +74,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Portals
         Route::apiResource('/portals', PortalController::class);
+
+        // Things to Know Videos & Brochures
+        Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
+        Route::delete('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'destroy']);
+        Route::post('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'store']);
+        Route::delete('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'destroy']);
     });
+
+    // ── Common routes (any role) ─────────────────────────────────────────────
+    Route::get('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'index']);
+    Route::get('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'index']);
 
     // ── Staff routes  ─────────────────────────────────────────────
     Route::middleware('role:staff')->prefix('staff')->name('staff.')->group(function () {

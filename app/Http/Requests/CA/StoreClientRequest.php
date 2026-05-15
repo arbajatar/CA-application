@@ -18,6 +18,9 @@ class StoreClientRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'contact' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'dob' => ['nullable', 'date'],
+            'city' => ['nullable', 'string', 'max:255'],
             'gst_number' => ['nullable', 'string', 'max:20'],
             'status' => ['nullable', new Enum(ClientStatus::class)],
         ];

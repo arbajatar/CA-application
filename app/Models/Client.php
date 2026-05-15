@@ -14,6 +14,9 @@ class Client extends Model
     protected $fillable = [
         'name',
         'contact',
+        'email',
+        'dob',
+        'city',
         'gst_number',
         'status',
     ];
@@ -22,6 +25,7 @@ class Client extends Model
     {
         return [
             'status' => ClientStatus::class,
+            'dob' => 'date',
         ];
     }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe, Info } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 

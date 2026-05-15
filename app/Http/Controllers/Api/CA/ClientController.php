@@ -33,12 +33,7 @@ class ClientController extends Controller
 
     public function store(StoreClientRequest $request): JsonResponse
     {
-        $client = Client::create([
-            'name' => $request->name,
-            'contact' => $request->contact,
-            'gst_number' => $request->gst_number,
-            'status' => $request->status ?? ClientStatus::Active->value,
-        ]);
+        $client = Client::create($request->validated());
 
         return response()->json(['message' => 'Client created successfully.', 'data' => new ClientResource($client)], 201);
     }
