@@ -35,7 +35,7 @@ export default function TasksPage() {
     const [status, setStatus] = useState('')
     const [staffId, setStaffId] = useState('')
     const [clientId, setClientId] = useState('')
-    const [workTypeId, setWorkTypeId] = useState('')
+    const [workTypeId, setWorkTypeId] = useState(() => new URLSearchParams(location.search).get('work_type_id') || '')
     const [page, setPage] = useState(1)
 
     const [reassignOpen, setReassignOpen] = useState(false)
@@ -45,7 +45,7 @@ export default function TasksPage() {
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
     const [duplicateOpen, setDuplicateOpen] = useState(false)
-    const [currentFolder, setCurrentFolder] = useState(null)
+    const [currentFolder, setCurrentFolder] = useState(() => new URLSearchParams(location.search).get('work_type_id') || null)
     const fileInputRef = useRef(null)
 
     const fetchDropdowns = async () => {
@@ -83,11 +83,13 @@ export default function TasksPage() {
         const params = new URLSearchParams(location.search)
         const sId = params.get('staff_id')
         const wId = params.get('work_type_id')
+        
         if (sId) setStaffId(sId)
-        if (wId) {
-            setWorkTypeId(wId)
-            setCurrentFolder(wId)
-        }
+        
+        // Sync states if URL changes (e.g. clicking different quick links)
+        setWorkTypeId(wId || '')
+        setCurrentFolder(wId || null)
+        
         fetchDropdowns()
     }, [location.search])
 
