@@ -574,14 +574,14 @@ export default function TaskBuilderPage() {
         remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
       });
 
-      showToast('Task created successfully!');
+      showToast('Sheet created successfully!');
       // Optionally redirect or reset form
       setTimeout(() => {
         window.location.href = '/ca/tasks';
       }, 1500);
     } catch (err) {
       console.error(err);
-      showToast('Failed to create task. ' + (err.response?.data?.message || ''));
+      showToast('Failed to create Sheet. ' + (err.response?.data?.message || ''));
     }
   };
 
@@ -816,7 +816,7 @@ export default function TaskBuilderPage() {
                     <div className="w-1 h-6 bg-slate-900 rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Meta Information</h3>
                   </div>
-                  <div ref={fieldsContainerRef} id="fieldsContainer1">
+                  <div ref={fieldsContainerRef} id="fieldsContainer1" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formSchema.filter(f => f.section === 1).map((field) => (
                       <FormCard
                         key={field.id}
@@ -849,7 +849,7 @@ export default function TaskBuilderPage() {
                     <div className="w-1 h-6 bg-blue-600 rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Task Assignment Section</h3>
                   </div>
-                  <div id="fieldsContainer2">
+                  <div id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formSchema.filter(f => f.section !== 1).map((field) => (
                       <FormCard
                         key={field.id}
@@ -1037,7 +1037,9 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
 
   return (
     <div
-      className={`form-card animate-slide-in ${isActive ? 'active' : ''}`}
+      className={`form-card animate-slide-in ${isActive ? 'active' : ''} ${
+        field.type === 'subtasks_list' ? 'md:col-span-2' : ''
+      }`}
       onClick={onActive}
     >
       <div className={`flex items-center gap-2 ${!isLive ? 'pr-6' : ''}`}>
@@ -1131,7 +1133,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           modalActions={modalActions}
         />
         {field.value && (
-          <button 
+          <button
             onClick={handleCopy}
             className="absolute right-3 top-3 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10"
             title="Copy field content"
@@ -1383,7 +1385,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                       placeholder="e.g. Data Entry"
                       className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
                     />
-                    <button 
+                    <button
                       onClick={() => { navigator.clipboard.writeText(st.title); toast.success('Copied!'); }}
                       className="ml-1 p-1 text-slate-300 hover:text-indigo-600 transition shadow-sm"
                       title="Copy"
@@ -1428,7 +1430,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                       className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 text-[11px] resize-y min-h-[38px]"
                     />
                     {st.remarks && (
-                      <button 
+                      <button
                         onClick={() => { navigator.clipboard.writeText(st.remarks); toast.success('Copied!'); }}
                         className="ml-1 p-1 text-slate-300 hover:text-indigo-600 transition shadow-sm"
                         title="Copy"

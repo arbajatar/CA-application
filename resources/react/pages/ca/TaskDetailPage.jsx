@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -382,6 +382,21 @@ export default function TaskDetailPage() {
 
     return (
         <div className="space-y-6 max-w-[100vw] overflow-x-hidden pb-12 relative">
+            {/* Breadcrumb */}
+            <nav className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                <Link to="/ca/tasks" className="hover:text-indigo-600 transition">Sheets</Link>
+                <ChevronRight size={10} className="text-slate-300" />
+                {task.work_type && (
+                    <>
+                        <Link to={`/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-600 transition">
+                            {task.work_type.name}
+                        </Link>
+                        <ChevronRight size={10} className="text-slate-300" />
+                    </>
+                )}
+                <span className="text-slate-900">{task.form_name || 'View Sheet'}</span>
+            </nav>
+
             {/* Header */}
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -532,9 +547,9 @@ export default function TaskDetailPage() {
                                         {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
                                     </p>
                                     {value && typeof value !== 'boolean' && (
-                                        <button 
-                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())} 
-                                            className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" 
+                                        <button
+                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                            className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm"
                                             title="Copy"
                                         >
                                             <Copy size={12} />
@@ -587,7 +602,7 @@ export default function TaskDetailPage() {
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'completed' ? 'in_progress' : 'completed' })}
-                                                className={`transition-colors ${st.status === 'completed' ? 'text-indigo-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                                className={`transition-colors ${st.status === 'completed' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
                                             >
                                                 {st.status === 'completed' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                             </button>
@@ -659,9 +674,9 @@ export default function TaskDetailPage() {
                                     </td>
                                     <td className="px-6 py-5 text-center">
                                         {st.screenshot_url ? (
-                                            <button 
+                                            <button
                                                 onClick={() => setPreviewImage(st.screenshot_url)}
-                                                className="inline-flex items-center gap-1.5 p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm" 
+                                                className="inline-flex items-center gap-1.5 p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm"
                                                 title="View Attachment"
                                             >
                                                 <Eye size={14} />
@@ -848,55 +863,12 @@ export default function TaskDetailPage() {
                     </div>
                 </div>
             )}
-            
-            {/* Status History / Logs */}
-            {task.logs && task.logs.length > 0 && (
-                <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 mt-6">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-1.5 h-6 bg-amber-500 rounded-full"></div>
-                        <h2 className="text-xl font-black text-slate-900">Timeline & History</h2>
-                    </div>
-                    <div className="space-y-6">
-                        {task.logs.map((log) => (
-                            <div key={log.id} className="relative pl-8 before:absolute before:left-0 before:top-2 before:bottom-0 before:w-px before:bg-slate-100 last:before:hidden">
-                                <div className="absolute left-[-4px] top-2 w-2 h-2 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
-                                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50 hover:border-slate-200 transition-all">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex items-center gap-2">
-                                                {log.old_status ? <StatusBadge status={log.old_status} /> : <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Initial</span>}
-                                                <span className="text-slate-300">→</span>
-                                                <StatusBadge status={log.new_status} />
-                                            </div>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{log.changed_at}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-slate-400">
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Modified by</span>
-                                            <span className="text-xs font-bold text-slate-600">{log.changed_by}</span>
-                                        </div>
-                                    </div>
-                                    {log.remarks && <p className="text-sm text-slate-600 italic leading-relaxed">"{log.remarks}"</p>}
-                                    {log.screenshot_url && (
-                                        <div className="mt-4 pt-4 border-t border-slate-100">
-                                            <button 
-                                                onClick={() => setPreviewImage(log.screenshot_url)}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition shadow-sm"
-                                            >
-                                                <Eye size={14} /> View Attached Screenshot
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+
             {/* Image Preview Modal */}
             {previewImage && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="relative max-w-4xl w-full h-full flex flex-col items-center justify-center">
-                        <button 
+                        <button
                             onClick={() => setPreviewImage(null)}
                             className="absolute top-0 right-0 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:scale-110 mb-4"
                             title="Close / Back"
@@ -906,7 +878,7 @@ export default function TaskDetailPage() {
                         <div className="bg-white p-2 rounded-3xl shadow-2xl overflow-hidden max-h-[85vh]">
                             <img src={previewImage} alt="Screenshot Preview" className="max-w-full max-h-full object-contain rounded-2xl" />
                         </div>
-                        <button 
+                        <button
                             onClick={() => setPreviewImage(null)}
                             className="mt-8 px-8 py-3 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition shadow-xl"
                         >
