@@ -11,15 +11,15 @@ class TaskResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'client' => [
+            'client' => $this->client ? [
                 'id' => $this->client->id,
                 'name' => $this->client->name,
                 'contact' => $this->client->contact,
-            ],
-            'work_type' => [
+            ] : null,
+            'work_type' => $this->workType ? [
                 'id' => $this->workType->id,
                 'name' => $this->workType->name,
-            ],
+            ] : null,
             'form_name' => $this->form_name,
             'allocated_to' => $this->assignedTo ? [
                 'id' => $this->assignedTo->id,
