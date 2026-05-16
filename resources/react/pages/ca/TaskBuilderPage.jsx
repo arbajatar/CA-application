@@ -4,7 +4,7 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search
+  Search, Copy
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import Sortable from 'sortablejs';
@@ -295,8 +295,8 @@ export default function TaskBuilderPage() {
     },
     {
       id: 'static_task_particular',
-      type: 'text',
-      icon: 'Zap',
+      type: 'longtext',
+      icon: 'AlignLeft',
       color: '#f59e0b',
       label: 'Task/Particular',
       placeholder: 'Enter task description...',
@@ -350,8 +350,8 @@ export default function TaskBuilderPage() {
     },
     {
       id: 'static_sub_status',
-      type: 'text',
-      icon: 'Tags',
+      type: 'longtext',
+      icon: 'AlignLeft',
       color: '#6366f1',
       label: 'Sub status',
       placeholder: 'e.g. Documentation pending',
@@ -1017,6 +1017,24 @@ export default function TaskBuilderPage() {
 function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isDuplicating, isSelected, onToggleSelect, calculateAutoProgress, modalActions }) {
   const isLive = viewMode === 'live';
 
+  const handleCopy = (e) => {
+    e.stopPropagation();
+    let textToCopy = '';
+    if (field.type === 'labels' && Array.isArray(field.value)) {
+      textToCopy = field.value.join(', ');
+    } else {
+      textToCopy = field.value?.toString() || '';
+    }
+
+    if (!textToCopy.trim()) {
+      toast.error('Nothing to copy!');
+      return;
+    }
+
+    navigator.clipboard.writeText(textToCopy);
+    toast.success('Copied to clipboard!');
+  };
+
   return (
     <div
       className={`form-card animate-slide-in ${isActive ? 'active' : ''}`}
@@ -1104,7 +1122,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
       </div>
 
       {/* Field input */}
-      <div className="field-preview-area">
+      <div className="field-preview-area relative group/input">
         <FieldInput
           field={field}
           onUpdate={onUpdate}
@@ -1112,6 +1130,15 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           isLive={isLive}
           modalActions={modalActions}
         />
+        {field.value && (
+          <button 
+            onClick={handleCopy}
+            className="absolute right-3 top-3 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10"
+            title="Copy field content"
+          >
+            <Copy size={14} />
+          </button>
+        )}
       </div>
 
       {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels') && (
@@ -1348,13 +1375,22 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   </select>
                 </td>
                 <td className="py-2 pr-2">
-                  <input
-                    type="text"
-                    value={st.title}
-                    onChange={e => updateSubtask(i, 'title', e.target.value)}
-                    placeholder="e.g. Data Entry"
-                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
-                  />
+                  <div className="flex items-center group/title">
+                    <input
+                      type="text"
+                      value={st.title}
+                      onChange={e => updateSubtask(i, 'title', e.target.value)}
+                      placeholder="e.g. Data Entry"
+                      className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
+                    />
+                    <button 
+                      onClick={() => { navigator.clipboard.writeText(st.title); toast.success('Copied!'); }}
+                      className="ml-1 p-1 text-slate-300 hover:text-indigo-600 transition shadow-sm"
+                      title="Copy"
+                    >
+                      <Copy size={12} />
+                    </button>
+                  </div>
                 </td>
                 <td className="py-2 pr-2">
                   <select
@@ -1383,13 +1419,24 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                   />
                 </td>
                 <td className="py-2 pr-2">
-                  <input
-                    type="text"
-                    value={st.remarks}
-                    onChange={e => updateSubtask(i, 'remarks', e.target.value)}
-                    placeholder="Notes..."
-                    className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900"
-                  />
+                  <div className="flex items-center group/rem">
+                    <textarea
+                      value={st.remarks}
+                      onChange={e => updateSubtask(i, 'remarks', e.target.value)}
+                      placeholder="Notes..."
+                      rows="1"
+                      className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 text-[11px] resize-y min-h-[38px]"
+                    />
+                    {st.remarks && (
+                      <button 
+                        onClick={() => { navigator.clipboard.writeText(st.remarks); toast.success('Copied!'); }}
+                        className="ml-1 p-1 text-slate-300 hover:text-indigo-600 transition shadow-sm"
+                        title="Copy"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td className="py-2 text-right">
                   <button onClick={() => removeSubtask(i)} className="p-1.5 text-slate-300 hover:text-rose-500 transition">

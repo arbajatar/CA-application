@@ -17,7 +17,8 @@ class UpdateTaskStatusRequest extends FormRequest
     {
         return [
             'status' => ['required', new Enum(TaskStatus::class)],
-            'remarks' => ['nullable', 'string', 'max:500'],
+            'remarks' => ['nullable', 'string'],
+            'screenshot' => ['nullable', 'image', 'max:2048'], // 2MB image
         ];
     }
 }

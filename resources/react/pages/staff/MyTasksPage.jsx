@@ -41,6 +41,7 @@ export default function MyTasksPage() {
     const [newStatus, setNewStatus] = useState('')
     const [remark, setRemark] = useState('')
     const [saving, setSaving] = useState(false)
+    const [screenshot, setScreenshot] = useState(null)
     const [updateError, setUpdateError] = useState('')
     const [viewOpen, setViewOpen] = useState(false)
     const [viewLoading, setViewLoading] = useState(false)
@@ -81,6 +82,7 @@ export default function MyTasksPage() {
         setSelected(task)
         setNewStatus('')
         setRemark('')
+        setScreenshot(null)
         setUpdateError('')
         setUpdateOpen(true)
     }
@@ -104,23 +106,27 @@ export default function MyTasksPage() {
         if (!newStatus) { setUpdateError('Please select a status.'); return }
         setSaving(true); setUpdateError('')
         try {
+            const formData = new FormData()
+            formData.append('status', newStatus)
+            if (remark) formData.append('remarks', remark)
+            if (screenshot) formData.append('screenshot', screenshot)
+            formData.append('_method', 'PATCH')
+
             if (selected.task_id) {
                 // It's a subtask (it has task_id)
-                await api.patch(`/staff/sub-tasks/${selected.id}/status`, {
-                    status: newStatus,
-                    remarks: remark || undefined,
+                await api.post(`/staff/sub-tasks/${selected.id}/status`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
                 })
             } else {
                 // It's a main task
-                await api.patch(`/staff/tasks/${selected.id}/status`, {
-                    status: newStatus,
-                    remarks: remark || undefined,
+                await api.post(`/staff/tasks/${selected.id}/status`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
                 })
             }
             setUpdateOpen(false)
             await Promise.all([fetchSummary(), fetchTasks()])
         } catch (e) {
-            setUpdateError(e.response?.data?.message ?? 'Failed to update status.')
+            setUpdateError(e.response?.data?.errors?.screenshot?.[0] || e.response?.data?.message || 'Failed to update status.')
         } finally { setSaving(false) }
     }
 
@@ -372,6 +378,20 @@ export default function MyTasksPage() {
                             />
                         </div>
 
+                        {/* Screenshot */}
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                Attach Screenshot <span className="text-gray-300 font-normal">(Optional)</span>
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={e => setScreenshot(e.target.files[0])}
+                                className={inputCls + " file:mr-4 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#0f1c2e] file:text-white hover:file:bg-[#1a2f4a] cursor-pointer"}
+                            />
+                            <p className="text-[10px] text-gray-400">Max size: 2MB (JPG, PNG)</p>
+                        </div>
+
                         {updateError && (
                             <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
                                 {updateError}
@@ -451,6 +471,46 @@ export default function MyTasksPage() {
                                             </div>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Task Logs */}
+                            {selected.logs && selected.logs.length > 0 && (
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Status History</h4>
+                                    <div className="space-y-3">
+                                        {selected.logs.map((log) => (
+                                            <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <StatusBadge status={log.old_status} />
+                                                        <span className="text-gray-400 text-xs">→</span>
+                                                        <StatusBadge status={log.new_status} />
+                                                    </div>
+                                                    <span className="text-[10px] text-gray-400 font-medium">{log.changed_at}</span>
+                                                </div>
+                                                {log.remarks && <p className="text-xs text-gray-600 mb-2 italic">"{log.remarks}"</p>}
+                                                {log.screenshot_url && (
+                                                    <div className="mt-2">
+                                                        <a href={log.screenshot_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:underline">
+                                                            <Eye size={12} /> View Screenshot
+                                                        </a>
+                                                    </div>
+                                                )}
+                                                <p className="text-[10px] text-gray-400 mt-2">— {log.changed_by}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Subtask specific screenshot */}
+                            {selected.task_id && selected.screenshot_url && (
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Attachment</h4>
+                                    <a href={selected.screenshot_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-700 font-medium hover:bg-blue-100 transition">
+                                        <Eye size={16} /> View Attached Screenshot
+                                    </a>
                                 </div>
                             )}
                         </div>

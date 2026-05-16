@@ -91,6 +91,11 @@ class TaskController extends Controller
 
         $task->update($updateData);
 
+        $screenshotPath = null;
+        if ($request->hasFile('screenshot')) {
+            $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
+        }
+
         // Log the status change
         TaskLog::create([
             'task_id' => $task->id,
@@ -98,6 +103,7 @@ class TaskController extends Controller
             'old_status' => $currentStatus->value,
             'new_status' => $newStatus->value,
             'remarks' => $request->remarks,
+            'screenshot' => $screenshotPath,
         ]);
 
         return response()->json([

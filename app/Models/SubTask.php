@@ -21,7 +21,15 @@ class SubTask extends Model
         'status',
         'completed_at',
         'remarks',
+        'screenshot',
     ];
+
+    protected $appends = ['screenshot_url'];
+
+    public function getScreenshotUrlAttribute()
+    {
+        return $this->screenshot ? asset('storage/' . $this->screenshot) : null;
+    }
 
     protected $casts = [
         'priority' => TaskPriority::class,

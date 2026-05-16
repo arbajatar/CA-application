@@ -4,7 +4,7 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -24,6 +24,16 @@ export default function TaskDetailPage() {
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
+
+    const handleCopy = (text) => {
+        if (!text) {
+            toast.error('Nothing to copy!');
+            return;
+        }
+        navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard!');
+    };
 
     // Sidebar state
     const [sidebarMode, setSidebarMode] = useState('fields'); // 'fields' or 'settings'
@@ -489,15 +499,24 @@ export default function TaskDetailPage() {
                     {/* Static Fields */}
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</label>
-                        <p className="text-sm font-bold text-slate-700">{task.client.name}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.client.name}</p>
+                            <button onClick={() => handleCopy(task.client.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Work Type</label>
-                        <p className="text-sm font-bold text-slate-700">{task.work_type.name}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.work_type.name}</p>
+                            <button onClick={() => handleCopy(task.work_type.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocated Date</label>
-                        <p className="text-sm font-bold text-slate-700">{task.date_allocated}</p>
+                        <div className="flex items-center group">
+                            <p className="text-sm font-bold text-slate-700">{task.date_allocated}</p>
+                            <button onClick={() => handleCopy(task.date_allocated)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                        </div>
                     </div>
 
                     {/* Dynamic Fields */}
@@ -506,11 +525,22 @@ export default function TaskDetailPage() {
                         if (['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)) return null;
 
                         return (
-                            <div key={label} className="space-y-1">
+                            <div key={label} className="space-y-1 group">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                                <p className="text-sm font-bold text-slate-700">
-                                    {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
-                                </p>
+                                <div className="flex items-center">
+                                    <p className="text-sm font-bold text-slate-700">
+                                        {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
+                                    </p>
+                                    {value && typeof value !== 'boolean' && (
+                                        <button 
+                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())} 
+                                            className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" 
+                                            title="Copy"
+                                        >
+                                            <Copy size={12} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -540,19 +570,20 @@ export default function TaskDetailPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                                <th className="px-10 py-4 text-left">Name</th>
+                                <th className="px-10 py-4 text-left min-w-[300px]">Name</th>
                                 <th className="px-6 py-4 text-left">Assignee</th>
                                 <th className="px-6 py-4 text-left">Priority</th>
                                 <th className="px-6 py-4 text-left">Status</th>
                                 <th className="px-6 py-4 text-left">Due date</th>
                                 <th className="px-6 py-4 text-left">Remarks</th>
+                                <th className="px-6 py-4 text-center">Attachment</th>
                                 <th className="px-6 py-4 text-right"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {task.sub_tasks?.map((st) => (
                                 <tr key={st.id} className="group hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-10 py-5">
+                                    <td className="px-10 py-5 min-w-[300px]">
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'completed' ? 'in_progress' : 'completed' })}
@@ -560,11 +591,14 @@ export default function TaskDetailPage() {
                                             >
                                                 {st.status === 'completed' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                             </button>
-                                            <input
-                                                defaultValue={st.title}
-                                                onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'completed' ? 'line-through text-slate-300' : ''}`}
-                                            />
+                                            <div className="flex-1 flex items-center group/title">
+                                                <input
+                                                    defaultValue={st.title}
+                                                    onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
+                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'completed' ? 'line-through text-slate-300' : ''}`}
+                                                />
+                                                <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-5">
@@ -610,12 +644,31 @@ export default function TaskDetailPage() {
                                         />
                                     </td>
                                     <td className="px-6 py-5">
-                                        <input
-                                            defaultValue={st.remarks}
-                                            onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
-                                            placeholder="Remarks..."
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full"
-                                        />
+                                        <div className="flex items-center group/rem">
+                                            <textarea
+                                                defaultValue={st.remarks}
+                                                onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
+                                                placeholder="Remarks..."
+                                                rows="1"
+                                                className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full resize-y min-h-[30px]"
+                                            />
+                                            {st.remarks && (
+                                                <button onClick={() => handleCopy(st.remarks)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5 text-center">
+                                        {st.screenshot_url ? (
+                                            <button 
+                                                onClick={() => setPreviewImage(st.screenshot_url)}
+                                                className="inline-flex items-center gap-1.5 p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm" 
+                                                title="View Attachment"
+                                            >
+                                                <Eye size={14} />
+                                            </button>
+                                        ) : (
+                                            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-tighter">None</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-5 text-right">
                                         <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
@@ -792,6 +845,73 @@ export default function TaskDetailPage() {
                                 })()}
                             </>
                         ) : null}
+                    </div>
+                </div>
+            )}
+            
+            {/* Status History / Logs */}
+            {task.logs && task.logs.length > 0 && (
+                <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 mt-6">
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="w-1.5 h-6 bg-amber-500 rounded-full"></div>
+                        <h2 className="text-xl font-black text-slate-900">Timeline & History</h2>
+                    </div>
+                    <div className="space-y-6">
+                        {task.logs.map((log) => (
+                            <div key={log.id} className="relative pl-8 before:absolute before:left-0 before:top-2 before:bottom-0 before:w-px before:bg-slate-100 last:before:hidden">
+                                <div className="absolute left-[-4px] top-2 w-2 h-2 rounded-full bg-slate-300 border-2 border-white shadow-sm" />
+                                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50 hover:border-slate-200 transition-all">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-2">
+                                                {log.old_status ? <StatusBadge status={log.old_status} /> : <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Initial</span>}
+                                                <span className="text-slate-300">→</span>
+                                                <StatusBadge status={log.new_status} />
+                                            </div>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{log.changed_at}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Modified by</span>
+                                            <span className="text-xs font-bold text-slate-600">{log.changed_by}</span>
+                                        </div>
+                                    </div>
+                                    {log.remarks && <p className="text-sm text-slate-600 italic leading-relaxed">"{log.remarks}"</p>}
+                                    {log.screenshot_url && (
+                                        <div className="mt-4 pt-4 border-t border-slate-100">
+                                            <button 
+                                                onClick={() => setPreviewImage(log.screenshot_url)}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition shadow-sm"
+                                            >
+                                                <Eye size={14} /> View Attached Screenshot
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {/* Image Preview Modal */}
+            {previewImage && (
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="relative max-w-4xl w-full h-full flex flex-col items-center justify-center">
+                        <button 
+                            onClick={() => setPreviewImage(null)}
+                            className="absolute top-0 right-0 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:scale-110 mb-4"
+                            title="Close / Back"
+                        >
+                            <X size={24} />
+                        </button>
+                        <div className="bg-white p-2 rounded-3xl shadow-2xl overflow-hidden max-h-[85vh]">
+                            <img src={previewImage} alt="Screenshot Preview" className="max-w-full max-h-full object-contain rounded-2xl" />
+                        </div>
+                        <button 
+                            onClick={() => setPreviewImage(null)}
+                            className="mt-8 px-8 py-3 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition shadow-xl"
+                        >
+                            Back to Task
+                        </button>
                     </div>
                 </div>
             )}
