@@ -543,21 +543,20 @@ export default function TaskBuilderPage() {
       return;
     }
 
-    // Prepare data for backend
     const staticFields = {
       form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
-      client_id: formSchema.find(f => f.id === 'static_client_name')?.value,
+      client_id: formSchema.find(f => f.id === 'static_client_name')?.value || null,
       work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
-      allocated_to: formSchema.find(f => f.id === 'static_assignee')?.value,
+      allocated_to: formSchema.find(f => f.id === 'static_assignee')?.value || null,
       date_inward: formSchema.find(f => f.id === 'static_created_date')?.value,
       date_allocated: formSchema.find(f => f.id === 'static_created_date')?.value,
-      due_date: formSchema.find(f => f.id === 'static_due_date')?.value,
+      due_date: formSchema.find(f => f.id === 'static_due_date')?.value || null,
       status: formSchema.find(f => f.id === 'static_sheet_status')?.value,
       remarks: formSchema.find(f => f.id === 'static_remarks')?.value,
-      task_particular: formSchema.find(f => f.id === 'static_task_particular')?.value,
-      sub_status: formSchema.find(f => f.id === 'static_sub_status')?.value,
-      feedback: formSchema.find(f => f.id === 'static_feedback')?.value,
-      entry_date: formSchema.find(f => f.id === 'static_entry_date')?.value
+      task_particular: formSchema.find(f => f.id === 'static_task_particular')?.value || null,
+      sub_status: formSchema.find(f => f.id === 'static_sub_status')?.value || null,
+      feedback: formSchema.find(f => f.id === 'static_feedback')?.value || null,
+      entry_date: formSchema.find(f => f.id === 'static_entry_date')?.value || null
     };
 
     const dynamicFields = {};
@@ -973,11 +972,28 @@ export default function TaskBuilderPage() {
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Number</label>
-            <input type="text" value={clientForm.contact} onChange={e => setClientForm(f => ({ ...f, contact: e.target.value }))} placeholder="e.g. 9876543210" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+            <input 
+              type="text" 
+              value={clientForm.contact} 
+              onChange={e => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setClientForm(f => ({ ...f, contact: val }));
+              }} 
+              placeholder="e.g. 9876543210" 
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" 
+            />
+            {clientErrors.contact && <p className="text-xs text-red-500">{clientErrors.contact[0]}</p>}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GST Number</label>
-            <input type="text" value={clientForm.gst_number} onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
+            <input 
+              type="text" 
+              value={clientForm.gst_number} 
+              onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value }))} 
+              placeholder="Optional" 
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" 
+            />
+            {clientErrors.gst_number && <p className="text-xs text-red-500">{clientErrors.gst_number[0]}</p>}
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setAddClientOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
