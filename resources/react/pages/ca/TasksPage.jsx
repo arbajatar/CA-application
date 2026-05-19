@@ -406,18 +406,47 @@ export default function TasksPage() {
                 return;
             }
 
-            // 2. Define columns
-            const columns = [
+            // 2. Define columns dynamically using activeColumns
+            const baseColumns = [
+                { id: 'form_name', label: 'Sheet Name' },
+                { id: 'client', label: 'Client' },
+                { id: 'mobile', label: 'Mobile' },
+                { id: 'work_type', label: 'Work Type' },
+                { id: 'assigned_to', label: 'Assigned To' },
+                { id: 'date_inward', label: 'Create Date' },
+                { id: 'status', label: 'Sheet Status' },
+                { id: 'task_particular', label: 'Task / Particular' },
+                ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
+                { id: 'remarks', label: 'Remarks' }
+            ];
+
+            let activeColumns = [];
+            if (customColumnOrder) {
+                const baseIds = baseColumns.map(c => c.id);
+                const ordered = customColumnOrder.filter(id => baseIds.includes(id));
+                const missing = baseIds.filter(id => !ordered.includes(id));
+                const finalIds = [...ordered, ...missing];
+                activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
+            } else {
+                activeColumns = baseColumns;
+            }
+
+            const exportedColumns = [
                 { header: 'SR NO', key: 'sr_no' },
                 { header: 'Sheet ID', key: 'sheet_id' },
-                { header: 'Client Name', key: 'client_name' },
-                { header: 'Mobile No', key: 'mobile' },
-                { header: 'Work Type', key: 'work_type' },
-                { header: 'Form Name', key: 'form_name' },
-                { header: 'Date Allocated', key: 'date_allocated' },
-                { header: 'Global Status', key: 'status' },
-                { header: 'Global Remarks', key: 'remarks' },
-                ...dynamicHeaders.map(h => ({ header: h, key: `dyn_${h}` })),
+                ...activeColumns.map(col => {
+                    if (col.id === 'form_name') return { header: 'Sheet Name', key: 'form_name' };
+                    if (col.id === 'client') return { header: 'Client Name', key: 'client_name' };
+                    if (col.id === 'mobile') return { header: 'Mobile No', key: 'mobile' };
+                    if (col.id === 'work_type') return { header: 'Work Type', key: 'work_type' };
+                    if (col.id === 'assigned_to') return { header: 'Assigned To', key: 'assigned_to' };
+                    if (col.id === 'date_inward') return { header: 'Create Date', key: 'date_allocated' };
+                    if (col.id === 'status') return { header: 'Sheet Status', key: 'status' };
+                    if (col.id === 'task_particular') return { header: 'Task / Particular', key: 'task_particular' };
+                    if (col.id === 'remarks') return { header: 'Remarks', key: 'remarks' };
+                    if (col.isDynamic) return { header: col.label, key: `dyn_${col.fieldName}` };
+                    return null;
+                }).filter(Boolean),
                 { header: 'Subtask ID', key: 'subtask_id' },
                 { header: 'Subtask Name', key: 'st_name' },
                 { header: 'Assignee', key: 'st_assignee' },
@@ -427,7 +456,7 @@ export default function TasksPage() {
                 { header: 'Subtask Remarks', key: 'st_remarks' },
             ];
 
-            worksheet.columns = columns;
+            worksheet.columns = exportedColumns;
 
             // 3. Format header row
             const headerRow = worksheet.getRow(1);
@@ -464,7 +493,9 @@ export default function TasksPage() {
                     work_type: task.work_type?.name || '',
                     form_name: task.form_name || '',
                     date_allocated: task.date_allocated || '',
+                    assigned_to: task.allocated_to?.name || '',
                     status: task.status_label || task.status,
+                    task_particular: task.task_particular || '',
                     remarks: task.remarks || '',
                 };
 
@@ -829,12 +860,7 @@ export default function TasksPage() {
                                             <Sliders size={16} /> Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}
                                         </button>
                                     )}
-                                    <button
-                                        onClick={() => setShowColumnOrderModal(true)}
-                                        className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border bg-white hover:bg-gray-50 text-gray-700 border-gray-200"
-                                    >
-                                        <Sliders size={16} className="rotate-90 text-[#1F5C99]" /> Rearrange Columns
-                                    </button>
+
                                     <button
                                         onClick={handleExport}
                                         disabled={saving}
@@ -903,9 +929,43 @@ export default function TasksPage() {
                                         <thead>
                                             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
                                                 <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
-                                                {activeColumns.map(col => (
-                                                    <th key={col.id} className="px-4 py-3 text-left whitespace-nowrap">{col.label}</th>
-                                                ))}
+                                                {activeColumns.map((col, index) => {
+                                                    const shiftColumn = (idx, direction) => {
+                                                        const newIdx = idx + direction;
+                                                        if (newIdx < 0 || newIdx >= activeColumns.length) return;
+                                                        const copy = [...activeColumns.map(c => c.id)];
+                                                        const temp = copy[idx];
+                                                        copy[idx] = copy[newIdx];
+                                                        copy[newIdx] = temp;
+                                                        setCustomColumnOrder(copy);
+                                                    };
+                                                    
+                                                    return (
+                                                        <th key={col.id} className="px-4 py-3 text-left whitespace-nowrap group/th select-none">
+                                                            <div className="flex items-center gap-1.5 justify-between">
+                                                                <span className="font-semibold text-gray-700">{col.label}</span>
+                                                                <div className="opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition shrink-0 ml-1">
+                                                                    <button
+                                                                        disabled={index === 0}
+                                                                        onClick={() => shiftColumn(index, -1)}
+                                                                        className="p-0.5 text-gray-400 hover:text-[#1F5C99] hover:bg-gray-200 disabled:opacity-20 rounded transition text-[9px] font-bold"
+                                                                        title="Move Left"
+                                                                    >
+                                                                        ◀
+                                                                    </button>
+                                                                    <button
+                                                                        disabled={index === activeColumns.length - 1}
+                                                                        onClick={() => shiftColumn(index, 1)}
+                                                                        className="p-0.5 text-gray-400 hover:text-[#1F5C99] hover:bg-gray-200 disabled:opacity-20 rounded transition text-[9px] font-bold"
+                                                                        title="Move Right"
+                                                                    >
+                                                                        ▶
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </th>
+                                                    );
+                                                })}
                                                 <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>
                                             </tr>
                                         </thead>
@@ -1010,92 +1070,6 @@ export default function TasksPage() {
                 </div>
             </Modal>
 
-            {/* Rearrange Columns Modal */}
-            <Modal open={showColumnOrderModal} onClose={() => setShowColumnOrderModal(false)} title="Rearrange Columns" width="max-w-md">
-                <div className="space-y-4">
-                    <p className="text-xs text-slate-500">Rearrange table column positions using the ▲ and ▼ buttons below. Changes take effect instantly.</p>
-                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                        {(() => {
-                            const dynamicHeadersSet = new Set();
-                            tasks?.forEach(t => {
-                                Object.keys(t.dynamic_fields || {}).forEach(k => {
-                                    if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
-                                        dynamicHeadersSet.add(k);
-                                    }
-                                });
-                            });
-                            const dynamicHeaders = Array.from(dynamicHeadersSet);
-                            const baseColumns = [
-                                { id: 'form_name', label: 'Sheet Name' },
-                                { id: 'client', label: 'Client' },
-                                { id: 'mobile', label: 'Mobile' },
-                                { id: 'work_type', label: 'Work Type' },
-                                { id: 'assigned_to', label: 'Assigned To' },
-                                { id: 'date_inward', label: 'Create Date' },
-                                { id: 'status', label: 'Sheet Status' },
-                                { id: 'task_particular', label: 'Task / Particular' },
-                                ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
-                                { id: 'remarks', label: 'Remarks' }
-                            ];
-
-                            let activeColumns = [];
-                            if (customColumnOrder) {
-                                const baseIds = baseColumns.map(c => c.id);
-                                const ordered = customColumnOrder.filter(id => baseIds.includes(id));
-                                const missing = baseIds.filter(id => !ordered.includes(id));
-                                const finalIds = [...ordered, ...missing];
-                                activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
-                            } else {
-                                activeColumns = baseColumns;
-                            }
-
-                            const moveColumn = (index, direction) => {
-                                const newIndex = index + direction;
-                                if (newIndex < 0 || newIndex >= activeColumns.length) return;
-                                
-                                const copy = [...activeColumns.map(c => c.id)];
-                                const temp = copy[index];
-                                copy[index] = copy[newIndex];
-                                copy[newIndex] = temp;
-                                
-                                setCustomColumnOrder(copy);
-                                toast.success("Column order updated!");
-                            };
-
-                            return activeColumns.map((col, index) => (
-                                <div key={col.id} className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-150 rounded-xl hover:bg-white hover:shadow-sm transition">
-                                    <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 truncate">
-                                        <span className="text-[10px] text-gray-400 font-mono w-4 shrink-0">{index + 1}.</span>
-                                        <span className="truncate">{col.label}</span>
-                                        {col.id === 'task_particular' && <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded shrink-0">New!</span>}
-                                    </span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button
-                                            disabled={index === 0}
-                                            onClick={() => moveColumn(index, -1)}
-                                            className="px-2 py-1 text-xs text-gray-400 hover:text-indigo-600 disabled:opacity-30 hover:bg-gray-100 rounded transition font-bold"
-                                            title="Move Up"
-                                        >
-                                            ▲
-                                        </button>
-                                        <button
-                                            disabled={index === activeColumns.length - 1}
-                                            onClick={() => moveColumn(index, 1)}
-                                            className="px-2 py-1 text-xs text-gray-400 hover:text-indigo-600 disabled:opacity-30 hover:bg-gray-100 rounded transition font-bold"
-                                            title="Move Down"
-                                        >
-                                            ▼
-                                        </button>
-                                    </div>
-                                </div>
-                            ));
-                        })()}
-                    </div>
-                    <div className="flex justify-end pt-2">
-                        <button onClick={() => setShowColumnOrderModal(false)} className="px-5 py-2 text-xs bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white font-semibold rounded-xl transition">Close</button>
-                    </div>
-                </div>
-            </Modal>
 
             {/* Delete Confirm */}
             <ConfirmDialog
