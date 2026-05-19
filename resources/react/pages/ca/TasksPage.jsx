@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -46,6 +46,8 @@ export default function TasksPage() {
     const [errors, setErrors] = useState({})
     const [duplicateOpen, setDuplicateOpen] = useState(false)
     const [currentFolder, setCurrentFolder] = useState(() => new URLSearchParams(location.search).get('work_type_id') || null)
+    const [dynamicFilters, setDynamicFilters] = useState({})
+    const [showColumnFilters, setShowColumnFilters] = useState(true)
     const fileInputRef = useRef(null)
 
     // Import Mapping Modal States
@@ -97,6 +99,7 @@ export default function TasksPage() {
         // Sync states if URL changes (e.g. clicking different quick links)
         setWorkTypeId(wId || '')
         setCurrentFolder(wId || null)
+        setDynamicFilters({})
         
         fetchDropdowns()
     }, [location.search])
@@ -661,134 +664,226 @@ export default function TasksPage() {
                             })}
                         </div>
                     </div>
-                ) : (
-                    <>
-                        {/* Filters */}
-                        <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
-                            <button
-                                onClick={() => {
-                                    setCurrentFolder(null);
-                                    setWorkTypeId('');
-                                    setPage(1);
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-2 text-gray-500 hover:text-[#1F5C99] font-bold text-sm transition group"
-                            >
-                                <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                Back to Folders
-                            </button>
-                            <div className="h-6 w-[1px] bg-gray-200 mx-2 hidden lg:block" />
-                            <div className="relative w-full lg:flex-1">
-                                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input type="text" placeholder="Search in this folder..." value={search}
-                                    onChange={e => { setSearch(e.target.value); setPage(1) }}
-                                    className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
-                            </div>
-                            <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
-                                <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
-                                    {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                </select>
-                                <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                                    <option value="">All Clients</option>
-                                    {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                                <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                                    className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                                    <option value="">All Staff</option>
-                                    {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                                {currentFolder === 'all' && (
-                                    <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
-                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
-                                        <option value="">All Work Types</option>
-                                        {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                    </select>
-                                )}
+                ) : (() => {
+                    const dynamicHeadersSet = new Set();
+                    tasks?.forEach(t => {
+                        Object.keys(t.dynamic_fields || {}).forEach(k => {
+                            if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                                dynamicHeadersSet.add(k);
+                            }
+                        });
+                    });
+                    const dynamicHeaders = Array.from(dynamicHeadersSet);
+
+                    const allFields = [
+                        { key: 'form_name', label: 'Sheet Name', isStatic: true },
+                        { key: 'client_name', label: 'Client Name', isStatic: true },
+                        { key: 'client_contact', label: 'Mobile', isStatic: true },
+                        { key: 'assigned_to', label: 'Assigned To', isStatic: true },
+                        { key: 'date_inward', label: 'Create Date', isStatic: true },
+                        { key: 'status', label: 'Sheet Status', isStatic: true },
+                        ...dynamicHeaders.map(h => ({ key: h, label: h, isStatic: false })),
+                        { key: 'remarks', label: 'Remarks', isStatic: true }
+                    ];
+
+                    const filteredTasks = tasks?.filter(t => {
+                        return allFields.every(field => {
+                            const query = dynamicFilters[field.key];
+                            if (!query) return true;
+
+                            let value = '';
+                            if (field.isStatic) {
+                                if (field.key === 'form_name') value = t.form_name;
+                                else if (field.key === 'client_name') value = t.client?.name;
+                                else if (field.key === 'client_contact') value = t.client?.contact;
+                                else if (field.key === 'assigned_to') value = t.allocated_to?.name;
+                                else if (field.key === 'date_inward') value = t.date_inward;
+                                else if (field.key === 'status') value = t.status;
+                                else if (field.key === 'remarks') value = t.remarks;
+                            } else {
+                                value = t.dynamic_fields?.[field.key];
+                            }
+
+                            return (value || '').toString().toLowerCase().includes(query.toLowerCase());
+                        });
+                    });
+
+                    return (
+                        <>
+                            {/* Filters */}
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
                                 <button
-                                    onClick={handleExport}
-                                    disabled={saving}
-                                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm disabled:opacity-50 h-[38px] whitespace-nowrap"
+                                    onClick={() => {
+                                        setCurrentFolder(null);
+                                        setWorkTypeId('');
+                                        setPage(1);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-2 text-gray-500 hover:text-[#1F5C99] font-bold text-sm transition group"
                                 >
-                                    <Download size={16} /> Export
+                                    <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                                    Back to Folders
                                 </button>
-                            </div>
-                        </div>
-
-                        {/* Table */}
-                        <div className="overflow-x-auto">
-                            {loading ? <Spinner /> : (() => {
-                                const dynamicHeadersSet = new Set();
-                                tasks?.forEach(t => {
-                                    Object.keys(t.dynamic_fields || {}).forEach(k => {
-                                        if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
-                                            dynamicHeadersSet.add(k);
-                                        }
-                                    });
-                                });
-                                const dynamicHeaders = Array.from(dynamicHeadersSet);
-                                
-                                return (
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                            {['#', 'Sheet Name', 'Client', 'Mobile', 'Work Type', 'Assigned To', 'Create Date', 'Sheet Status', ...dynamicHeaders, 'Remarks', 'Actions'].map(h => (
-                                                <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {tasks?.length === 0 ? (
-                                            <tr><td colSpan={11 + dynamicHeaders.length} className="text-center py-12 text-gray-400">No sheets found in this folder</td></tr>
-                                        ) : tasks?.map((t, i) => (
-                                            <tr key={t.id} className="hover:bg-gray-100 transition">
-                                                <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                                <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.name || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.contact || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.work_type?.name || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
-                                                <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>
-                                                {dynamicHeaders.map(h => (
-                                                    <td key={h} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[h]}>{t.dynamic_fields?.[h] || '—'}</td>
-                                                ))}
-                                                <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
-                                                            <Eye size={15} />
-                                                        </button>
-                                                        <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
-                                                        <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Sheet">
-                                                            <Copy size={15} />
-                                                        </button>
-                                                        <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
-                                                        <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                );
-                            })()}
-                        </div>
-
-                        {/* Pagination */}
-                        {meta && meta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                                <p className="text-xs text-gray-400">Showing {meta.from}–{meta.to} of {meta.total}</p>
-                                <div className="flex gap-2">
-                                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
-                                    <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
-                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                                <div className="h-6 w-[1px] bg-gray-200 mx-2 hidden lg:block" />
+                                <div className="relative w-full lg:flex-1">
+                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input type="text" placeholder="Search in this folder..." value={search}
+                                        onChange={e => { setSearch(e.target.value); setPage(1) }}
+                                        className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
+                                </div>
+                                <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
+                                    <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
+                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
+                                        {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                    </select>
+                                    <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
+                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
+                                        <option value="">All Clients</option>
+                                        {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                    <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
+                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
+                                        <option value="">All Staff</option>
+                                        {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                    {currentFolder === 'all' && (
+                                        <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
+                                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
+                                            <option value="">All Work Types</option>
+                                            {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                        </select>
+                                    )}
+                                    {allFields.length > 0 && (
+                                        <button
+                                            onClick={() => setShowColumnFilters(!showColumnFilters)}
+                                            className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border ${showColumnFilters ? 'bg-[#1F5C99] text-white border-[#1F5C99]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                                        >
+                                            <Sliders size={16} /> Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleExport}
+                                        disabled={saving}
+                                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm disabled:opacity-50 h-[38px] whitespace-nowrap"
+                                    >
+                                        <Download size={16} /> Export
+                                    </button>
                                 </div>
                             </div>
-                        )}
-                    </>
-                )}
+
+                            {/* Dynamic Column Filters Panel */}
+                            {showColumnFilters && allFields.length > 0 && (
+                                <div className="bg-slate-50 border-b border-gray-100 px-4 sm:px-6 py-4 flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <Sliders size={13} className="text-[#1F5C99]" />
+                                            Scrollable Column Filters ({currentFolder === 'all' ? 'All Folders' : workTypes.find(wt => wt.id === currentFolder)?.name})
+                                        </h4>
+                                        {Object.values(dynamicFilters).filter(Boolean).length > 0 && (
+                                            <button
+                                                onClick={() => setDynamicFilters({})}
+                                                className="text-xs font-bold text-red-500 hover:text-red-700 transition"
+                                            >
+                                                Clear All Filters
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-4 overflow-x-auto pb-3 pt-1 px-1 no-scrollbar scroll-smooth">
+                                        {allFields.map(field => (
+                                            <div key={field.key} className="relative min-w-[200px] shrink-0 bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-[#1F5C99]/30 transition">
+                                                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 truncate" title={field.label}>
+                                                    {field.label}
+                                                    {field.isStatic && <span className="ml-1.5 text-[9px] font-semibold text-[#1F5C99] bg-[#1F5C99]/5 px-1 py-0.5 rounded">System</span>}
+                                                </label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder={`Search ${field.label}...`}
+                                                        value={dynamicFilters[field.key] || ''}
+                                                        onChange={e => setDynamicFilters(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                        className="w-full pl-3 pr-8 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
+                                                    />
+                                                    {dynamicFilters[field.key] && (
+                                                        <button
+                                                            onClick={() => setDynamicFilters(prev => {
+                                                                const copy = { ...prev };
+                                                                delete copy[field.key];
+                                                                return copy;
+                                                            })}
+                                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Table */}
+                            <div className="overflow-x-auto">
+                                {loading ? <Spinner /> : (
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                                {['#', 'Sheet Name', 'Client', 'Mobile', 'Work Type', 'Assigned To', 'Create Date', 'Sheet Status', ...dynamicHeaders, 'Remarks', 'Actions'].map(h => (
+                                                    <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {filteredTasks?.length === 0 ? (
+                                                <tr><td colSpan={11 + dynamicHeaders.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
+                                            ) : filteredTasks?.map((t, i) => (
+                                                <tr key={t.id} className="hover:bg-gray-100 transition">
+                                                    <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
+                                                    <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || '—'}</td>
+                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.name || '—'}</td>
+                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.contact || '—'}</td>
+                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.work_type?.name || '—'}</td>
+                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>
+                                                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
+                                                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>
+                                                    {dynamicHeaders.map(h => (
+                                                        <td key={h} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[h]}>{t.dynamic_fields?.[h] || '—'}</td>
+                                                    ))}
+                                                    <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                                <Eye size={15} />
+                                                            </button>
+                                                            <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                            <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Sheet">
+                                                                <Copy size={15} />
+                                                            </button>
+                                                            <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
+                                                            <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+
+                            {/* Pagination */}
+                            {meta && meta.last_page > 1 && (
+                                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                                    <p className="text-xs text-gray-400">Showing {meta.from}–{meta.to} of {meta.total}</p>
+                                    <div className="flex gap-2">
+                                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                                            className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
+                                        <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
+                                            className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
 
             {/* Reassign Modal */}

@@ -28,7 +28,21 @@ class TaskController extends Controller
             ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->client_id))
             ->when($request->filled('date_from'), fn($q) => $q->whereDate('date_inward', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn($q) => $q->whereDate('date_inward', '<=', $request->date_to))
-            ->when($request->filled('search'), fn($q) => $q->where('form_name', 'like', '%' . $request->search . '%'))
+            ->when($request->filled('search'), function($q) use ($request) {
+                $search = $request->search;
+                $q->where(function($sub) use ($search) {
+                    $sub->where('form_name', 'like', '%' . $search . '%')
+                        ->orWhere('remarks', 'like', '%' . $search . '%')
+                        ->orWhere('task_particular', 'like', '%' . $search . '%')
+                        ->orWhere('sub_status', 'like', '%' . $search . '%')
+                        ->orWhere('feedback', 'like', '%' . $search . '%')
+                        ->orWhereHas('client', function($c) use ($search) {
+                            $c->where('name', 'like', '%' . $search . '%')
+                              ->orWhere('contact', 'like', '%' . $search . '%');
+                        })
+                        ->orWhere('dynamic_fields', 'like', '%' . $search . '%');
+                });
+            })
             ->latest();
 
         if ($request->boolean('with_subtasks')) {
