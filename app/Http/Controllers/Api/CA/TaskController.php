@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\CA;
 
 use App\Enums\TaskStatus;
+use App\Enums\TaskPriority;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CA\ReassignTaskRequest;
 use App\Http\Requests\CA\StoreTaskRequest;
@@ -201,8 +202,8 @@ class TaskController extends Controller
                 // 3. Resolve Assignee
                 $allocatedTo = $taskData['allocated_to'] ?? $request->user()->id;
 
-                if (!$clientId || !$workTypeId) {
-                    continue; // Skip if still cannot resolve mandatory fields
+                if (!$workTypeId) {
+                    continue; // Skip if still cannot resolve mandatory work type
                 }
 
                 // 4. Create or Update Task
