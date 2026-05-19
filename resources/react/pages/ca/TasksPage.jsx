@@ -48,6 +48,8 @@ export default function TasksPage() {
     const [currentFolder, setCurrentFolder] = useState(() => new URLSearchParams(location.search).get('work_type_id') || null)
     const [dynamicFilters, setDynamicFilters] = useState({})
     const [showColumnFilters, setShowColumnFilters] = useState(true)
+    const [customColumnOrder, setCustomColumnOrder] = useState(null)
+    const [showColumnOrderModal, setShowColumnOrderModal] = useState(false)
     const fileInputRef = useRef(null)
 
     // Import Mapping Modal States
@@ -363,6 +365,47 @@ export default function TasksPage() {
             });
             const dynamicHeaders = Array.from(allDynamicHeadersSet);
 
+            const allFields = [
+                { key: 'form_name', label: 'Sheet Name', isStatic: true },
+                { key: 'client_name', label: 'Client Name', isStatic: true },
+                { key: 'client_contact', label: 'Mobile', isStatic: true },
+                { key: 'assigned_to', label: 'Assigned To', isStatic: true },
+                { key: 'date_inward', label: 'Create Date', isStatic: true },
+                { key: 'status', label: 'Sheet Status', isStatic: true },
+                { key: 'task_particular', label: 'Task / Particular', isStatic: true },
+                ...dynamicHeaders.map(h => ({ key: h, label: h, isStatic: false })),
+                { key: 'remarks', label: 'Remarks', isStatic: true }
+            ];
+
+            const filteredExportTasks = allTasks.filter(t => {
+                return allFields.every(field => {
+                    const query = dynamicFilters[field.key];
+                    if (!query) return true;
+
+                    let value = '';
+                    if (field.isStatic) {
+                        if (field.key === 'form_name') value = t.form_name;
+                        else if (field.key === 'client_name') value = t.client?.name;
+                        else if (field.key === 'client_contact') value = t.client?.contact;
+                        else if (field.key === 'assigned_to') value = t.allocated_to?.name;
+                        else if (field.key === 'date_inward') value = t.date_inward;
+                        else if (field.key === 'status') value = t.status;
+                        else if (field.key === 'task_particular') value = t.task_particular;
+                        else if (field.key === 'remarks') value = t.remarks;
+                    } else {
+                        value = t.dynamic_fields?.[field.key];
+                    }
+
+                    return (value || '').toString().toLowerCase().includes(query.toLowerCase());
+                });
+            });
+
+            if (!filteredExportTasks || filteredExportTasks.length === 0) {
+                toast.error('No tasks found to export matching the current filters');
+                setSaving(false);
+                return;
+            }
+
             // 2. Define columns
             const columns = [
                 { header: 'SR NO', key: 'sr_no' },
@@ -413,7 +456,7 @@ export default function TasksPage() {
             };
 
             let srNo = 1;
-            allTasks.forEach(task => {
+            filteredExportTasks.forEach(task => {
                 const baseData = {
                     sheet_id: task.id || '',
                     client_name: task.client?.name || '',
@@ -675,6 +718,30 @@ export default function TasksPage() {
                     });
                     const dynamicHeaders = Array.from(dynamicHeadersSet);
 
+                    const baseColumns = [
+                        { id: 'form_name', label: 'Sheet Name' },
+                        { id: 'client', label: 'Client' },
+                        { id: 'mobile', label: 'Mobile' },
+                        { id: 'work_type', label: 'Work Type' },
+                        { id: 'assigned_to', label: 'Assigned To' },
+                        { id: 'date_inward', label: 'Create Date' },
+                        { id: 'status', label: 'Sheet Status' },
+                        { id: 'task_particular', label: 'Task / Particular' },
+                        ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
+                        { id: 'remarks', label: 'Remarks' }
+                    ];
+
+                    let activeColumns = [];
+                    if (customColumnOrder) {
+                        const baseIds = baseColumns.map(c => c.id);
+                        const ordered = customColumnOrder.filter(id => baseIds.includes(id));
+                        const missing = baseIds.filter(id => !ordered.includes(id));
+                        const finalIds = [...ordered, ...missing];
+                        activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
+                    } else {
+                        activeColumns = baseColumns;
+                    }
+
                     const allFields = [
                         { key: 'form_name', label: 'Sheet Name', isStatic: true },
                         { key: 'client_name', label: 'Client Name', isStatic: true },
@@ -682,6 +749,7 @@ export default function TasksPage() {
                         { key: 'assigned_to', label: 'Assigned To', isStatic: true },
                         { key: 'date_inward', label: 'Create Date', isStatic: true },
                         { key: 'status', label: 'Sheet Status', isStatic: true },
+                        { key: 'task_particular', label: 'Task / Particular', isStatic: true },
                         ...dynamicHeaders.map(h => ({ key: h, label: h, isStatic: false })),
                         { key: 'remarks', label: 'Remarks', isStatic: true }
                     ];
@@ -699,6 +767,7 @@ export default function TasksPage() {
                                 else if (field.key === 'assigned_to') value = t.allocated_to?.name;
                                 else if (field.key === 'date_inward') value = t.date_inward;
                                 else if (field.key === 'status') value = t.status;
+                                else if (field.key === 'task_particular') value = t.task_particular;
                                 else if (field.key === 'remarks') value = t.remarks;
                             } else {
                                 value = t.dynamic_fields?.[field.key];
@@ -760,6 +829,12 @@ export default function TasksPage() {
                                             <Sliders size={16} /> Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}
                                         </button>
                                     )}
+                                    <button
+                                        onClick={() => setShowColumnOrderModal(true)}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border bg-white hover:bg-gray-50 text-gray-700 border-gray-200"
+                                    >
+                                        <Sliders size={16} className="rotate-90 text-[#1F5C99]" /> Rearrange Columns
+                                    </button>
                                     <button
                                         onClick={handleExport}
                                         disabled={saving}
@@ -827,28 +902,52 @@ export default function TasksPage() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                                {['#', 'Sheet Name', 'Client', 'Mobile', 'Work Type', 'Assigned To', 'Create Date', 'Sheet Status', ...dynamicHeaders, 'Remarks', 'Actions'].map(h => (
-                                                    <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
+                                                <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
+                                                {activeColumns.map(col => (
+                                                    <th key={col.id} className="px-4 py-3 text-left whitespace-nowrap">{col.label}</th>
                                                 ))}
+                                                <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
                                             {filteredTasks?.length === 0 ? (
-                                                <tr><td colSpan={11 + dynamicHeaders.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
+                                                <tr><td colSpan={2 + activeColumns.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
                                             ) : filteredTasks?.map((t, i) => (
                                                 <tr key={t.id} className="hover:bg-gray-100 transition">
                                                     <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                                    <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || '—'}</td>
-                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.name || '—'}</td>
-                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.contact || '—'}</td>
-                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.work_type?.name || '—'}</td>
-                                                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>
-                                                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
-                                                    <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>
-                                                    {dynamicHeaders.map(h => (
-                                                        <td key={h} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[h]}>{t.dynamic_fields?.[h] || '—'}</td>
-                                                    ))}
-                                                    <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
+                                                    {activeColumns.map(col => {
+                                                        if (col.id === 'form_name') {
+                                                            return <td key={col.id} className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'client') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.name || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'mobile') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.contact || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'work_type') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.work_type?.name || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'assigned_to') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'date_inward') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'status') {
+                                                            return <td key={col.id} className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>;
+                                                        }
+                                                        if (col.id === 'task_particular') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap max-w-[200px] truncate" title={t.task_particular}>{t.task_particular || '—'}</td>;
+                                                        }
+                                                        if (col.id === 'remarks') {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>;
+                                                        }
+                                                        if (col.isDynamic) {
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[col.fieldName]}>{t.dynamic_fields?.[col.fieldName] || '—'}</td>;
+                                                        }
+                                                        return null;
+                                                    })}
                                                     <td className="px-4 py-3">
                                                         <div className="flex items-center gap-2">
                                                             <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
@@ -907,6 +1006,93 @@ export default function TasksPage() {
                     <div className="flex justify-end gap-3 pt-2">
                         <button onClick={() => setReassignOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                         <button onClick={handleReassign} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Reassign'}</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Rearrange Columns Modal */}
+            <Modal open={showColumnOrderModal} onClose={() => setShowColumnOrderModal(false)} title="Rearrange Columns" width="max-w-md">
+                <div className="space-y-4">
+                    <p className="text-xs text-slate-500">Rearrange table column positions using the ▲ and ▼ buttons below. Changes take effect instantly.</p>
+                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                        {(() => {
+                            const dynamicHeadersSet = new Set();
+                            tasks?.forEach(t => {
+                                Object.keys(t.dynamic_fields || {}).forEach(k => {
+                                    if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                                        dynamicHeadersSet.add(k);
+                                    }
+                                });
+                            });
+                            const dynamicHeaders = Array.from(dynamicHeadersSet);
+                            const baseColumns = [
+                                { id: 'form_name', label: 'Sheet Name' },
+                                { id: 'client', label: 'Client' },
+                                { id: 'mobile', label: 'Mobile' },
+                                { id: 'work_type', label: 'Work Type' },
+                                { id: 'assigned_to', label: 'Assigned To' },
+                                { id: 'date_inward', label: 'Create Date' },
+                                { id: 'status', label: 'Sheet Status' },
+                                { id: 'task_particular', label: 'Task / Particular' },
+                                ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
+                                { id: 'remarks', label: 'Remarks' }
+                            ];
+
+                            let activeColumns = [];
+                            if (customColumnOrder) {
+                                const baseIds = baseColumns.map(c => c.id);
+                                const ordered = customColumnOrder.filter(id => baseIds.includes(id));
+                                const missing = baseIds.filter(id => !ordered.includes(id));
+                                const finalIds = [...ordered, ...missing];
+                                activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
+                            } else {
+                                activeColumns = baseColumns;
+                            }
+
+                            const moveColumn = (index, direction) => {
+                                const newIndex = index + direction;
+                                if (newIndex < 0 || newIndex >= activeColumns.length) return;
+                                
+                                const copy = [...activeColumns.map(c => c.id)];
+                                const temp = copy[index];
+                                copy[index] = copy[newIndex];
+                                copy[newIndex] = temp;
+                                
+                                setCustomColumnOrder(copy);
+                                toast.success("Column order updated!");
+                            };
+
+                            return activeColumns.map((col, index) => (
+                                <div key={col.id} className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-150 rounded-xl hover:bg-white hover:shadow-sm transition">
+                                    <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 truncate">
+                                        <span className="text-[10px] text-gray-400 font-mono w-4 shrink-0">{index + 1}.</span>
+                                        <span className="truncate">{col.label}</span>
+                                        {col.id === 'task_particular' && <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded shrink-0">New!</span>}
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                            disabled={index === 0}
+                                            onClick={() => moveColumn(index, -1)}
+                                            className="px-2 py-1 text-xs text-gray-400 hover:text-indigo-600 disabled:opacity-30 hover:bg-gray-100 rounded transition font-bold"
+                                            title="Move Up"
+                                        >
+                                            ▲
+                                        </button>
+                                        <button
+                                            disabled={index === activeColumns.length - 1}
+                                            onClick={() => moveColumn(index, 1)}
+                                            className="px-2 py-1 text-xs text-gray-400 hover:text-indigo-600 disabled:opacity-30 hover:bg-gray-100 rounded transition font-bold"
+                                            title="Move Down"
+                                        >
+                                            ▼
+                                        </button>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <button onClick={() => setShowColumnOrderModal(false)} className="px-5 py-2 text-xs bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white font-semibold rounded-xl transition">Close</button>
                     </div>
                 </div>
             </Modal>
