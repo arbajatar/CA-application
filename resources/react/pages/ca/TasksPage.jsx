@@ -982,14 +982,14 @@ export default function TasksPage() {
                                                         </th>
                                                     );
                                                 })}
-                                                <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>
+                                                <th className="px-4 py-3 text-left whitespace-nowrap sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-gray-100">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
                                             {filteredTasks?.length === 0 ? (
                                                 <tr><td colSpan={2 + activeColumns.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
                                             ) : filteredTasks?.map((t, i) => (
-                                                <tr key={t.id} className="hover:bg-gray-100 transition">
+                                                <tr key={t.id} className="hover:bg-gray-100 transition group/row">
                                                     <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                     {activeColumns.map(col => {
                                                         if (col.id === 'form_name') {
@@ -1024,7 +1024,7 @@ export default function TasksPage() {
                                                         }
                                                         return null;
                                                     })}
-                                                    <td className="px-4 py-3">
+                                                    <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover/row:bg-gray-100 transition shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
                                                         <div className="flex items-center gap-2">
                                                             <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
                                                                 <Eye size={15} />
@@ -1191,6 +1191,8 @@ export default function TasksPage() {
                                                         >
                                                             <option value="ignore">-- Ignore Column --</option>
                                                             <option disabled>──────────</option>
+                                                            <option value="sheet_id">Sheet ID (For updates)</option>
+                                                            <option value="subtask_id">Subtask ID (For updates)</option>
                                                             <option value="client_id">Client Name</option>
                                                             <option value="client_mobile">Client Mobile Number</option>
                                                             <option value="work_type_id">Work Type</option>
@@ -1208,7 +1210,7 @@ export default function TasksPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {importRawData.slice(0, 15).map((row, rowIdx) => (
+                                        {importRawData.map((row, rowIdx) => (
                                             <tr key={rowIdx} className="hover:bg-gray-50">
                                                 {importHeaders.map((header, colIdx) => (
                                                     <td key={colIdx} className="p-3 border-r border-gray-100 last:border-r-0 text-gray-600 truncate max-w-[250px]" title={row[header]?.toString() || ''}>
@@ -1221,11 +1223,10 @@ export default function TasksPage() {
                                 </table>
                             </div>
                         </div>
-                        {importRawData.length > 15 && (
-                            <div className="bg-gray-50 p-2 text-center text-xs text-gray-500 border-t border-gray-200">
-                                Showing preview of first 15 rows. Total {importRawData.length} rows will be imported.
-                            </div>
-                        )}
+                        <div className="bg-gray-50 p-2.5 text-center text-xs text-slate-500 border-t border-gray-200 font-semibold flex items-center justify-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Successfully loaded {importRawData.length} records from spreadsheet. All rows are displayed.
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
