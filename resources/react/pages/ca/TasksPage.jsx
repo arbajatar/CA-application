@@ -359,7 +359,7 @@ export default function TasksPage() {
             }
 
             const workbook = new ExcelJS.Workbook();
-            const worksheet = workbook.addWorksheet('Tasks Export');
+            const worksheet = workbook.addWorksheet('Sheet Export');
 
             // 1. Identify dynamic headers
             const allDynamicHeadersSet = new Set();
@@ -499,7 +499,7 @@ export default function TasksPage() {
                     mobile: task.client?.contact || '',
                     work_type: task.work_type?.name || '',
                     form_name: task.form_name || '',
-                    date_allocated: task.date_allocated || '',
+                    date_allocated: task.date_inward || task.date_allocated || '',
                     assigned_to: task.allocated_to?.name || '',
                     status: task.status_label || task.status,
                     task_particular: task.task_particular || '',
@@ -572,7 +572,7 @@ export default function TasksPage() {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+            a.download = `sheet_export_${new Date().toISOString().split('T')[0]}.xlsx`;
             a.click();
             window.URL.revokeObjectURL(url);
 
