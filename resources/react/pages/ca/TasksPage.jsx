@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -49,7 +49,9 @@ export default function TasksPage() {
     const [dynamicFilters, setDynamicFilters] = useState({})
     const [showColumnFilters, setShowColumnFilters] = useState(true)
     const [customColumnOrder, setCustomColumnOrder] = useState(null)
-    const [showColumnOrderModal, setShowColumnOrderModal] = useState(false)
+    const [draggedColumnIndex, setDraggedColumnIndex] = useState(null)
+    const [dragOverColumnIndex, setDragOverColumnIndex] = useState(null)
+    const [ignoreIdsForCloning, setIgnoreIdsForCloning] = useState(false)
     const fileInputRef = useRef(null)
 
     // Import Mapping Modal States
@@ -282,7 +284,14 @@ export default function TasksPage() {
                 }
 
                 // Attach IDs and raw names for backend creation
-                taskProps.id = sheetId;
+                if (ignoreIdsForCloning) {
+                    taskProps.id = null;
+                    subtaskProps.id = null;
+                } else {
+                    taskProps.id = sheetId;
+                    if (subtaskId) subtaskProps.id = subtaskId;
+                }
+                
                 taskProps.client_id = finalClientId;
                 taskProps.client_name = rowClientName;
                 taskProps.client_mobile = rowClientMobile;
@@ -290,10 +299,8 @@ export default function TasksPage() {
                 taskProps.work_type_name = rowWorkTypeName;
                 taskProps.allocated_to = finalAssigneeId;
 
-                if (subtaskId) subtaskProps.id = subtaskId;
-
                 // Grouping Logic
-                const groupKey = sheetId ? `sheet_${sheetId}` : `new_${rowClientName}_${rowWorkTypeName}_${taskProps.form_name || ''}`;
+                const groupKey = (sheetId && !ignoreIdsForCloning) ? `sheet_${sheetId}` : `new_${rowClientName}_${rowWorkTypeName}_${taskProps.form_name || ''}`;
                 
                 if (!taskGroups.has(groupKey)) {
                     taskGroups.set(groupKey, taskProps);
@@ -930,37 +937,46 @@ export default function TasksPage() {
                                             <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
                                                 <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
                                                 {activeColumns.map((col, index) => {
-                                                    const shiftColumn = (idx, direction) => {
-                                                        const newIdx = idx + direction;
-                                                        if (newIdx < 0 || newIdx >= activeColumns.length) return;
+                                                    const handleColumnDrop = (targetIndex) => {
+                                                        if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) return;
                                                         const copy = [...activeColumns.map(c => c.id)];
-                                                        const temp = copy[idx];
-                                                        copy[idx] = copy[newIdx];
-                                                        copy[newIdx] = temp;
+                                                        const draggedItem = copy[draggedColumnIndex];
+                                                        copy.splice(draggedColumnIndex, 1);
+                                                        copy.splice(targetIndex, 0, draggedItem);
                                                         setCustomColumnOrder(copy);
+                                                        setDraggedColumnIndex(null);
+                                                        setDragOverColumnIndex(null);
+                                                        toast.success(`Positioned "${col.label}" column!`);
                                                     };
                                                     
+                                                    const isDragging = draggedColumnIndex === index;
+                                                    const isDragOver = dragOverColumnIndex === index;
+                                                    
                                                     return (
-                                                        <th key={col.id} className="px-4 py-3 text-left whitespace-nowrap group/th select-none">
+                                                        <th
+                                                            key={col.id}
+                                                            draggable
+                                                            onDragStart={() => setDraggedColumnIndex(index)}
+                                                            onDragOver={(e) => {
+                                                                e.preventDefault();
+                                                                setDragOverColumnIndex(index);
+                                                            }}
+                                                            onDragEnd={() => {
+                                                                setDraggedColumnIndex(null);
+                                                                setDragOverColumnIndex(null);
+                                                            }}
+                                                            onDrop={() => handleColumnDrop(index)}
+                                                            className={`px-4 py-3 text-left whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th border-b border-gray-100 ${
+                                                                isDragging ? 'opacity-40 bg-slate-100 scale-95 border-dashed border-2 border-slate-300' : ''
+                                                            } ${
+                                                                isDragOver && !isDragging ? 'bg-indigo-50 border-l-2 border-indigo-500 scale-102 shadow-sm' : ''
+                                                            }`}
+                                                            title="Drag to rearrange column order"
+                                                        >
                                                             <div className="flex items-center gap-1.5 justify-between">
-                                                                <span className="font-semibold text-gray-700">{col.label}</span>
-                                                                <div className="opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition shrink-0 ml-1">
-                                                                    <button
-                                                                        disabled={index === 0}
-                                                                        onClick={() => shiftColumn(index, -1)}
-                                                                        className="p-0.5 text-gray-400 hover:text-[#1F5C99] hover:bg-gray-200 disabled:opacity-20 rounded transition text-[9px] font-bold"
-                                                                        title="Move Left"
-                                                                    >
-                                                                        ◀
-                                                                    </button>
-                                                                    <button
-                                                                        disabled={index === activeColumns.length - 1}
-                                                                        onClick={() => shiftColumn(index, 1)}
-                                                                        className="p-0.5 text-gray-400 hover:text-[#1F5C99] hover:bg-gray-200 disabled:opacity-20 rounded transition text-[9px] font-bold"
-                                                                        title="Move Right"
-                                                                    >
-                                                                        ▶
-                                                                    </button>
+                                                                <div className="flex items-center gap-1 min-w-0">
+                                                                    <GripVertical size={13} className="text-gray-300 shrink-0 cursor-grab group-hover/th:text-indigo-400 transition" />
+                                                                    <span className="font-semibold text-gray-700 truncate">{col.label}</span>
                                                                 </div>
                                                             </div>
                                                         </th>
@@ -1125,7 +1141,7 @@ export default function TasksPage() {
             {/* Import Mapping Modal */}
             <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} title="Map Excel Data" width="max-w-7xl">
                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200 items-end">
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fallback Client (If missing in row)</label>
                             <select value={fallbackClient} onChange={e => setFallbackClient(e.target.value)}
@@ -1141,6 +1157,20 @@ export default function TasksPage() {
                                 <option value="">Do not use fallback</option>
                                 {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                             </select>
+                        </div>
+                        <div className="flex items-center h-[38px] pl-2 pb-1">
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={ignoreIdsForCloning}
+                                    onChange={e => setIgnoreIdsForCloning(e.target.checked)}
+                                    className="w-4 h-4 rounded text-[#1F5C99] focus:ring-[#1F5C99] border-gray-300 transition"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-gray-800">Treat as New Sheets (Clone)</span>
+                                    <span className="text-[9px] text-gray-400">Creates new sheets instead of updating historical ones</span>
+                                </div>
+                            </label>
                         </div>
                     </div>
 
