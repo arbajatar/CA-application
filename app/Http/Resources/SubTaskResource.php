@@ -28,8 +28,8 @@ class SubTaskResource extends JsonResource
             'task' => [
                 'id' => $this->task->id,
                 'form_name' => $this->task->form_name,
-                'client' => $this->task->client->name,
-                'work_type' => $this->task->workType->name,
+                'client' => $this->task->client?->name,
+                'work_type' => $this->task->workType?->name,
             ],
         ];
     }
