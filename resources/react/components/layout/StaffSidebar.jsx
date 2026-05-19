@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
-    { to: '/staff/tasks', icon: ClipboardList, label: 'My Tasks' },
+    { to: '/staff/tasks', icon: ClipboardList, label: 'My Sheets' },
     { to: '/staff/profile', icon: User, label: 'My Profile' },
     { to: '/staff/things-to-know', icon: Info, label: 'Learning Library' },
 ]

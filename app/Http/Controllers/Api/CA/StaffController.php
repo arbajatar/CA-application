@@ -61,6 +61,13 @@ class StaffController extends Controller
         return response()->json(['message' => 'Staff member deactivated successfully.']);
     }
 
+    public function activate(User $staff): JsonResponse
+    {
+        $staff->update(['is_active' => true]);
+
+        return response()->json(['message' => 'Staff member activated successfully.']);
+    }
+
     public function resetPassword(ResetPasswordRequest $request, User $staff): JsonResponse
     {
         $staff->update(['password' => Hash::make($request->password)]);

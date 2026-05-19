@@ -10,6 +10,8 @@ use App\Http\Requests\CA\UpdateTaskRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\Task;
 use App\Models\TaskLog;
+use App\Models\Client;
+use App\Models\WorkType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -148,29 +150,96 @@ class TaskController extends Controller
     {
         try {
             $request->validate([
-                'tasks' => 'required|array',
-                'tasks.*.client_id' => 'required|exists:clients,id',
-                'tasks.*.work_type_id' => 'required|exists:work_types,id',
-                'tasks.*.allocated_to' => 'required|exists:users,id',
+                'tasks' => 'required|array'
             ]);
 
-            foreach ($request->tasks as $taskData) {
-                $task = Task::create([
-                    'client_id' => $taskData['client_id'],
-                    'work_type_id' => $taskData['work_type_id'],
-                    'allocated_to' => $taskData['allocated_to'],
-                    'created_by' => $request->user()->id,
-                    'date_allocated' => $taskData['date_allocated'] ?? now()->toDateString(),
-                    'date_inward' => $taskData['date_inward'] ?? now()->toDateString(),
-                    'status' => TaskStatus::Assigned,
-                    'remarks' => $taskData['remarks'] ?? null,
-                    'form_name' => $taskData['form_name'] ?? null,
-                ]);
+            $importedCount = 0;
+            $updatedCount = 0;
 
-                // Handle nested subtasks from import
+            foreach ($request->tasks as $taskData) {
+                // 1. Resolve or Create Client
+                $clientId = $taskData['client_id'] ?? null;
+                if (!$clientId && (!empty($taskData['client_name']) || !empty($taskData['client_mobile']))) {
+                    $clientName = !empty($taskData['client_name']) ? $taskData['client_name'] : 'Unknown Client';
+                    $clientMobile = !empty($taskData['client_mobile']) ? $taskData['client_mobile'] : null;
+                    
+                    // Search by mobile if available, else by name
+                    $client = null;
+                    if ($clientMobile) {
+                        $client = Client::where('contact', $clientMobile)->first();
+                    }
+                    if (!$client) {
+                        $client = Client::firstOrCreate(
+                            ['name' => $clientName],
+                            ['contact' => $clientMobile]
+                        );
+                    }
+                    $clientId = $client->id;
+                }
+
+                // 2. Resolve or Create Work Type
+                $workTypeId = $taskData['work_type_id'] ?? null;
+                if (!$workTypeId && !empty($taskData['work_type_name'])) {
+                    $workType = WorkType::firstOrCreate(['name' => $taskData['work_type_name']]);
+                    $workTypeId = $workType->id;
+                }
+                
+                // 3. Resolve Assignee
+                $allocatedTo = $taskData['allocated_to'] ?? $request->user()->id;
+
+                if (!$clientId || !$workTypeId) {
+                    continue; // Skip if still cannot resolve mandatory fields
+                }
+
+                // 4. Create or Update Task
+                $isUpdate = false;
+                if (!empty($taskData['id'])) {
+                    $task = Task::find($taskData['id']);
+                    if ($task) {
+                        $isUpdate = true;
+                        $task->update([
+                            'client_id' => $clientId,
+                            'work_type_id' => $workTypeId,
+                            'allocated_to' => $allocatedTo,
+                            'date_allocated' => $taskData['date_allocated'] ?? $task->date_allocated,
+                            'remarks' => $taskData['remarks'] ?? $task->remarks,
+                            'form_name' => $taskData['form_name'] ?? $task->form_name,
+                            'dynamic_fields' => $taskData['dynamic_fields'] ?? $task->dynamic_fields,
+                        ]);
+                        $updatedCount++;
+                    }
+                }
+
+                if (!$isUpdate) {
+                    $task = Task::create([
+                        'client_id' => $clientId,
+                        'work_type_id' => $workTypeId,
+                        'allocated_to' => $allocatedTo,
+                        'created_by' => $request->user()->id,
+                        'date_allocated' => $taskData['date_allocated'] ?? now()->toDateString(),
+                        'date_inward' => now()->toDateString(),
+                        'status' => TaskStatus::Assigned,
+                        'remarks' => $taskData['remarks'] ?? null,
+                        'form_name' => $taskData['form_name'] ?? null,
+                        'dynamic_fields' => $taskData['dynamic_fields'] ?? null,
+                    ]);
+                    $importedCount++;
+
+                    TaskLog::create([
+                        'task_id' => $task->id,
+                        'changed_by' => $request->user()->id,
+                        'old_status' => null,
+                        'new_status' => TaskStatus::Assigned->value,
+                        'remarks' => 'Sheet created via Excel import.',
+                    ]);
+                }
+
+                // 5. Handle nested subtasks
                 if (isset($taskData['subtasks']) && is_array($taskData['subtasks'])) {
                     foreach ($taskData['subtasks'] as $st) {
-                        // Resolve status and priority from strings safely
+                        if (empty($st['title'])) continue; // Skip empty subtasks
+
+                        // Resolve status safely
                         $status = TaskStatus::Assigned;
                         if (isset($st['status'])) {
                             foreach (TaskStatus::cases() as $case) {
@@ -181,27 +250,29 @@ class TaskController extends Controller
                             }
                         }
 
-                        $task->subTasks()->create([
+                        $subtaskData = [
                             'title' => $st['title'] ?? 'Subtask',
                             'assigned_to' => $st['assigned_to'] ?? $task->allocated_to,
                             'status' => $status,
-                            'priority' => 'medium', // Default for now
-                            'due_date' => $st['due_date'] ?? null,
+                            'priority' => $st['priority'] ?? 'medium',
+                            'due_date' => !empty($st['due_date']) ? clone \Carbon\Carbon::parse($st['due_date']) : null,
                             'remarks' => $st['remarks'] ?? null,
-                        ]);
+                        ];
+
+                        if (!empty($st['id'])) {
+                            $existingSt = $task->subTasks()->find($st['id']);
+                            if ($existingSt) {
+                                $existingSt->update($subtaskData);
+                                continue;
+                            }
+                        }
+
+                        $task->subTasks()->create($subtaskData);
                     }
                 }
-
-                TaskLog::create([
-                    'task_id' => $task->id,
-                    'changed_by' => $request->user()->id,
-                    'old_status' => null,
-                    'new_status' => TaskStatus::Assigned->value,
-                    'remarks' => 'Task created via Excel import.',
-                ]);
             }
 
-            return response()->json(['message' => count($request->tasks) . ' tasks imported successfully.']);
+            return response()->json(['message' => "$importedCount sheets created, $updatedCount updated successfully."]);
         } catch (\Exception $e) {
             \Log::error('Import Error: ' . $e->getMessage());
             return response()->json(['message' => 'Import failed: ' . $e->getMessage()], 500);

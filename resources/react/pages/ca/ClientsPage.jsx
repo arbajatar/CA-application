@@ -91,7 +91,16 @@ export default function ClientsPage() {
                 <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter client name" className={inputCls} />
             ))}
             {renderField("Contact Number", errors.contact?.[0], (
-                <input type="text" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} placeholder="e.g. 9876543210" className={inputCls} />
+                <input 
+                    type="text" 
+                    value={form.contact} 
+                    onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setForm(f => ({ ...f, contact: val }));
+                    }} 
+                    placeholder="e.g. 9876543210" 
+                    className={inputCls} 
+                />
             ))}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {renderField("Email Address", errors.email?.[0], (
@@ -109,7 +118,7 @@ export default function ClientsPage() {
                     <input type="text" value={form.gst_number} onChange={e => setForm(f => ({ ...f, gst_number: e.target.value }))} placeholder="Optional" className={inputCls} />
                 ))}
             </div>
-            {renderField("Status", null, (
+            {editOpen && renderField("Status", null, (
                 <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>

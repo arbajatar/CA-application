@@ -135,7 +135,7 @@ export default function MyTasksPage() {
         : []
 
     const cards = summary ? [
-        { icon: ClipboardList, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', label: 'Total Tasks', value: summary.total_tasks, sub: 'All tasks assigned' },
+        { icon: ClipboardList, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', label: 'Total Sheets', value: summary.total_tasks, sub: 'All sheets assigned' },
         { icon: Activity, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', label: 'New Assigned', value: summary.assigned, sub: 'Waiting to start' },
         { icon: Info, iconBg: 'bg-orange-50', iconColor: 'text-orange-500', label: 'In Progress', value: summary.in_progress, sub: 'Currently active' },
         { icon: CheckCircle, iconBg: 'bg-green-50', iconColor: 'text-green-500', label: 'Completed', value: summary.completed, sub: 'Finalized tasks' },
@@ -145,7 +145,7 @@ export default function MyTasksPage() {
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Tasks</h1>
+            <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
 
             {/* Summary Cards */}
             {summary ? (
@@ -171,7 +171,7 @@ export default function MyTasksPage() {
                         onClick={() => setActiveTab('tasks')}
                         className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'tasks' ? 'border-[#1F5C99] text-[#1F5C99]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                     >
-                        Main Tasks ({tasks.length})
+                        Main Sheets ({tasks.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('subtasks')}
@@ -224,7 +224,7 @@ export default function MyTasksPage() {
                             <tbody className="divide-y divide-gray-50">
                                 {activeTab === 'tasks' ? (
                                     tasks?.length === 0 ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
                                     ) : tasks?.map((t, i) => (
                                         <tr key={t.id} className="hover:bg-gray-100 transition">
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
@@ -278,7 +278,7 @@ export default function MyTasksPage() {
             <Modal
                 open={updateOpen}
                 onClose={() => setUpdateOpen(false)}
-                title="Update Task Status"
+                title="Update Sheet Status"
                 width="max-w-md"
             >
                 {selected && (
@@ -418,7 +418,7 @@ export default function MyTasksPage() {
             </Modal>
 
             {/* View Modal */}
-            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Task Details" width="max-w-3xl">
+            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Sheet Details" width="max-w-3xl">
                 {selected && (
                     viewLoading ? <Spinner /> : (
                         <div className="space-y-6">

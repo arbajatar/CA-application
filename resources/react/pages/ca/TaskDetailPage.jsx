@@ -240,7 +240,7 @@ export default function TaskDetailPage() {
             setTask(prev => ({ ...prev, status: globalStatus, remarks: globalRemarks }));
             toast.success('Global status and remarks updated successfully');
         } catch (e) {
-            toast.error('Failed to update task controls');
+            toast.error('Failed to update sheet controls');
         } finally {
             setSaving(false);
         }
@@ -298,6 +298,7 @@ export default function TaskDetailPage() {
         // 2. Define Comprehensive Headers
         const headers = [
             "SR NO",
+            "Sheet ID",
             "Client Name",
             "Mobile No",
             "Work Type",
@@ -306,6 +307,7 @@ export default function TaskDetailPage() {
             "Global Status",
             "Global Remarks",
             ...dynamicHeaders, // Insert dynamic fields as columns
+            "Subtask ID",
             "Subtask Name",
             "Assignee",
             "Priority",
@@ -324,6 +326,7 @@ export default function TaskDetailPage() {
 
         // 4. Shared Task-Level Data for every row
         const baseData = [
+            task.id || '',
             task.client?.name || 'N/A',
             task.client?.contact || 'N/A',
             task.work_type?.name || 'N/A',
@@ -340,6 +343,7 @@ export default function TaskDetailPage() {
                 data.push([
                     index + 1,
                     ...baseData,
+                    st.id || '',
                     st.title,
                     st.assigned_to?.name || 'Unassigned',
                     st.priority,
@@ -353,6 +357,7 @@ export default function TaskDetailPage() {
             data.push([
                 1,
                 ...baseData,
+                '',
                 'No Subtasks',
                 'N/A',
                 'N/A',
@@ -364,14 +369,14 @@ export default function TaskDetailPage() {
 
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Comprehensive Task Export");
+        XLSX.utils.book_append_sheet(wb, ws, "Comprehensive Sheet Export");
 
         // Set flexible column widths
         const colWidths = headers.map(() => ({ wch: 25 }));
         colWidths[0] = { wch: 8 }; // SR NO
         ws['!cols'] = colWidths;
 
-        XLSX.writeFile(wb, `${task.client?.name || 'Task'}_Complete_Export.xlsx`);
+        XLSX.writeFile(wb, `${task.client?.name || 'Sheet'}_Complete_Export.xlsx`);
         toast.success('Comprehensive Excel export started');
     };
 
@@ -494,7 +499,7 @@ export default function TaskDetailPage() {
                     { label: 'Assigned', count: task.sub_tasks?.filter(st => st.status === 'assigned').length || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
                     { label: 'In Progress', count: task.sub_tasks?.filter(st => st.status === 'in_progress').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
                     { label: 'Completed', count: task.sub_tasks?.filter(st => st.status === 'completed').length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, color: 'text-slate-600', bg: 'bg-slate-50' }
+                    { label: 'Total Subtasks', count: task.sub_tasks?.length || 0, color: 'text-slate-600', bg: 'bg-slate-50' }
                 ].map((card, i) => (
                     <div key={i} className={`${card.bg} rounded-3xl p-6 border border-white shadow-sm transition-all hover:shadow-md`}>
                         <p className={`text-[10px] font-black uppercase tracking-widest ${card.color} opacity-70 mb-1`}>{card.label}</p>
@@ -698,7 +703,7 @@ export default function TaskDetailPage() {
                                         onClick={handleAddSubTask}
                                         className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"
                                     >
-                                        <Plus size={16} /> Add Task
+                                        <Plus size={16} /> Add Subtask
                                     </button>
                                 </td>
                             </tr>
@@ -882,7 +887,7 @@ export default function TaskDetailPage() {
                             onClick={() => setPreviewImage(null)}
                             className="mt-8 px-8 py-3 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition shadow-xl"
                         >
-                            Back to Task
+                            Back to Sheet
                         </button>
                     </div>
                 </div>

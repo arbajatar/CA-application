@@ -48,6 +48,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
         Route::get('/dashboard/staff-summary', [DashboardController::class, 'staffSummary']);
         Route::get('/dashboard/tasks', [DashboardController::class, 'tasks']);
+        Route::get('/dashboard/work-type-subtasks', [DashboardController::class, 'workTypeSubtasks']);
+        Route::get('/dashboard/calendar-tasks', [DashboardController::class, 'calendarTasks']);
 
         // Clients
         Route::apiResource('/clients', ClientController::class);
@@ -62,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Staff
         Route::patch('/staff/{staff}/deactivate', [StaffController::class, 'deactivate']);
+        Route::patch('/staff/{staff}/activate', [StaffController::class, 'activate']);
         Route::patch('/staff/{staff}/reset-password', [StaffController::class, 'resetPassword']);
         Route::apiResource('/staff', StaffController::class)->except(['destroy']);
 

@@ -232,7 +232,7 @@ function TaskBuilder() {
         <div className="flex items-center justify-center h-screen">
           <button onClick={() => setViewMode('builder')} className="landing-btn">
             <PlusCircle className="w-8 h-8" />
-            Create Task
+            Create Sheet
           </button>
         </div>
       )}
@@ -287,7 +287,7 @@ function TaskBuilder() {
               {formSchema.length > 0 && (
                 <div className="mt-6">
                   <button onClick={submitForm} className="create-btn">
-                    {viewMode === 'builder' ? 'Create Task' : 'Submit Completed Form'}
+                    {viewMode === 'builder' ? 'Create Sheet' : 'Submit Completed Form'}
                   </button>
                 </div>
               )}

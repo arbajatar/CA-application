@@ -48,6 +48,14 @@ export default function TasksPage() {
     const [currentFolder, setCurrentFolder] = useState(() => new URLSearchParams(location.search).get('work_type_id') || null)
     const fileInputRef = useRef(null)
 
+    // Import Mapping Modal States
+    const [importModalOpen, setImportModalOpen] = useState(false)
+    const [importRawData, setImportRawData] = useState([])
+    const [importHeaders, setImportHeaders] = useState([])
+    const [columnMapping, setColumnMapping] = useState({})
+    const [fallbackClient, setFallbackClient] = useState('')
+    const [fallbackWorkType, setFallbackWorkType] = useState('')
+
     const fetchDropdowns = async () => {
         try {
             const [c, w, s] = await Promise.all([
@@ -129,119 +137,191 @@ export default function TasksPage() {
                 const bstr = evt.target.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                const rawData = XLSX.utils.sheet_to_json(ws);
+                const rawData = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
                 if (rawData.length === 0) {
                     toast.error('Excel file is empty');
                     return;
                 }
 
-                const taskGroups = {};
-
-                // Helper to find value by multiple possible header names
-                const getVal = (row, options) => {
-                    const key = Object.keys(row).find(k => options.some(opt => k.toLowerCase().trim() === opt.toLowerCase().trim()));
-                    return key ? row[key]?.toString().trim() : null;
-                };
-
-                rawData.forEach(row => {
-                    const clientName = getVal(row, ['Client Name', 'NAME OF CLIENT', 'Client', 'CLIENT NAME']);
-                    const workTypeName = getVal(row, ['Work Type', 'MAIN TASK', 'RELATED MATTER', 'Task Type']);
-                    const formName = getVal(row, ['Form Name', 'RELATED MATTER DETAILED']);
-                    const dateAllocated = getVal(row, ['Date Allocated', 'DATE', 'DATE OF CREATION OF TASK', 'Date']);
-                    const globalRemarks = getVal(row, ['Global Remark', 'Global Remarks', 'FINAL REMARK', 'Remarks', 'TASK/ FOLLOW UP REMARKS']);
-
-                    if (!clientName || !workTypeName) return;
-
-                    const key = `${clientName}|${workTypeName}|${dateAllocated || ''}|${formName || ''}`;
-
-                    if (!taskGroups[key]) {
-                        taskGroups[key] = {
-                            clientName,
-                            workTypeName,
-                            formName,
-                            dateAllocated,
-                            remarks: globalRemarks || '',
-                            subtasks: []
-                        };
-                    }
-
-                    const subtaskName = getVal(row, ['Subtask Name', 'SUB TASK', 'WHAT TO DO', 'Title', 'SUB TASK DESCRIPTION']);
-                    const assigneeName = getVal(row, ['Assignee', 'TEAM MEMBER NAME', 'TASK ALLOCATION TO', 'Assignee Name']);
-
-                    if (subtaskName || assigneeName) {
-                        taskGroups[key].subtasks.push({
-                            title: subtaskName || workTypeName, // Default to work type if subtask name missing
-                            assigneeName: assigneeName,
-                            priority: getVal(row, ['Priority', 'Importance']) || 'medium',
-                            status: getVal(row, ['Subtask Status', 'TASK STATUS', 'TASK/ FOLLOW UP STATUS', 'Status']) || 'assigned',
-                            due_date: getVal(row, ['Due Date', 'TASK/ FOLLOW UP DATE', 'Target Date']),
-                            remarks: getVal(row, ['Subtask Remarks', 'CA REMARK', 'Remark']) || ''
-                        });
-                    }
+                // Extract headers
+                const headers = Object.keys(rawData[0]);
+                setImportHeaders(headers);
+                setImportRawData(rawData);
+                
+                // Try to auto-map some obvious ones
+                const initialMapping = {};
+                headers.forEach(h => {
+                    const lh = h.toLowerCase().trim();
+                    if (['sheet id', 'task id', 'id', 'sheet_id'].includes(lh)) initialMapping[h] = 'sheet_id';
+                    else if (['subtask id', 'subtask_id'].includes(lh)) initialMapping[h] = 'subtask_id';
+                    else if (['client name', 'name of client', 'client', 'client_name'].includes(lh)) initialMapping[h] = 'client_id';
+                    else if (['mobile no', 'client mobile', 'mobile', 'client_mobile'].includes(lh)) initialMapping[h] = 'client_mobile';
+                    else if (['work type', 'main task', 'related matter', 'task type', 'work_type_id'].includes(lh)) initialMapping[h] = 'work_type_id';
+                    else if (['form name', 'related matter detailed', 'sheet name', 'task name'].includes(lh)) initialMapping[h] = 'form_name';
+                    else if (['date allocated', 'date', 'date of creation of task', 'date inward'].includes(lh)) initialMapping[h] = 'date_allocated';
+                    else if (['assignee', 'team member name', 'task allocation to'].includes(lh)) initialMapping[h] = 'allocated_to';
+                    else if (['status', 'sheet status', 'global status'].includes(lh)) initialMapping[h] = 'status';
+                    else if (['remarks', 'global remarks', 'final remark'].includes(lh)) initialMapping[h] = 'remarks';
+                    else if (['subtask name', 'st_name'].includes(lh)) initialMapping[h] = 'st_name';
+                    else if (['subtask assignee', 'st_assignee', 'assignee'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_assignee';
+                    else if (['subtask priority', 'priority', 'st_priority'].includes(lh)) initialMapping[h] = 'st_priority';
+                    else if (['subtask status', 'st_status'].includes(lh)) initialMapping[h] = 'st_status';
+                    else if (['subtask due date', 'due date', 'st_due_date'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_due_date';
+                    else if (['subtask remarks', 'st_remarks'].includes(lh)) initialMapping[h] = 'st_remarks';
+                    else if (lh !== 'sr no' && lh !== 'sr_no') initialMapping[h] = 'dynamic_' + h; // default to dynamic field
                 });
-
-                const failedMatches = [];
-                const importedTasks = Object.values(taskGroups).map(group => {
-                    const client = clients.find(c => c.name.toLowerCase().trim() === group.clientName.toLowerCase().trim());
-                    const workType = workTypes.find(w => w.name.toLowerCase().trim() === group.workTypeName.toLowerCase().trim());
-
-                    if (!client || !workType) {
-                        if (!client) failedMatches.push(`Client: "${group.clientName}"`);
-                        if (!workType) failedMatches.push(`Work Type: "${group.workTypeName}"`);
-                        return null;
-                    }
-
-                    const processedSubtasks = group.subtasks.map(st => {
-                        const staffMember = staff.find(s => s.name.toLowerCase().trim() === st.assigneeName?.toLowerCase().trim());
-                        return {
-                            ...st,
-                            assigned_to: staffMember?.id || staff[0]?.id
-                        };
-                    });
-
-                    const formatDate = (d) => {
-                        if (!d) return null;
-                        if (d instanceof Date) return d.toISOString().split('T')[0];
-                        if (typeof d === 'number') {
-                            const date = new Date((d - 25569) * 86400 * 1000);
-                            return date.toISOString().split('T')[0];
-                        }
-                        return d.toString().split(' ')[0];
-                    };
-
-                    const mainAssigneeId = processedSubtasks.find(s => s.assigned_to)?.assigned_to || staff[0]?.id;
-
-                    return {
-                        client_id: client.id,
-                        work_type_id: workType.id,
-                        form_name: group.formName,
-                        allocated_to: mainAssigneeId,
-                        date_allocated: formatDate(group.dateAllocated) || new Date().toISOString().split('T')[0],
-                        remarks: group.remarks,
-                        subtasks: processedSubtasks
-                    };
-                }).filter(Boolean);
-
-                if (importedTasks.length === 0) {
-                    const uniqueFailures = [...new Set(failedMatches)].slice(0, 3).join(', ');
-                    toast.error(`No matches found for: ${uniqueFailures}${failedMatches.length > 3 ? '...' : ''}. Please check names in database.`);
-                    return;
-                }
-
-                setSaving(true);
-                const res = await api.post('/ca/tasks/import', { tasks: importedTasks });
-                toast.success(res.data.message);
-                fetchTasks();
+                
+                setColumnMapping(initialMapping);
+                setFallbackClient('');
+                setFallbackWorkType(currentFolder && currentFolder !== 'all' ? currentFolder : '');
+                setImportModalOpen(true);
             } catch (err) {
                 console.error('Import Error:', err);
                 toast.error('Error processing Excel file. Check console for details.');
             } finally {
-                setSaving(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
         };
         reader.readAsBinaryString(file);
+    };
+
+    const submitImportMapping = async () => {
+        setSaving(true);
+        try {
+            const taskGroups = new Map();
+
+            importRawData.forEach(row => {
+                let sheetId = null;
+                let subtaskId = null;
+                let rowClientName = null;
+                let rowClientMobile = null;
+                let rowWorkTypeName = null;
+                let rowAssigneeName = null;
+                
+                const taskProps = { dynamic_fields: {}, subtasks: [] };
+                const subtaskProps = {};
+
+                // Map columns
+                Object.keys(row).forEach(col => {
+                    const mapTo = columnMapping[col];
+                    if (!mapTo || mapTo === 'ignore') return;
+                    
+                    const val = row[col];
+                    
+                    if (mapTo === 'sheet_id') sheetId = val;
+                    else if (mapTo === 'subtask_id') subtaskId = val;
+                    else if (mapTo === 'client_id') rowClientName = val;
+                    else if (mapTo === 'client_mobile') rowClientMobile = val;
+                    else if (mapTo === 'work_type_id') rowWorkTypeName = val;
+                    else if (mapTo === 'allocated_to') rowAssigneeName = val;
+                    else if (mapTo.startsWith('dynamic_')) {
+                        const dynamicKey = mapTo.replace('dynamic_', '');
+                        taskProps.dynamic_fields[dynamicKey] = val;
+                    }
+                    else if (mapTo.startsWith('st_')) {
+                        const stKey = mapTo.replace('st_', '');
+                        if (stKey === 'name') subtaskProps.title = val;
+                        else subtaskProps[stKey] = val;
+                    }
+                    else {
+                        // date_allocated, form_name, status, remarks
+                        taskProps[mapTo] = val;
+                    }
+                });
+
+                // Resolve Client (Frontend lookup, or pass strings to backend)
+                let finalClientId = null;
+                if (rowClientName || rowClientMobile) {
+                    const client = clients.find(c => {
+                        const matchName = Boolean(rowClientName && c.name && c.name.toString().toLowerCase().trim() === rowClientName?.toString().toLowerCase().trim());
+                        const matchMobile = Boolean(rowClientMobile && c.contact && c.contact.toString().replace(/\D/g,'') === rowClientMobile?.toString().replace(/\D/g,''));
+                        return matchName || matchMobile;
+                    });
+                    if (client) finalClientId = client.id;
+                }
+                if (!finalClientId && fallbackClient) finalClientId = fallbackClient;
+
+                // Resolve Work Type
+                let finalWorkTypeId = null;
+                if (rowWorkTypeName) {
+                    const workType = workTypes.find(w => w.name && w.name.toString().toLowerCase().trim() === rowWorkTypeName?.toString().toLowerCase().trim());
+                    if (workType) finalWorkTypeId = workType.id;
+                }
+                if (!finalWorkTypeId && fallbackWorkType) finalWorkTypeId = fallbackWorkType;
+
+                // Resolve Assignee
+                let finalAssigneeId = null;
+                if (rowAssigneeName) {
+                    const staffMember = staff.find(s => s.name && s.name.toString().toLowerCase().trim() === rowAssigneeName?.toString().toLowerCase().trim());
+                    if (staffMember) finalAssigneeId = staffMember.id;
+                }
+                if (!finalAssigneeId) finalAssigneeId = staff[0]?.id; // Default to first staff
+
+                // Resolve Subtask Assignee if provided as string
+                if (subtaskProps.assignee && typeof subtaskProps.assignee === 'string') {
+                     const stStaff = staff.find(s => s.name && s.name.toString().toLowerCase().trim() === subtaskProps.assignee.toString().toLowerCase().trim());
+                     if (stStaff) subtaskProps.assigned_to = stStaff.id;
+                     delete subtaskProps.assignee;
+                }
+
+                // Formatting Date
+                if (taskProps.date_allocated) {
+                    let d = taskProps.date_allocated;
+                    if (typeof d === 'number') {
+                        const date = new Date((d - 25569) * 86400 * 1000);
+                        taskProps.date_allocated = date.toISOString().split('T')[0];
+                    } else if (d instanceof Date) {
+                        taskProps.date_allocated = d.toISOString().split('T')[0];
+                    }
+                }
+
+                // Attach IDs and raw names for backend creation
+                taskProps.id = sheetId;
+                taskProps.client_id = finalClientId;
+                taskProps.client_name = rowClientName;
+                taskProps.client_mobile = rowClientMobile;
+                taskProps.work_type_id = finalWorkTypeId;
+                taskProps.work_type_name = rowWorkTypeName;
+                taskProps.allocated_to = finalAssigneeId;
+
+                if (subtaskId) subtaskProps.id = subtaskId;
+
+                // Grouping Logic
+                const groupKey = sheetId ? `sheet_${sheetId}` : `new_${rowClientName}_${rowWorkTypeName}_${taskProps.form_name || ''}`;
+                
+                if (!taskGroups.has(groupKey)) {
+                    taskGroups.set(groupKey, taskProps);
+                }
+                
+                const existingGroup = taskGroups.get(groupKey);
+                
+                // Merge dynamic fields for the same group just in case
+                existingGroup.dynamic_fields = { ...existingGroup.dynamic_fields, ...taskProps.dynamic_fields };
+
+                if (subtaskProps.title && subtaskProps.title !== 'No Subtasks') {
+                    existingGroup.subtasks.push(subtaskProps);
+                }
+            });
+
+            const importedTasks = Array.from(taskGroups.values());
+
+            if (importedTasks.length === 0) {
+                toast.error(`No valid rows mapped.`);
+                setSaving(false);
+                return;
+            }
+
+            const res = await api.post('/ca/tasks/import', { tasks: importedTasks });
+            toast.success(res.data.message);
+            setImportModalOpen(false);
+            fetchTasks();
+        } catch (err) {
+            console.error('Import Mapping Error:', err);
+            toast.error('Error importing tasks.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleExport = async () => {
@@ -283,6 +363,7 @@ export default function TasksPage() {
             // 2. Define columns
             const columns = [
                 { header: 'SR NO', key: 'sr_no' },
+                { header: 'Sheet ID', key: 'sheet_id' },
                 { header: 'Client Name', key: 'client_name' },
                 { header: 'Mobile No', key: 'mobile' },
                 { header: 'Work Type', key: 'work_type' },
@@ -291,6 +372,7 @@ export default function TasksPage() {
                 { header: 'Global Status', key: 'status' },
                 { header: 'Global Remarks', key: 'remarks' },
                 ...dynamicHeaders.map(h => ({ header: h, key: `dyn_${h}` })),
+                { header: 'Subtask ID', key: 'subtask_id' },
                 { header: 'Subtask Name', key: 'st_name' },
                 { header: 'Assignee', key: 'st_assignee' },
                 { header: 'Priority', key: 'st_priority' },
@@ -330,6 +412,7 @@ export default function TasksPage() {
             let srNo = 1;
             allTasks.forEach(task => {
                 const baseData = {
+                    sheet_id: task.id || '',
                     client_name: task.client?.name || '',
                     mobile: task.client?.contact || '',
                     work_type: task.work_type?.name || '',
@@ -348,6 +431,7 @@ export default function TasksPage() {
                         worksheet.addRow({
                             sr_no: srNo++,
                             ...baseData,
+                            subtask_id: st.id || '',
                             st_name: st.title,
                             st_assignee: st.assigned_to?.name || 'Unassigned',
                             st_priority: st.priority_label || st.priority,
@@ -360,6 +444,7 @@ export default function TasksPage() {
                     worksheet.addRow({
                         sr_no: srNo++,
                         ...baseData,
+                        subtask_id: '',
                         st_name: 'No Subtasks',
                         st_assignee: 'N/A',
                         st_priority: 'N/A',
@@ -407,10 +492,10 @@ export default function TasksPage() {
             a.click();
             window.URL.revokeObjectURL(url);
 
-            toast.success('Tasks exported successfully');
+            toast.success('Sheet exported successfully');
         } catch (err) {
             console.error('Export Error:', err);
-            toast.error('Failed to export tasks');
+            toast.error('Failed to export sheet');
         } finally {
             setSaving(false);
         }
@@ -447,7 +532,7 @@ export default function TasksPage() {
             navigate('/ca/tasks/builder', { state: { duplicateData } });
         } catch (err) {
             console.error('Duplication Error:', err);
-            toast.error('Failed to load task details for duplication');
+            toast.error('Failed to load sheet details for duplication');
         } finally {
             setSaving(false);
         }
@@ -547,19 +632,33 @@ export default function TasksPage() {
                                     setCurrentFolder('all');
                                 }}
                             />
-                            {workTypes.map(wt => (
-                                <FolderCard
-                                    key={wt.id}
-                                    name={wt.name}
-                                    iconBg="bg-blue-50"
-                                    iconColor="text-blue-500"
-                                    onClick={() => {
-                                        setWorkTypeId(wt.id);
-                                        setPage(1);
-                                        setCurrentFolder(wt.id);
-                                    }}
-                                />
-                            ))}
+                            {workTypes.map((wt, i) => {
+                                const colors = [
+                                    { bg: 'bg-blue-50', text: 'text-blue-500' },
+                                    { bg: 'bg-orange-50', text: 'text-orange-500' },
+                                    { bg: 'bg-emerald-50', text: 'text-emerald-500' },
+                                    { bg: 'bg-sky-50', text: 'text-sky-500' },
+                                    { bg: 'bg-teal-50', text: 'text-teal-500' },
+                                    { bg: 'bg-red-50', text: 'text-red-500' },
+                                    { bg: 'bg-indigo-50', text: 'text-indigo-500' },
+                                    { bg: 'bg-purple-50', text: 'text-purple-500' },
+                                    { bg: 'bg-pink-50', text: 'text-pink-500' },
+                                ];
+                                const color = colors[i % colors.length];
+                                return (
+                                    <FolderCard
+                                        key={wt.id}
+                                        name={wt.name}
+                                        iconBg={color.bg}
+                                        iconColor={color.text}
+                                        onClick={() => {
+                                            setWorkTypeId(wt.id);
+                                            setPage(1);
+                                            setCurrentFolder(wt.id);
+                                        }}
+                                    />
+                                );
+                            })}
                         </div>
                     </div>
                 ) : (
@@ -618,25 +717,42 @@ export default function TasksPage() {
 
                         {/* Table */}
                         <div className="overflow-x-auto">
-                            {loading ? <Spinner /> : (
+                            {loading ? <Spinner /> : (() => {
+                                const dynamicHeadersSet = new Set();
+                                tasks?.forEach(t => {
+                                    Object.keys(t.dynamic_fields || {}).forEach(k => {
+                                        if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                                            dynamicHeadersSet.add(k);
+                                        }
+                                    });
+                                });
+                                const dynamicHeaders = Array.from(dynamicHeadersSet);
+                                
+                                return (
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                            {['#', 'Sheet Name', 'Work Type', 'Create Date', 'Sheet Status', 'Remarks', 'Actions'].map(h => (
+                                            {['#', 'Sheet Name', 'Client', 'Mobile', 'Work Type', 'Assigned To', 'Create Date', 'Sheet Status', ...dynamicHeaders, 'Remarks', 'Actions'].map(h => (
                                                 <th key={h} className="px-4 py-3 text-left whitespace-nowrap">{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {tasks?.length === 0 ? (
-                                            <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found in this folder</td></tr>
+                                            <tr><td colSpan={11 + dynamicHeaders.length} className="text-center py-12 text-gray-400">No sheets found in this folder</td></tr>
                                         ) : tasks?.map((t, i) => (
                                             <tr key={t.id} className="hover:bg-gray-100 transition">
                                                 <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                                <td className="px-4 py-3 font-semibold text-gray-800">{t.form_name || '—'}</td>
-                                                <td className="px-4 py-3 text-gray-600">{t.work_type?.name || '—'}</td>
+                                                <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.name || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.client?.contact || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.work_type?.name || '—'}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>
                                                 <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>
-                                                <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                                                <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>
+                                                {dynamicHeaders.map(h => (
+                                                    <td key={h} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[h]}>{t.dynamic_fields?.[h] || '—'}</td>
+                                                ))}
                                                 <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
@@ -644,7 +760,7 @@ export default function TasksPage() {
                                                             <Eye size={15} />
                                                         </button>
                                                         <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
-                                                        <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Task">
+                                                        <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Sheet">
                                                             <Copy size={15} />
                                                         </button>
                                                         <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
@@ -655,7 +771,8 @@ export default function TasksPage() {
                                         ))}
                                     </tbody>
                                 </table>
-                            )}
+                                );
+                            })()}
                         </div>
 
                         {/* Pagination */}
@@ -675,7 +792,7 @@ export default function TasksPage() {
             </div>
 
             {/* Reassign Modal */}
-            <Modal open={reassignOpen} onClose={() => setReassignOpen(false)} title="Reassign Task" width="max-w-sm">
+            <Modal open={reassignOpen} onClose={() => setReassignOpen(false)} title="Reassign Sheet" width="max-w-sm">
                 <div className="space-y-4">
                     <p className="text-sm text-gray-500">Reassign <span className="font-semibold text-gray-700">{selected?.client?.name}</span> — {selected?.work_type?.name}</p>
                     <div className="space-y-1">
@@ -704,18 +821,22 @@ export default function TasksPage() {
                 open={deleteOpen} onClose={() => setDeleteOpen(false)}
                 onConfirm={handleDelete} danger
                 loading={saving}
-                title="Delete Task"
-                message={`Are you sure you want to delete this task for "${selected?.client?.name}"? This action cannot be undone.`}
-                confirmLabel="Delete Task"
+                title="Delete Sheet"
+                message={`Are you sure you want to delete this sheet for "${selected?.client?.name}"? This action cannot be undone.`}
+                confirmLabel="Delete Sheet"
             />
 
             {/* Duplicate Modal */}
-            <Modal open={duplicateOpen} onClose={() => setDuplicateOpen(false)} title="Duplicate Task" width="max-w-sm">
-                <div className="space-y-6 py-2">
-                    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                        <p className="text-sm text-emerald-800 leading-relaxed font-medium">
-                            Duplicate task for <span className="font-bold underline">{selected?.client?.name}</span>
-                        </p>
+            <Modal open={duplicateOpen} onClose={() => setDuplicateOpen(false)} title="Duplicate Sheet" width="max-w-sm">
+                <div className="space-y-4">
+                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <h3 className="text-sm font-bold text-emerald-900 mb-1">
+                                    Duplicate sheet for <span className="font-bold underline">{selected?.client?.name}</span>
+                                </h3>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
@@ -741,6 +862,93 @@ export default function TasksPage() {
                     <div className="flex justify-end pt-2">
                         <button onClick={() => setDuplicateOpen(false)} className="px-5 py-2 text-sm text-gray-500 hover:text-gray-800 font-semibold transition">
                             Cancel
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Import Mapping Modal */}
+            <Modal open={importModalOpen} onClose={() => setImportModalOpen(false)} title="Map Excel Data" width="max-w-7xl">
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fallback Client (If missing in row)</label>
+                            <select value={fallbackClient} onChange={e => setFallbackClient(e.target.value)}
+                                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 transition">
+                                <option value="">Do not use fallback</option>
+                                {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fallback Work Type (If missing in row)</label>
+                            <select value={fallbackWorkType} onChange={e => setFallbackWorkType(e.target.value)}
+                                className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 transition">
+                                <option value="">Do not use fallback</option>
+                                {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white flex flex-col">
+                        <div className="overflow-x-auto max-w-full">
+                            <div className="max-h-[60vh] overflow-y-auto">
+                                <table className="w-full text-sm min-w-max border-collapse">
+                                    <thead className="sticky top-0 z-10 shadow-sm">
+                                        <tr className="bg-gray-100 border-b border-gray-200">
+                                            {importHeaders.map((header, idx) => (
+                                                <th key={idx} className="p-2 border-r border-gray-200 last:border-r-0 min-w-[180px] bg-gray-100">
+                                                    <div className="flex flex-col gap-2">
+                                                        <span className="font-bold text-gray-700 truncate block text-left" title={header}>{header}</span>
+                                                        <select
+                                                            value={columnMapping[header] || 'ignore'}
+                                                            onChange={(e) => setColumnMapping({ ...columnMapping, [header]: e.target.value })}
+                                                            className="w-full px-2 py-1.5 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:border-[#1F5C99] transition font-medium text-gray-700"
+                                                        >
+                                                            <option value="ignore">-- Ignore Column --</option>
+                                                            <option disabled>──────────</option>
+                                                            <option value="client_id">Client Name</option>
+                                                            <option value="client_mobile">Client Mobile Number</option>
+                                                            <option value="work_type_id">Work Type</option>
+                                                            <option value="form_name">Sheet / Form Name</option>
+                                                            <option value="allocated_to">Assigned Staff</option>
+                                                            <option value="date_allocated">Date Allocated</option>
+                                                            <option value="status">Status</option>
+                                                            <option value="remarks">Remarks</option>
+                                                            <option disabled>──────────</option>
+                                                            <option value={`dynamic_${header}`}>Dynamic Field (Custom)</option>
+                                                        </select>
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {importRawData.slice(0, 15).map((row, rowIdx) => (
+                                            <tr key={rowIdx} className="hover:bg-gray-50">
+                                                {importHeaders.map((header, colIdx) => (
+                                                    <td key={colIdx} className="p-3 border-r border-gray-100 last:border-r-0 text-gray-600 truncate max-w-[250px]" title={row[header]?.toString() || ''}>
+                                                        {row[header]?.toString() || <span className="text-gray-300 italic">Empty</span>}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {importRawData.length > 15 && (
+                            <div className="bg-gray-50 p-2 text-center text-xs text-gray-500 border-t border-gray-200">
+                                Showing preview of first 15 rows. Total {importRawData.length} rows will be imported.
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                        <button onClick={() => setImportModalOpen(false)} className="px-5 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 font-semibold transition">
+                            Cancel
+                        </button>
+                        <button onClick={submitImportMapping} disabled={saving} className="px-6 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition font-bold shadow-sm">
+                            {saving ? 'Importing...' : `Import ${importRawData.length} Rows`}
                         </button>
                     </div>
                 </div>

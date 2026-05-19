@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, KeyRound, UserMinus, Eye, EyeOff } from 'lucide-react'
+import { Plus, Search, Pencil, KeyRound, UserMinus, UserCheck, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -20,6 +20,7 @@ export default function StaffPage() {
     const [editOpen, setEditOpen] = useState(false)
     const [resetOpen, setResetOpen] = useState(false)
     const [deactivateOpen, setDeactivateOpen] = useState(false)
+    const [activateOpen, setActivateOpen] = useState(false)
     const [selected, setSelected] = useState(null)
     const [form, setForm] = useState(EMPTY_FORM)
     const [resetPass, setResetPass] = useState({ password: '', password_confirmation: '' })
@@ -75,6 +76,20 @@ export default function StaffPage() {
             fetchStaff()
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to deactivate staff')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleActivate = async () => {
+        setSaving(true)
+        try {
+            await api.patch(`/ca/staff/${selected.id}/activate`)
+            toast.success('Staff member activated successfully')
+            setActivateOpen(false)
+            fetchStaff()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to activate staff')
         } finally {
             setSaving(false)
         }
@@ -155,9 +170,12 @@ export default function StaffPage() {
                                                     className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
                                                 <button onClick={() => { setSelected(s); setResetPass({ password: '', password_confirmation: '' }); setErrors({}); setResetOpen(true) }}
                                                     className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><KeyRound size={15} /></button>
-                                                {s.is_active && (
+                                                {s.is_active ? (
                                                     <button onClick={() => { setSelected(s); setDeactivateOpen(true) }}
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><UserMinus size={15} /></button>
+                                                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition" title="Deactivate"><UserMinus size={15} /></button>
+                                                ) : (
+                                                    <button onClick={() => { setSelected(s); setActivateOpen(true) }}
+                                                        className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition" title="Activate"><UserCheck size={15} /></button>
                                                 )}
                                             </div>
                                         </td>
@@ -263,6 +281,9 @@ export default function StaffPage() {
 
             <ConfirmDialog open={deactivateOpen} onClose={() => setDeactivateOpen(false)} onConfirm={handleDeactivate} danger loading={saving}
                 title="Deactivate Staff Member" message={`Deactivate "${selected?.name}"? They will lose access immediately.`} confirmLabel="Deactivate" />
+
+            <ConfirmDialog open={activateOpen} onClose={() => setActivateOpen(false)} onConfirm={handleActivate} loading={saving}
+                title="Activate Staff Member" message={`Activate "${selected?.name}"? They will regain access immediately.`} confirmLabel="Activate" />
         </div>
     )
 }

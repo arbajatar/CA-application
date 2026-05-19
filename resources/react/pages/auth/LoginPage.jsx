@@ -117,9 +117,34 @@ export default function LoginPage() {
                     </button>
 
                     {/* Hint */}
-                    <p className="text-center text-xs text-gray-400">
-                        CA: ca_admin / admin@123 &nbsp;|&nbsp; Staff: sarthak / staff@123
-                    </p>
+                    <div className="pt-2 text-center border-t border-gray-100 mt-4">
+                        <p className="text-xs text-gray-400 font-medium mb-2">Demo Access Credentials:</p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (role === 'ca') {
+                                    setUsername('ca_admin')
+                                    setPassword('admin@123')
+                                } else {
+                                    setUsername('sarthak')
+                                    setPassword('staff@123')
+                                }
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
+                        >
+                            {role === 'ca' ? (
+                                <>
+                                    <ShieldCheck size={14} />
+                                    <span>CA: <strong>ca_admin</strong> / <strong>admin@123</strong> (Click to auto-fill)</span>
+                                </>
+                            ) : (
+                                <>
+                                    <User size={14} />
+                                    <span>Staff: <strong>sarthak</strong> / <strong>staff@123</strong> (Click to auto-fill)</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </form>
             </div>
             <p className="mt-6 text-xs text-gray-400 uppercase tracking-widest">© 2026 CA Office Suite</p>
