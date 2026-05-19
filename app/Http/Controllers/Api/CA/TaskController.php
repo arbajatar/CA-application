@@ -264,11 +264,22 @@ class TaskController extends Controller
                             }
                         }
 
+                        // Resolve priority safely
+                        $priority = TaskPriority::Medium;
+                        if (isset($st['priority'])) {
+                            foreach (TaskPriority::cases() as $case) {
+                                if (strtolower($case->value) === strtolower($st['priority']) || strtolower($case->label()) === strtolower($st['priority'])) {
+                                    $priority = $case;
+                                    break;
+                                }
+                            }
+                        }
+
                         $subtaskData = [
                             'title' => $st['title'] ?? 'Subtask',
                             'assigned_to' => $st['assigned_to'] ?? $task->allocated_to,
                             'status' => $status,
-                            'priority' => $st['priority'] ?? 'medium',
+                            'priority' => $priority,
                             'due_date' => !empty($st['due_date']) ? clone \Carbon\Carbon::parse($st['due_date']) : null,
                             'remarks' => $st['remarks'] ?? null,
                         ];
