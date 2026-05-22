@@ -4,7 +4,7 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search, Copy
+  Search, Copy, Globe
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import Sortable from 'sortablejs';
@@ -19,7 +19,7 @@ const toast = toast_pkg;
 
 const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
-  CheckSquare, Zap, Mail, Phone, Sliders, Clock
+  CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
 };
 
 function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel }) {
@@ -423,8 +423,9 @@ export default function TaskBuilderPage() {
       color: type.color,
       label: type.name,
       placeholder: `Enter your ${type.name.toLowerCase()} here...`,
-      value: type.id === 'labels' ? [] : (type.id === 'progress_manual' ? 50 : (type.id === 'phone' ? '+91 ' : '')),
-      options: (type.id === 'dropdown' || type.id === 'labels') ? ['Option 1', 'Option 2'] : [],
+      value: type.id === 'labels' ? [] : (type.id === 'progress_manual' ? 50 : (type.id === 'phone' ? '+91 ' : (type.id === 'checkbox' ? [] : ''))),
+      options: (type.id === 'dropdown' || type.id === 'labels' || type.id === 'checkbox') ? ['Option 1', 'Option 2'] : [],
+      checkType: type.id === 'checkbox' ? 'multicheck' : undefined,
       required: false,
       error: '',
       labelTouched: false,
@@ -498,6 +499,20 @@ export default function TaskBuilderPage() {
     if (field.type === 'email' && field.value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field.value)) {
       field.error = 'Invalid email format';
       return false;
+    }
+    if (field.type === 'hyperlink' && field.value) {
+      const val = field.value.trim();
+      let formattedVal = val;
+      if (val && !/^https?:\/\//i.test(val)) {
+        formattedVal = 'https://' + val;
+      }
+      try {
+        new URL(formattedVal);
+        field.error = '';
+      } catch (e) {
+        field.error = 'Invalid URL format (e.g. www.google.com)';
+        return false;
+      }
     }
     if (field.type === 'phone' && field.value) {
       const digits = field.value.replace(/\D/g, '');
@@ -1159,7 +1174,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         )}
       </div>
 
-      {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels') && (
+      {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels' || field.type === 'checkbox') && (
         <FieldSettings field={field} onUpdate={onUpdate} />
       )}
     </div>
@@ -1245,16 +1260,105 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
           />
         </div>
       );
-    case 'checkbox':
+    case 'checkbox': {
+      const isMulti = (field.checkType || 'multicheck') === 'multicheck';
+      const optionsList = field.options || [];
+
+      if (optionsList.length === 0) {
+        return (
+          <label className="group/check flex items-center gap-3 cursor-pointer p-1">
+            <input type="checkbox" className="peer sr-only" checked={field.value || false} onChange={(e) => onUpdate('value', e.target.checked)} />
+            <div className="w-6 h-6 bg-white border-2 border-slate-200 rounded-lg peer-checked:bg-slate-900 peer-checked:border-slate-900 transition-all flex items-center justify-center">
+              <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
+            </div>
+            <span className="text-sm text-slate-600 font-semibold group-hover/check:text-slate-900 transition">{field.placeholder}</span>
+          </label>
+        );
+      }
+
+      const selectedValues = Array.isArray(field.value) 
+        ? field.value 
+        : (field.value ? [field.value] : []);
+
+      const handleOptionToggle = (opt) => {
+        if (isMulti) {
+          if (selectedValues.includes(opt)) {
+            onUpdate('value', selectedValues.filter(v => v !== opt));
+          } else {
+            onUpdate('value', [...selectedValues, opt]);
+          }
+        } else {
+          if (field.value === opt) {
+            onUpdate('value', '');
+          } else {
+            onUpdate('value', opt);
+          }
+        }
+      };
+
       return (
-        <label className="group/check flex items-center gap-3 cursor-pointer p-1">
-          <input type="checkbox" className="peer sr-only" checked={field.value || false} onChange={(e) => onUpdate('value', e.target.checked)} />
-          <div className="w-6 h-6 bg-white border-2 border-slate-200 rounded-lg peer-checked:bg-slate-900 peer-checked:border-slate-900 transition-all flex items-center justify-center">
-            <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
-          </div>
-          <span className="text-sm text-slate-600 font-semibold group-hover/check:text-slate-900 transition">{field.placeholder}</span>
-        </label>
+        <div className="flex flex-col gap-3 p-1">
+          {optionsList.map((opt, index) => {
+            const isChecked = isMulti 
+              ? selectedValues.includes(opt) 
+              : field.value === opt;
+            
+            return (
+              <label 
+                key={index} 
+                className="group/check flex items-center gap-3 cursor-pointer select-none"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleOptionToggle(opt);
+                }}
+              >
+                <div 
+                  className={`w-6 h-6 border-2 transition-all flex items-center justify-center rounded-lg ${
+                    isChecked 
+                      ? 'bg-slate-900 border-slate-900 text-white' 
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <Check className={`w-4 h-4 text-white transition-opacity ${isChecked ? 'opacity-100' : 'opacity-0'}`} strokeWidth={3} />
+                </div>
+                <span className={`text-sm font-semibold transition ${isChecked ? 'text-slate-900' : 'text-slate-600 group-hover/check:text-slate-900'}`}>
+                  {opt}
+                </span>
+              </label>
+            );
+          })}
+        </div>
       );
+    }
+    case 'hyperlink': {
+      let hrefVal = field.value || '';
+      if (hrefVal && !/^https?:\/\//i.test(hrefVal)) {
+        hrefVal = 'https://' + hrefVal;
+      }
+      return (
+        <div className="relative flex items-center w-full">
+          <input 
+            type="text" 
+            value={field.value || ''} 
+            onChange={(e) => onUpdate('value', e.target.value)} 
+            className={`${baseClass} pr-12`} 
+            placeholder={field.placeholder || 'e.g. www.google.com'} 
+          />
+          {field.value && (
+            <a 
+              href={hrefVal} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="absolute right-12 p-2 text-indigo-500 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"
+              title="Open link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Globe size={14} />
+            </a>
+          )}
+        </div>
+      );
+    }
     case 'email':
       return <input type="email" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} placeholder={field.placeholder} />;
     case 'phone':
@@ -1306,37 +1410,77 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
 function FieldSettings({ field, onUpdate }) {
   const handleAddOption = () => onUpdate('options', [...field.options, `Option ${field.options.length + 1}`]);
   return (
-    <div className="mt-6 pt-6 border-t border-slate-100">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Options Configuration</h4>
-      </div>
-      <div className="space-y-3">
-        {field.options.map((opt, i) => (
-          <div key={i} className="flex gap-2">
-            <input
-              type="text"
-              value={opt}
-              onChange={(e) => {
-                const newOpts = [...field.options];
-                newOpts[i] = e.target.value;
-                onUpdate('options', newOpts);
-              }}
-              className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-slate-800/20 transition-all"
-            />
+    <div className="mt-6 pt-6 border-t border-slate-100 space-y-5">
+      {field.type === 'checkbox' && (
+        <div className="space-y-2">
+          <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">Selection Mode</label>
+          <div className="flex gap-2">
             <button
-              onClick={() => onUpdate('options', field.options.filter((_, idx) => idx !== i))}
-              className="p-2 text-slate-300 hover:text-rose-500 transition"
+              onClick={() => {
+                onUpdate('checkType', 'multicheck');
+                if (!Array.isArray(field.value)) {
+                  onUpdate('value', field.value ? [field.value] : []);
+                }
+              }}
+              className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl border-2 transition-all ${
+                (field.checkType || 'multicheck') === 'multicheck'
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                  : 'border-slate-100 text-slate-600 hover:border-slate-200'
+              }`}
             >
-              <Trash2 className="w-4 h-4" />
+              Multi-check (Allow Multiple)
+            </button>
+            <button
+              onClick={() => {
+                onUpdate('checkType', 'single');
+                if (Array.isArray(field.value)) {
+                  onUpdate('value', field.value[0] || '');
+                }
+              }}
+              className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl border-2 transition-all ${
+                field.checkType === 'single'
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                  : 'border-slate-100 text-slate-600 hover:border-slate-200'
+              }`}
+            >
+              Single-check (Radio Style)
             </button>
           </div>
-        ))}
-        <button
-          onClick={handleAddOption}
-          className="flex items-center gap-2 text-xs font-bold text-slate-800 hover:text-slate-950 transition px-2"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Option
-        </button>
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Options Configuration</h4>
+        </div>
+        <div className="space-y-3">
+          {field.options.map((opt, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                type="text"
+                value={opt}
+                onChange={(e) => {
+                  const newOpts = [...field.options];
+                  newOpts[i] = e.target.value;
+                  onUpdate('options', newOpts);
+                }}
+                className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-slate-800/20 transition-all"
+              />
+              <button
+                onClick={() => onUpdate('options', field.options.filter((_, idx) => idx !== i))}
+                className="p-2 text-slate-300 hover:text-rose-500 transition"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={handleAddOption}
+            className="flex items-center gap-2 text-xs font-bold text-slate-800 hover:text-slate-950 transition px-2"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Option
+          </button>
+        </div>
       </div>
     </div>
   );

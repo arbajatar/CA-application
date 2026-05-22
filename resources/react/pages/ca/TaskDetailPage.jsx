@@ -4,7 +4,7 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ import { formatDate } from '../../utils/dateHelper';
 
 const IconMap = {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
-    CheckSquare, Zap, Mail, Phone, Sliders, Clock
+    CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
 };
 
 export default function TaskDetailPage() {
@@ -132,7 +132,8 @@ export default function TaskDetailPage() {
             label: label,
             placeholder: `Enter ${label}...`,
             required: false,
-            options: fieldType.id === 'dropdown' ? ['Option 1', 'Option 2'] : []
+            options: (fieldType.id === 'dropdown' || fieldType.id === 'checkbox') ? ['Option 1', 'Option 2'] : [],
+            checkType: fieldType.id === 'checkbox' ? 'multicheck' : undefined
         };
 
         setDraftField(newField);
@@ -545,13 +546,28 @@ export default function TaskDetailPage() {
                         // Skip system keys
                         if (['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)) return null;
 
+                        const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
+                        const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
+
                         return (
                             <div key={label} className="space-y-1 group">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
                                 <div className="flex items-center">
-                                    <p className="text-sm font-bold text-slate-700">
-                                        {Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))}
-                                    </p>
+                                    <div className="text-sm font-bold text-slate-700">
+                                        {isLink ? (
+                                            <a 
+                                                href={hrefVal} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 font-bold"
+                                            >
+                                                {value}
+                                                <Globe size={12} className="shrink-0" />
+                                            </a>
+                                        ) : (
+                                            Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))
+                                        )}
+                                    </div>
                                     {value && typeof value !== 'boolean' && (
                                         <button
                                             onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
@@ -828,9 +844,36 @@ export default function TaskDetailPage() {
                                                     </label>
                                                 </div>
 
-                                                {field.type === 'dropdown' && (
+                                                {(field.type === 'dropdown' || field.type === 'checkbox') && (
                                                     <div className="space-y-4 pt-4 border-t border-slate-100">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dropdown Options</label>
+                                                        {field.type === 'checkbox' && (
+                                                            <div className="space-y-2">
+                                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Selection Mode</label>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => updateField(field.id, 'checkType', 'multicheck')}
+                                                                        className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl border-2 transition-all ${
+                                                                            (field.checkType || 'multicheck') === 'multicheck'
+                                                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                                                                                : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                                                                        }`}
+                                                                    >
+                                                                        Multi-check
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => updateField(field.id, 'checkType', 'single')}
+                                                                        className={`flex-1 py-2 px-3 text-xs font-bold rounded-xl border-2 transition-all ${
+                                                                            field.checkType === 'single'
+                                                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
+                                                                                : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                                                                        }`}
+                                                                    >
+                                                                        Single-check
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{field.type === 'dropdown' ? 'Dropdown Options' : 'Checkbox Options'}</label>
                                                         <div className="space-y-2">
                                                             {field.options?.map((opt, i) => (
                                                                 <div key={i} className="flex gap-2 group/opt">

@@ -26,4 +26,5 @@ export const FIELD_TYPES = [
     color: "#2dd4bf",
   },
   { id: "time", name: "Time", icon: "Clock", color: "#8b5cf6" },
+  { id: "hyperlink", name: "Hyperlink (URL)", icon: "Globe", color: "#a855f7" },
 ];
