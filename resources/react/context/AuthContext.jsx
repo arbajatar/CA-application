@@ -12,7 +12,14 @@ export function AuthProvider({ children }) {
         if (token) {
             api.get('/me')
                 .then(res => setUser(res.data.user))
-                .catch(() => clearAuth())
+                .catch(err => {
+                    console.error("Session verification failed:", err)
+                    // Only clear authentication if it is explicitly a 401 Unauthorized response from the server.
+                    // This prevents transient network failures or temporary server reboots from logging out the user.
+                    if (err.response && err.response.status === 401) {
+                        clearAuth()
+                    }
+                })
                 .finally(() => setLoading(false))
         } else {
             setLoading(false)
