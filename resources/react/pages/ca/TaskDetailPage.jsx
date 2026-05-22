@@ -548,13 +548,27 @@ export default function TaskDetailPage() {
 
                         const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
                         const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
+                        const isRating = label === 'CA Rating';
 
                         return (
                             <div key={label} className="space-y-1 group">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
                                 <div className="flex items-center">
                                     <div className="text-sm font-bold text-slate-700">
-                                        {isLink ? (
+                                        {isRating ? (
+                                            <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
+                                                {Array.from({ length: 5 }).map((_, i) => {
+                                                    const starNum = i + 1;
+                                                    const isFilled = starNum <= parseInt(value || '0');
+                                                    return (
+                                                        <span key={i} className={isFilled ? 'text-amber-500 font-bold' : 'text-slate-200'}>
+                                                            ★
+                                                        </span>
+                                                    );
+                                                })}
+                                                <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
+                                            </div>
+                                        ) : isLink ? (
                                             <a 
                                                 href={hrefVal} 
                                                 target="_blank" 

@@ -44,7 +44,7 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
 
   const selectedOption = options.find(opt => {
     const val = typeof opt === 'object' ? opt.value : opt;
-    return val === value;
+    return val !== undefined && val !== null && value !== undefined && value !== null && String(val) === String(value);
   });
 
   const getLabel = (opt) => typeof opt === 'object' ? opt.label : opt;
@@ -82,7 +82,7 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
               filteredOptions.map((opt) => (
                 <div
                   key={getValue(opt)}
-                  className={`px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer transition ${value === getValue(opt) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
+                  className={`px-4 py-2.5 text-sm hover:bg-slate-50 cursor-pointer transition ${value !== undefined && value !== null && String(value) === String(getValue(opt)) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
                   onClick={() => {
                     onChange(getValue(opt));
                     setIsOpen(false);
@@ -384,6 +384,37 @@ export default function TaskBuilderPage() {
       required: false,
       static: true,
       section: 2
+    },
+    {
+      id: 'static_ca_feedback',
+      type: 'longtext',
+      icon: 'AlignLeft',
+      color: '#10b981',
+      label: 'CA Feedback',
+      placeholder: 'Enter CA feedback (optional)...',
+      value: '',
+      required: false,
+      static: true,
+      section: 2
+    },
+    {
+      id: 'static_ca_rating',
+      type: 'dropdown',
+      icon: 'Sliders',
+      color: '#f59e0b',
+      label: 'CA Rating',
+      placeholder: 'Select CA rating (optional)...',
+      options: [
+        { value: '1', label: '1 Star ⭐' },
+        { value: '2', label: '2 Stars ⭐⭐' },
+        { value: '3', label: '3 Stars ⭐⭐⭐' },
+        { value: '4', label: '4 Stars ⭐⭐⭐⭐' },
+        { value: '5', label: '5 Stars ⭐⭐⭐⭐⭐' }
+      ],
+      value: '',
+      required: false,
+      static: true,
+      section: 2
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
@@ -580,6 +611,15 @@ export default function TaskBuilderPage() {
         dynamicFields[f.label] = f.value;
       }
     });
+
+    const caFeedbackVal = formSchema.find(f => f.id === 'static_ca_feedback')?.value;
+    if (caFeedbackVal !== undefined && caFeedbackVal !== null && caFeedbackVal !== '') {
+      dynamicFields['CA Feedback'] = caFeedbackVal;
+    }
+    const caRatingVal = formSchema.find(f => f.id === 'static_ca_rating')?.value;
+    if (caRatingVal !== undefined && caRatingVal !== null && caRatingVal !== '') {
+      dynamicFields['CA Rating'] = caRatingVal;
+    }
 
     try {
       const response = await api.post('/ca/tasks', {
