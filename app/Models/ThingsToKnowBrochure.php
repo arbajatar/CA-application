@@ -10,7 +10,7 @@ class ThingsToKnowBrochure extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'file_path'];
+    protected $fillable = ['title', 'file_path', 'group_name'];
 
     protected $appends = ['file_url'];
 

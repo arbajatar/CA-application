@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File } from 'lucide-react'
+import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File, Search } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -17,7 +17,7 @@ export default function ThingsToKnowPage() {
     const [addModalOpen, setAddModalOpen] = useState(false)
     const [saving, setSaving] = useState(false)
 
-    const [newVideo, setNewVideo] = useState({ title: '', url: '' })
+    const [newVideo, setNewVideo] = useState({ title: '', url: '', group_name: 'General' })
     const [deleteVideoOpen, setDeleteVideoOpen] = useState(false)
     const [videoToDelete, setVideoToDelete] = useState(null)
     const [deleting, setDeleting] = useState(false)
@@ -25,10 +25,18 @@ export default function ThingsToKnowPage() {
     // Brochures state
     const [brochures, setBrochures] = useState([])
     const [addBrochureOpen, setAddBrochureOpen] = useState(false)
-    const [newBrochure, setNewBrochure] = useState({ title: '', file: null })
+    const [newBrochure, setNewBrochure] = useState({ title: '', file: null, group_name: 'General' })
     const [deleteBrochureOpen, setDeleteBrochureOpen] = useState(false)
     const [brochureToDelete, setBrochureToDelete] = useState(null)
     const [savingBrochure, setSavingBrochure] = useState(false)
+
+    // Folder/playlist drill-down: null = show group cards, string = open that group
+    const [selectedVideoGroup, setSelectedVideoGroup] = useState(null)
+    const [selectedBrochureGroup, setSelectedBrochureGroup] = useState(null)
+    const [showNewVideoGroupInput, setShowNewVideoGroupInput] = useState(false)
+    const [showNewBrochureGroupInput, setShowNewBrochureGroupInput] = useState(false)
+    const [videoSearchQuery, setVideoSearchQuery] = useState('')
+    const [brochureSearchQuery, setBrochureSearchQuery] = useState('')
 
     const fetchVideos = async () => {
         setLoading(true)
@@ -57,8 +65,12 @@ export default function ThingsToKnowPage() {
     useEffect(() => {
         if (activeTab === 'videos') {
             fetchVideos()
+            setSelectedVideoGroup(null)
+            setVideoSearchQuery('')
         } else if (activeTab === 'brochures') {
             fetchBrochures()
+            setSelectedBrochureGroup(null)
+            setBrochureSearchQuery('')
         }
     }, [activeTab])
 
@@ -69,7 +81,8 @@ export default function ThingsToKnowPage() {
             await api.post('/ca/things-to-know/videos', newVideo)
             toast.success('Video added successfully')
             setAddModalOpen(false)
-            setNewVideo({ title: '', url: '' })
+            setNewVideo({ title: '', url: '', group_name: 'General' })
+            setShowNewVideoGroupInput(false)
             fetchVideos()
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to add video')
@@ -117,13 +130,15 @@ export default function ThingsToKnowPage() {
             const formData = new FormData()
             formData.append('title', newBrochure.title)
             formData.append('file', newBrochure.file)
+            formData.append('group_name', newBrochure.group_name || 'General')
 
             await api.post('/ca/things-to-know/brochures', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             })
             toast.success('Brochure added successfully')
             setAddBrochureOpen(false)
-            setNewBrochure({ title: '', file: null })
+            setNewBrochure({ title: '', file: null, group_name: 'General' })
+            setShowNewBrochureGroupInput(false)
             fetchBrochures()
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to add brochure')
@@ -196,19 +211,44 @@ export default function ThingsToKnowPage() {
             <div className="min-h-[400px]">
                 {activeTab === 'videos' ? (
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                <Play className="text-red-600" fill="currentColor" size={20} />
-                                Video Tutorials
-                            </h2>
-                            {isAdmin && (
-                                <button
-                                    onClick={() => setAddModalOpen(true)}
-                                    className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
-                                >
-                                    <Plus size={16} /> Add Video
-                                </button>
-                            )}
+                        {/* Header row */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                {selectedVideoGroup && (
+                                    <button
+                                        onClick={() => { setSelectedVideoGroup(null); setVideoSearchQuery('') }}
+                                        className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-800 transition"
+                                    >
+                                        <span className="text-lg leading-none">←</span> Playlists
+                                    </button>
+                                )}
+                                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <Play className="text-red-600" fill="currentColor" size={20} />
+                                    {selectedVideoGroup ? selectedVideoGroup : 'Video Playlists'}
+                                </h2>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {selectedVideoGroup && (
+                                    <div className="relative">
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search videos..."
+                                            className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition w-full md:w-56"
+                                            value={videoSearchQuery}
+                                            onChange={e => setVideoSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setAddModalOpen(true)}
+                                        className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                                    >
+                                        <Plus size={16} /> Add Video
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {loading ? (
@@ -219,80 +259,169 @@ export default function ThingsToKnowPage() {
                                 <p className="text-gray-400 font-medium text-lg">No videos added yet.</p>
                                 {isAdmin && <p className="text-gray-400 text-sm mt-1">Click "Add Video" to share a tutorial.</p>}
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {videos.map((video) => {
-                                    const ytId = getYoutubeId(video.url)
-                                    return (
-                                        <div key={video.id} className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
-                                            <div className="relative aspect-video bg-gray-900 overflow-hidden">
-                                                {ytId ? (
-                                                    <img
-                                                        src={`https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`}
-                                                        alt={video.title}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                        onError={(e) => { e.target.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` }}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-slate-800">
-                                                        <Video className="text-slate-600" size={40} />
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                                    <a
-                                                        href={video.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-all duration-300 hover:bg-white hover:text-red-600"
-                                                    >
-                                                        <Play fill="currentColor" size={20} />
-                                                    </a>
-                                                </div>
-                                            </div>
-                                            <div className="p-4">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight flex-1">{video.title}</h3>
-                                                    {isAdmin && (
-                                                        <button
-                                                            onClick={() => handleDeleteVideo(video)}
-                                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                                                            title="Remove Video"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <a
-                                                    href={video.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 mt-3 hover:underline"
+                        ) : selectedVideoGroup === null ? (
+                            // ── FOLDER VIEW: show playlist cards ──────────────────────────
+                            (() => {
+                                const groups = [...new Set(videos.map(v => v.group_name || 'General'))].sort((a, b) => {
+                                    if (a === 'General') return -1;
+                                    if (b === 'General') return 1;
+                                    return a.localeCompare(b);
+                                });
+                                return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                        {groups.map(group => {
+                                            const groupVideos = videos.filter(v => (v.group_name || 'General') === group);
+                                            const firstYtId = getYoutubeId(groupVideos[0]?.url || '');
+                                            return (
+                                                <button
+                                                    key={group}
+                                                    onClick={() => setSelectedVideoGroup(group)}
+                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-red-100 transition-all duration-300 focus:outline-none"
                                                 >
-                                                    <ExternalLink size={12} />
-                                                    Watch on YouTube
-                                                </a>
-                                            </div>
+                                                    {/* Thumbnail strip */}
+                                                    <div className="relative h-36 bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
+                                                        {firstYtId ? (
+                                                            <img
+                                                                src={`https://img.youtube.com/vi/${firstYtId}/maxresdefault.jpg`}
+                                                                alt={group}
+                                                                className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
+                                                                onError={e => { e.target.src = `https://img.youtube.com/vi/${firstYtId}/hqdefault.jpg` }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Play className="text-slate-600" size={40} />
+                                                            </div>
+                                                        )}
+                                                        {/* Count badge overlay */}
+                                                        <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm">
+                                                            {groupVideos.length} {groupVideos.length === 1 ? 'video' : 'videos'}
+                                                        </div>
+                                                        {/* Play overlay */}
+                                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                                                <Play fill="white" size={18} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {/* Card body */}
+                                                    <div className="p-4 flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0">
+                                                            <Play fill="currentColor" size={16} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-extrabold text-gray-800 truncate">{group}</p>
+                                                            <p className="text-xs text-gray-400 mt-0.5">Playlist · {groupVideos.length} {groupVideos.length === 1 ? 'video' : 'videos'}</p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()
+                        ) : (
+                            // ── DETAIL VIEW: show videos inside selected group ──────────
+                            (() => {
+                                const groupVideos = videos
+                                    .filter(v => (v.group_name || 'General') === selectedVideoGroup)
+                                    .filter(v => v.title.toLowerCase().includes(videoSearchQuery.toLowerCase()));
+                                if (groupVideos.length === 0) {
+                                    return (
+                                        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                                            <Search size={48} className="text-gray-200 mb-4" />
+                                            <p className="text-gray-400 font-medium text-lg">No matching videos found.</p>
                                         </div>
-                                    )
-                                })}
-                            </div>
+                                    );
+                                }
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {groupVideos.map((video) => {
+                                            const ytId = getYoutubeId(video.url);
+                                            return (
+                                                <div key={video.id} className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
+                                                    <div className="relative aspect-video bg-gray-900 overflow-hidden">
+                                                        {ytId ? (
+                                                            <img
+                                                                src={`https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`}
+                                                                alt={video.title}
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                                onError={e => { e.target.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                                                                <Video className="text-slate-600" size={40} />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                                            <a href={video.url} target="_blank" rel="noopener noreferrer"
+                                                                className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-all duration-300 hover:bg-white hover:text-red-600">
+                                                                <Play fill="currentColor" size={20} />
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight flex-1">{video.title}</h3>
+                                                            {isAdmin && (
+                                                                <button onClick={() => handleDeleteVideo(video)}
+                                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Video">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <a href={video.url} target="_blank" rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 mt-3 hover:underline">
+                                                            <ExternalLink size={12} /> Watch on YouTube
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()
                         )}
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                                <FileText className="text-blue-600" />
-                                Brochures & Documents
-                            </h2>
-                            {isAdmin && (
-                                <button
-                                    onClick={() => setAddBrochureOpen(true)}
-                                    className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
-                                >
-                                    <Plus size={16} /> Add Brochure
-                                </button>
-                            )}
+                        {/* Header row */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                {selectedBrochureGroup && (
+                                    <button
+                                        onClick={() => { setSelectedBrochureGroup(null); setBrochureSearchQuery('') }}
+                                        className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-800 transition"
+                                    >
+                                        <span className="text-lg leading-none">←</span> Categories
+                                    </button>
+                                )}
+                                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText className="text-blue-600" />
+                                    {selectedBrochureGroup ? selectedBrochureGroup : 'Document Categories'}
+                                </h2>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {selectedBrochureGroup && (
+                                    <div className="relative">
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search brochures..."
+                                            className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition w-full md:w-56"
+                                            value={brochureSearchQuery}
+                                            onChange={e => setBrochureSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setAddBrochureOpen(true)}
+                                        className="flex items-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                                    >
+                                        <Plus size={16} /> Add Brochure
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {loading ? (
@@ -303,44 +432,101 @@ export default function ThingsToKnowPage() {
                                 <p className="text-gray-400 font-medium text-lg">No brochures added yet.</p>
                                 {isAdmin && <p className="text-gray-400 text-sm mt-1">Click "Add Brochure" to share a PDF.</p>}
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {brochures.map((brochure) => (
-                                    <div key={brochure.id} className="group bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-xl transition-all duration-300 flex items-center gap-4">
-                                        <div className="w-14 h-14 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0 group-hover:scale-110 transition-transform">
-                                            <File size={28} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-gray-800 truncate" title={brochure.title}>{brochure.title}</h3>
-                                            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">PDF Document</p>
-                                            <div className="flex items-center gap-3 mt-3">
-                                                <a
-                                                    href={brochure.file_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
+                        ) : selectedBrochureGroup === null ? (
+                            // ── FOLDER VIEW: show category cards ──────────────────────────
+                            (() => {
+                                const groups = [...new Set(brochures.map(b => b.group_name || 'General'))].sort((a, b) => {
+                                    if (a === 'General') return -1;
+                                    if (b === 'General') return 1;
+                                    return a.localeCompare(b);
+                                });
+                                return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                        {groups.map(group => {
+                                            const groupBrochures = brochures.filter(b => (b.group_name || 'General') === group);
+                                            return (
+                                                <button
+                                                    key={group}
+                                                    onClick={() => setSelectedBrochureGroup(group)}
+                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-blue-100 transition-all duration-300 focus:outline-none"
                                                 >
-                                                    <Download size={14} />
-                                                    View / Download
-                                                </a>
-                                            </div>
-                                        </div>
-                                        {isAdmin && (
-                                            <button
-                                                onClick={() => handleDeleteBrochure(brochure)}
-                                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                                                title="Remove Brochure"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
+                                                    {/* Folder cover art */}
+                                                    <div className="relative h-36 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center overflow-hidden">
+                                                        <div className="flex gap-2 opacity-30 group-hover:opacity-50 transition-opacity">
+                                                            {[...Array(Math.min(3, groupBrochures.length))].map((_, i) => (
+                                                                <div key={i} className={`w-14 h-18 bg-white rounded-lg shadow-md border border-gray-200 flex items-center justify-center ${i === 1 ? 'scale-110 -mt-2' : 'mt-2'}`}>
+                                                                    <File className="text-blue-400" size={24} />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {/* Count badge */}
+                                                        <div className="absolute top-3 right-3 bg-blue-600/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm">
+                                                            {groupBrochures.length} {groupBrochures.length === 1 ? 'file' : 'files'}
+                                                        </div>
+                                                    </div>
+                                                    {/* Card body */}
+                                                    <div className="p-4 flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+                                                            <FileText size={16} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-extrabold text-gray-800 truncate">{group}</p>
+                                                            <p className="text-xs text-gray-400 mt-0.5">Documents · {groupBrochures.length} {groupBrochures.length === 1 ? 'file' : 'files'}</p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })()
+                        ) : (
+                            // ── DETAIL VIEW: show brochures inside selected group ──────────
+                            (() => {
+                                const groupBrochures = brochures
+                                    .filter(b => (b.group_name || 'General') === selectedBrochureGroup)
+                                    .filter(b => b.title.toLowerCase().includes(brochureSearchQuery.toLowerCase()));
+                                if (groupBrochures.length === 0) {
+                                    return (
+                                        <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                                            <Search size={48} className="text-gray-200 mb-4" />
+                                            <p className="text-gray-400 font-medium text-lg">No matching brochures found.</p>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {groupBrochures.map((brochure) => (
+                                            <div key={brochure.id} className="group bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-xl transition-all duration-300 flex items-center gap-4">
+                                                <div className="w-14 h-14 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0 group-hover:scale-110 transition-transform">
+                                                    <File size={28} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-bold text-gray-800 truncate" title={brochure.title}>{brochure.title}</h3>
+                                                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">PDF Document</p>
+                                                    <div className="flex items-center gap-3 mt-3">
+                                                        <a href={brochure.file_url} target="_blank" rel="noopener noreferrer"
+                                                            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline">
+                                                            <Download size={14} /> View / Download
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                                {isAdmin && (
+                                                    <button onClick={() => handleDeleteBrochure(brochure)}
+                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Brochure">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()
                         )}
                     </div>
                 )}
             </div>
+
 
             {/* Add Video Modal */}
             <Modal
@@ -372,10 +558,48 @@ export default function ThingsToKnowPage() {
                             onChange={e => setNewVideo({ ...newVideo, url: e.target.value })}
                         />
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Playlist / Group</label>
+                        {!showNewVideoGroupInput ? (
+                            <select
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] outline-none transition"
+                                value={newVideo.group_name}
+                                onChange={e => {
+                                    if (e.target.value === '__new__') {
+                                        setShowNewVideoGroupInput(true)
+                                        setNewVideo({ ...newVideo, group_name: '' })
+                                    } else {
+                                        setNewVideo({ ...newVideo, group_name: e.target.value })
+                                    }
+                                }}
+                            >
+                                <option value="General">General</option>
+                                {[...new Set(videos.map(v => v.group_name).filter(g => g && g !== 'General'))].sort().map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                ))}
+                                <option value="__new__">＋ Create new group...</option>
+                            </select>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Enter new group name..."
+                                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] outline-none transition"
+                                    value={newVideo.group_name}
+                                    onChange={e => setNewVideo({ ...newVideo, group_name: e.target.value })}
+                                />
+                                <button type="button" onClick={() => { setShowNewVideoGroupInput(false); setNewVideo({ ...newVideo, group_name: 'General' }) }}
+                                    className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 transition">
+                                    Cancel
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
-                            onClick={() => setAddModalOpen(false)}
+                            onClick={() => { setAddModalOpen(false); setShowNewVideoGroupInput(false) }}
                             className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                         >
                             Cancel
@@ -433,10 +657,48 @@ export default function ThingsToKnowPage() {
                         </div>
                         <p className="text-[10px] text-gray-400 mt-1">Maximum file size: 10MB (PDF only)</p>
                     </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category / Group</label>
+                        {!showNewBrochureGroupInput ? (
+                            <select
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] outline-none transition"
+                                value={newBrochure.group_name}
+                                onChange={e => {
+                                    if (e.target.value === '__new__') {
+                                        setShowNewBrochureGroupInput(true)
+                                        setNewBrochure({ ...newBrochure, group_name: '' })
+                                    } else {
+                                        setNewBrochure({ ...newBrochure, group_name: e.target.value })
+                                    }
+                                }}
+                            >
+                                <option value="General">General</option>
+                                {[...new Set(brochures.map(b => b.group_name).filter(g => g && g !== 'General'))].sort().map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                ))}
+                                <option value="__new__">＋ Create new group...</option>
+                            </select>
+                        ) : (
+                            <div className="flex gap-2">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Enter new group name..."
+                                    className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] outline-none transition"
+                                    value={newBrochure.group_name}
+                                    onChange={e => setNewBrochure({ ...newBrochure, group_name: e.target.value })}
+                                />
+                                <button type="button" onClick={() => { setShowNewBrochureGroupInput(false); setNewBrochure({ ...newBrochure, group_name: 'General' }) }}
+                                    className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 transition">
+                                    Cancel
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
-                            onClick={() => setAddBrochureOpen(false)}
+                            onClick={() => { setAddBrochureOpen(false); setShowNewBrochureGroupInput(false) }}
                             className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                         >
                             Cancel

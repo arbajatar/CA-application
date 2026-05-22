@@ -22,6 +22,7 @@ class ThingsToKnowBrochureController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'file' => 'required|file|mimes:pdf|max:10240', // Max 10MB
+            'group_name' => 'nullable|string|max:255',
         ]);
 
         $path = $request->file('file')->store('brochures', 'public');
@@ -29,6 +30,7 @@ class ThingsToKnowBrochureController extends Controller
         $brochure = ThingsToKnowBrochure::create([
             'title' => $request->title,
             'file_path' => $path,
+            'group_name' => $request->group_name ?: 'General',
         ]);
 
         return response()->json([

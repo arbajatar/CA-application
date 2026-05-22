@@ -9,5 +9,5 @@ class ThingsToKnowVideo extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'url'];
+    protected $fillable = ['title', 'url', 'group_name'];
 }
