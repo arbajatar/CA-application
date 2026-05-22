@@ -44,6 +44,10 @@ export default function TaskDetailPage() {
     const [draftField, setDraftField] = useState(null);
     const [globalStatus, setGlobalStatus] = useState('');
     const [globalRemarks, setGlobalRemarks] = useState('');
+    const [caFeedback, setCaFeedback] = useState('');
+    const [caRating, setCaRating] = useState('');
+    const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
+    const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
 
     // Dropdown Data
     const [clients, setClients] = useState([]);
@@ -73,6 +77,9 @@ export default function TaskDetailPage() {
             setTask(data);
             setGlobalStatus(data.status || 'assigned');
             setGlobalRemarks(data.remarks || '');
+            setCaFeedback(data.dynamic_fields?.['CA Feedback'] || '');
+            setCaRating(data.dynamic_fields?.['CA Rating'] || '');
+            setInlineFeedbackValue(data.dynamic_fields?.['CA Feedback'] || '');
             setFormName(data.form_name || 'Untitled Form');
             setClients(clientsRes.data.data);
             setStaff(staffRes.data.data);
@@ -100,11 +107,11 @@ export default function TaskDetailPage() {
                     setRows(data.dynamic_fields.multi_rows);
                 } else {
                     const initialRow = {
-                        client_id: data.client.id,
-                        work_type_id: data.work_type.id,
-                        allocated_to: data.allocated_to.id,
-                        date_allocated: data.date_allocated,
-                        status: data.status,
+                        client_id: data.client?.id || '',
+                        work_type_id: data.work_type?.id || '',
+                        allocated_to: data.allocated_to?.id || '',
+                        date_allocated: data.date_allocated || '',
+                        status: data.status || 'assigned',
                         dynamic_data: data.dynamic_fields || {}
                     };
                     setRows([initialRow]);
@@ -235,19 +242,58 @@ export default function TaskDetailPage() {
     const handleUpdateGlobal = async () => {
         setSaving(true);
         try {
+            const updatedDynamicFields = {
+                ...(task.dynamic_fields || {}),
+                'CA Feedback': caFeedback,
+                'CA Rating': caRating
+            };
+
             await api.patch(`/ca/tasks/${id}`, {
                 status: globalStatus,
-                remarks: globalRemarks
+                remarks: globalRemarks,
+                dynamic_fields: updatedDynamicFields
             });
-            setTask(prev => ({ ...prev, status: globalStatus, remarks: globalRemarks }));
-            toast.success('Global status and remarks updated successfully');
+
+            setTask(prev => ({
+                ...prev,
+                status: globalStatus,
+                remarks: globalRemarks,
+                dynamic_fields: updatedDynamicFields
+            }));
+            toast.success('Global controls updated successfully');
         } catch (e) {
             toast.error('Failed to update sheet controls');
         } finally {
             setSaving(false);
         }
     };
+    const handleUpdateSingleDynamicField = async (key, val) => {
+        try {
+            const updatedDynamicFields = {
+                ...(task.dynamic_fields || {}),
+                [key]: val
+            };
 
+            await api.patch(`/ca/tasks/${id}`, {
+                dynamic_fields: updatedDynamicFields
+            });
+
+            setTask(prev => ({
+                ...prev,
+                dynamic_fields: updatedDynamicFields
+            }));
+
+            if (key === 'CA Rating') setCaRating(val);
+            if (key === 'CA Feedback') {
+                setCaFeedback(val);
+                setInlineFeedbackValue(val);
+            }
+
+            toast.success(`${key} updated successfully`);
+        } catch (e) {
+            toast.error(`Failed to update ${key}`);
+        }
+    };
     const handleAddSubTask = async () => {
         try {
             const res = await api.post(`/ca/tasks/${id}/sub-tasks`, { title: 'New Subtask' });
@@ -549,6 +595,7 @@ export default function TaskDetailPage() {
                         const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
                         const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
                         const isRating = label === 'CA Rating';
+                        const isFeedback = label === 'CA Feedback';
 
                         return (
                             <div key={label} className="space-y-1 group">
@@ -561,12 +608,54 @@ export default function TaskDetailPage() {
                                                     const starNum = i + 1;
                                                     const isFilled = starNum <= parseInt(value || '0');
                                                     return (
-                                                        <span key={i} className={isFilled ? 'text-amber-500 font-bold' : 'text-slate-200'}>
+                                                        <button 
+                                                            key={i} 
+                                                            type="button"
+                                                            onClick={() => handleUpdateSingleDynamicField('CA Rating', String(starNum))}
+                                                            className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                                                            title={`Rate ${starNum} Stars`}
+                                                        >
                                                             ★
-                                                        </span>
+                                                        </button>
                                                     );
                                                 })}
                                                 <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
+                                            </div>
+                                        ) : isFeedback ? (
+                                            <div className="flex items-center gap-2 group/edit-inline w-full">
+                                                {isEditingFeedbackInline ? (
+                                                    <div className="flex items-center gap-2 w-full max-w-[300px]">
+                                                        <input 
+                                                            type="text" 
+                                                            value={inlineFeedbackValue} 
+                                                            onChange={e => setInlineFeedbackValue(e.target.value)}
+                                                            onBlur={() => {
+                                                                setIsEditingFeedbackInline(false);
+                                                                handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
+                                                            }}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') {
+                                                                    setIsEditingFeedbackInline(false);
+                                                                    handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
+                                                                }
+                                                            }}
+                                                            autoFocus
+                                                            className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 w-full focus:bg-white focus:border-indigo-500 outline-none transition"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div 
+                                                        onClick={() => {
+                                                            setInlineFeedbackValue(value || '');
+                                                            setIsEditingFeedbackInline(true);
+                                                        }}
+                                                        className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group"
+                                                        title="Click to Edit Feedback"
+                                                    >
+                                                        <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
+                                                        <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : isLink ? (
                                             <a 
@@ -582,7 +671,7 @@ export default function TaskDetailPage() {
                                             Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))
                                         )}
                                     </div>
-                                    {value && typeof value !== 'boolean' && (
+                                    {!isFeedback && value && typeof value !== 'boolean' && (
                                         <button
                                             onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
                                             className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm"

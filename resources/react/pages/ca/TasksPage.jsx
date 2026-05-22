@@ -872,7 +872,27 @@ export default function TasksPage() {
                     </div>
                 ) : (() => {
                     const dynamicHeadersSet = new Set();
+                    // Permanently guarantee CA Feedback and CA Rating columns are visible
+                    dynamicHeadersSet.add('CA Feedback');
+                    dynamicHeadersSet.add('CA Rating');
                     tasks?.forEach(t => {
+                        // 1. Scan schema for defined fields first
+                        if (t.dynamic_fields?.schema && Array.isArray(t.dynamic_fields.schema)) {
+                            t.dynamic_fields.schema.forEach(field => {
+                                if (field && field.label) {
+                                    const isSystemStatic = [
+                                        'Client', 'Work Type', 'Assigned To', 'Create Date', 
+                                        'Sheet Status', 'Remarks', 'Task / Particular', 
+                                        'Sub Status', 'Feedback', 'Entry Date', 'Sheet Name',
+                                        'Client Name', 'Mobile', 'Work Type Name'
+                                    ].includes(field.label);
+                                    if (!isSystemStatic) {
+                                        dynamicHeadersSet.add(field.label);
+                                    }
+                                }
+                            });
+                        }
+                        // 2. Scan direct keys of dynamic_fields (for backwards compatibility)
                         Object.keys(t.dynamic_fields || {}).forEach(k => {
                             if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
                                 dynamicHeadersSet.add(k);
@@ -1210,7 +1230,23 @@ export default function TasksPage() {
                                                             return <td key={col.id} className="px-4 py-3 text-gray-500 max-w-[200px] truncate" title={t.remarks}>{t.remarks || '—'}</td>;
                                                         }
                                                         if (col.isDynamic) {
-                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={t.dynamic_fields?.[col.fieldName]}>{t.dynamic_fields?.[col.fieldName] || '—'}</td>;
+                                                            const val = t.dynamic_fields?.[col.fieldName];
+                                                            if (col.fieldName === 'CA Rating') {
+                                                                const ratingNum = parseInt(val || '0');
+                                                                return (
+                                                                    <td key={col.id} className="px-4 py-3 whitespace-nowrap">
+                                                                        <div className="flex items-center gap-0.5 text-amber-500 text-sm leading-none">
+                                                                            {Array.from({ length: 5 }).map((_, i) => (
+                                                                                <span key={i} className={i < ratingNum ? 'text-amber-500 font-bold' : 'text-slate-200'}>
+                                                                                    ★
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    </td>
+                                                                );
+                                                            }
+                                                            const displayVal = Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || ''));
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 max-w-[200px] truncate" title={displayVal}>{displayVal || '—'}</td>;
                                                         }
                                                         return null;
                                                     })}

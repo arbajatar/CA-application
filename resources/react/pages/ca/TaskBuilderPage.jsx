@@ -605,7 +605,18 @@ export default function TaskBuilderPage() {
       entry_date: formSchema.find(f => f.id === 'static_entry_date')?.value || null
     };
 
-    const dynamicFields = {};
+    const dynamicFields = {
+      schema: formSchema.map(f => ({
+        id: f.id,
+        type: f.type,
+        label: f.label,
+        placeholder: f.placeholder,
+        required: !!f.required,
+        options: f.options || [],
+        checkType: f.checkType,
+        static: !!f.static
+      }))
+    };
     formSchema.forEach(f => {
       if (!f.static) {
         dynamicFields[f.label] = f.value;
@@ -1304,10 +1315,29 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
       const isMulti = (field.checkType || 'multicheck') === 'multicheck';
       const optionsList = field.options || [];
 
+      let selectedValues = [];
+      if (Array.isArray(field.value)) {
+        selectedValues = field.value;
+      } else if (typeof field.value === 'string' && field.value.trim()) {
+        const trimmed = field.value.trim();
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            selectedValues = JSON.parse(trimmed);
+          } catch (e) {
+            selectedValues = trimmed.split(',').map(s => s.trim());
+          }
+        } else {
+          selectedValues = trimmed.split(',').map(s => s.trim());
+        }
+      } else if (typeof field.value === 'boolean') {
+        selectedValues = field.value ? optionsList.slice(0, 1) : [];
+      }
+
       if (optionsList.length === 0) {
+        const isSingleChecked = field.value === true || String(field.value) === 'true';
         return (
           <label className="group/check flex items-center gap-3 cursor-pointer p-1">
-            <input type="checkbox" className="peer sr-only" checked={field.value || false} onChange={(e) => onUpdate('value', e.target.checked)} />
+            <input type="checkbox" className="peer sr-only" checked={isSingleChecked} onChange={(e) => onUpdate('value', e.target.checked)} />
             <div className="w-6 h-6 bg-white border-2 border-slate-200 rounded-lg peer-checked:bg-slate-900 peer-checked:border-slate-900 transition-all flex items-center justify-center">
               <Check className="w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
             </div>
@@ -1315,10 +1345,6 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
           </label>
         );
       }
-
-      const selectedValues = Array.isArray(field.value) 
-        ? field.value 
-        : (field.value ? [field.value] : []);
 
       const handleOptionToggle = (opt) => {
         if (isMulti) {
@@ -1341,7 +1367,7 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
           {optionsList.map((opt, index) => {
             const isChecked = isMulti 
               ? selectedValues.includes(opt) 
-              : field.value === opt;
+              : String(field.value) === String(opt);
             
             return (
               <label 
@@ -1359,7 +1385,7 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
                       : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <Check className={`w-4 h-4 text-white transition-opacity ${isChecked ? 'opacity-100' : 'opacity-0'}`} strokeWidth={3} />
+                  <Check className={`w-4 h-4 text-white transition-opacity ${isChecked ? 'opacity-100' : 'opacity-0'}`} strokeWidth={3.5} />
                 </div>
                 <span className={`text-sm font-semibold transition ${isChecked ? 'text-slate-900' : 'text-slate-600 group-hover/check:text-slate-900'}`}>
                   {opt}
