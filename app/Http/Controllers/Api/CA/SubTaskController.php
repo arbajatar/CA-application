@@ -30,7 +30,7 @@ class SubTaskController extends Controller
             'assigned_to' => $validated['assigned_to'] ?? null,
             'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
             'due_date' => $validated['due_date'] ?? null,
-            'status' => $validated['status'] ?? TaskStatus::Assigned->value,
+            'status' => $validated['status'] ?? TaskStatus::Pending->value,
             'remarks' => $validated['remarks'] ?? null,
         ]);
 
@@ -51,7 +51,7 @@ class SubTaskController extends Controller
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if (isset($validated['status']) && $validated['status'] === TaskStatus::Completed->value && $subTask->status !== TaskStatus::Completed) {
+        if (isset($validated['status']) && $validated['status'] === TaskStatus::Complete->value && $subTask->status !== TaskStatus::Complete) {
             $validated['completed_at'] = now();
         }
 

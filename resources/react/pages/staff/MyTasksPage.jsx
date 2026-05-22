@@ -8,10 +8,11 @@ import { formatDate } from '../../utils/dateHelper'
 
 const statusFilters = [
     { value: '', label: 'All Status' },
-    { value: 'assigned', label: 'Assigned' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'awaiting_information', label: 'Awaiting Information' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'complete', label: 'Complete' },
+    { value: 'work_in_progress', label: 'Work In Progress' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'not_to_be_done', label: 'Not To Be Done' },
+    { value: 'other', label: 'Other' },
 ]
 
 function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub }) {
@@ -136,10 +137,12 @@ export default function MyTasksPage() {
         : []
 
     const cards = summary ? [
-        { icon: ClipboardList, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', label: 'Total Sheets', value: summary.total_tasks, sub: 'All sheets assigned' },
-        { icon: Activity, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', label: 'New Assigned', value: summary.assigned, sub: 'Waiting to start' },
-        { icon: Info, iconBg: 'bg-orange-50', iconColor: 'text-orange-500', label: 'In Progress', value: summary.in_progress, sub: 'Currently active' },
-        { icon: CheckCircle, iconBg: 'bg-green-50', iconColor: 'text-green-500', label: 'Completed', value: summary.completed, sub: 'Finalized tasks' },
+        { icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_tasks,      sub: 'All sheets assigned' },
+        { icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending,          sub: 'Waiting to start' },
+        { icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress,  sub: 'Currently active' },
+        { icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete,         sub: 'Finalized tasks' },
+        { icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done,   sub: 'Excluded tasks' },
+        { icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other,            sub: 'Other tasks' },
     ] : []
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
@@ -150,7 +153,7 @@ export default function MyTasksPage() {
 
             {/* Summary Cards */}
             {summary ? (
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
                     {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
                     <SummaryCard
                         icon={ClipboardList}
@@ -306,7 +309,7 @@ export default function MyTasksPage() {
                             </label>
                             {selected.task_id ? (
                                 <div className="space-y-2">
-                                    {['assigned', 'in_progress', 'awaiting_information', 'completed'].map(s => (
+                                    {['complete', 'work_in_progress', 'pending', 'not_to_be_done', 'other'].map(s => (
                                         <label
                                             key={s}
                                             className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition ${newStatus === s
@@ -356,7 +359,7 @@ export default function MyTasksPage() {
                         </div>
 
                         {/* Auto-complete note */}
-                        {newStatus === 'completed' && (
+                        {newStatus === 'complete' && (
                             <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
                                 <CheckCircle size={15} className="text-green-500 mt-0.5 shrink-0" />
                                 <p className="text-xs text-green-700">

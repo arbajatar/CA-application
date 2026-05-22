@@ -516,10 +516,11 @@ export default function TaskDetailPage() {
                                 onChange={e => setGlobalStatus(e.target.value)}
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 capitalize"
                             >
-                                <option value="assigned">Assigned</option>
-                                <option value="in_progress">In Progress</option>
-                                <option value="awaiting_information">Awaiting Information</option>
-                                <option value="completed">Completed</option>
+                                <option value="complete">Complete</option>
+                                <option value="work_in_progress">Work In Progress</option>
+                                <option value="pending">Pending</option>
+                                <option value="not_to_be_done">Not To Be Done</option>
+                                <option value="other">Other</option>
                             </select>
                         </div>
 
@@ -542,12 +543,14 @@ export default function TaskDetailPage() {
             </div>
 
             {/* Subtask Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 animate-fade-in">
                 {[
-                    { label: 'Assigned', count: task.sub_tasks?.filter(st => st.status === 'assigned').length || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'In Progress', count: task.sub_tasks?.filter(st => st.status === 'in_progress').length || 0, color: 'text-amber-600', bg: 'bg-amber-50' },
-                    { label: 'Completed', count: task.sub_tasks?.filter(st => st.status === 'completed').length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Total Subtasks', count: task.sub_tasks?.length || 0, color: 'text-slate-600', bg: 'bg-slate-50' }
+                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, color: 'text-rose-600', bg: 'bg-rose-50' },
+                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, color: 'text-slate-600', bg: 'bg-slate-50' },
+                    { label: 'Total Subtasks', count: task.sub_tasks?.length || 0, color: 'text-indigo-600', bg: 'bg-indigo-50' }
                 ].map((card, i) => (
                     <div key={i} className={`${card.bg} rounded-3xl p-6 border border-white shadow-sm transition-all hover:shadow-md`}>
                         <p className={`text-[10px] font-black uppercase tracking-widest ${card.color} opacity-70 mb-1`}>{card.label}</p>
@@ -696,11 +699,11 @@ export default function TaskDetailPage() {
                             <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-indigo-500 transition-all duration-500"
-                                    style={{ width: `${(task.sub_tasks?.filter(st => st.status === 'completed').length / (task.sub_tasks?.length || 1)) * 100}%` }}
+                                    style={{ width: `${(task.sub_tasks?.filter(st => st.status === 'complete').length / (task.sub_tasks?.length || 1)) * 100}%` }}
                                 ></div>
                             </div>
                             <span className="text-[10px] font-black text-slate-400">
-                                {task.sub_tasks?.filter(st => st.status === 'completed').length}/{task.sub_tasks?.length || 0}
+                                {task.sub_tasks?.filter(st => st.status === 'complete').length}/{task.sub_tasks?.length || 0}
                             </span>
                         </div>
                     </div>
@@ -726,16 +729,16 @@ export default function TaskDetailPage() {
                                     <td className="px-10 py-5 min-w-[300px]">
                                         <div className="flex items-center gap-3">
                                             <button
-                                                onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'completed' ? 'in_progress' : 'completed' })}
-                                                className={`transition-colors ${st.status === 'completed' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                                onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
+                                                className={`transition-colors ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
                                             >
-                                                {st.status === 'completed' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                                {st.status === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                             </button>
                                             <div className="flex-1 flex items-center group/title">
                                                 <input
                                                     defaultValue={st.title}
                                                     onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'completed' ? 'line-through text-slate-300' : ''}`}
+                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'complete' ? 'line-through text-slate-300' : ''}`}
                                                 />
                                                 <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
                                             </div>
@@ -769,10 +772,11 @@ export default function TaskDetailPage() {
                                             onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
                                             className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer capitalize"
                                         >
-                                            <option value="assigned">Assigned</option>
-                                            <option value="in_progress">In Progress</option>
-                                            <option value="awaiting_information">Awaiting Info</option>
-                                            <option value="completed">Completed</option>
+                                            <option value="complete">Complete</option>
+                                            <option value="work_in_progress">Work In Progress</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="not_to_be_done">Not To Be Done</option>
+                                            <option value="other">Other</option>
                                         </select>
                                     </td>
                                     <td className="px-6 py-5">

@@ -15,10 +15,11 @@ import { formatDate } from '../../utils/dateHelper'
 
 const statuses = [
     { value: '', label: 'All Status' },
-    { value: 'assigned', label: 'Assigned' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'awaiting_information', label: 'Awaiting Information' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'complete', label: 'Complete' },
+    { value: 'work_in_progress', label: 'Work In Progress' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'not_to_be_done', label: 'Not To Be Done' },
+    { value: 'other', label: 'Other' },
 ]
 
 function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) {
@@ -47,35 +48,53 @@ function Avatar({ name }) {
 
 function SheetSubtaskPills({ subTasks = [], expandedFilter, onPillClick }) {
     const total = subTasks.length
-    const completed = subTasks.filter(st => st.status === 'completed').length
-    const inProgress = subTasks.filter(st => st.status === 'in_progress').length
-    const remaining = subTasks.filter(st => st.status !== 'completed').length
+    const pending = subTasks.filter(st => st.status === 'pending').length
+    const inProgress = subTasks.filter(st => st.status === 'work_in_progress').length
+    const complete = subTasks.filter(st => st.status === 'complete').length
+    const notToBeDone = subTasks.filter(st => st.status === 'not_to_be_done').length
+    const other = subTasks.filter(st => st.status === 'other').length
 
     const pillStyle = (type, active) => {
         const base = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border select-none "
         if (type === 'total') return base + (active ? 'bg-gray-100 border-gray-300 text-gray-800 ring-2 ring-gray-200' : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-gray-100')
-        if (type === 'completed') return base + (active ? 'bg-green-100 border-green-300 text-green-800 ring-2 ring-green-200' : 'bg-green-50 border-green-100 text-green-600 hover:bg-green-100')
-        if (type === 'in_progress') return base + (active ? 'bg-blue-100 border-blue-300 text-blue-800 ring-2 ring-blue-200' : 'bg-blue-50 border-blue-100 text-blue-600 hover:bg-blue-100')
-        if (type === 'remaining') return base + (active ? 'bg-orange-100 border-orange-300 text-orange-800 ring-2 ring-orange-200' : 'bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100')
+        if (type === 'pending') return base + (active ? 'bg-yellow-100 border-yellow-300 text-yellow-800 ring-2 ring-yellow-200' : 'bg-yellow-50 border-yellow-100 text-yellow-600 hover:bg-yellow-100')
+        if (type === 'work_in_progress') return base + (active ? 'bg-blue-100 border-blue-300 text-blue-800 ring-2 ring-blue-200' : 'bg-blue-50 border-blue-100 text-blue-600 hover:bg-blue-100')
+        if (type === 'complete') return base + (active ? 'bg-green-100 border-green-300 text-green-800 ring-2 ring-green-200' : 'bg-green-50 border-green-100 text-green-600 hover:bg-green-100')
+        if (type === 'not_to_be_done') return base + (active ? 'bg-red-100 border-red-300 text-red-800 ring-2 ring-red-200' : 'bg-red-50 border-red-100 text-red-600 hover:bg-red-100')
+        if (type === 'other') return base + (active ? 'bg-slate-100 border-slate-300 text-slate-800 ring-2 ring-slate-200' : 'bg-slate-50 border-slate-100 text-slate-600 hover:bg-slate-100')
     }
 
     return (
-        <div className="flex flex-wrap gap-2">
-            <button onClick={() => onPillClick('all')} className={pillStyle('total', expandedFilter === 'all')}>
-                <span>All: {total}</span>
-            </button>
-            <button onClick={() => onPillClick('completed')} className={pillStyle('completed', expandedFilter === 'completed')}>
-                <CheckCircle2 size={12} />
-                <span>Comp: {completed}</span>
-            </button>
-            <button onClick={() => onPillClick('in_progress')} className={pillStyle('in_progress', expandedFilter === 'in_progress')}>
-                <Clock size={12} />
-                <span>Prog: {inProgress}</span>
-            </button>
-            <button onClick={() => onPillClick('remaining')} className={pillStyle('remaining', expandedFilter === 'remaining')}>
-                <CircleDashed size={12} />
-                <span>Rem: {remaining}</span>
-            </button>
+        <div className="flex flex-col gap-2 w-full max-w-[340px]">
+            {/* First Row */}
+            <div className="flex gap-2">
+                <button onClick={() => onPillClick('all')} className={pillStyle('total', expandedFilter === 'all') + " flex-1 justify-center"}>
+                    <span className="truncate">All: {total}</span>
+                </button>
+                <button onClick={() => onPillClick('pending')} className={pillStyle('pending', expandedFilter === 'pending') + " flex-1 justify-center"}>
+                    <CircleDashed size={12} className="shrink-0" />
+                    <span className="truncate">Pend: {pending}</span>
+                </button>
+                <button onClick={() => onPillClick('work_in_progress')} className={pillStyle('work_in_progress', expandedFilter === 'work_in_progress') + " flex-1 justify-center"}>
+                    <Clock size={12} className="shrink-0" />
+                    <span className="truncate">Prog: {inProgress}</span>
+                </button>
+            </div>
+            {/* Second Row */}
+            <div className="flex gap-2">
+                <button onClick={() => onPillClick('complete')} className={pillStyle('complete', expandedFilter === 'complete') + " flex-1 justify-center"}>
+                    <CheckCircle2 size={12} className="shrink-0" />
+                    <span className="truncate">Comp: {complete}</span>
+                </button>
+                <button onClick={() => onPillClick('not_to_be_done')} className={pillStyle('not_to_be_done', expandedFilter === 'not_to_be_done') + " flex-1 justify-center"}>
+                    <Circle size={12} className="shrink-0" />
+                    <span className="truncate">Not Done: {notToBeDone}</span>
+                </button>
+                <button onClick={() => onPillClick('other')} className={pillStyle('other', expandedFilter === 'other') + " flex-1 justify-center"}>
+                    <SlidersHorizontal size={12} className="shrink-0" />
+                    <span className="truncate">Other: {other}</span>
+                </button>
+            </div>
         </div>
     )
 }
@@ -170,32 +189,19 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                 
                 setGlobalSummary(prev => {
                     if (!prev) return prev
-                    let completedDiff = 0
-                    let inProgressDiff = 0
-                    let remainingDiff = 0
+                    const next = { ...prev }
                     
-                    // Decrement old status counts
-                    if (oldStatus === 'completed') {
-                        completedDiff -= 1
-                    } else {
-                        remainingDiff -= 1
-                        if (oldStatus === 'in_progress') inProgressDiff -= 1
+                    // Decrement old status count
+                    if (oldStatus in next) {
+                        next[oldStatus] = Math.max(0, next[oldStatus] - 1)
                     }
                     
-                    // Increment new status counts
-                    if (newStatus === 'completed') {
-                        completedDiff += 1
-                    } else {
-                        remainingDiff += 1
-                        if (newStatus === 'in_progress') inProgressDiff += 1
+                    // Increment new status count
+                    if (newStatus in next) {
+                        next[newStatus] = (next[newStatus] || 0) + 1
                     }
                     
-                    return {
-                        ...prev,
-                        completed: Math.max(0, prev.completed + completedDiff),
-                        in_progress: Math.max(0, prev.in_progress + inProgressDiff),
-                        remaining: Math.max(0, prev.remaining + remainingDiff)
-                    }
+                    return next
                 })
             }
 
@@ -211,16 +217,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
     const displayedSheets = sheets.filter(sheet => {
         if (!globalFilter) return true
         const subtasks = sheet.sub_tasks || []
-        if (globalFilter === 'completed') {
-            return subtasks.some(st => st.status === 'completed')
-        }
-        if (globalFilter === 'in_progress') {
-            return subtasks.some(st => st.status === 'in_progress')
-        }
-        if (globalFilter === 'remaining') {
-            return subtasks.some(st => st.status !== 'completed')
-        }
-        return true
+        return subtasks.some(st => st.status === globalFilter)
     })
 
     return (
@@ -248,7 +245,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
             {/* Global Summary Cards (Previous Feature - Now acts as filter) */}
             {selectedWorkType && globalSummary && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-in">
                     <SummaryCard 
                         icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500" 
                         label="Global Subtasks" value={globalSummary.total} 
@@ -256,22 +253,34 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                         active={globalFilter === ''} onClick={() => handleGlobalFilterClick('')} 
                     />
                     <SummaryCard 
-                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" 
-                        label="Global Completed" value={globalSummary.completed} 
-                        sub="Total completed"
-                        active={globalFilter === 'completed'} onClick={() => handleGlobalFilterClick('completed')} 
+                        icon={CircleDashed} iconBg="bg-yellow-50" iconColor="text-yellow-500" 
+                        label="Pending" value={globalSummary.pending} 
+                        sub="Waiting to start"
+                        active={globalFilter === 'pending'} onClick={() => handleGlobalFilterClick('pending')} 
                     />
                     <SummaryCard 
                         icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500" 
-                        label="Global In Progress" value={globalSummary.in_progress} 
-                        sub="Total in progress"
-                        active={globalFilter === 'in_progress'} onClick={() => handleGlobalFilterClick('in_progress')} 
+                        label="In Progress" value={globalSummary.work_in_progress} 
+                        sub="Currently active"
+                        active={globalFilter === 'work_in_progress'} onClick={() => handleGlobalFilterClick('work_in_progress')} 
                     />
                     <SummaryCard 
-                        icon={CircleDashed} iconBg="bg-orange-50" iconColor="text-orange-500" 
-                        label="Global Remaining" value={globalSummary.remaining} 
-                        sub="Total outstanding"
-                        active={globalFilter === 'remaining'} onClick={() => handleGlobalFilterClick('remaining')} 
+                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" 
+                        label="Complete" value={globalSummary.complete} 
+                        sub="Finalized tasks"
+                        active={globalFilter === 'complete'} onClick={() => handleGlobalFilterClick('complete')} 
+                    />
+                    <SummaryCard 
+                        icon={Circle} iconBg="bg-red-50" iconColor="text-red-500" 
+                        label="Not To Be Done" value={globalSummary.not_to_be_done} 
+                        sub="Excluded tasks"
+                        active={globalFilter === 'not_to_be_done'} onClick={() => handleGlobalFilterClick('not_to_be_done')} 
+                    />
+                    <SummaryCard 
+                        icon={SlidersHorizontal} iconBg="bg-slate-50" iconColor="text-slate-500" 
+                        label="Other" value={globalSummary.other} 
+                        sub="Other status"
+                        active={globalFilter === 'other'} onClick={() => handleGlobalFilterClick('other')} 
                     />
                 </div>
             )}
@@ -299,9 +308,11 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                         const sheetSubtasks = sheet.sub_tasks || []
                                         const filteredSubtasks = sheetSubtasks.filter(st => {
                                             if (expandedFilter === 'all') return true
-                                            if (expandedFilter === 'completed') return st.status === 'completed'
-                                            if (expandedFilter === 'in_progress') return st.status === 'in_progress'
-                                            if (expandedFilter === 'remaining') return st.status !== 'completed'
+                                            if (expandedFilter === 'pending') return st.status === 'pending'
+                                            if (expandedFilter === 'work_in_progress') return st.status === 'work_in_progress'
+                                            if (expandedFilter === 'complete') return st.status === 'complete'
+                                            if (expandedFilter === 'not_to_be_done') return st.status === 'not_to_be_done'
+                                            if (expandedFilter === 'other') return st.status === 'other'
                                             return false
                                         })
 
@@ -391,10 +402,11 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                                     }}
                                                                                                     className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700"
                                                                                                 >
-                                                                                                    <option value="assigned">Assigned</option>
-                                                                                                    <option value="in_progress">In Progress</option>
-                                                                                                    <option value="awaiting_information">Awaiting Info</option>
-                                                                                                    <option value="completed">Completed</option>
+                                                                                                    <option value="complete">Complete</option>
+                                                                                                    <option value="work_in_progress">Work In Progress</option>
+                                                                                                    <option value="pending">Pending</option>
+                                                                                                    <option value="not_to_be_done">Not To Be Done</option>
+                                                                                                    <option value="other">Other</option>
                                                                                                 </select>
                                                                                             ) : (
                                                                                                 <div 
@@ -526,8 +538,8 @@ function CalendarView() {
         if (!date) return []
         const dateStr = getLocalDateString(date)
         return tasks.filter(t => 
-            (t.due_date === dateStr && t.status !== 'completed') || 
-            t.sub_tasks?.some(st => st.due_date === dateStr && st.status !== 'completed')
+            (t.due_date === dateStr && t.status !== 'complete') || 
+            t.sub_tasks?.some(st => st.due_date === dateStr && st.status !== 'complete')
         )
     }
 
@@ -620,8 +632,8 @@ function CalendarView() {
                                     <tr><td colSpan={5} className="text-center py-8 text-gray-400">No tasks due on this date.</td></tr>
                                 ) : selectedTasks.map(t => {
                                     const dateStr = getLocalDateString(selectedDate)
-                                    const sheetDue = t.due_date === dateStr && t.status !== 'completed'
-                                    const dueSubTasks = t.sub_tasks?.filter(st => st.due_date === dateStr && st.status !== 'completed') || []
+                                    const sheetDue = t.due_date === dateStr && t.status !== 'complete'
+                                    const dueSubTasks = t.sub_tasks?.filter(st => st.due_date === dateStr && st.status !== 'complete') || []
 
                                     return (
                                         <>
@@ -689,10 +701,11 @@ function CalendarView() {
                                                                                         onChange={e => handleUpdateSubTask(t.id, st.id, { status: e.target.value })}
                                                                                         className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
                                                                                     >
-                                                                                        <option value="assigned">Assigned</option>
-                                                                                        <option value="in_progress">In Progress</option>
-                                                                                        <option value="awaiting_information">Awaiting Info</option>
-                                                                                        <option value="completed">Completed</option>
+                                                                                        <option value="complete">Complete</option>
+                                                                                        <option value="work_in_progress">Work In Progress</option>
+                                                                                        <option value="pending">Pending</option>
+                                                                                        <option value="not_to_be_done">Not To Be Done</option>
+                                                                                        <option value="other">Other</option>
                                                                                     </select>
                                                                                 </td>
                                                                             </tr>
@@ -872,7 +885,7 @@ export default function DashboardPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                        {['Staff Name', 'Assigned', 'In Progress', 'Awaiting', 'Completed', 'Total'].map(h => (
+                                        {['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total'].map(h => (
                                             <th key={h} className="px-6 py-3 text-left">{h}</th>
                                         ))}
                                     </tr>
@@ -893,9 +906,9 @@ export default function DashboardPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            {[s.assigned, s.in_progress, s.awaiting_information, s.completed].map((v, i) => (
+                                            {[s.pending, s.work_in_progress, s.complete, s.not_to_be_done, s.other].map((v, i) => (
                                                 <td key={i} className="px-6 py-4 text-gray-600 font-medium">
-                                                    {String(v).padStart(2, '0')}
+                                                    {String(v ?? 0).padStart(2, '0')}
                                                 </td>
                                             ))}
                                             <td className="px-6 py-4 font-bold text-gray-800">

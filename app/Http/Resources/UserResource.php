@@ -17,10 +17,11 @@ class UserResource extends JsonResource
             'role_label' => $this->role->label(),
             'is_active' => $this->is_active,
             'total' => $this->total ?? 0,
-            'assigned' => $this->assigned ?? 0,
-            'in_progress' => $this->in_progress ?? 0,
-            'awaiting_information' => $this->awaiting_information ?? 0,
-            'completed' => $this->completed ?? 0,
+            'pending' => $this->pending ?? 0,
+            'work_in_progress' => $this->work_in_progress ?? 0,
+            'complete' => $this->complete ?? 0,
+            'not_to_be_done' => $this->not_to_be_done ?? 0,
+            'other' => $this->other ?? 0,
         ];
     }
 }

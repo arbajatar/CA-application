@@ -24,11 +24,10 @@ class DashboardController extends Controller
             'total_clients' => Client::active()->count(),
             'total_tasks' => Task::count(),
             'active_tasks' => Task::whereIn('status', [
-                TaskStatus::Assigned,
-                TaskStatus::InProgress,
-                TaskStatus::AwaitingInformation
+                TaskStatus::WorkInProgress,
+                TaskStatus::Pending,
             ])->count(),
-            'completed_this_month' => Task::where('status', TaskStatus::Completed)
+            'completed_this_month' => Task::where('status', TaskStatus::Complete)
                 ->whereMonth('date_completed', $now->month)
                 ->whereYear('date_completed', $now->year)
                 ->count(),
@@ -42,10 +41,11 @@ class DashboardController extends Controller
             ->active()
             ->withCount([
                 'assignedTasks as total',
-                'assignedTasks as assigned' => fn($q) => $q->where('status', TaskStatus::Assigned),
-                'assignedTasks as in_progress' => fn($q) => $q->where('status', TaskStatus::InProgress),
-                'assignedTasks as awaiting_information' => fn($q) => $q->where('status', TaskStatus::AwaitingInformation),
-                'assignedTasks as completed' => fn($q) => $q->where('status', TaskStatus::Completed),
+                'assignedTasks as pending'           => fn($q) => $q->where('status', TaskStatus::Pending),
+                'assignedTasks as work_in_progress'  => fn($q) => $q->where('status', TaskStatus::WorkInProgress),
+                'assignedTasks as complete'          => fn($q) => $q->where('status', TaskStatus::Complete),
+                'assignedTasks as not_to_be_done'    => fn($q) => $q->where('status', TaskStatus::NotToBeDone),
+                'assignedTasks as other'             => fn($q) => $q->where('status', TaskStatus::Other),
             ])
             ->get();
 
@@ -78,18 +78,22 @@ class DashboardController extends Controller
         $subtasksQuery = SubTask::whereHas('task', fn($q) => $q->where('work_type_id', $workTypeId));
         
         $total = (clone $subtasksQuery)->count();
-        $completed = (clone $subtasksQuery)->where('status', TaskStatus::Completed)->count();
-        $inProgress = (clone $subtasksQuery)->where('status', TaskStatus::InProgress)->count();
-        $remaining = (clone $subtasksQuery)->where('status', '!=', TaskStatus::Completed)->count();
+        $pending = (clone $subtasksQuery)->where('status', TaskStatus::Pending->value)->count();
+        $workInProgress = (clone $subtasksQuery)->where('status', TaskStatus::WorkInProgress->value)->count();
+        $complete = (clone $subtasksQuery)->where('status', TaskStatus::Complete->value)->count();
+        $notToBeDone = (clone $subtasksQuery)->where('status', TaskStatus::NotToBeDone->value)->count();
+        $other = (clone $subtasksQuery)->where('status', TaskStatus::Other->value)->count();
 
         $tasks = $tasksQuery->latest()->paginate($request->get('per_page', 10));
 
         return TaskResource::collection($tasks)->additional([
             'summary' => [
                 'total' => $total,
-                'completed' => $completed,
-                'in_progress' => $inProgress,
-                'remaining' => $remaining,
+                'pending' => $pending,
+                'work_in_progress' => $workInProgress,
+                'complete' => $complete,
+                'not_to_be_done' => $notToBeDone,
+                'other' => $other,
             ]
         ]);
     }

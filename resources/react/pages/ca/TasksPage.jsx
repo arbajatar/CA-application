@@ -17,10 +17,11 @@ const EMPTY_FORM = {
 
 const statuses = [
     { value: '', label: 'All Status' },
-    { value: 'assigned', label: 'Assigned' },
-    { value: 'in_progress', label: 'In Progress' },
-    { value: 'awaiting_information', label: 'Awaiting Information' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'complete', label: 'Complete' },
+    { value: 'work_in_progress', label: 'Work In Progress' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'not_to_be_done', label: 'Not To Be Done' },
+    { value: 'other', label: 'Other' },
 ]
 
 export default function TasksPage() {
@@ -1349,10 +1350,11 @@ export default function TasksPage() {
                                                                             onChange={e => handleBulkFieldChange(t.id, 'status', e.target.value)}
                                                                             className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-bold text-gray-700 w-full outline-none transition capitalize"
                                                                         >
-                                                                            <option value="assigned">Assigned</option>
-                                                                            <option value="in_progress">In Progress</option>
-                                                                            <option value="awaiting_information">Awaiting Information</option>
-                                                                            <option value="completed">Completed</option>
+                                                                            <option value="complete">Complete</option>
+                                                                            <option value="work_in_progress">Work In Progress</option>
+                                                                            <option value="pending">Pending</option>
+                                                                            <option value="not_to_be_done">Not To Be Done</option>
+                                                                            <option value="other">Other</option>
                                                                         </select>
                                                                     </td>
                                                                 );

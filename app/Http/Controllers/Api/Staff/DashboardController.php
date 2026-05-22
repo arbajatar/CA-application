@@ -15,16 +15,16 @@ class DashboardController extends Controller
         $now = now();
 
         $tasks = $user->assignedTasks();
-        $now = now();
 
         return response()->json([
-            'total_tasks' => (clone $tasks)->count(),
-            'assigned' => (clone $tasks)->where('status', TaskStatus::Assigned->value)->count(),
-            'in_progress' => (clone $tasks)->where('status', TaskStatus::InProgress->value)->count(),
-            'awaiting_information' => (clone $tasks)->where('status', TaskStatus::AwaitingInformation->value)->count(),
-            'completed' => (clone $tasks)->where('status', TaskStatus::Completed->value)->count(),
+            'total_tasks'         => (clone $tasks)->count(),
+            'pending'             => (clone $tasks)->where('status', TaskStatus::Pending->value)->count(),
+            'work_in_progress'    => (clone $tasks)->where('status', TaskStatus::WorkInProgress->value)->count(),
+            'complete'            => (clone $tasks)->where('status', TaskStatus::Complete->value)->count(),
+            'not_to_be_done'      => (clone $tasks)->where('status', TaskStatus::NotToBeDone->value)->count(),
+            'other'               => (clone $tasks)->where('status', TaskStatus::Other->value)->count(),
             'completed_this_month' => (clone $tasks)
-                ->where('status', TaskStatus::Completed->value)
+                ->where('status', TaskStatus::Complete->value)
                 ->whereMonth('date_completed', $now->month)
                 ->whereYear('date_completed', $now->year)
                 ->count(),

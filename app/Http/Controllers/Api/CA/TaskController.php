@@ -63,7 +63,7 @@ class TaskController extends Controller
 
     public function store(StoreTaskRequest $request): JsonResponse
     {
-        $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Assigned;
+        $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Pending;
 
         $task = Task::create([
             'client_id' => $request->client_id,
@@ -88,7 +88,7 @@ class TaskController extends Controller
                 $task->subTasks()->create([
                     'title' => $stData['title'],
                     'assigned_to' => $stData['assigned_to'],
-                    'status' => $stData['status'] ?? TaskStatus::Assigned,
+                    'status' => $stData['status'] ?? TaskStatus::Pending,
                     'priority' => $stData['priority'],
                     'due_date' => $stData['due_date'],
                     'remarks' => $stData['remarks'] ?? null,
@@ -233,7 +233,7 @@ class TaskController extends Controller
                         'created_by' => $request->user()->id,
                         'date_allocated' => $taskData['date_allocated'] ?? now()->toDateString(),
                         'date_inward' => now()->toDateString(),
-                        'status' => TaskStatus::Assigned,
+                        'status' => TaskStatus::Pending,
                         'remarks' => $taskData['remarks'] ?? null,
                         'form_name' => $taskData['form_name'] ?? null,
                         'dynamic_fields' => $taskData['dynamic_fields'] ?? null,
@@ -244,7 +244,7 @@ class TaskController extends Controller
                         'task_id' => $task->id,
                         'changed_by' => $request->user()->id,
                         'old_status' => null,
-                        'new_status' => TaskStatus::Assigned->value,
+                        'new_status' => TaskStatus::Pending->value,
                         'remarks' => 'Sheet created via Excel import.',
                     ]);
                 }
@@ -255,7 +255,7 @@ class TaskController extends Controller
                         if (empty($st['title'])) continue; // Skip empty subtasks
 
                         // Resolve status safely
-                        $status = TaskStatus::Assigned;
+                        $status = TaskStatus::Pending;
                         if (isset($st['status'])) {
                             foreach (TaskStatus::cases() as $case) {
                                 if (strtolower($case->value) === strtolower($st['status']) || strtolower($case->label()) === strtolower($st['status'])) {

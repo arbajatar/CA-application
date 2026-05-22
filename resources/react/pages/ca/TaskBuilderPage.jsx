@@ -258,11 +258,13 @@ export default function TaskBuilderPage() {
       label: 'Sheet Status',
       placeholder: 'Select status...',
       options: [
-        { value: 'assigned', label: 'Assigned' },
-        { value: 'in_progress', label: 'In progress' },
-        { value: 'completed', label: 'Completed' }
+        { value: 'complete', label: 'Complete' },
+        { value: 'work_in_progress', label: 'Work In Progress' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'not_to_be_done', label: 'Not To Be Done' },
+        { value: 'other', label: 'Other' }
       ],
-      value: 'assigned',
+      value: 'pending',
       required: true,
       static: true,
       section: 1
@@ -338,12 +340,13 @@ export default function TaskBuilderPage() {
       label: 'Status',
       placeholder: 'Select task status...',
       options: [
-        { value: 'assigned', label: 'Assigned' },
-        { value: 'in_progress', label: 'In Progress' },
-        { value: 'awaiting_information', label: 'Awaiting Info' },
-        { value: 'completed', label: 'Completed' }
+        { value: 'complete', label: 'Complete' },
+        { value: 'work_in_progress', label: 'Work In Progress' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'not_to_be_done', label: 'Not To Be Done' },
+        { value: 'other', label: 'Other' }
       ],
-      value: 'assigned',
+      value: 'pending',
       required: false,
       static: true,
       section: 2
@@ -1635,7 +1638,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
                     onChange={e => updateSubtask(i, 'status', e.target.value)}
                     className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-slate-900 capitalize"
                   >
-                    {['assigned', 'in_progress', 'awaiting_information', 'completed'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                    {['complete', 'work_in_progress', 'pending', 'not_to_be_done', 'other'].map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                   </select>
                 </td>
                 <td className="py-2 pr-2">

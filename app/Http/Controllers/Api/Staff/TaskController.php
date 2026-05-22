@@ -79,13 +79,13 @@ class TaskController extends Controller
 
         $updateData = ['status' => $newStatus];
 
-        // Auto-fill date_completed when marking as Completed
-        if ($newStatus === TaskStatus::Completed) {
+        // Auto-fill date_completed when marking as Complete
+        if ($newStatus === TaskStatus::Complete) {
             $updateData['date_completed'] = now()->toDateString();
         }
 
-        // Clear date_completed if moving back from Completed
-        if ($currentStatus === TaskStatus::Completed && $newStatus !== TaskStatus::Completed) {
+        // Clear date_completed if moving back from Complete
+        if ($currentStatus === TaskStatus::Complete && $newStatus !== TaskStatus::Complete) {
             $updateData['date_completed'] = null;
         }
 

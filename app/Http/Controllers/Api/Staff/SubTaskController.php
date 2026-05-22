@@ -51,7 +51,7 @@ class SubTaskController extends Controller
             'screenshot' => $screenshotPath,
         ];
 
-        if ($newStatus === TaskStatus::Completed) {
+        if ($newStatus === TaskStatus::Complete) {
             $updateData['completed_at'] = now();
         }
 
