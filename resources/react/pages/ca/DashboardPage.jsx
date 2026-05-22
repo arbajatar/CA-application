@@ -5,7 +5,7 @@ import {
     Briefcase, Users, Search, Download, SlidersHorizontal,
     LayoutGrid, ExternalLink, Folder, CalendarDays, LayoutDashboard,
     ChevronLeft, ChevronRight, CheckCircle2, Clock, CircleDashed, ChevronDown, ChevronUp,
-    Circle, Trash2
+    Circle, Trash2, Eye
 } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -26,14 +26,18 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, subColo
     return (
         <div 
             onClick={onClick}
-            className={`bg-white rounded-2xl p-6 shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-100 hover:border-gray-200'} flex flex-col gap-3 transition-all cursor-pointer`}
+            className={`bg-white rounded-xl p-3.5 shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-100 hover:border-gray-200'} flex flex-col gap-2 transition-all cursor-pointer select-none`}
         >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${iconBg}`}>
-                <Icon size={22} className={iconColor} />
+            <div className="flex items-center justify-between gap-2">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg}`}>
+                    <Icon size={18} className={iconColor} />
+                </div>
+                <span className="text-2xl font-bold text-gray-800">{String(value || 0).padStart(2, '0')}</span>
             </div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className="text-4xl font-bold text-gray-800">{String(value || 0).padStart(2, '0')}</p>
-            {sub && <p className={`text-xs font-medium ${subColor ?? 'text-gray-400'}`}>{sub}</p>}
+            <div className="min-w-0">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate" title={label}>{label}</p>
+                {sub && <p className={`text-[10px] font-medium mt-0.5 truncate ${subColor ?? 'text-gray-400'}`} title={sub}>{sub}</p>}
+            </div>
         </div>
     )
 }
@@ -100,6 +104,7 @@ function SheetSubtaskPills({ subTasks = [], expandedFilter, onPillClick }) {
 }
 
 function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
+    const navigate = useNavigate()
     const [selectedWorkType, setSelectedWorkType] = useState('')
     const [sheets, setSheets] = useState([])
     const [sheetsMeta, setSheetsMeta] = useState(null)
@@ -245,7 +250,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
             {/* Global Summary Cards (Previous Feature - Now acts as filter) */}
             {selectedWorkType && globalSummary && (
-                <div className="grid grid-cols-3 gap-6 mb-8 animate-fade-in">
+                <div className="grid grid-cols-6 gap-4 mb-8 animate-fade-in">
                     <SummaryCard 
                         icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500" 
                         label="Global Subtasks" value={globalSummary.total} 
@@ -328,7 +333,21 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                         </button>
                                                     </td>
                                                     <td className="px-6 py-4 font-semibold text-gray-800">{sheet.client?.name || '—'}</td>
-                                                    <td className="px-6 py-4 text-gray-700 font-medium">{sheet.form_name || '—'}</td>
+                                                    <td className="px-6 py-4 text-gray-700 font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{sheet.form_name || '—'}</span>
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    navigate(`/ca/tasks/${sheet.id}`)
+                                                                }}
+                                                                className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
+                                                                title="View Details"
+                                                            >
+                                                                <Eye size={15} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-6 py-4 text-gray-600">{sheet.allocated_to?.name ?? 'Unassigned'}</td>
                                                     <td className="px-6 py-4">
                                                         <SheetSubtaskPills 
@@ -462,6 +481,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 }
 
 function CalendarView() {
+    const navigate = useNavigate()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [tasks, setTasks] = useState([])
     const [loading, setLoading] = useState(false)
@@ -642,6 +662,16 @@ function CalendarView() {
                                                 <td className="px-6 py-4 text-gray-700">
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-medium">{t.form_name || '—'}</span>
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    navigate(`/ca/tasks/${t.id}`)
+                                                            }}
+                                                            className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
+                                                            title="View Details"
+                                                        >
+                                                            <Eye size={15} />
+                                                        </button>
                                                         {sheetDue && (
                                                             <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold border border-red-100 uppercase tracking-wider shrink-0">
                                                                 Sheet Due
