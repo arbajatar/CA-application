@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -56,6 +56,26 @@ export default function TasksPage() {
     const [ignoreIdsForCloning, setIgnoreIdsForCloning] = useState(false)
     const fileInputRef = useRef(null)
 
+    // Column Sorting States
+    const [sortField, setSortField] = useState(null)
+    const [sortDirection, setSortDirection] = useState('default') // 'default' | 'asc' | 'desc'
+
+    const handleSort = (fieldId) => {
+        if (sortField !== fieldId) {
+            setSortField(fieldId)
+            setSortDirection('asc')
+        } else {
+            if (sortDirection === 'default') {
+                setSortDirection('asc')
+            } else if (sortDirection === 'asc') {
+                setSortDirection('desc')
+            } else {
+                setSortField(null)
+                setSortDirection('default')
+            }
+        }
+    }
+
     // Import Mapping Modal States
     const [importModalOpen, setImportModalOpen] = useState(false)
     const [importRawData, setImportRawData] = useState([])
@@ -107,6 +127,10 @@ export default function TasksPage() {
         setWorkTypeId(wId || '')
         setCurrentFolder(wId || null)
         setDynamicFilters({})
+        
+        // Reset sorting states to return to current view's default unsorted order
+        setSortField(null)
+        setSortDirection('default')
         
         fetchDropdowns()
     }, [location.search])
@@ -916,6 +940,53 @@ export default function TasksPage() {
                         });
                     });
 
+                    const sortedTasks = sortField && sortDirection !== 'default'
+                        ? [...filteredTasks].sort((a, b) => {
+                            let valA = '';
+                            let valB = '';
+
+                            if (sortField === 'form_name') {
+                                valA = a.form_name || '';
+                                valB = b.form_name || '';
+                            } else if (sortField === 'client') {
+                                valA = a.client?.name || '';
+                                valB = b.client?.name || '';
+                            } else if (sortField === 'mobile') {
+                                valA = a.client?.contact || '';
+                                valB = b.client?.contact || '';
+                            } else if (sortField === 'work_type') {
+                                valA = a.work_type?.name || '';
+                                valB = b.work_type?.name || '';
+                            } else if (sortField === 'assigned_to') {
+                                valA = a.allocated_to?.name || '';
+                                valB = b.allocated_to?.name || '';
+                            } else if (sortField === 'date_inward') {
+                                valA = a.date_inward || '';
+                                valB = b.date_inward || '';
+                            } else if (sortField === 'status') {
+                                valA = a.status || '';
+                                valB = b.status || '';
+                            } else if (sortField === 'task_particular') {
+                                valA = a.task_particular || '';
+                                valB = b.task_particular || '';
+                            } else if (sortField === 'remarks') {
+                                valA = a.remarks || '';
+                                valB = b.remarks || '';
+                            } else if (sortField.startsWith('dynamic_')) {
+                                const fieldName = sortField.replace('dynamic_', '');
+                                valA = a.dynamic_fields?.[fieldName] || '';
+                                valB = b.dynamic_fields?.[fieldName] || '';
+                            }
+
+                            const strA = (valA ?? '').toString().toLowerCase();
+                            const strB = (valB ?? '').toString().toLowerCase();
+
+                            if (strA < strB) return sortDirection === 'asc' ? -1 : 1;
+                            if (strA > strB) return sortDirection === 'asc' ? 1 : -1;
+                            return 0;
+                        })
+                        : filteredTasks;
+
                     return (
                         <>
                             {/* Filters */}
@@ -1075,9 +1146,27 @@ export default function TasksPage() {
                                                             title="Drag to rearrange column order"
                                                         >
                                                             <div className="flex items-center gap-1.5 justify-between">
-                                                                <div className="flex items-center gap-1 min-w-0">
-                                                                    <GripVertical size={13} className="text-gray-300 shrink-0 cursor-grab group-hover/th:text-indigo-400 transition" />
-                                                                    <span className="font-semibold text-gray-700 truncate">{col.label}</span>
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <GripVertical size={13} className="text-gray-300 shrink-0 cursor-grab group-hover/th:text-[#1F5C99] transition" />
+                                                                    <div
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleSort(col.id);
+                                                                        }}
+                                                                        className="flex items-center gap-1 cursor-pointer hover:text-[#1F5C99] transition min-w-0 select-none"
+                                                                        title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
+                                                                    >
+                                                                        <span className={`font-semibold transition truncate ${sortField === col.id ? 'text-[#1F5C99] font-bold' : 'text-gray-700'}`}>{col.label}</span>
+                                                                        {sortField === col.id ? (
+                                                                            sortDirection === 'asc' ? (
+                                                                                <ArrowUp size={13} className="text-[#1F5C99] shrink-0" />
+                                                                            ) : (
+                                                                                <ArrowDown size={13} className="text-[#1F5C99] shrink-0" />
+                                                                            )
+                                                                        ) : (
+                                                                            <ArrowUpDown size={13} className="text-gray-300 group-hover/th:text-gray-400 shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </th>
@@ -1087,9 +1176,9 @@ export default function TasksPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {filteredTasks?.length === 0 ? (
+                                            {sortedTasks?.length === 0 ? (
                                                 <tr><td colSpan={2 + activeColumns.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
-                                            ) : filteredTasks?.map((t, i) => (
+                                            ) : sortedTasks?.map((t, i) => (
                                                 <tr key={t.id} className="hover:bg-gray-100 transition group/row">
                                                     <td className="px-4 py-3 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                     {activeColumns.map(col => {
