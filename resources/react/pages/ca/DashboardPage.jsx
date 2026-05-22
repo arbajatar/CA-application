@@ -245,7 +245,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
             {/* Global Summary Cards (Previous Feature - Now acts as filter) */}
             {selectedWorkType && globalSummary && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-in">
+                <div className="grid grid-cols-3 gap-6 mb-8 animate-fade-in">
                     <SummaryCard 
                         icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500" 
                         label="Global Subtasks" value={globalSummary.total} 
