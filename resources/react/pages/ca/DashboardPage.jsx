@@ -11,6 +11,7 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
+import { formatDate } from '../../utils/dateHelper'
 
 const statuses = [
     { value: '', label: 'All Status' },
@@ -375,7 +376,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                             </span>
                                                                                         </td>
                                                                                         {/* Read-only Due Date */}
-                                                                                        <td className="px-4 py-3 text-gray-500">{st.due_date || '—'}</td>
+                                                                                        <td className="px-4 py-3 text-gray-500">{formatDate(st.due_date)}</td>
                                                                                         {/* Interactive Status Edit on Click */}
                                                                                         <td className="px-4 py-3">
                                                                                             {editingSubTaskId === st.id ? (
@@ -597,7 +598,7 @@ function CalendarView() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 animate-fade-in">
                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 className="text-lg font-semibold text-gray-800">
-                            Tasks Due on {selectedDate.toLocaleDateString()}
+                            Tasks Due on {formatDate(selectedDate)}
                         </h3>
                         <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
                             {selectedTasks.length} Tasks
@@ -953,9 +954,9 @@ export default function DashboardPage() {
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
-                                                <td className="px-6 py-4 text-gray-500">{t.date_inward}</td>
-                                                <td className="px-6 py-4 text-gray-500">{t.date_allocated}</td>
-                                                <td className="px-6 py-4 text-gray-500">{t.date_completed ?? '—'}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_inward)}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_allocated)}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_completed)}</td>
                                                 <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
                                             </tr>
                                         ))}

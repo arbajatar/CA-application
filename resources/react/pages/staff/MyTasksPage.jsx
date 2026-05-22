@@ -4,6 +4,7 @@ import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
+import { formatDate } from '../../utils/dateHelper'
 
 const statusFilters = [
     { value: '', label: 'All Status' },
@@ -230,7 +231,7 @@ export default function MyTasksPage() {
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
                                             <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{t.date_inward}</td>
+                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.date_inward)}</td>
                                             <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
                                             <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">{t.remarks ?? '—'}</td>
                                             <td className="px-6 py-4">
@@ -437,16 +438,16 @@ export default function MyTasksPage() {
                                 </div>
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.date_inward || selected.task?.date_inward || '—'}</p>
+                                    <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_inward || selected.task?.date_inward)}</p>
                                 </div>
                                 <div>
                                     <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation / Due Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.date_allocated || selected.due_date || '—'}</p>
+                                    <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_allocated || selected.due_date)}</p>
                                 </div>
                                 {(selected.date_completed || selected.completed_at || selected.task?.date_completed) && (
                                     <div>
                                         <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completion Date</h4>
-                                        <p className="text-sm font-bold text-gray-900">{selected.date_completed || selected.completed_at || selected.task?.date_completed}</p>
+                                        <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_completed || selected.completed_at || selected.task?.date_completed)}</p>
                                     </div>
                                 )}
                             </div>

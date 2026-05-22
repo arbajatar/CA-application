@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import Spinner from '../../components/ui/Spinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
+import { formatDate } from '../../utils/dateHelper';
 
 const IconMap = {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
@@ -331,7 +332,7 @@ export default function TaskDetailPage() {
             task.client?.contact || 'N/A',
             task.work_type?.name || 'N/A',
             task.form_name || 'N/A',
-            task.date_allocated || 'N/A',
+            formatDate(task.date_allocated),
             globalStatus || 'N/A',
             globalRemarks || '',
             ...dynamicFieldEntries.map(([, val]) => formatVal(val))
@@ -348,7 +349,7 @@ export default function TaskDetailPage() {
                     st.assigned_to?.name || 'Unassigned',
                     st.priority,
                     st.status_label || st.status,
-                    st.due_date || 'N/A',
+                    formatDate(st.due_date),
                     st.remarks || ''
                 ]);
             });
@@ -520,21 +521,21 @@ export default function TaskDetailPage() {
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</label>
                         <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{task.client.name}</p>
-                            <button onClick={() => handleCopy(task.client.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                            <p className="text-sm font-bold text-slate-700">{task.client?.name || 'N/A'}</p>
+                            <button onClick={() => handleCopy(task.client?.name || 'N/A')} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
                         </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Work Type</label>
                         <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{task.work_type.name}</p>
-                            <button onClick={() => handleCopy(task.work_type.name)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                            <p className="text-sm font-bold text-slate-700">{task.work_type?.name || 'N/A'}</p>
+                            <button onClick={() => handleCopy(task.work_type?.name || 'N/A')} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
                         </div>
                     </div>
                     <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocated Date</label>
                         <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{task.date_allocated}</p>
+                            <p className="text-sm font-bold text-slate-700">{formatDate(task.date_allocated)}</p>
                             <button onClick={() => handleCopy(task.date_allocated)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
                         </div>
                     </div>

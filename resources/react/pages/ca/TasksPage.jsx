@@ -7,6 +7,8 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import { formatDate } from '../../utils/dateHelper'
+
 
 const EMPTY_FORM = {
     client_id: '', work_type_id: '', date_inward: '',
@@ -598,7 +600,7 @@ export default function TasksPage() {
                     mobile: task.client?.contact || '',
                     work_type: task.work_type?.name || '',
                     form_name: task.form_name || '',
-                    date_allocated: task.date_inward || task.date_allocated || '',
+                    date_allocated: formatDate(task.date_inward || task.date_allocated),
                     assigned_to: task.allocated_to?.name || '',
                     status: task.status_label || task.status,
                     task_particular: task.task_particular || '',
@@ -619,7 +621,7 @@ export default function TasksPage() {
                             st_assignee: st.assigned_to?.name || 'Unassigned',
                             st_priority: st.priority_label || st.priority,
                             st_status: st.status_label || st.status,
-                            st_due_date: st.due_date || '',
+                            st_due_date: formatDate(st.due_date),
                             st_remarks: st.remarks || ''
                         });
                     });
@@ -1107,7 +1109,7 @@ export default function TasksPage() {
                                                             return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap">{t.allocated_to?.name || '—'}</td>;
                                                         }
                                                         if (col.id === 'date_inward') {
-                                                            return <td key={col.id} className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.date_inward || '—'}</td>;
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(t.date_inward)}</td>;
                                                         }
                                                         if (col.id === 'status') {
                                                             return <td key={col.id} className="px-4 py-3 whitespace-nowrap"><StatusBadge status={t.status} /></td>;
