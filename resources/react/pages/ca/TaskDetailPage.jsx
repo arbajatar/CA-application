@@ -11,6 +11,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 import Spinner from '../../components/ui/Spinner';
 import StatusBadge from '../../components/ui/StatusBadge';
+import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
 
@@ -965,6 +966,7 @@ export default function TaskDetailPage() {
                                 <th className="px-6 py-4 text-left">Assignee</th>
                                 <th className="px-6 py-4 text-left">Priority</th>
                                 <th className="px-6 py-4 text-left">Status</th>
+                                <th className="px-6 py-4 text-left">Sub Status</th>
                                 <th className="px-6 py-4 text-left">Due date</th>
                                 <th className="px-6 py-4 text-left">Remarks</th>
                                 <th className="px-6 py-4 text-center">Attachment</th>
@@ -1027,6 +1029,12 @@ export default function TaskDetailPage() {
                                             <option value="other">Other</option>
                                         </select>
                                     </td>
+                                    <td className="px-6 py-5 min-w-[150px]">
+                                        <SubStatusPicker
+                                            value={st.sub_status}
+                                            onChange={(newVal) => handleUpdateSubTask(st.id, { sub_status: newVal })}
+                                        />
+                                    </td>
                                     <td className="px-6 py-5">
                                         <input
                                             type="date"
@@ -1070,7 +1078,7 @@ export default function TaskDetailPage() {
                                 </tr>
                             ))}
                             <tr className="hover:bg-slate-50/50 transition-colors">
-                                <td colSpan={5} className="px-10 py-4">
+                                <td colSpan={6} className="px-10 py-4">
                                     <button
                                         onClick={handleAddSubTask}
                                         className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"

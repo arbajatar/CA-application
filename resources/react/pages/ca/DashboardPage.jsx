@@ -11,6 +11,7 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
+import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import { formatDate } from '../../utils/dateHelper'
 
 const statuses = [
@@ -388,6 +389,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                     <th className="px-4 py-2.5 text-left">Priority</th>
                                                                                     <th className="px-4 py-2.5 text-left">Due Date</th>
                                                                                     <th className="px-4 py-2.5 text-left">Status</th>
+                                                                                    <th className="px-4 py-2.5 text-left">Sub Status</th>
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody className="divide-y divide-gray-50 bg-white">
@@ -437,6 +439,12 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                                     <StatusBadge status={st.status} />
                                                                                                 </div>
                                                                                             )}
+                                                                                        </td>
+                                                                                        <td className="px-4 py-3">
+                                                                                            <SubStatusPicker
+                                                                                                value={st.sub_status}
+                                                                                                onChange={(newVal) => handleUpdateSubTask(sheet.id, st.id, { sub_status: newVal })}
+                                                                                            />
                                                                                         </td>
                                                                                     </tr>
                                                                                 ))}
@@ -821,6 +829,7 @@ function CalendarView() {
                                                                             <th className="px-4 py-2 text-left">Priority</th>
                                                                             <th className="px-4 py-2 text-left">Due Date</th>
                                                                             <th className="px-4 py-2 text-left">Status (Click to update)</th>
+                                                                            <th className="px-4 py-2 text-left">Sub Status</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="divide-y divide-gray-50 bg-white">
@@ -850,6 +859,12 @@ function CalendarView() {
                                                                                         <option value="not_to_be_done">Not To Be Done</option>
                                                                                         <option value="other">Other</option>
                                                                                     </select>
+                                                                                </td>
+                                                                                <td className="px-4 py-2">
+                                                                                    <SubStatusPicker
+                                                                                        value={st.sub_status}
+                                                                                        onChange={(newVal) => handleUpdateSubTask(t.id, st.id, { sub_status: newVal })}
+                                                                                    />
                                                                                 </td>
                                                                             </tr>
                                                                         ))}

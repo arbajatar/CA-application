@@ -22,6 +22,7 @@ class SubTask extends Model
         'completed_at',
         'remarks',
         'screenshot',
+        'sub_status',
     ];
 
     protected $appends = ['screenshot_url'];

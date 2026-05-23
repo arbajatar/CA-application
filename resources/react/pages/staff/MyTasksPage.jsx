@@ -4,6 +4,7 @@ import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
+import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import { formatDate } from '../../utils/dateHelper'
 
 const statusFilters = [
@@ -45,6 +46,7 @@ export default function MyTasksPage() {
     const [saving, setSaving] = useState(false)
     const [screenshot, setScreenshot] = useState(null)
     const [updateError, setUpdateError] = useState('')
+    const [subStatus, setSubStatus] = useState('')
     const [viewOpen, setViewOpen] = useState(false)
     const [viewLoading, setViewLoading] = useState(false)
 
@@ -86,6 +88,7 @@ export default function MyTasksPage() {
         setRemark('')
         setScreenshot(null)
         setUpdateError('')
+        setSubStatus(task.sub_status || '')
         setUpdateOpen(true)
     }
 
@@ -112,6 +115,7 @@ export default function MyTasksPage() {
             formData.append('status', newStatus)
             if (remark) formData.append('remarks', remark)
             if (screenshot) formData.append('screenshot', screenshot)
+            if (selected.task_id && subStatus) formData.append('sub_status', subStatus)
             formData.append('_method', 'PATCH')
 
             if (selected.task_id) {
@@ -219,7 +223,7 @@ export default function MyTasksPage() {
                                             <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
                                         ))
                                     ) : (
-                                        ['#', 'Subtask Title', 'Parent Task', 'Client', 'Priority', 'Status', 'Actions'].map(h => (
+                                        ['#', 'Subtask Title', 'Parent Task', 'Client', 'Priority', 'Status', 'Sub Status', 'Actions'].map(h => (
                                             <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
                                         ))
                                     )}
@@ -249,7 +253,7 @@ export default function MyTasksPage() {
                                     ))
                                 ) : (
                                     subTasks?.length === 0 ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
+                                        <tr><td colSpan={8} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
                                     ) : subTasks?.map((st, i) => (
                                         <tr key={st.id} className="hover:bg-gray-100 transition">
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
@@ -258,6 +262,9 @@ export default function MyTasksPage() {
                                             <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{st.task?.client || 'N/A'}</td>
                                             <td className="px-6 py-4 capitalize font-medium">{st.priority}</td>
                                             <td className="px-6 py-4"><StatusBadge status={st.status} /></td>
+                                            <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-700">
+                                                {st.sub_status || <span className="text-gray-300 italic">—</span>}
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => openView(st)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
@@ -360,6 +367,19 @@ export default function MyTasksPage() {
                             )}
                         </div>
 
+                        {/* Sub Status (only for subtasks) */}
+                        {selected.task_id && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                    Sub Status
+                                </label>
+                                <SubStatusPicker
+                                    value={subStatus}
+                                    onChange={(val) => setSubStatus(val)}
+                                />
+                            </div>
+                        )}
+
                         {/* Auto-complete note */}
                         {newStatus === 'complete' && (
                             <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
@@ -453,6 +473,12 @@ export default function MyTasksPage() {
                                     <div>
                                         <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completion Date</h4>
                                         <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_completed || selected.completed_at || selected.task?.date_completed)}</p>
+                                    </div>
+                                )}
+                                {selected.task_id && selected.sub_status && (
+                                    <div>
+                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Sub Status</h4>
+                                        <p className="text-sm font-bold text-gray-900">{selected.sub_status}</p>
                                     </div>
                                 )}
                             </div>

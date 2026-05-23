@@ -23,6 +23,7 @@ class SubTaskController extends Controller
             'due_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
         ]);
 
         $subTask = $task->subTasks()->create([
@@ -32,6 +33,7 @@ class SubTaskController extends Controller
             'due_date' => $validated['due_date'] ?? null,
             'status' => $validated['status'] ?? TaskStatus::Pending->value,
             'remarks' => $validated['remarks'] ?? null,
+            'sub_status' => $validated['sub_status'] ?? null,
         ]);
 
         return response()->json([
@@ -49,6 +51,7 @@ class SubTaskController extends Controller
             'due_date' => ['nullable', 'date'],
             'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
         ]);
 
         if (isset($validated['status']) && $validated['status'] === TaskStatus::Complete->value && $subTask->status !== TaskStatus::Complete) {

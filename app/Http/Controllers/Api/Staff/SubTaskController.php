@@ -62,6 +62,7 @@ class SubTaskController extends Controller
             'status' => ['required', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'screenshot' => ['nullable', 'image', 'max:2048'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
         ]);
 
         $newStatus = TaskStatus::from($validated['status']);
@@ -76,6 +77,7 @@ class SubTaskController extends Controller
             'status' => $newStatus,
             'remarks' => $validated['remarks'] ?? $subTask->remarks,
             'screenshot' => $screenshotPath,
+            'sub_status' => $validated['sub_status'] ?? $subTask->sub_status,
         ];
 
         if ($newStatus === TaskStatus::Complete) {

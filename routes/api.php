@@ -42,6 +42,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
+    Route::get('/sub-task-sub-statuses', function () {
+        $subStatuses = \App\Models\SubTask::whereNotNull('sub_status')
+            ->where('sub_status', '!=', '')
+            ->distinct()
+            ->pluck('sub_status');
+        return response()->json(['data' => $subStatuses]);
+    });
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 
