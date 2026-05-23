@@ -302,12 +302,13 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                         <th className="px-6 py-4 text-left">Client</th>
                                         <th className="px-6 py-4 text-left">Sheet/Task Form</th>
                                         <th className="px-6 py-4 text-left">Allocated To</th>
+                                        <th className="px-6 py-4 text-left">Due Date</th>
                                         <th className="px-6 py-4 text-left">Subtasks Summary (Click to expand)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {displayedSheets.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-12 text-gray-400">No sheets found matching the active filter.</td></tr>
+                                        <tr><td colSpan={6} className="text-center py-12 text-gray-400">No sheets found matching the active filter.</td></tr>
                                     ) : displayedSheets.map(sheet => {
                                         const isExpanded = expandedTaskId === sheet.id
                                         const sheetSubtasks = sheet.sub_tasks || []
@@ -349,6 +350,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-600">{sheet.allocated_to?.name ?? 'Unassigned'}</td>
+                                                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sheet.due_date)}</td>
                                                     <td className="px-6 py-4">
                                                         <SheetSubtaskPills 
                                                             subTasks={sheetSubtasks} 
@@ -361,7 +363,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                 {/* Expanded Subtask Details */}
                                                 {isExpanded && (
                                                     <tr className="bg-gray-50/50">
-                                                        <td colSpan={5} className="p-0 border-t border-b border-gray-150">
+                                                        <td colSpan={6} className="p-0 border-t border-b border-gray-150">
                                                             <div className="px-8 py-5 space-y-4">
                                                                 <div className="flex items-center justify-between">
                                                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
@@ -485,7 +487,8 @@ function CalendarView() {
     const [currentDate, setCurrentDate] = useState(new Date())
     const [tasks, setTasks] = useState([])
     const [loading, setLoading] = useState(false)
-    const [selectedDate, setSelectedDate] = useState(null)
+    const [rangeStart, setRangeStart] = useState(null)
+    const [rangeEnd, setRangeEnd] = useState(null)
 
     const fetchTasks = useCallback(async () => {
         setLoading(true)
@@ -503,7 +506,8 @@ function CalendarView() {
 
     useEffect(() => {
         fetchTasks()
-        setSelectedDate(null)
+        setRangeStart(null)
+        setRangeEnd(null)
     }, [fetchTasks])
 
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
@@ -554,6 +558,25 @@ function CalendarView() {
         }
     }
 
+    const handleDateClick = (date) => {
+        if (!date) return
+        
+        if (!rangeStart || (rangeStart && rangeEnd)) {
+            setRangeStart(date)
+            setRangeEnd(null)
+        } else {
+            const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+            const clickedTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+            
+            if (clickedTime < startTime) {
+                setRangeStart(date)
+                setRangeEnd(null)
+            } else {
+                setRangeEnd(date)
+            }
+        }
+    }
+
     const getTasksForDate = (date) => {
         if (!date) return []
         const dateStr = getLocalDateString(date)
@@ -563,7 +586,36 @@ function CalendarView() {
         )
     }
 
-    const selectedTasks = selectedDate ? getTasksForDate(selectedDate) : []
+    const getTasksForDateRange = (start, end) => {
+        if (!start) return []
+        
+        if (!end) {
+            const startStr = getLocalDateString(start)
+            return tasks.filter(t => 
+                (t.due_date === startStr && t.status !== 'complete') || 
+                t.sub_tasks?.some(st => st.due_date === startStr && st.status !== 'complete')
+            )
+        }
+
+        const startTime = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+        const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
+
+        return tasks.filter(t => {
+            const tDate = t.due_date ? new Date(t.due_date) : null
+            const tTime = tDate ? new Date(tDate.getFullYear(), tDate.getMonth(), tDate.getDate()).getTime() : null
+            
+            const hasDueSheetInRange = tTime && tTime >= startTime && tTime <= endTime && t.status !== 'complete'
+            const hasDueSubTaskInRange = t.sub_tasks?.some(st => {
+                const stDate = st.due_date ? new Date(st.due_date) : null
+                const stTime = stDate ? new Date(stDate.getFullYear(), stDate.getMonth(), stDate.getDate()).getTime() : null
+                return stTime && stTime >= startTime && stTime <= endTime && st.status !== 'complete'
+            })
+
+            return hasDueSheetInRange || hasDueSubTaskInRange
+        })
+    }
+
+    const selectedTasks = rangeStart ? getTasksForDateRange(rangeStart, rangeEnd) : []
 
     return (
         <div className="space-y-6">
@@ -591,21 +643,41 @@ function CalendarView() {
                         ))}
                         {days.map((date, i) => {
                             const dateTasks = getTasksForDate(date)
-                            const isSelected = selectedDate && date && getLocalDateString(date) === getLocalDateString(selectedDate)
                             const isToday = date && date.toDateString() === new Date().toDateString()
+                            
+                            let isStart = false
+                            let isEnd = false
+                            let isInRange = false
+                            
+                            if (date && rangeStart) {
+                                const dateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+                                const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                                
+                                if (rangeEnd) {
+                                    const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
+                                    isStart = dateTime === startTime
+                                    isEnd = dateTime === endTime
+                                    isInRange = dateTime > startTime && dateTime < endTime
+                                } else {
+                                    isStart = dateTime === startTime
+                                }
+                            }
+
                             return (
                                 <div 
                                     key={i} 
-                                    onClick={() => date && setSelectedDate(date)}
-                                    className={`bg-white min-h-[100px] p-2 transition-colors relative cursor-pointer
+                                    onClick={() => date && handleDateClick(date)}
+                                    className={`bg-white min-h-[100px] p-2 transition-all relative cursor-pointer
                                         ${!date ? 'opacity-50' : 'hover:bg-blue-50'}
-                                        ${isSelected ? 'bg-blue-50 ring-2 ring-blue-500 inset-0 z-10' : ''}
+                                        ${isStart || isEnd ? 'bg-blue-50/80 ring-2 ring-blue-500 inset-0 z-10 font-bold' : ''}
+                                        ${isInRange ? 'bg-blue-50/40' : ''}
                                     `}
                                 >
                                     {date && (
                                         <>
-                                            <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full
-                                                ${isToday ? 'bg-blue-500 text-white' : 'text-gray-700'}
+                                            <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-all
+                                                ${isStart || isEnd ? 'bg-blue-600 text-white shadow' : 
+                                                  isToday ? 'bg-gray-200 text-gray-800' : 'text-gray-700'}
                                             `}>
                                                 {date.getDate()}
                                             </span>
@@ -626,12 +698,29 @@ function CalendarView() {
                 )}
             </div>
 
-            {selectedDate && (
+            {rangeStart && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 animate-fade-in">
                     <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-800">
-                            Tasks Due on {formatDate(selectedDate)}
-                        </h3>
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-semibold text-gray-800">
+                                {rangeEnd ? (
+                                    `Tasks Due from ${formatDate(rangeStart)} to ${formatDate(rangeEnd)}`
+                                ) : (
+                                    `Tasks Due on ${formatDate(rangeStart)}`
+                                )}
+                            </h3>
+                            {(rangeStart || rangeEnd) && (
+                                <button
+                                    onClick={() => {
+                                        setRangeStart(null)
+                                        setRangeEnd(null)
+                                    }}
+                                    className="text-xs text-red-500 hover:text-red-750 font-semibold hover:underline transition"
+                                >
+                                    Clear Selection
+                                </button>
+                            )}
+                        </div>
                         <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
                             {selectedTasks.length} Tasks
                         </span>
@@ -644,16 +733,37 @@ function CalendarView() {
                                     <th className="px-6 py-3 text-left">Sheet/Task Form</th>
                                     <th className="px-6 py-3 text-left">Work Type</th>
                                     <th className="px-6 py-3 text-left">Allocated To</th>
+                                    <th className="px-6 py-3 text-left">Due Date</th>
                                     <th className="px-6 py-3 text-left">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 bg-white">
                                 {selectedTasks.length === 0 ? (
-                                    <tr><td colSpan={5} className="text-center py-8 text-gray-400">No tasks due on this date.</td></tr>
+                                    <tr><td colSpan={6} className="text-center py-8 text-gray-400">No tasks due within selected range.</td></tr>
                                 ) : selectedTasks.map(t => {
-                                    const dateStr = getLocalDateString(selectedDate)
-                                    const sheetDue = t.due_date === dateStr && t.status !== 'complete'
-                                    const dueSubTasks = t.sub_tasks?.filter(st => st.due_date === dateStr && st.status !== 'complete') || []
+                                    const sheetDue = (() => {
+                                        if (!t.due_date || t.status === 'complete') return false
+                                        const tDate = new Date(t.due_date)
+                                        const tTime = new Date(tDate.getFullYear(), tDate.getMonth(), tDate.getDate()).getTime()
+                                        if (!rangeEnd) {
+                                            return tTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                                        }
+                                        const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                                        const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
+                                        return tTime >= startTime && tTime <= endTime
+                                    })()
+
+                                    const dueSubTasks = t.sub_tasks?.filter(st => {
+                                        if (!st.due_date || st.status === 'complete') return false
+                                        const stDate = new Date(st.due_date)
+                                        const stTime = new Date(stDate.getFullYear(), stDate.getMonth(), stDate.getDate()).getTime()
+                                        if (!rangeEnd) {
+                                            return stTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                                        }
+                                        const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                                        const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
+                                        return stTime >= startTime && stTime <= endTime
+                                    }) || []
 
                                     return (
                                         <>
@@ -681,6 +791,7 @@ function CalendarView() {
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
+                                                 <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.due_date)}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <StatusBadge status={t.status} />
@@ -696,7 +807,7 @@ function CalendarView() {
                                             {/* Specific Subtasks Due on this selected date */}
                                             {dueSubTasks.length > 0 && (
                                                 <tr className="bg-gray-50/50">
-                                                    <td colSpan={5} className="px-10 py-3 border-t border-b border-gray-100">
+                                                    <td colSpan={6} className="px-10 py-3 border-t border-b border-gray-100">
                                                         <div className="space-y-2">
                                                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                                                                 Due Subtasks:
@@ -708,6 +819,7 @@ function CalendarView() {
                                                                             <th className="px-4 py-2 text-left">Subtask</th>
                                                                             <th className="px-4 py-2 text-left">Assignee</th>
                                                                             <th className="px-4 py-2 text-left">Priority</th>
+                                                                            <th className="px-4 py-2 text-left">Due Date</th>
                                                                             <th className="px-4 py-2 text-left">Status (Click to update)</th>
                                                                         </tr>
                                                                     </thead>
@@ -725,6 +837,7 @@ function CalendarView() {
                                                                                         {st.priority_label}
                                                                                     </span>
                                                                                 </td>
+                                                                                <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{formatDate(st.due_date)}</td>
                                                                                 <td className="px-4 py-2">
                                                                                     <select
                                                                                         value={st.status}
