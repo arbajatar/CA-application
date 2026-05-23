@@ -15,6 +15,7 @@ const navItems = [
         icon: BarChart3,
         children: [
             { to: '/ca/reports/timesheet', label: 'TimeSheet Report' },
+            { to: '/ca/reports/tasks', label: 'Task Report' },
         ]
     },
     { to: '/ca/settings', icon: Settings, label: 'Settings' },

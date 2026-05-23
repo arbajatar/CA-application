@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Reports
         Route::get('/reports/timesheet', [\App\Http\Controllers\Api\CA\ReportController::class, 'timesheet']);
+        Route::get('/reports/tasks', [\App\Http\Controllers\Api\CA\ReportController::class, 'taskReport']);
 
         // Tasks
         Route::patch('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
