@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe, Info } from 'lucide-react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe, Info, BarChart3, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
@@ -10,6 +10,13 @@ const navItems = [
     { to: '/ca/clients', icon: Users, label: 'Clients' },
     { to: '/ca/staff', icon: UserCog, label: 'Staff' },
     { to: '/ca/portals', icon: Globe, label: 'Portal List' },
+    { 
+        label: 'Report', 
+        icon: BarChart3,
+        children: [
+            { to: '/ca/reports/timesheet', label: 'TimeSheet Report' },
+        ]
+    },
     { to: '/ca/settings', icon: Settings, label: 'Settings' },
     { to: '/ca/things-to-know', icon: Info, label: 'Learning Library' },
 ]
@@ -17,7 +24,9 @@ const navItems = [
 export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
     const { logout } = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+    const [reportsExpanded, setReportsExpanded] = useState(location.pathname.startsWith('/ca/reports'))
 
     const handleLogout = async () => {
         setLogoutConfirmOpen(false)
@@ -64,23 +73,78 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
 
             {/* Nav */}
             <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto overflow-x-hidden">
-                {navItems.map(({ to, icon: Icon, label }) => (
-                    <NavLink
-                        key={to}
-                        to={to}
-                        onClick={() => setIsMobileOpen?.(false)}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
-                                ? 'bg-[#EEF4FB] text-[#1F5C99]'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
-                            }`
-                        }
-                        title={!isOpen ? label : undefined}
-                    >
-                        <Icon size={18} className="shrink-0" />
-                        {(isOpen || (isMobileOpen && window.innerWidth < 1024)) && <span className="whitespace-nowrap">{label}</span>}
-                    </NavLink>
-                ))}
+                {navItems.map((item) => {
+                    if (item.children) {
+                        const Icon = item.icon
+                        const isExpanded = reportsExpanded
+                        const hasActiveChild = item.children.some(child => location.pathname === child.to)
+
+                        return (
+                            <div key={item.label} className="space-y-1">
+                                <button
+                                    onClick={() => {
+                                        if (!isOpen) {
+                                            setIsOpen(true)
+                                        }
+                                        setReportsExpanded(!reportsExpanded)
+                                    }}
+                                    className={`flex items-center justify-between w-full py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${hasActiveChild
+                                        ? 'bg-[#EEF4FB] text-[#1F5C99]'
+                                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <Icon size={18} className="shrink-0" />
+                                        {isOpen && <span className="whitespace-nowrap">{item.label}</span>}
+                                    </div>
+                                    {isOpen && (
+                                        isExpanded ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />
+                                    )}
+                                </button>
+                                
+                                {isOpen && isExpanded && (
+                                    <div className="pl-6 space-y-1 mt-1 transition-all duration-200">
+                                        {item.children.map((child) => (
+                                            <NavLink
+                                                key={child.to}
+                                                to={child.to}
+                                                onClick={() => setIsMobileOpen?.(false)}
+                                                className={({ isActive }) =>
+                                                    `flex items-center gap-2.5 py-2 px-4 rounded-lg text-xs font-semibold transition-all ${isActive
+                                                        ? 'text-[#1F5C99] font-bold bg-slate-50'
+                                                        : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                                                    }`
+                                                }
+                                            >
+                                                <span className="w-1.5 h-1.5 rounded-full border border-current shrink-0"></span>
+                                                <span className="whitespace-nowrap">{child.label}</span>
+                                            </NavLink>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    }
+
+                    const Icon = item.icon
+                    return (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            onClick={() => setIsMobileOpen?.(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
+                                    ? 'bg-[#EEF4FB] text-[#1F5C99]'
+                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                }`
+                            }
+                            title={!isOpen ? item.label : undefined}
+                        >
+                            <Icon size={18} className="shrink-0" />
+                            {(isOpen || (isMobileOpen && window.innerWidth < 1024)) && <span className="whitespace-nowrap">{item.label}</span>}
+                        </NavLink>
+                    )
+                })}
             </nav>
 
             {/* Logout */}
