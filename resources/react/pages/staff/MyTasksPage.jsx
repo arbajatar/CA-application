@@ -240,7 +240,7 @@ export default function MyTasksPage() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
-                                                    {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && (
+                                                    {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && t.user_permissions?.can_write !== false && (
                                                         <button onClick={() => openUpdate(t)} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
                                                     )}
                                                 </div>
@@ -261,12 +261,14 @@ export default function MyTasksPage() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => openView(st)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
-                                                    <button
-                                                        onClick={() => openUpdate(st)}
-                                                        className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
-                                                    >
-                                                        Update
-                                                    </button>
+                                                    {st.user_permissions?.can_write !== false && (
+                                                        <button
+                                                            onClick={() => openUpdate(st)}
+                                                            className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
+                                                        >
+                                                            Update
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

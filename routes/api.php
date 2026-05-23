@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CA\DashboardController;
 use App\Http\Controllers\Api\CA\SettingsController;
 use App\Http\Controllers\Api\CA\PortalController;
 use App\Http\Controllers\Api\CA\StaffController;
+use App\Http\Controllers\Api\CA\RoleController;
 use App\Http\Controllers\Api\CA\TaskController;
 use App\Http\Controllers\Api\CA\SubTaskController as CASubTaskController;
 use App\Http\Controllers\Api\CA\WorkTypeController;
@@ -67,6 +68,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/staff/{staff}/activate', [StaffController::class, 'activate']);
         Route::patch('/staff/{staff}/reset-password', [StaffController::class, 'resetPassword']);
         Route::apiResource('/staff', StaffController::class)->except(['destroy']);
+
+        // Roles
+        Route::apiResource('/roles', RoleController::class);
 
         // Work Types
         Route::patch('/work-types/{work_type}/toggle', [WorkTypeController::class, 'toggle']);

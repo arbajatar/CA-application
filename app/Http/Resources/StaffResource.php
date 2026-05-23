@@ -14,7 +14,12 @@ class StaffResource extends JsonResource
             'name' => $this->name,
             'username' => $this->username,
             'role' => $this->role->value,
-            'role_label' => $this->role->label(),
+            'role_label' => $this->role_id && $this->customRole ? $this->customRole->name : $this->role->label(),
+            'role_id' => $this->role_id,
+            'custom_role' => $this->customRole ? [
+                'id' => $this->customRole->id,
+                'name' => $this->customRole->name,
+            ] : null,
             'is_active' => $this->is_active,
             'created_at' => $this->created_at->toDateString(),
         ];

@@ -139,7 +139,7 @@
 
   /* Flat form section wrapper */
   .form-section {
-    @apply bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden;
+    @apply bg-white rounded-xl border border-slate-100 shadow-sm overflow-visible;
   }
 
   .field-preview-area {

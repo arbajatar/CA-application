@@ -77,6 +77,11 @@ class Task extends Model
         return $this->hasMany(SubTask::class);
     }
 
+    public function permissions()
+    {
+        return $this->hasMany(SheetPermission::class);
+    }
+
     // ── Scopes ─────────────────────────────────────────────────────
     public function scopeForStaff($query, int $userId)
     {

@@ -39,6 +39,7 @@ class DashboardController extends Controller
     {
         $staff = User::staff()
             ->active()
+            ->with('customRole')
             ->withCount([
                 'assignedTasks as total',
                 'assignedTasks as pending'           => fn($q) => $q->where('status', TaskStatus::Pending),

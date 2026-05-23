@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, KeyRound, UserMinus, UserCheck, Eye, EyeOff } from 'lucide-react'
+import { Plus, Search, Pencil, KeyRound, UserMinus, UserCheck, Eye, EyeOff, Shield, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -7,7 +7,7 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
-const EMPTY_FORM = { name: '', username: '', password: '' }
+const EMPTY_FORM = { name: '', username: '', password: '', role_id: '' }
 
 export default function StaffPage() {
     const [staff, setStaff] = useState([])
@@ -29,6 +29,77 @@ export default function StaffPage() {
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
 
+    // Role Management States
+    const [roles, setRoles] = useState([])
+    const [rolesLoading, setRolesLoading] = useState(false)
+    const [roleManagementOpen, setRoleManagementOpen] = useState(false)
+    const [editingRole, setEditingRole] = useState(null)
+    const [roleNameInput, setRoleNameInput] = useState('')
+    const [roleSaving, setRoleSaving] = useState(false)
+    const [roleErrors, setRoleErrors] = useState({})
+    const [deleteRoleOpen, setDeleteRoleOpen] = useState(false)
+    const [roleToDelete, setRoleToDelete] = useState(null)
+    const [deletingRole, setDeletingRole] = useState(false)
+
+    const fetchRoles = useCallback(async () => {
+        setRolesLoading(true)
+        try {
+            const res = await api.get('/ca/roles')
+            setRoles(res.data.data || [])
+        } catch (e) {
+            toast.error('Failed to load roles')
+        } finally {
+            setRolesLoading(false)
+        }
+    }, [])
+
+    const handleSaveRole = async (e) => {
+        e.preventDefault()
+        if (!roleNameInput.trim()) return
+        setRoleSaving(true)
+        setRoleErrors({})
+        try {
+            if (editingRole) {
+                await api.put(`/ca/roles/${editingRole.id}`, { name: roleNameInput })
+                toast.success('Role updated successfully')
+            } else {
+                await api.post('/ca/roles', { name: roleNameInput })
+                toast.success('Role created successfully')
+            }
+            setRoleNameInput('')
+            setEditingRole(null)
+            fetchRoles()
+            fetchStaff()
+        } catch (err) {
+            setRoleErrors(err.response?.data?.errors ?? {})
+            toast.error(err.response?.data?.message || 'Failed to save role')
+        } finally {
+            setRoleSaving(false)
+        }
+    }
+
+    const handleDeleteRoleClick = (role) => {
+        setRoleToDelete(role)
+        setDeleteRoleOpen(true)
+    }
+
+    const confirmDeleteRole = async () => {
+        if (!roleToDelete) return
+        setDeletingRole(true)
+        try {
+            await api.delete(`/ca/roles/${roleToDelete.id}`)
+            toast.success('Role deleted successfully')
+            setDeleteRoleOpen(false)
+            setRoleToDelete(null)
+            fetchRoles()
+            fetchStaff()
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete role')
+        } finally {
+            setDeletingRole(false)
+        }
+    }
+
     const fetchStaff = useCallback(async () => {
         setLoading(true)
         try {
@@ -38,12 +109,12 @@ export default function StaffPage() {
         } finally { setLoading(false) }
     }, [search, page])
 
-    useEffect(() => { fetchStaff() }, [fetchStaff])
+    useEffect(() => { fetchStaff(); fetchRoles() }, [fetchStaff, fetchRoles])
 
     const handleAdd = async () => {
         setSaving(true); setErrors({})
         try {
-            await api.post('/ca/staff', form)
+            await api.post('/ca/staff', { ...form, role_id: form.role_id || null })
             setAddOpen(false); setForm(EMPTY_FORM); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
         finally { setSaving(false) }
@@ -52,7 +123,7 @@ export default function StaffPage() {
     const handleEdit = async () => {
         setSaving(true); setErrors({})
         try {
-            await api.put(`/ca/staff/${selected.id}`, { name: form.name, username: form.username })
+            await api.put(`/ca/staff/${selected.id}`, { name: form.name, username: form.username, role_id: form.role_id || null })
             setEditOpen(false); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
         finally { setSaving(false) }
@@ -112,10 +183,16 @@ export default function StaffPage() {
                     <h1 className="text-3xl font-bold text-gray-900">Team Members</h1>
                     <p className="text-sm text-gray-400 mt-1">Manage your office staff, roles, and access credentials.</p>
                 </div>
-                <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                    className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
-                    <Plus size={16} /> Add New Member
-                </button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <button onClick={() => { setRoleNameInput(''); setEditingRole(null); setRoleErrors({}); setRoleManagementOpen(true) }}
+                        className="flex items-center justify-center gap-2 border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
+                        <Shield size={16} /> Role Management
+                    </button>
+                    <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
+                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
+                        <Plus size={16} /> Add New Member
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -158,7 +235,7 @@ export default function StaffPage() {
                                         <td className="px-6 py-4 text-gray-600">{s.username}</td>
                                         <td className="px-6 py-4">
                                             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                                                {s.role.toUpperCase()}
+                                                {s.role_label.toUpperCase()}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
@@ -166,7 +243,7 @@ export default function StaffPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, password: '' }); setErrors({}); setEditOpen(true) }}
+                                                <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_id: s.role_id || '', password: '' }); setErrors({}); setEditOpen(true) }}
                                                     className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
                                                 <button onClick={() => { setSelected(s); setResetPass({ password: '', password_confirmation: '' }); setErrors({}); setResetOpen(true) }}
                                                     className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><KeyRound size={15} /></button>
@@ -202,6 +279,18 @@ export default function StaffPage() {
                 <div className="space-y-4">
                     {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
                     {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
+                    {renderField("Assign Role", errors.role_id?.[0], (
+                        <select 
+                            value={form.role_id || ''} 
+                            onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
+                            className={inputCls}
+                        >
+                            <option value="">Select Role</option>
+                            {roles.map(r => (
+                                <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                        </select>
+                    ))}
                     {renderField("Password *", errors.password?.[0], (
                         <div className="relative">
                             <input
@@ -232,9 +321,92 @@ export default function StaffPage() {
                 <div className="space-y-4">
                     {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />)}
                     {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
+                    {renderField("Assign Role", errors.role_id?.[0], (
+                        <select 
+                            value={form.role_id || ''} 
+                            onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
+                            className={inputCls}
+                        >
+                            <option value="">Select Role</option>
+                            {roles.map(r => (
+                                <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                        </select>
+                    ))}
                     <div className="flex justify-end gap-3 pt-2">
                         <button onClick={() => setEditOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
                         <button onClick={handleEdit} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Changes'}</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Role Management Modal */}
+            <Modal open={roleManagementOpen} onClose={() => setRoleManagementOpen(false)} title="Role Management">
+                <div className="space-y-6">
+                    <form onSubmit={handleSaveRole} className="space-y-3">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            {editingRole ? 'Edit Role Name' : 'Create New Role'}
+                        </label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={roleNameInput} 
+                                onChange={e => setRoleNameInput(e.target.value)} 
+                                placeholder="e.g. Senior Accountant" 
+                                className={inputCls} 
+                                required
+                            />
+                            <button 
+                                type="submit" 
+                                disabled={roleSaving}
+                                className="px-5 py-2.5 bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition text-sm font-semibold whitespace-nowrap"
+                            >
+                                {roleSaving ? 'Saving...' : (editingRole ? 'Update' : 'Create')}
+                            </button>
+                            {editingRole && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => { setEditingRole(null); setRoleNameInput('') }}
+                                    className="px-4 py-2.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold"
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
+                        {roleErrors.name && <p className="text-xs text-red-500">{roleErrors.name[0]}</p>}
+                    </form>
+
+                    <div className="border-t border-gray-100 pt-4">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Existing Roles</h3>
+                        {rolesLoading ? <Spinner /> : roles.length === 0 ? (
+                            <p className="text-sm text-gray-400 py-2">No roles created yet.</p>
+                        ) : (
+                            <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
+                                {roles.map(r => (
+                                    <div key={r.id} className="flex items-center justify-between py-2.5">
+                                        <span className="text-sm font-medium text-gray-800">{r.name}</span>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
+                                                className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
+                                                title="Edit Role"
+                                            >
+                                                <Pencil size={14} />
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleDeleteRoleClick(r)}
+                                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                                                title="Delete Role"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             </Modal>
@@ -284,6 +456,9 @@ export default function StaffPage() {
 
             <ConfirmDialog open={activateOpen} onClose={() => setActivateOpen(false)} onConfirm={handleActivate} loading={saving}
                 title="Activate Staff Member" message={`Activate "${selected?.name}"? They will regain access immediately.`} confirmLabel="Activate" />
+
+            <ConfirmDialog open={deleteRoleOpen} onClose={() => { setDeleteRoleOpen(false); setRoleToDelete(null); }} onConfirm={confirmDeleteRole} danger loading={deletingRole}
+                title="Delete Role" message={`Are you sure you want to delete the role "${roleToDelete?.name}"? Users assigned to this role will have their role cleared.`} confirmLabel="Delete" />
         </div>
     )
 }

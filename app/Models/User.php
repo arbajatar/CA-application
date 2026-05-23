@@ -18,6 +18,7 @@ class User extends Authenticatable
         'username',
         'password',
         'role',
+        'role_id',
         'is_active',
     ];
 
@@ -31,11 +32,17 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'role' => UserRole::class,
+            'role_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }
 
     // ── Relationships ──────────────────────────────────────────────
+    public function customRole()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
     public function assignedTasks()
     {
         return $this->hasMany(Task::class, 'allocated_to');

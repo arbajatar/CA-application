@@ -15,8 +15,20 @@ class TaskController extends Controller
 {
     public function index(Request $request)
     {
-        $tasks = $request->user()->assignedTasks()
-            ->with(['client', 'workType', 'assignedTo'])
+        $user = $request->user();
+        $tasks = $user->assignedTasks()
+            ->with(['client', 'workType', 'assignedTo', 'permissions.role'])
+            ->where(function ($query) use ($user) {
+                $query->whereDoesntHave('permissions')
+                    ->orWhereHas('permissions', function ($pq) use ($user) {
+                        if ($user->role_id) {
+                            $pq->where('role_id', $user->role_id)
+                               ->where('can_read', true);
+                        } else {
+                            $pq->whereRaw('1 = 0');
+                        }
+                    });
+            })
             ->when(
                 $request->filled('status'),
                 fn($q) =>
@@ -50,8 +62,20 @@ class TaskController extends Controller
             return response()->json(['message' => 'You do not have access to this task.'], 403);
         }
 
+        // Check read permission
+        $user = $request->user();
+        if ($task->permissions()->exists()) {
+            $hasReadAccess = $task->permissions()
+                ->where('role_id', $user->role_id)
+                ->where('can_read', true)
+                ->exists();
+            if (!$hasReadAccess) {
+                return response()->json(['message' => 'You do not have read access to this sheet.'], 403);
+            }
+        }
+
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role'])),
         ]);
     }
 
@@ -60,6 +84,18 @@ class TaskController extends Controller
         // Ensure staff can only update their own task
         if ($task->allocated_to !== $request->user()->id) {
             return response()->json(['message' => 'You do not have access to this task.'], 403);
+        }
+
+        // Check write permission
+        $user = $request->user();
+        if ($task->permissions()->exists()) {
+            $hasWriteAccess = $task->permissions()
+                ->where('role_id', $user->role_id)
+                ->where('can_write', true)
+                ->exists();
+            if (!$hasWriteAccess) {
+                return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+            }
         }
 
         $currentStatus = $task->status;
@@ -108,7 +144,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task status updated successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role'])),
         ]);
     }
 }

@@ -34,6 +34,11 @@ class StoreTaskRequest extends FormRequest
             'sub_status' => ['nullable', 'string'],
             'feedback' => ['nullable', 'string'],
             'entry_date' => ['nullable', 'date'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*.role_id' => ['required', 'exists:roles,id'],
+            'permissions.*.can_read' => ['required', 'boolean'],
+            'permissions.*.can_write' => ['required', 'boolean'],
+            'permissions.*.can_delete' => ['required', 'boolean'],
         ];
     }
 }

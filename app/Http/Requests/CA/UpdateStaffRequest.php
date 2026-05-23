@@ -22,6 +22,7 @@ class UpdateStaffRequest extends FormRequest
                 'max:255',
                 Rule::unique('users', 'username')->ignore($this->route('staff'))
             ],
+            'role_id' => ['nullable', 'exists:roles,id'],
         ];
     }
 }

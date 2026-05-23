@@ -14,7 +14,21 @@ class SubTaskController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $subTasks = SubTask::where('assigned_to', $request->user()->id)
+        $user = $request->user();
+        $subTasks = SubTask::where('assigned_to', $user->id)
+            ->whereHas('task', function ($tq) use ($user) {
+                $tq->where(function ($query) use ($user) {
+                    $query->whereDoesntHave('permissions')
+                        ->orWhereHas('permissions', function ($pq) use ($user) {
+                            if ($user->role_id) {
+                                $pq->where('role_id', $user->role_id)
+                                   ->where('can_read', true);
+                            } else {
+                                $pq->whereRaw('1 = 0');
+                            }
+                        });
+                });
+            })
             ->with('task.client', 'task.workType')
             ->latest()
             ->get();
@@ -29,6 +43,19 @@ class SubTaskController extends Controller
         // Ensure subtask is assigned to this staff member
         if ($subTask->assigned_to !== $request->user()->id) {
             return response()->json(['message' => 'Unauthorized access to this subtask.'], 403);
+        }
+
+        // Check parent task write permission
+        $user = $request->user();
+        $task = $subTask->task;
+        if ($task && $task->permissions()->exists()) {
+            $hasWriteAccess = $task->permissions()
+                ->where('role_id', $user->role_id)
+                ->where('can_write', true)
+                ->exists();
+            if (!$hasWriteAccess) {
+                return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+            }
         }
 
         $validated = $request->validate([

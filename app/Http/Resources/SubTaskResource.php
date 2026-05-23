@@ -31,6 +31,11 @@ class SubTaskResource extends JsonResource
                 'client' => $this->task->client?->name,
                 'work_type' => $this->task->workType?->name,
             ],
+            'user_permissions' => $this->task ? (new TaskResource($this->task))->getUserPermissions($request->user()) : [
+                'can_read' => true,
+                'can_write' => true,
+                'can_delete' => true,
+            ],
         ];
     }
 }

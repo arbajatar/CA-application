@@ -43,6 +43,63 @@ class TaskResource extends JsonResource
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),
+            'permissions' => $this->permissions ? $this->permissions->map(function ($perm) {
+                return [
+                    'role_id' => $perm->role_id,
+                    'role_name' => $perm->role?->name,
+                    'can_read' => (bool)$perm->can_read,
+                    'can_write' => (bool)$perm->can_write,
+                    'can_delete' => (bool)$perm->can_delete,
+                ];
+            }) : [],
+            'user_permissions' => $this->getUserPermissions($request->user()),
+        ];
+    }
+
+    public function getUserPermissions($user): array
+    {
+        if (!$user) {
+            return [
+                'can_read' => false,
+                'can_write' => false,
+                'can_delete' => false,
+            ];
+        }
+
+        // Admin has full bypass access
+        if ($user->role === \App\Enums\UserRole::CA) {
+            return [
+                'can_read' => true,
+                'can_write' => true,
+                'can_delete' => true,
+            ];
+        }
+
+        // If no permissions are set on the task, default to full access (backward compatibility)
+        $permissions = $this->permissions;
+        if ($permissions->isEmpty()) {
+            return [
+                'can_read' => true,
+                'can_write' => true,
+                'can_delete' => true,
+            ];
+        }
+
+        // Find permission matching the user's role
+        $rolePermission = $permissions->firstWhere('role_id', $user->role_id);
+        if ($rolePermission) {
+            return [
+                'can_read' => (bool)$rolePermission->can_read,
+                'can_write' => (bool)$rolePermission->can_write,
+                'can_delete' => (bool)$rolePermission->can_delete,
+            ];
+        }
+
+        // If sheet has permissions, but none configured for user's role, access is denied
+        return [
+            'can_read' => false,
+            'can_write' => false,
+            'can_delete' => false,
         ];
     }
 }

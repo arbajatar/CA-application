@@ -12,8 +12,10 @@ class ProfileController extends Controller
 {
     public function show(\Illuminate\Http\Request $request): JsonResponse
     {
+        $user = $request->user();
+        $user->load('customRole');
         return response()->json([
-            'data' => new UserResource($request->user()),
+            'data' => new UserResource($user),
         ]);
     }
 

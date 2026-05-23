@@ -4,7 +4,8 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe,
+    PlusCircle, Check
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -17,6 +18,108 @@ const IconMap = {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
 };
+
+function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md' }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt => {
+    const label = typeof opt === 'object' ? opt.label : opt;
+    return label?.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const selectedOption = options.find(opt => {
+    const val = typeof opt === 'object' ? opt.value : opt;
+    return val !== undefined && val !== null && value !== undefined && value !== null && String(val) === String(value);
+  });
+
+  const getLabel = (opt) => typeof opt === 'object' ? opt.label : opt;
+  const getValue = (opt) => typeof opt === 'object' ? opt.value : opt;
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        className={`w-full bg-white border border-slate-200 rounded-xl px-4 outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer ${
+          size === 'sm' ? 'py-1.5 text-xs h-[38px]' : 'py-3 text-sm'
+        }`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}>
+          {selectedOption ? getLabel(selectedOption) : placeholder}
+        </span>
+        <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${
+          size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'
+        }`} />
+      </div>
+
+      {isOpen && (
+        <div className={`absolute z-[100] w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 ${
+          direction === 'up' ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'
+        }`}>
+          <div className="p-2 border-b border-slate-50">
+            <div className="relative">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-0"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <div
+                  key={getValue(opt)}
+                  className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${
+                    size === 'sm' ? 'text-xs' : 'text-sm'
+                  } ${value !== undefined && value !== null && String(value) === String(getValue(opt)) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
+                  onClick={() => {
+                    onChange(getValue(opt));
+                    setIsOpen(false);
+                  }}
+                >
+                  {getLabel(opt)}
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No results found</div>
+            )}
+
+            {onAddNew && (
+              <div
+                className="p-2 border-t border-slate-50 bg-slate-50/50"
+                onClick={() => {
+                  onAddNew(search);
+                  setIsOpen(false);
+                }}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-800 hover:text-slate-950 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition active:scale-95">
+                  <PlusCircle className="w-4 h-4 text-slate-900" />
+                  {addNewLabel} {search && <span className="text-slate-400 font-normal">"{search}"</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TaskDetailPage() {
     const { id } = useParams();
@@ -49,6 +152,48 @@ export default function TaskDetailPage() {
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
 
+    // Roles & Permissions state
+    const [availableRoles, setAvailableRoles] = useState([]);
+    const [selectedRoleId, setSelectedRoleId] = useState('');
+    const [sheetPermissions, setSheetPermissions] = useState([]);
+
+    const handleAddRolePermission = () => {
+        if (!selectedRoleId) {
+            toast.error('Please select a role.');
+            return;
+        }
+        const roleIdNum = Number(selectedRoleId);
+        if (sheetPermissions.some(p => Number(p.role_id) === roleIdNum)) {
+            toast.error('This role is already added.');
+            return;
+        }
+        const roleObj = availableRoles.find(r => r.id === roleIdNum);
+        setSheetPermissions(prev => [
+            ...prev,
+            {
+                role_id: roleIdNum,
+                role_name: roleObj?.name || `Role #${roleIdNum}`,
+                can_read: true,
+                can_write: true,
+                can_delete: false,
+            }
+        ]);
+        setSelectedRoleId('');
+    };
+
+    const handleRemoveRolePermission = (roleId) => {
+        setSheetPermissions(prev => prev.filter(p => p.role_id !== roleId));
+    };
+
+    const handleTogglePermission = (index, key, val) => {
+        setSheetPermissions(prev => prev.map((p, idx) => {
+            if (idx === index) {
+                return { ...p, [key]: val };
+            }
+            return p;
+        }));
+    };
+
     // Dropdown Data
     const [clients, setClients] = useState([]);
     const [staff, setStaff] = useState([]);
@@ -66,11 +211,12 @@ export default function TaskDetailPage() {
     const fetchInitialData = async () => {
         setLoading(true);
         try {
-            const [taskRes, clientsRes, staffRes, workTypesRes] = await Promise.all([
+            const [taskRes, clientsRes, staffRes, workTypesRes, rolesRes] = await Promise.all([
                 api.get(`/ca/tasks/${id}`),
                 api.get('/ca/clients', { params: { per_page: 100 } }),
                 api.get('/ca/staff', { params: { per_page: 100 } }),
-                api.get('/ca/work-types')
+                api.get('/ca/work-types'),
+                api.get('/ca/roles')
             ]);
 
             const data = taskRes.data.data;
@@ -84,6 +230,8 @@ export default function TaskDetailPage() {
             setClients(clientsRes.data.data);
             setStaff(staffRes.data.data);
             setWorkTypes(workTypesRes.data.data);
+            setAvailableRoles(rolesRes.data.data || []);
+            setSheetPermissions(data.permissions || []);
 
             if (data.dynamic_fields?.schema) {
                 setSchema(data.dynamic_fields.schema);
@@ -251,14 +399,16 @@ export default function TaskDetailPage() {
             await api.patch(`/ca/tasks/${id}`, {
                 status: globalStatus,
                 remarks: globalRemarks,
-                dynamic_fields: updatedDynamicFields
+                dynamic_fields: updatedDynamicFields,
+                permissions: sheetPermissions
             });
 
             setTask(prev => ({
                 ...prev,
                 status: globalStatus,
                 remarks: globalRemarks,
-                dynamic_fields: updatedDynamicFields
+                dynamic_fields: updatedDynamicFields,
+                permissions: sheetPermissions
             }));
             toast.success('Global controls updated successfully');
         } catch (e) {
@@ -503,7 +653,7 @@ export default function TaskDetailPage() {
                         {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
-                <div className="p-8">
+                <div className="p-8 space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                         {/* Global Status */}
                         <div className="space-y-3">
@@ -538,6 +688,104 @@ export default function TaskDetailPage() {
                                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20"
                             />
                         </div>
+                    </div>
+
+                    {/* Roles & Permissions Section */}
+                    <div className="pt-8 border-t border-slate-100 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
+                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
+                        </div>
+                        <p className="text-xs text-slate-400 font-semibold mb-4">
+                            Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
+                        </p>
+
+                        <div className="flex items-center gap-3 mb-6 max-w-md">
+                            <div className="flex-1">
+                                <SearchableSelect
+                                    value={selectedRoleId}
+                                    options={availableRoles
+                                        .filter(role => !sheetPermissions.some(p => Number(p.role_id) === role.id))
+                                        .map(role => ({ value: role.id, label: role.name }))
+                                    }
+                                    placeholder="Select Role"
+                                    onChange={(val) => setSelectedRoleId(val)}
+                                    direction="up"
+                                    size="sm"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleAddRolePermission}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg shadow-indigo-100/50 h-[38px] shrink-0"
+                            >
+                                <Plus size={14} />
+                                <span>Add Role</span>
+                            </button>
+                        </div>
+
+                        {sheetPermissions.length > 0 ? (
+                            <div className="overflow-x-auto border border-slate-100 rounded-2xl max-w-4xl">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-100">
+                                            <th className="px-6 py-4">Role</th>
+                                            <th className="px-6 py-4 text-center">Read</th>
+                                            <th className="px-6 py-4 text-center">Write</th>
+                                            <th className="px-6 py-4 text-center">Delete</th>
+                                            <th className="px-6 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50 text-slate-700 text-xs">
+                                        {sheetPermissions.map((perm, index) => {
+                                            const role = availableRoles.find(r => r.id === Number(perm.role_id));
+                                            return (
+                                                <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
+                                                    <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={perm.can_read}
+                                                            onChange={(e) => handleTogglePermission(index, 'can_read', e.target.checked)}
+                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={perm.can_write}
+                                                            onChange={(e) => handleTogglePermission(index, 'can_write', e.target.checked)}
+                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={perm.can_delete}
+                                                            onChange={(e) => handleTogglePermission(index, 'can_delete', e.target.checked)}
+                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveRolePermission(perm.role_id)}
+                                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 max-w-4xl">
+                                <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

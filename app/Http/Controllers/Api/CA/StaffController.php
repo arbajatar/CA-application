@@ -40,6 +40,7 @@ class StaffController extends Controller
             'username' => $request->username,
             'password' => Hash::make($request->password),
             'role' => UserRole::Staff,
+            'role_id' => $request->role_id,
             'is_active' => true,
         ]);
 

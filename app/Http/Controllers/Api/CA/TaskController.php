@@ -22,7 +22,7 @@ class TaskController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Task::with(['client', 'workType', 'assignedTo', 'createdBy'])
+        $query = Task::with(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])
             ->when($request->filled('staff_id'), fn($q) => $q->where('allocated_to', $request->staff_id))
             ->when($request->filled('status'), fn($q) => $q->where('status', TaskStatus::from($request->status)))
             ->when($request->filled('work_type_id'), fn($q) => $q->where('work_type_id', $request->work_type_id))
@@ -96,6 +96,18 @@ class TaskController extends Controller
             }
         }
 
+        // Handle permissions assignment
+        if ($request->has('permissions') && is_array($request->permissions)) {
+            foreach ($request->permissions as $perm) {
+                $task->permissions()->create([
+                    'role_id' => $perm['role_id'],
+                    'can_read' => $perm['can_read'] ?? false,
+                    'can_write' => $perm['can_write'] ?? false,
+                    'can_delete' => $perm['can_delete'] ?? false,
+                ]);
+            }
+        }
+
         TaskLog::create([
             'task_id' => $task->id,
             'changed_by' => $request->user()->id,
@@ -106,14 +118,14 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task created successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])),
         ], 201);
     }
 
     public function show(Task $task): JsonResponse
     {
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo', 'permissions.role'])),
         ]);
     }
 
@@ -121,6 +133,20 @@ class TaskController extends Controller
     {
         $oldStatus = $task->status;
         $task->update($request->validated());
+
+        if ($request->has('permissions')) {
+            $task->permissions()->delete();
+            if (is_array($request->permissions)) {
+                foreach ($request->permissions as $perm) {
+                    $task->permissions()->create([
+                        'role_id' => $perm['role_id'],
+                        'can_read' => $perm['can_read'] ?? false,
+                        'can_write' => $perm['can_write'] ?? false,
+                        'can_delete' => $perm['can_delete'] ?? false,
+                    ]);
+                }
+            }
+        }
 
         if ($request->has('status') && $task->status !== $oldStatus) {
             TaskLog::create([
@@ -134,7 +160,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task updated successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])),
         ]);
     }
 
@@ -157,7 +183,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task reassigned successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])),
         ]);
     }
 
