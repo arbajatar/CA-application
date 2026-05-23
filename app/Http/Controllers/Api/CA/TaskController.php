@@ -80,6 +80,7 @@ class TaskController extends Controller
             'sub_status' => $request->sub_status,
             'feedback' => $request->feedback,
             'entry_date' => $request->entry_date,
+            'allow_attachments' => $request->boolean('allow_attachments', false),
         ]);
 
         // Handle detailed subtasks assignment

@@ -30,6 +30,7 @@ class Task extends Model
         'sub_status',
         'feedback',
         'entry_date',
+        'allow_attachments',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class Task extends Model
             'priority' => TaskPriority::class,
             'due_date' => 'date',
             'entry_date' => 'date',
+            'allow_attachments' => 'boolean',
         ];
     }
 

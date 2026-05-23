@@ -40,6 +40,7 @@ class TaskResource extends JsonResource
             'sub_status' => $this->sub_status,
             'feedback' => $this->feedback,
             'entry_date' => $this->entry_date?->toDateString(),
+            'allow_attachments' => (bool)$this->allow_attachments,
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),

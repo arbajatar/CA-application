@@ -157,6 +157,7 @@ export default function TaskDetailPage() {
     const [availableRoles, setAvailableRoles] = useState([]);
     const [selectedRoleId, setSelectedRoleId] = useState('');
     const [sheetPermissions, setSheetPermissions] = useState([]);
+    const [allowAttachments, setAllowAttachments] = useState(false);
 
     const handleAddRolePermission = () => {
         if (!selectedRoleId) {
@@ -233,6 +234,7 @@ export default function TaskDetailPage() {
             setWorkTypes(workTypesRes.data.data);
             setAvailableRoles(rolesRes.data.data || []);
             setSheetPermissions(data.permissions || []);
+            setAllowAttachments(!!data.allow_attachments);
 
             if (data.dynamic_fields?.schema) {
                 setSchema(data.dynamic_fields.schema);
@@ -401,7 +403,8 @@ export default function TaskDetailPage() {
                 status: globalStatus,
                 remarks: globalRemarks,
                 dynamic_fields: updatedDynamicFields,
-                permissions: sheetPermissions
+                permissions: sheetPermissions,
+                allow_attachments: allowAttachments
             });
 
             setTask(prev => ({
@@ -409,7 +412,8 @@ export default function TaskDetailPage() {
                 status: globalStatus,
                 remarks: globalRemarks,
                 dynamic_fields: updatedDynamicFields,
-                permissions: sheetPermissions
+                permissions: sheetPermissions,
+                allow_attachments: allowAttachments
             }));
             toast.success('Global controls updated successfully');
         } catch (e) {
@@ -675,8 +679,29 @@ export default function TaskDetailPage() {
                             </select>
                         </div>
 
+                        {/* Allow Attachments Toggle */}
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-slate-400">
+                                <Zap size={14} className="text-indigo-500" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">Attachment Option</span>
+                            </div>
+                            <div className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl h-[42px] cursor-pointer" onClick={() => setAllowAttachments(!allowAttachments)}>
+                                <span className="text-xs font-bold text-slate-700 select-none">
+                                    Allow uploads
+                                </span>
+                                <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allowAttachments}
+                                        onChange={(e) => setAllowAttachments(e.target.checked)}
+                                    />
+                                    <span className="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
                         {/* Global Remarks */}
-                        <div className="space-y-3 md:col-span-2 lg:col-span-3">
+                        <div className="space-y-3 md:col-span-2 lg:col-span-2">
                             <div className="flex items-center gap-2 text-slate-400">
                                 <AlignLeft size={14} />
                                 <span className="text-[10px] font-black uppercase tracking-widest">Global Remarks</span>

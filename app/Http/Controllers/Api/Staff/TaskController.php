@@ -129,6 +129,9 @@ class TaskController extends Controller
 
         $screenshotPath = null;
         if ($request->hasFile('screenshot')) {
+            if (!$task->allow_attachments) {
+                return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
+            }
             $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
         }
 

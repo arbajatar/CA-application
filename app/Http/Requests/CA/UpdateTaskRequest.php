@@ -28,6 +28,7 @@ class UpdateTaskRequest extends FormRequest
             'sub_status' => ['nullable', 'string'],
             'feedback' => ['nullable', 'string'],
             'entry_date' => ['nullable', 'date'],
+            'allow_attachments' => ['nullable', 'boolean'],
             'permissions' => ['nullable', 'array'],
             'permissions.*.role_id' => ['required', 'exists:roles,id'],
             'permissions.*.can_read' => ['required', 'boolean'],

@@ -61,7 +61,7 @@ class SubTaskController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
-            'screenshot' => ['nullable', 'image', 'max:2048'],
+            'screenshot' => ['nullable', 'file', 'max:5120'],
             'sub_status' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -69,6 +69,9 @@ class SubTaskController extends Controller
         
         $screenshotPath = $subTask->screenshot;
         if ($request->hasFile('screenshot')) {
+            if (!$task || !$task->allow_attachments) {
+                return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
+            }
             $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
         }
 

@@ -434,6 +434,7 @@ export default function TaskBuilderPage() {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [sheetPermissions, setSheetPermissions] = useState([]);
+  const [allowAttachments, setAllowAttachments] = useState(false);
   const [selectedFields, setSelectedFields] = useState([]);
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -689,6 +690,7 @@ export default function TaskBuilderPage() {
         dynamic_fields: dynamicFields,
         remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
         permissions: sheetPermissions,
+        allow_attachments: allowAttachments,
       });
 
       showToast('Sheet created successfully!');
@@ -834,6 +836,10 @@ export default function TaskBuilderPage() {
         }
         return updated;
       });
+
+      if (data.allow_attachments !== undefined) {
+        setAllowAttachments(!!data.allow_attachments);
+      }
 
       showToast('Task data loaded. You can now edit and save.');
     }
@@ -993,6 +999,32 @@ export default function TaskBuilderPage() {
                         }}
                       />
                     ))}
+                  </div>
+                </div>
+
+                {/* SECTION: Sheet Options */}
+                <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1 h-6 bg-indigo-600 rounded-full"></div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Options</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 font-semibold">
+                    Configure specialized functionality for this sheet.
+                  </p>
+
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl max-w-xl">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800">Allow File Upload / Screenshots</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-0.5">Allow employees to upload screenshots and files when updating status of this sheet.</p>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={allowAttachments}
+                        onChange={(e) => setAllowAttachments(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
                   </div>
                 </div>
 

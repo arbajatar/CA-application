@@ -140,6 +140,10 @@ export default function MyTasksPage() {
         ? (transitions[selected.status] ?? [])
         : []
 
+    const attachmentsAllowed = selected
+        ? (selected.task_id ? !!selected.task?.allow_attachments : !!selected.allow_attachments)
+        : false;
+
     const cards = summary ? [
         { icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_tasks,      sub: 'All sheets assigned' },
         { icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending,          sub: 'Waiting to start' },
@@ -405,18 +409,19 @@ export default function MyTasksPage() {
                         </div>
 
                         {/* Screenshot */}
-                        <div className="space-y-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                Attach Screenshot <span className="text-gray-300 font-normal">(Optional)</span>
-                            </label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={e => setScreenshot(e.target.files[0])}
-                                className={inputCls + " file:mr-4 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#0f1c2e] file:text-white hover:file:bg-[#1a2f4a] cursor-pointer"}
-                            />
-                            <p className="text-[10px] text-gray-400">Max size: 2MB (JPG, PNG)</p>
-                        </div>
+                        {attachmentsAllowed && (
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    Attach File / Screenshot <span className="text-gray-300 font-normal">(Optional)</span>
+                                </label>
+                                <input
+                                    type="file"
+                                    onChange={e => setScreenshot(e.target.files[0])}
+                                    className={inputCls + " file:mr-4 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#0f1c2e] file:text-white hover:file:bg-[#1a2f4a] cursor-pointer"}
+                                />
+                                <p className="text-[10px] text-gray-400">Max size: 5MB (Any file type)</p>
+                            </div>
+                        )}
 
                         {updateError && (
                             <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
