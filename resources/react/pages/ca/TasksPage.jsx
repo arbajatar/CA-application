@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical, ArrowUpDown, ArrowUp, ArrowDown, FileText, CircleDashed, Clock, CheckCircle2, Circle } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
@@ -29,6 +29,8 @@ export default function TasksPage() {
     const navigate = useNavigate()
     const [tasks, setTasks] = useState([])
     const [meta, setMeta] = useState(null)
+    const [summary, setSummary] = useState(null)
+    const [summaryLoading, setSummaryLoading] = useState(false)
     const [clients, setClients] = useState([])
     const [workTypes, setWorkTypes] = useState([])
     const [staff, setStaff] = useState([])
@@ -172,6 +174,26 @@ export default function TasksPage() {
         }
     }, [search, status, staffId, clientId, workTypeId, page])
 
+    const fetchSummary = useCallback(async () => {
+        setSummaryLoading(true)
+        try {
+            const res = await api.get('/ca/dashboard/summary', {
+                params: { work_type_id: workTypeId }
+            })
+            setSummary(res.data)
+        } catch (e) {
+            console.error('Failed to fetch summary counts')
+        } finally {
+            setSummaryLoading(false)
+        }
+    }, [workTypeId])
+
+    useEffect(() => {
+        if (currentFolder) {
+            fetchSummary()
+        }
+    }, [currentFolder, workTypeId, fetchSummary])
+
     useEffect(() => {
         const params = new URLSearchParams(location.search)
         const sId = params.get('staff_id')
@@ -198,7 +220,7 @@ export default function TasksPage() {
         setSaving(true); setErrors({})
         try {
             await api.patch(`/ca/tasks/${selected.id}/reassign`, { allocated_to: form.allocated_to })
-            setReassignOpen(false); fetchTasks()
+            setReassignOpen(false); fetchTasks(); if (currentFolder) fetchSummary();
         } catch (e) {
             setErrors(e.response?.data?.errors ?? { message: 'Reassignment failed' })
         } finally { setSaving(false) }
@@ -209,8 +231,7 @@ export default function TasksPage() {
         try {
             await api.delete(`/ca/tasks/${selected.id}`)
             toast.success('Task deleted successfully')
-            setDeleteOpen(false)
-            fetchTasks()
+            setDeleteOpen(false); fetchTasks(); if (currentFolder) fetchSummary();
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to delete task')
         } finally { setSaving(false) }
@@ -841,12 +862,112 @@ export default function TasksPage() {
         </div>
     );
 
+    const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) => (
+        <div 
+            onClick={onClick}
+            className={`bg-white rounded-xl p-3.5 shadow-sm border ${active ? 'border-[#1F5C99] ring-2 ring-[#1F5C99]/20' : 'border-gray-100 hover:border-gray-200'} flex flex-col gap-2 transition-all cursor-pointer select-none`}
+        >
+            <div className="flex items-center justify-between">
+                <div className={`p-2 rounded-lg ${iconBg}`}>
+                    <Icon size={16} className={iconColor} />
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{value}</span>
+            </div>
+            <div>
+                <p className="text-xs font-semibold text-gray-500">{label}</p>
+                <p className={`text-[10px] ${subColor || 'text-gray-400'}`}>{sub}</p>
+            </div>
+        </div>
+    );
+
+    const SheetSmallCard = ({ task }) => (
+        <div 
+            onClick={() => navigate(`/ca/tasks/${task.id}`)}
+            className="group cursor-pointer bg-white rounded-xl p-3 border border-gray-100 hover:border-[#1F5C99] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none"
+        >
+            <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">
+                <FileText size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+                <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors" title={task.form_name || 'Unnamed Sheet'}>
+                    {task.form_name || 'Unnamed Sheet'}
+                </h4>
+                <p className="text-[10px] text-gray-400 truncate" title={task.client?.name || 'No Client'}>
+                    {task.client?.name || '—'}
+                </p>
+            </div>
+        </div>
+    );
+
+    const summaryCards = [
+        {
+            label: 'Total Tasks', value: summary?.total_tasks ?? 0,
+            icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500',
+            sub: 'All sheets in this folder',
+            active: status === '',
+            onClick: () => { setStatus(''); setPage(1); }
+        },
+        {
+            label: 'Pending', value: summary?.pending_tasks ?? 0,
+            icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500',
+            sub: 'Waiting to start',
+            subColor: 'text-amber-500 font-medium',
+            active: status === 'pending',
+            onClick: () => { setStatus('pending'); setPage(1); }
+        },
+        {
+            label: 'Work In Progress', value: summary?.work_in_progress_tasks ?? 0,
+            icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
+            sub: 'Currently active',
+            subColor: 'text-blue-500 font-medium',
+            active: status === 'work_in_progress',
+            onClick: () => { setStatus('work_in_progress'); setPage(1); }
+        },
+        {
+            label: 'Complete', value: summary?.completed_tasks ?? 0,
+            icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500',
+            sub: 'Completed successfully',
+            subColor: 'text-green-500 font-medium',
+            active: status === 'complete',
+            onClick: () => { setStatus('complete'); setPage(1); }
+        },
+        {
+            label: 'Not To Be Done', value: summary?.not_to_be_done_tasks ?? 0,
+            icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500',
+            sub: 'Cancelled / Skipped',
+            subColor: 'text-red-500 font-medium',
+            active: status === 'not_to_be_done',
+            onClick: () => { setStatus('not_to_be_done'); setPage(1); }
+        },
+        {
+            label: 'Other', value: summary?.other_tasks ?? 0,
+            icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500',
+            sub: 'Other status',
+            active: status === 'other',
+            onClick: () => { setStatus('other'); setPage(1); }
+        },
+    ];
+
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
+                        {currentFolder && (
+                            <button
+                                onClick={() => {
+                                    setWorkTypeId('');
+                                    setPage(1);
+                                    setCurrentFolder(null);
+                                    navigate('/ca/tasks');
+                                }}
+                                className="flex items-center gap-1 text-[#1F5C99] hover:text-[#154673] transition text-sm font-semibold mr-1"
+                            >
+                                <ChevronLeft size={16} /> Folders
+                            </button>
+                        )}
+                        {currentFolder && <span className="text-gray-300 text-sm font-medium mr-2">/</span>}
                         <h1 className="text-3xl font-bold text-gray-900">Sheets Management</h1>
                         {currentFolder && (
                             <div className="flex items-center text-gray-400 text-lg font-medium">
@@ -878,6 +999,36 @@ export default function TasksPage() {
                     </button>
                 </div>
             </div>
+
+            {currentFolder && (
+                <>
+                    {/* Summary Cards */}
+                    {summaryLoading ? (
+                        <div className="flex items-center justify-center py-6"><Spinner /></div>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 mb-2 animate-fade-in">
+                            {summaryCards.map((c, idx) => (
+                                <SummaryCard key={idx} {...c} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Small Sheet Cards Grid */}
+                    {tasks && tasks.length > 0 && (
+                        <div className="my-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
+                            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                <FileText size={14} className="text-[#1F5C99]" />
+                                Sheets Quick Overview
+                            </h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                                {tasks.map(t => (
+                                    <SheetSmallCard key={t.id} task={t} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[400px]">
                 {!currentFolder ? (

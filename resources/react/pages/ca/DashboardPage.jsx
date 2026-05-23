@@ -675,10 +675,10 @@ function CalendarView() {
                                 <div 
                                     key={i} 
                                     onClick={() => date && handleDateClick(date)}
-                                    className={`bg-white min-h-[100px] p-2 transition-all relative cursor-pointer
-                                        ${!date ? 'opacity-50' : 'hover:bg-blue-50'}
-                                        ${isStart || isEnd ? 'bg-blue-50/80 ring-2 ring-blue-500 inset-0 z-10 font-bold' : ''}
-                                        ${isInRange ? 'bg-blue-50/40' : ''}
+                                    className={`min-h-[100px] p-2 transition-all relative cursor-pointer border-b border-r border-gray-100
+                                        ${!date ? 'bg-gray-50/30 opacity-40' : 
+                                          isStart || isEnd ? 'bg-blue-50 ring-2 ring-blue-500 z-10 font-bold' : 
+                                          isInRange ? 'bg-blue-50/60 hover:bg-blue-100/50' : 'bg-white hover:bg-blue-50/40'}
                                     `}
                                 >
                                     {date && (
@@ -940,12 +940,48 @@ export default function DashboardPage() {
     if (loading) return <Spinner />
 
     const cards = [
-        { icon: FileText, iconBg: 'bg-blue-50', iconColor: 'text-blue-400', label: 'Total Tasks', value: summary?.total_tasks ?? 0, sub: 'All time records' },
-        { icon: Activity, iconBg: 'bg-sky-50', iconColor: 'text-sky-400', label: 'Active Tasks', value: summary?.active_tasks ?? 0, sub: 'In current workflow' },
-        { icon: CheckCircle, iconBg: 'bg-green-50', iconColor: 'text-green-400', label: 'Completed', value: summary?.completed_this_month ?? 0, sub: 'This month' },
-        { icon: AlertTriangle, iconBg: 'bg-red-50', iconColor: 'text-red-400', label: 'Overdue', value: 0, sub: 'Immediate action req.', subColor: 'text-red-500' },
-        { icon: Briefcase, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-400', label: 'Total Clients', value: summary?.total_clients ?? 0, sub: 'Enterprise level' },
-        { icon: Users, iconBg: 'bg-teal-50', iconColor: 'text-teal-400', label: 'Total Staff', value: summary?.total_staff ?? 0, sub: 'Full-time active' },
+        { 
+            icon: FileText, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', 
+            label: 'Total Tasks', value: summary?.total_tasks ?? 0, 
+            sub: 'All time records',
+            active: status === '',
+            onClick: () => { setStatus(''); setPage(1); }
+        },
+        { 
+            icon: CircleDashed, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', 
+            label: 'Pending', value: summary?.pending_tasks ?? 0, 
+            sub: 'Waiting to start',
+            active: status === 'pending',
+            onClick: () => { setStatus('pending'); setPage(1); }
+        },
+        { 
+            icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', 
+            label: 'Work In Progress', value: summary?.work_in_progress_tasks ?? 0, 
+            sub: 'Currently active',
+            active: status === 'work_in_progress',
+            onClick: () => { setStatus('work_in_progress'); setPage(1); }
+        },
+        { 
+            icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', 
+            label: 'Completed', value: summary?.completed_tasks ?? 0, 
+            sub: 'Finalized tasks',
+            active: status === 'complete',
+            onClick: () => { setStatus('complete'); setPage(1); }
+        },
+        { 
+            icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', 
+            label: 'Not To Be Done', value: summary?.not_to_be_done_tasks ?? 0, 
+            sub: 'Excluded tasks',
+            active: status === 'not_to_be_done',
+            onClick: () => { setStatus('not_to_be_done'); setPage(1); }
+        },
+        { 
+            icon: SlidersHorizontal, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', 
+            label: 'Other', value: summary?.other_tasks ?? 0, 
+            sub: 'Other status',
+            active: status === 'other',
+            onClick: () => { setStatus('other'); setPage(1); }
+        },
     ]
 
     return (
@@ -975,6 +1011,16 @@ export default function DashboardPage() {
                     >
                         <CalendarDays size={16} /> Calendar View
                     </button>
+                    <button
+                        onClick={() => setActiveTab('summary')}
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                            activeTab === 'summary' 
+                            ? 'bg-white text-blue-600 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        <Activity size={16} /> Summary
+                    </button>
                 </div>
             </div>
 
@@ -985,8 +1031,84 @@ export default function DashboardPage() {
                         {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
                     </div>
 
-                    {/* New Sheet-wise Work Type Subtask Summary */}
-                    <WorkTypeSubtaskSummary workTypes={workTypes} staff={staffData} />
+                    {/* All Tasks */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-100">
+                            <h2 className="text-lg font-semibold text-gray-800 whitespace-nowrap">All Tasks</h2>
+                            <div className="flex flex-wrap items-center gap-3">
+                                {/* Search */}
+                                <div className="relative flex-1 sm:flex-none">
+                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search tasks..."
+                                        value={search}
+                                        onChange={e => { setSearch(e.target.value); setPage(1) }}
+                                        className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-56 transition"
+                                    />
+                                </div>
+                                {/* Status filter */}
+                                <select
+                                    value={status}
+                                    onChange={e => { setStatus(e.target.value); setPage(1) }}
+                                    className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-1 sm:flex-none"
+                                >
+                                    {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            {taskLoading ? <Spinner /> : (
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                            {['#', 'Client', 'Nature', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
+                                                <th key={h} className="px-6 py-3 text-left">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {tasks?.length === 0 ? (
+                                            <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                        ) : tasks?.map((t, i) => (
+                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(`/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                                                <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
+                                                <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
+                                                <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
+                                                <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_inward)}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_allocated)}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_completed)}</td>
+                                                <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        {/* Pagination */}
+                        {tasksMeta && tasksMeta.last_page > 1 && (
+                            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                                <p className="text-xs text-gray-400">
+                                    Showing {tasksMeta.from}–{tasksMeta.to} of {tasksMeta.total} tasks
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        disabled={page === 1}
+                                        onClick={() => setPage(p => p - 1)}
+                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                                    >Previous</button>
+                                    <button
+                                        disabled={page === tasksMeta.last_page}
+                                        onClick={() => setPage(p => p + 1)}
+                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                                    >Next</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Quick Links */}
                     <div className="space-y-6">
@@ -1078,88 +1200,11 @@ export default function DashboardPage() {
                             </table>
                         </div>
                     </div>
-
-                    {/* All Tasks */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-lg font-semibold text-gray-800 whitespace-nowrap">All Tasks</h2>
-                            <div className="flex flex-wrap items-center gap-3">
-                                {/* Search */}
-                                <div className="relative flex-1 sm:flex-none">
-                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search tasks..."
-                                        value={search}
-                                        onChange={e => { setSearch(e.target.value); setPage(1) }}
-                                        className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-56 transition"
-                                    />
-                                </div>
-                                {/* Status filter */}
-                                <select
-                                    value={status}
-                                    onChange={e => { setStatus(e.target.value); setPage(1) }}
-                                    className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-1 sm:flex-none"
-                                >
-                                    {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            {taskLoading ? <Spinner /> : (
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                            {['#', 'Client', 'Nature', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
-                                                <th key={h} className="px-6 py-3 text-left">{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {tasks?.length === 0 ? (
-                                            <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
-                                        ) : tasks?.map((t, i) => (
-                                            <tr key={t.id} className="hover:bg-gray-100 transition">
-                                                <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
-                                                <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
-                                                <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
-                                                <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_inward)}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_allocated)}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_completed)}</td>
-                                                <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-
-                        {/* Pagination */}
-                        {tasksMeta && tasksMeta.last_page > 1 && (
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                                <p className="text-xs text-gray-400">
-                                    Showing {tasksMeta.from}–{tasksMeta.to} of {tasksMeta.total} tasks
-                                </p>
-                                <div className="flex gap-2">
-                                    <button
-                                        disabled={page === 1}
-                                        onClick={() => setPage(p => p - 1)}
-                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                                    >Previous</button>
-                                    <button
-                                        disabled={page === tasksMeta.last_page}
-                                        onClick={() => setPage(p => p + 1)}
-                                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                                    >Next</button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
                 </>
-            ) : (
+            ) : activeTab === 'calendar' ? (
                 <CalendarView />
+            ) : (
+                <WorkTypeSubtaskSummary workTypes={workTypes} staff={staffData} />
             )}
         </div>
     )

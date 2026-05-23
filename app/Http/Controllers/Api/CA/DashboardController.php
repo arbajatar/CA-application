@@ -17,21 +17,21 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class DashboardController extends Controller
 {
-    public function summary(): JsonResponse
+    public function summary(Request $request): JsonResponse
     {
-        $now = now();
+        $workTypeId = $request->query('work_type_id');
+        $query = Task::query();
+        if ($workTypeId) {
+            $query->where('work_type_id', $workTypeId);
+        }
+
         return response()->json([
-            'total_clients' => Client::active()->count(),
-            'total_tasks' => Task::count(),
-            'active_tasks' => Task::whereIn('status', [
-                TaskStatus::WorkInProgress,
-                TaskStatus::Pending,
-            ])->count(),
-            'completed_this_month' => Task::where('status', TaskStatus::Complete)
-                ->whereMonth('date_completed', $now->month)
-                ->whereYear('date_completed', $now->year)
-                ->count(),
-            'total_staff' => User::staff()->active()->count(),
+            'total_tasks' => (clone $query)->count(),
+            'pending_tasks' => (clone $query)->where('status', TaskStatus::Pending)->count(),
+            'work_in_progress_tasks' => (clone $query)->where('status', TaskStatus::WorkInProgress)->count(),
+            'completed_tasks' => (clone $query)->where('status', TaskStatus::Complete)->count(),
+            'not_to_be_done_tasks' => (clone $query)->where('status', TaskStatus::NotToBeDone)->count(),
+            'other_tasks' => (clone $query)->where('status', TaskStatus::Other)->count(),
         ]);
     }
 
