@@ -68,6 +68,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/client-types', [ClientController::class, 'storeType']);
         Route::get('/client-groups', [ClientController::class, 'groups']);
         Route::post('/client-groups', [ClientController::class, 'storeGroup']);
+        // Recycle Bin
+        Route::get('/recycle-bin/clients', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexClients']);
+        Route::post('/recycle-bin/clients/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreClient']);
+        Route::delete('/recycle-bin/clients/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteClient']);
+        Route::get('/recycle-bin/tasks', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexTasks']);
+        Route::post('/recycle-bin/tasks/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreTask']);
+        Route::delete('/recycle-bin/tasks/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteTask']);
 
         // Reports
         Route::get('/reports/timesheet', [\App\Http\Controllers\Api\CA\ReportController::class, 'timesheet']);

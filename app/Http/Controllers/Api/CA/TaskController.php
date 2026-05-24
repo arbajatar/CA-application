@@ -334,6 +334,7 @@ class TaskController extends Controller
 
     public function destroy(Task $task): JsonResponse
     {
+        $task->subTasks()->delete();
         $task->delete();
 
         return response()->json(['message' => 'Task deleted successfully.']);
