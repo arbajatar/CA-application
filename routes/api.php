@@ -62,6 +62,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Clients
         Route::apiResource('/clients', ClientController::class);
+        Route::get('/client-types', [ClientController::class, 'types']);
+        Route::post('/client-types', [ClientController::class, 'storeType']);
+        Route::get('/client-groups', [ClientController::class, 'groups']);
+        Route::post('/client-groups', [ClientController::class, 'storeGroup']);
 
         // Reports
         Route::get('/reports/timesheet', [\App\Http\Controllers\Api\CA\ReportController::class, 'timesheet']);

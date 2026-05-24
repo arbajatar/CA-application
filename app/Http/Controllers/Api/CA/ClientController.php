@@ -57,4 +57,35 @@ class ClientController extends Controller
 
         return response()->json(['message' => 'Client archived successfully.']);
     }
+
+    public function types(): JsonResponse
+    {
+        return response()->json(['data' => \App\Models\ClientType::all()]);
+    }
+
+    public function storeType(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|unique:client_types,name',
+            'pan_char' => 'nullable|string|size:1',
+        ]);
+
+        $type = \App\Models\ClientType::create($validated);
+        return response()->json(['message' => 'Client Type created successfully.', 'data' => $type], 201);
+    }
+
+    public function groups(): JsonResponse
+    {
+        return response()->json(['data' => \App\Models\ClientGroup::all()]);
+    }
+
+    public function storeGroup(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|unique:client_groups,name',
+        ]);
+
+        $group = \App\Models\ClientGroup::create($validated);
+        return response()->json(['message' => 'Client Group created successfully.', 'data' => $group], 201);
+    }
 }

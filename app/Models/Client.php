@@ -13,12 +13,21 @@ class Client extends Model
 
     protected $fillable = [
         'name',
+        'name_as_per_pan',
+        'pan_no',
+        'type',
+        'group',
         'contact',
+        'alternative_contact',
         'email',
+        'reference_no',
         'dob',
         'city',
+        'pin_code',
+        'state',
         'gst_number',
         'status',
+        'credentials',
     ];
 
     protected function casts(): array
@@ -26,6 +35,7 @@ class Client extends Model
         return [
             'status' => ClientStatus::class,
             'dob' => 'date',
+            'credentials' => 'array',
         ];
     }
 
