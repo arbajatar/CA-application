@@ -5,8 +5,12 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Spinner from '../../components/ui/Spinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../context/AuthContext'
 
 export default function PortalListPage() {
+    const { user } = useAuth()
+    const isCa = user?.role === 'ca'
+
     const [portals, setPortals] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -93,11 +97,13 @@ export default function PortalListPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Portal List</h1>
-                    <p className="text-sm text-gray-400 mt-1">Manage and access all external links in one place.</p>
+                    <p className="text-sm text-gray-400 mt-1">{isCa ? 'Manage and access all external links in one place.' : 'Access external portal links.'}</p>
                 </div>
-                <button onClick={openCreate} className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto shadow-sm">
-                    <Plus size={16} /> New Portal
-                </button>
+                {isCa && (
+                    <button onClick={openCreate} className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto shadow-sm">
+                        <Plus size={16} /> New Portal
+                    </button>
+                )}
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -122,12 +128,12 @@ export default function PortalListPage() {
                                     <th className="px-6 py-4 text-left">#</th>
                                     <th className="px-6 py-4 text-left">Portal Name</th>
                                     <th className="px-6 py-4 text-left">Portal Link</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    {isCa && <th className="px-6 py-4 text-right">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {filteredPortals.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center py-12 text-gray-400 font-medium">No portals found</td></tr>
+                                    <tr><td colSpan={isCa ? 4 : 3} className="text-center py-12 text-gray-400 font-medium">No portals found</td></tr>
                                 ) : filteredPortals.map((p, i) => (
                                     <tr key={p.id} className="hover:bg-gray-50 transition group">
                                         <td className="px-6 py-4 text-gray-400 font-medium">{String(i + 1).padStart(2, '0')}</td>
@@ -145,16 +151,18 @@ export default function PortalListPage() {
                                                 <ExternalLink size={12} className="shrink-0" />
                                             </a>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition shadow-sm bg-white border border-gray-100">
-                                                    <Pencil size={14} />
-                                                </button>
-                                                <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition shadow-sm bg-white border border-gray-100">
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
-                                        </td>
+                                        {isCa && (
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition shadow-sm bg-white border border-gray-100">
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                    <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition shadow-sm bg-white border border-gray-100">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>

@@ -50,6 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
         return response()->json(['data' => $subStatuses]);
     });
 
+    // Portals list accessible to all authenticated users
+    Route::get('/ca/portals', [\App\Http\Controllers\Api\CA\PortalController::class, 'index']);
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 
