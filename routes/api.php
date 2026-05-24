@@ -61,6 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard/calendar-tasks', [DashboardController::class, 'calendarTasks']);
 
         // Clients
+        Route::get('/clients/pan-numbers', [ClientController::class, 'panNumbers']);
+        Route::post('/clients/bulk-store', [ClientController::class, 'bulkStore']);
         Route::apiResource('/clients', ClientController::class);
         Route::get('/client-types', [ClientController::class, 'types']);
         Route::post('/client-types', [ClientController::class, 'storeType']);

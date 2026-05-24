@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, Trash2, ShieldCheck, ShieldAlert, Key, Globe, Eye, EyeOff } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ShieldCheck, ShieldAlert, Key, Globe, Eye, EyeOff, FileDown, FileUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -61,6 +61,10 @@ export default function ClientsPage() {
 
     // Password visibility toggle
     const [showPasswords, setShowPasswords] = useState(false)
+
+    // Excel Import States
+    const [importOpen, setImportOpen] = useState(false)
+    const [previewRows, setPreviewRows] = useState([])
 
     // Fetch lists
     const fetchLookups = async () => {
@@ -251,6 +255,296 @@ export default function ClientsPage() {
             toast.success('Custom client group added successfully')
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to create client group')
+        }
+    }
+
+    // Excel Exporter logic using ExcelJS
+    const handleExportExcel = async () => {
+        if (clients.length === 0) {
+            toast.error('No client records to export.')
+            return
+        }
+
+        try {
+            const ExcelJS = await import('exceljs')
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('Clients Register')
+
+            const headers = [
+                { name: 'SR NO', key: 'sr_no' },
+                { name: 'Client Name', key: 'name' },
+                { name: 'Name as per PAN', key: 'name_as_per_pan' },
+                { name: 'PAN No', key: 'pan_no' },
+                { name: 'Type', key: 'type' },
+                { name: 'Group', key: 'group' },
+                { name: 'Contact No', key: 'contact' },
+                { name: 'Alternative Contact', key: 'alternative_contact' },
+                { name: 'Email ID', key: 'email' },
+                { name: 'Reference No', key: 'reference_no' },
+                { name: 'Date of Birth', key: 'dob' },
+                { name: 'City', key: 'city' },
+                { name: 'Pin Code', key: 'pin_code' },
+                { name: 'State', key: 'state' },
+                { name: 'GST No', key: 'gst_number' },
+                { name: 'Status', key: 'status' }
+            ]
+
+            // Write header row
+            const headerRow = worksheet.addRow(headers.map(h => h.name))
+            headerRow.height = 28
+
+            // Style headers with Navy Blue background & White text
+            headerRow.eachCell(cell => {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF1F5C99' }
+                }
+                cell.font = {
+                    name: 'Segoe UI',
+                    size: 11,
+                    bold: true,
+                    color: { argb: 'FFFFFFFF' }
+                }
+                cell.alignment = {
+                    vertical: 'middle',
+                    horizontal: 'center',
+                    wrapText: true
+                }
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+                    right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+                }
+            })
+
+            // Write details rows
+            let srNo = 1
+            clients.forEach(c => {
+                const rowValues = [
+                    srNo++,
+                    c.name,
+                    c.name_as_per_pan || '—',
+                    c.pan_no || '—',
+                    c.type || '—',
+                    c.group || '—',
+                    c.contact || '—',
+                    c.alternative_contact || '—',
+                    c.email || '—',
+                    c.reference_no || '—',
+                    c.dob || '—',
+                    c.city || '—',
+                    c.pin_code || '—',
+                    c.state || '—',
+                    c.gst_number || '—',
+                    c.status.toUpperCase()
+                ]
+                const row = worksheet.addRow(rowValues)
+                row.height = 22
+                row.eachCell(cell => {
+                    cell.font = { name: 'Segoe UI', size: 10 }
+                    cell.alignment = { vertical: 'middle', horizontal: 'left' }
+                    cell.border = {
+                        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+                    }
+                })
+            })
+
+            // Mathematical Auto-fit columns
+            worksheet.columns.forEach(column => {
+                let maxLen = 0
+                column.eachCell({ includeEmpty: true }, cell => {
+                    const val = cell.value ? cell.value.toString() : ''
+                    if (val.length > maxLen) {
+                        maxLen = val.length
+                    }
+                })
+                column.width = Math.max(maxLen + 5, 12)
+            })
+
+            // Trigger direct download
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `Clients_Register_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.click()
+            window.URL.revokeObjectURL(url)
+            toast.success('Clients list exported successfully with professional styling!')
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to export clients list.')
+        }
+    }
+
+    // Excel Client Side Import & Preview logic
+    const handleImportFile = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        try {
+            const XLSX = await import('xlsx')
+            const reader = new FileReader()
+            reader.onload = async (evt) => {
+                try {
+                    const data = new Uint8Array(evt.target.result)
+                    const workbook = XLSX.read(data, { type: 'array' })
+                    const firstSheetName = workbook.SheetNames[0]
+                    const worksheet = workbook.Sheets[firstSheetName]
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+                    if (json.length < 2) {
+                        toast.error('Excel file must contain a header row and at least one data row.')
+                        return
+                    }
+
+                    // Match headers fuzzymatched
+                    const headers = json[0].map(h => String(h || '').trim().toLowerCase())
+                    
+                    const idxName = headers.findIndex(h => h.includes('name') && !h.includes('pan'))
+                    const idxNameAsPan = headers.findIndex(h => h.includes('name as per pan') || h.includes('as per pan'))
+                    const idxPan = headers.findIndex(h => h.includes('pan'))
+                    const idxType = headers.findIndex(h => h.includes('type'))
+                    const idxGroup = headers.findIndex(h => h.includes('group'))
+                    const idxContact = headers.findIndex(h => h.includes('contact') && !h.includes('alternative'))
+                    const idxAltContact = headers.findIndex(h => h.includes('alternative'))
+                    const idxEmail = headers.findIndex(h => h.includes('email'))
+                    const idxRef = headers.findIndex(h => h.includes('reference'))
+                    const idxDob = headers.findIndex(h => h.includes('dob') || h.includes('birth') || h.includes('date of birth'))
+                    const idxCity = headers.findIndex(h => h.includes('city'))
+                    const idxPin = headers.findIndex(h => h.includes('pin') || h.includes('pincode'))
+                    const idxState = headers.findIndex(h => h.includes('state'))
+                    const idxGst = headers.findIndex(h => h.includes('gst'))
+                    const idxEfilingPwd = headers.findIndex(h => h.includes('password') || h.includes('efiling password'))
+
+                    if (idxName === -1 || idxPan === -1) {
+                        toast.error('Could not find mandatory "Client Name" or "PAN No" columns in Excel header.')
+                        return
+                    }
+
+                    // Load all active database PANs to flag duplicate rows in RED
+                    const pansRes = await api.get('/ca/clients/pan-numbers')
+                    const existingPans = new Set(pansRes.data.data.map(p => p.toUpperCase()))
+
+                    const rows = []
+                    for (let i = 1; i < json.length; i++) {
+                        const rowData = json[i]
+                        if (rowData.length === 0 || !rowData[idxName] || !rowData[idxPan]) {
+                            continue // Skip completely empty rows
+                        }
+
+                        const rawPan = String(rowData[idxPan] || '').trim().toUpperCase()
+                        const rawType = String(rowData[idxType] || '').trim()
+                        const rawDob = String(rowData[idxDob] || '').trim()
+
+                        const isDuplicate = existingPans.has(rawPan)
+
+                        // Parse date properly from excel serial or string formats
+                        let dobStr = ''
+                        if (rawDob) {
+                            if (!isNaN(rawDob)) {
+                                const dateObj = new Date((Number(rawDob) - 25569) * 86400 * 1000)
+                                dobStr = dateObj.toISOString().split('T')[0]
+                            } else {
+                                const parts = rawDob.split('/')
+                                if (parts.length === 3) {
+                                    dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+                                } else {
+                                    const parsed = new Date(rawDob)
+                                    if (!isNaN(parsed.getTime())) {
+                                        dobStr = parsed.toISOString().split('T')[0]
+                                    }
+                                }
+                            }
+                        }
+
+                        // Local validation check
+                        let validationError = ''
+                        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+                        if (!panRegex.test(rawPan)) {
+                            validationError = 'Invalid general PAN format.'
+                        } else {
+                            const typeOption = types.find(t => t.name.toLowerCase() === rawType.toLowerCase())
+                            if (typeOption && typeOption.pan_char) {
+                                const expectedChar = typeOption.pan_char.toUpperCase()
+                                if (rawPan.charAt(3) !== expectedChar) {
+                                    validationError = `PAN character 4 must be "${expectedChar}" for type "${rawType}".`
+                                }
+                            }
+                        }
+
+                        // Auto generate AIS & TIS password
+                        let aisTisPassword = ''
+                        if (rawPan && dobStr) {
+                            const dobParts = dobStr.split('-')
+                            if (dobParts.length === 3) {
+                                aisTisPassword = `${rawPan.toLowerCase()}${dobParts[2]}${dobParts[1]}${dobParts[0]}`
+                            }
+                        }
+
+                        rows.push({
+                            name: String(rowData[idxName] || '').trim(),
+                            name_as_per_pan: idxNameAsPan !== -1 ? String(rowData[idxNameAsPan] || '').trim() : '',
+                            pan_no: rawPan,
+                            type: rawType || 'Individual',
+                            group: idxGroup !== -1 ? String(rowData[idxGroup] || '').trim() : 'Salary',
+                            contact: idxContact !== -1 ? String(rowData[idxContact] || '').trim() : '',
+                            alternative_contact: idxAltContact !== -1 ? String(rowData[idxAltContact] || '').trim() : '',
+                            email: idxEmail !== -1 ? String(rowData[idxEmail] || '').trim() : '',
+                            reference_no: idxRef !== -1 ? String(rowData[idxRef] || '').trim() : '',
+                            dob: dobStr,
+                            city: idxCity !== -1 ? String(rowData[idxCity] || '').trim() : '',
+                            pin_code: idxPin !== -1 ? String(rowData[idxPin] || '').trim() : '',
+                            state: idxState !== -1 ? String(rowData[idxState] || '').trim() : '',
+                            gst_number: idxGst !== -1 ? String(rowData[idxGst] || '').trim() : '',
+                            credentials: {
+                                efiling_password: idxEfilingPwd !== -1 ? String(rowData[idxEfilingPwd] || '').trim() : '',
+                                ais_tis_password: aisTisPassword
+                            },
+                            isDuplicate,
+                            validationError
+                        })
+                    }
+
+                    setPreviewRows(rows)
+                    setImportOpen(true)
+                    toast.success(`Parsed ${rows.length} rows successfully. Please review preview list.`)
+                } catch (e) {
+                    console.error(e)
+                    toast.error('Error reading details from selected sheet.')
+                }
+            }
+            reader.readAsArrayBuffer(file)
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to import file.')
+        } finally {
+            e.target.value = ''
+        }
+    }
+
+    const handleConfirmImport = async () => {
+        const validRows = previewRows.filter(r => !r.isDuplicate && !r.validationError)
+        if (validRows.length === 0) {
+            toast.error('No valid rows found in sheet to import. Resolve errors first.')
+            return
+        }
+
+        setSaving(true)
+        try {
+            const res = await api.post('/ca/clients/bulk-store', { clients: validRows })
+            toast.success(res.data.message || `Import completed successfully.`)
+            setImportOpen(false)
+            fetchClients()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to bulk save clients.')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -615,17 +909,48 @@ export default function ClientsPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">Client Registry</h1>
                     <p className="text-sm font-semibold text-slate-400 mt-1">Comprehensive register of business clients with secure validation checks.</p>
                 </div>
-                <button 
-                    onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                    className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-100 transition duration-200 active:scale-95 w-full sm:w-auto"
-                >
-                    <Plus size={16} /> Register New Client
-                </button>
+                
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    {/* Invisible File Input for Import */}
+                    <input 
+                        type="file" 
+                        id="excel-import-file" 
+                        accept=".xlsx, .xls" 
+                        className="hidden" 
+                        onChange={handleImportFile}
+                    />
+
+                    {/* Import Button */}
+                    <button 
+                        onClick={() => document.getElementById('excel-import-file').click()}
+                        className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        title="Import clients from Excel sheet"
+                    >
+                        <FileUp size={16} /> Import Excel
+                    </button>
+
+                    {/* Export Button */}
+                    <button 
+                        onClick={handleExportExcel}
+                        className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-100 transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        title="Export clients to formatted Excel"
+                    >
+                        <FileDown size={16} /> Export Excel
+                    </button>
+
+                    {/* Add Client Button */}
+                    <button 
+                        onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
+                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-100 transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                    >
+                        <Plus size={16} /> Register Client
+                    </button>
+                </div>
             </div>
 
             {/* List panel */}
@@ -705,7 +1030,7 @@ export default function ClientsPage() {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-xs font-black text-indigo-600">
-                                                    {c.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                                                    {c.name ? c.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'C'}
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-slate-800 leading-tight">{c.name}</p>
@@ -861,6 +1186,147 @@ export default function ClientsPage() {
                     <div className="flex justify-end gap-2 pt-2">
                         <button onClick={() => setAddGroupOpen(false)} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">Cancel</button>
                         <button onClick={handleCreateGroup} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675]">Add Group</button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Excel Import Preview Modal */}
+            <Modal 
+                open={importOpen} 
+                onClose={() => setImportOpen(false)} 
+                title="Excel Import Registry Preview"
+                width="max-w-7xl"
+            >
+                <div className="space-y-6">
+                    {/* Header Summary Banner */}
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                                <CheckCircle2 className="text-indigo-600 w-5 h-5" />
+                                <span>Parsed {previewRows.length} total rows from Excel sheet</span>
+                            </h4>
+                            <p className="text-xs font-semibold text-slate-400">
+                                Rows highlighted in **Red** are duplicate PAN numbers already registered in the system or contain format errors and will be skipped.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="text-right">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase">Valid Rows</span>
+                                <span className="text-lg font-black text-emerald-600">
+                                    {previewRows.filter(r => !r.isDuplicate && !r.validationError).length}
+                                </span>
+                            </div>
+                            <div className="text-right border-l pl-4 border-slate-200">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase font-bold text-rose-600">Skipped Rows</span>
+                                <span className="text-lg font-black text-rose-600">
+                                    {previewRows.filter(r => r.isDuplicate || r.validationError).length}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Preview Table */}
+                    <div className="overflow-x-auto border border-slate-200/60 rounded-3xl bg-white shadow-sm max-h-[50vh]">
+                        <table className="w-full text-xs text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 sticky top-0 z-10">
+                                    <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3">Client Name</th>
+                                    <th className="px-4 py-3">PAN No</th>
+                                    <th className="px-4 py-3">Type</th>
+                                    <th className="px-4 py-3">Group</th>
+                                    <th className="px-4 py-3">Contact</th>
+                                    <th className="px-4 py-3">Email</th>
+                                    <th className="px-4 py-3">Date Of Birth</th>
+                                    <th className="px-4 py-3">City</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {previewRows.map((row, idx) => {
+                                    const hasErr = row.isDuplicate || row.validationError
+                                    return (
+                                        <tr 
+                                            key={idx} 
+                                            className={`transition ${hasErr ? 'bg-rose-50/50 hover:bg-rose-50' : 'hover:bg-slate-50/30'}`}
+                                        >
+                                            {/* Status Badge */}
+                                            <td className="px-4 py-3">
+                                                {row.isDuplicate ? (
+                                                    <span className="inline-flex items-center gap-1 bg-rose-100 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                        <AlertTriangle size={11} /> Duplicate PAN
+                                                    </span>
+                                                ) : row.validationError ? (
+                                                    <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" title={row.validationError}>
+                                                        <AlertTriangle size={11} /> Format Error
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                        <ShieldCheck size={11} /> Ready
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            {/* Name */}
+                                            <td className={`px-4 py-3 font-bold ${hasErr ? 'text-rose-900' : 'text-slate-800'}`}>
+                                                {row.name}
+                                            </td>
+
+                                            {/* PAN */}
+                                            <td className="px-4 py-3 font-mono font-bold text-slate-600">
+                                                {row.pan_no}
+                                            </td>
+
+                                            {/* Type */}
+                                            <td className="px-4 py-3 font-semibold text-slate-500">
+                                                {row.type}
+                                            </td>
+
+                                            {/* Group */}
+                                            <td className="px-4 py-3 font-bold text-indigo-500 uppercase tracking-wider text-[10px]">
+                                                {row.group}
+                                            </td>
+
+                                            {/* Contact */}
+                                            <td className="px-4 py-3 font-semibold text-slate-500">
+                                                {row.contact || '—'}
+                                            </td>
+
+                                            {/* Email */}
+                                            <td className="px-4 py-3 font-semibold text-slate-500">
+                                                {row.email || '—'}
+                                            </td>
+
+                                            {/* DOB */}
+                                            <td className="px-4 py-3 font-semibold text-slate-500">
+                                                {row.dob || '—'}
+                                            </td>
+
+                                            {/* City */}
+                                            <td className="px-4 py-3 font-semibold text-slate-500">
+                                                {row.city || '—'}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Preview Actions */}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button 
+                            onClick={() => setImportOpen(false)} 
+                            className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleConfirmImport} 
+                            disabled={saving || previewRows.filter(r => !r.isDuplicate && !r.validationError).length === 0} 
+                            className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
+                        >
+                            {saving ? 'Importing...' : 'Confirm & Save Valid Clients'}
+                        </button>
                     </div>
                 </div>
             </Modal>

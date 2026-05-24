@@ -88,4 +88,59 @@ class ClientController extends Controller
         $group = \App\Models\ClientGroup::create($validated);
         return response()->json(['message' => 'Client Group created successfully.', 'data' => $group], 201);
     }
+
+    public function panNumbers(): JsonResponse
+    {
+        $pans = Client::pluck('pan_no')->filter()->values()->map(fn($p) => strtoupper($p));
+        return response()->json(['data' => $pans]);
+    }
+
+    public function bulkStore(Request $request): JsonResponse
+    {
+        $request->validate([
+            'clients' => 'required|array',
+            'clients.*.name' => 'required|string|max:255',
+            'clients.*.pan_no' => 'required|string|max:10',
+            'clients.*.type' => 'required|string|max:255',
+            'clients.*.group' => 'required|string|max:255',
+        ]);
+
+        $imported = 0;
+        foreach ($request->input('clients') as $c) {
+            // Make sure the PAN number is unique before creating
+            $pan = strtoupper($c['pan_no']);
+            if (Client::where('pan_no', $pan)->exists()) {
+                continue; // Skip duplicates defensively
+            }
+
+            // Create client record
+            Client::create([
+                'name' => $c['name'],
+                'name_as_per_pan' => $c['name_as_per_pan'] ?? null,
+                'pan_no' => $pan,
+                'type' => $c['type'],
+                'group' => $c['group'],
+                'contact' => $c['contact'] ?? null,
+                'alternative_contact' => $c['alternative_contact'] ?? null,
+                'email' => $c['email'] ?? null,
+                'reference_no' => $c['reference_no'] ?? null,
+                'dob' => !empty($c['dob']) ? $c['dob'] : null,
+                'city' => $c['city'] ?? null,
+                'pin_code' => $c['pin_code'] ?? null,
+                'state' => $c['state'] ?? null,
+                'gst_number' => $c['gst_number'] ?? null,
+                'status' => 'active',
+                'credentials' => $c['credentials'] ?? [
+                    'efiling_password' => '',
+                    'ais_tis_password' => ''
+                ]
+            ]);
+            $imported++;
+        }
+
+        return response()->json([
+            'message' => "Successfully imported {$imported} clients.",
+            'count' => $imported
+        ]);
+    }
 }
