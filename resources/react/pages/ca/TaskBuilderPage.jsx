@@ -1116,12 +1116,11 @@ export default function TaskBuilderPage() {
                 </div>
               </div>
 
-              {/* Flat form section */}
-              <div className="form-section space-y-8">
+                        <div className="space-y-8">
                 {/* SECTION 1 */}
-                <div className="space-y-4">
+                <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-slate-900 rounded-full"></div>
+                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Meta Information</h3>
                   </div>
                   <div ref={fieldsContainerRef} id="fieldsContainer1" className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1152,9 +1151,9 @@ export default function TaskBuilderPage() {
                 </div>
 
                 {/* SECTION 2 */}
-                <div className="space-y-4">
+                <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-blue-600 rounded-full"></div>
+                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Task Assignment Section</h3>
                   </div>
                   <div id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1185,16 +1184,16 @@ export default function TaskBuilderPage() {
                 </div>
 
                 {/* SECTION: Sheet Options */}
-                <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-8">
+                <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-indigo-600 rounded-full"></div>
+                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Options</h3>
                   </div>
-                  <p className="text-xs text-slate-500 mb-4 font-semibold">
+                  <p className="text-xs text-slate-500 mb-2 font-semibold">
                     Configure specialized functionality for this sheet.
                   </p>
 
-                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl max-w-xl">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl">
                     <div>
                       <h4 className="text-sm font-bold text-slate-800">Allow File Upload / Screenshots</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-0.5">Allow employees to upload screenshots and files when updating status of this sheet.</p>
@@ -1211,12 +1210,12 @@ export default function TaskBuilderPage() {
                 </div>
 
                 {/* SECTION 3: Roles & Permissions */}
-                <div className="space-y-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm mt-8">
+                <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1 h-6 bg-indigo-600 rounded-full"></div>
+                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Roles & Permissions</h3>
                   </div>
-                  <p className="text-xs text-slate-500 mb-4 font-semibold">
+                  <p className="text-xs text-slate-500 mb-2 font-semibold">
                     Configure which roles can access this sheet. If no roles are added, all staff members will have full access.
                   </p>
 
