@@ -952,16 +952,14 @@ export default function ClientsPage() {
                 </div>
             </div>
 
-            {/* Status (Edit only) */}
-            {editOpen && (
-                <div>
-                    <label className={labelCls}>Status</label>
-                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
-                </div>
-            )}
+            {/* Status */}
+            <div>
+                <label className={labelCls}>Status</label>
+                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
 
             {/* Portal Credentials Section */}
             <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 space-y-4">

@@ -16,6 +16,8 @@ export default function StaffPage() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [page, setPage] = useState(1)
+    const [filterRoleId, setFilterRoleId] = useState('')
+    const [filterStatus, setFilterStatus] = useState('')
 
     const [addOpen, setAddOpen] = useState(false)
     const [editOpen, setEditOpen] = useState(false)
@@ -104,11 +106,15 @@ export default function StaffPage() {
     const fetchStaff = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await api.get('/ca/staff', { params: { search, page, per_page: 15 } })
+            const params = { search, page, per_page: 15 }
+            if (filterRoleId) params.role_id = filterRoleId
+            if (filterStatus) params.is_active = filterStatus === 'active' ? 'true' : 'false'
+
+            const res = await api.get('/ca/staff', { params })
             setStaff(res.data.data)
             setMeta(res.data.meta)
         } finally { setLoading(false) }
-    }, [search, page])
+    }, [search, page, filterRoleId, filterStatus])
 
     useEffect(() => { fetchStaff(); fetchRoles() }, [fetchStaff, fetchRoles])
 
@@ -202,11 +208,37 @@ export default function StaffPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-gray-100 gap-4">
                     <h2 className="text-base font-semibold text-gray-700 whitespace-nowrap">Staff Directory</h2>
-                    <div className="relative w-full sm:w-52">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="Search staff..." value={search}
-                            onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        {/* Role Filter */}
+                        <select 
+                            value={filterRoleId} 
+                            onChange={e => { setFilterRoleId(e.target.value); setPage(1) }}
+                            className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-gray-600"
+                        >
+                            <option value="">All Roles</option>
+                            {roles.map(r => (
+                                <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                        </select>
+
+                        {/* Status Filter */}
+                        <select 
+                            value={filterStatus} 
+                            onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
+                            className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-gray-600"
+                        >
+                            <option value="">All Statuses</option>
+                            <option value="active">Active Only</option>
+                            <option value="inactive">Inactive Only</option>
+                        </select>
+
+                        {/* Search Input */}
+                        <div className="relative w-full sm:w-48">
+                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input type="text" placeholder="Search staff..." value={search}
+                                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                                className="pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
+                        </div>
                     </div>
                 </div>
 
