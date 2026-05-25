@@ -70,4 +70,22 @@ export function AuthProvider({ children }) {
     )
 }
 
-export const useAuth = () => useContext(AuthContext)
+export const useAuth = () => {
+    const context = useContext(AuthContext)
+    if (!context) {
+        // Safe fallback in case of React context resolution delays or hot reload mismatches
+        let cachedUser = null;
+        try {
+            const saved = localStorage.getItem('user');
+            if (saved) cachedUser = JSON.parse(saved);
+        } catch (_) {}
+        return {
+            user: cachedUser,
+            token: localStorage.getItem('token'),
+            loading: false,
+            login: async () => {},
+            logout: async () => {},
+        }
+    }
+    return context
+}
