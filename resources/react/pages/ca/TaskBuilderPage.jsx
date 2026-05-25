@@ -849,6 +849,17 @@ export default function TaskBuilderPage() {
       toast_pkg.error(clientGstStatus.msg);
       return;
     }
+
+    // Validate mobile number lengths (exactly 10 digits if provided)
+    if (clientForm?.contact && clientForm.contact.replace(/\D/g, '').length !== 10) {
+      toast_pkg.error('Contact No must be exactly 10 digits.');
+      return;
+    }
+    if (clientForm?.alternative_contact && clientForm.alternative_contact.replace(/\D/g, '').length !== 10) {
+      toast_pkg.error('Alternative Contact No must be exactly 10 digits.');
+      return;
+    }
+
     setSavingClient(true);
     setClientErrors({});
     try {

@@ -191,6 +191,16 @@ export default function ClientsPage() {
             return
         }
 
+        // Validate mobile number lengths (exactly 10 digits if provided)
+        if (form.contact && form.contact.replace(/\D/g, '').length !== 10) {
+            toast.error('Contact No must be exactly 10 digits.')
+            return
+        }
+        if (form.alternative_contact && form.alternative_contact.replace(/\D/g, '').length !== 10) {
+            toast.error('Alternative Contact No must be exactly 10 digits.')
+            return
+        }
+
         setSaving(true)
         setErrors({})
         try {
@@ -548,6 +558,13 @@ export default function ClientsPage() {
                             parsedAltContact = parsedAltContact.slice(-10)
                         }
 
+                        if (!validationError && parsedContact && parsedContact.length !== 10) {
+                            validationError = 'Contact No must be exactly 10 digits.'
+                        }
+                        if (!validationError && parsedAltContact && parsedAltContact.length !== 10) {
+                            validationError = 'Alternative Contact No must be exactly 10 digits.'
+                        }
+
                         rows.push({
                             name: String(rowData[idxName] || '').trim(),
                             name_as_per_pan: idxNameAsPan !== -1 ? String(rowData[idxNameAsPan] || '').trim() : '',
@@ -634,6 +651,14 @@ export default function ClientsPage() {
                     }
                 }
             }
+
+            if (!validationError && row.contact && row.contact.replace(/\D/g, '').length !== 10) {
+                validationError = 'Contact No must be exactly 10 digits.'
+            }
+            if (!validationError && row.alternative_contact && row.alternative_contact.replace(/\D/g, '').length !== 10) {
+                validationError = 'Alternative Contact No must be exactly 10 digits.'
+            }
+
             row.validationError = validationError
 
             // Re-generate password if dob or pan changed
