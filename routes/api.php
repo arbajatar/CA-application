@@ -108,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/settings/change-password', [SettingsController::class, 'changePassword']);
 
         // Portals
-        Route::apiResource('/portals', PortalController::class);
+        Route::apiResource('/portals', PortalController::class)->except(['index']);
 
         // Things to Know Videos & Brochures
         Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
