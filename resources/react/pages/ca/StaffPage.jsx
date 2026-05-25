@@ -116,6 +116,7 @@ export default function StaffPage() {
         setSaving(true); setErrors({})
         try {
             await api.post('/ca/staff', { ...form, role_id: form.role_id || null })
+            toast.success('Staff member added successfully')
             setAddOpen(false); setForm(EMPTY_FORM); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
         finally { setSaving(false) }
@@ -125,6 +126,7 @@ export default function StaffPage() {
         setSaving(true); setErrors({})
         try {
             await api.put(`/ca/staff/${selected.id}`, { name: form.name, username: form.username, role_id: form.role_id || null })
+            toast.success('Staff member updated successfully')
             setEditOpen(false); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
         finally { setSaving(false) }
@@ -134,6 +136,7 @@ export default function StaffPage() {
         setSaving(true); setErrors({})
         try {
             await api.patch(`/ca/staff/${selected.id}/reset-password`, resetPass)
+            toast.success('Password reset successfully')
             setResetOpen(false); setResetPass({ password: '', password_confirmation: '' })
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
         finally { setSaving(false) }

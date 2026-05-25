@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Search, Pencil, Trash2, ShieldCheck, ShieldAlert, Key, Globe, Eye, EyeOff, FileDown, FileUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
@@ -66,6 +66,7 @@ export default function ClientsPage() {
     // Excel Import States
     const [importOpen, setImportOpen] = useState(false)
     const [previewRows, setPreviewRows] = useState([])
+    const existingPansRef = useRef(new Set())
 
     // Fetch lists
     const fetchLookups = async () => {
@@ -155,10 +156,38 @@ export default function ClientsPage() {
 
     const panStatus = getPanValidation()
 
+    // Validate GST locally in real-time
+    const getGstValidation = () => {
+        const gst = (form.gst_number || '').trim().toUpperCase()
+        if (!gst) return null
+        
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+        if (!gstRegex.test(gst)) {
+            return { valid: false, msg: 'Invalid GST format (e.g. 22AAAAA0000A1Z5).' }
+        }
+
+        if (form.pan_no) {
+            const panInGst = gst.substring(2, 12)
+            if (panInGst !== form.pan_no.toUpperCase()) {
+                return { valid: false, msg: `GST characters 3-12 (${panInGst}) must match the Client PAN No (${form.pan_no.toUpperCase()}).` }
+            }
+        }
+
+        return { valid: true, msg: 'GST format is fully valid and verified!' }
+    }
+
+    const gstStatus = getGstValidation()
+
     const handleSave = async () => {
         // Run pre-submit PAN validation check
         if (panStatus && !panStatus.valid) {
             toast.error(panStatus.msg)
+            return
+        }
+
+        // Run pre-submit GST validation check
+        if (gstStatus && !gstStatus.valid) {
+            toast.error(gstStatus.msg)
             return
         }
 
@@ -415,7 +444,7 @@ export default function ClientsPage() {
                     
                     const idxName = headers.findIndex(h => h.includes('name') && !h.includes('pan'))
                     const idxNameAsPan = headers.findIndex(h => h.includes('name as per pan') || h.includes('as per pan'))
-                    const idxPan = headers.findIndex(h => h.includes('pan'))
+                    const idxPan = headers.findIndex(h => h.includes('pan') && !h.includes('name') && !h.includes('as per'))
                     const idxType = headers.findIndex(h => h.includes('type'))
                     const idxGroup = headers.findIndex(h => h.includes('group'))
                     const idxContact = headers.findIndex(h => h.includes('contact') && !h.includes('alternative'))
@@ -437,6 +466,7 @@ export default function ClientsPage() {
                     // Load all active database PANs to flag duplicate rows in RED
                     const pansRes = await api.get('/ca/clients/pan-numbers')
                     const existingPans = new Set(pansRes.data.data.map(p => p.toUpperCase()))
+                    existingPansRef.current = existingPans
 
                     const rows = []
                     for (let i = 1; i < json.length; i++) {
@@ -485,6 +515,20 @@ export default function ClientsPage() {
                             }
                         }
 
+                        // Validate GST if provided
+                        const rawGst = idxGst !== -1 ? String(rowData[idxGst] || '').trim().toUpperCase() : ''
+                        if (rawGst) {
+                            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+                            if (!gstRegex.test(rawGst)) {
+                                validationError = 'Invalid GST format.'
+                            } else if (rawPan) {
+                                const panInGst = rawGst.substring(2, 12)
+                                if (panInGst !== rawPan) {
+                                    validationError = 'GST PAN segment must match client PAN.'
+                                }
+                            }
+                        }
+
                         // Auto generate AIS & TIS password
                         let aisTisPassword = ''
                         if (rawPan && dobStr) {
@@ -494,14 +538,24 @@ export default function ClientsPage() {
                             }
                         }
 
+                        let parsedContact = idxContact !== -1 ? String(rowData[idxContact] || '').trim().replace(/\D/g, '') : ''
+                        if (parsedContact.length > 10) {
+                            parsedContact = parsedContact.slice(-10)
+                        }
+
+                        let parsedAltContact = idxAltContact !== -1 ? String(rowData[idxAltContact] || '').trim().replace(/\D/g, '') : ''
+                        if (parsedAltContact.length > 10) {
+                            parsedAltContact = parsedAltContact.slice(-10)
+                        }
+
                         rows.push({
                             name: String(rowData[idxName] || '').trim(),
                             name_as_per_pan: idxNameAsPan !== -1 ? String(rowData[idxNameAsPan] || '').trim() : '',
                             pan_no: rawPan,
                             type: rawType || 'Individual',
                             group: idxGroup !== -1 ? String(rowData[idxGroup] || '').trim() : 'Salary',
-                            contact: idxContact !== -1 ? String(rowData[idxContact] || '').trim() : '',
-                            alternative_contact: idxAltContact !== -1 ? String(rowData[idxAltContact] || '').trim() : '',
+                            contact: parsedContact,
+                            alternative_contact: parsedAltContact,
                             email: idxEmail !== -1 ? String(rowData[idxEmail] || '').trim() : '',
                             reference_no: idxRef !== -1 ? String(rowData[idxRef] || '').trim() : '',
                             dob: dobStr,
@@ -533,6 +587,72 @@ export default function ClientsPage() {
         } finally {
             e.target.value = ''
         }
+    }
+
+    const handleUpdatePreviewRow = (idx, field, val) => {
+        setPreviewRows(prev => {
+            const updated = [...prev]
+            const row = { ...updated[idx] }
+
+            if (field === 'pan_no') {
+                row.pan_no = String(val || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+            } else if (field.startsWith('credentials.')) {
+                const subKey = field.split('.')[1]
+                row.credentials = {
+                    ...(row.credentials || {}),
+                    [subKey]: val
+                }
+            } else {
+                row[field] = val
+            }
+
+            // Re-run validation
+            let validationError = ''
+            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+            if (!row.pan_no) {
+                validationError = 'PAN No is required.'
+            } else if (!panRegex.test(row.pan_no)) {
+                validationError = 'Invalid general PAN format.'
+            } else {
+                const typeOption = types.find(t => t.name.toLowerCase() === (row.type || '').toLowerCase())
+                if (typeOption && typeOption.pan_char) {
+                    const expectedChar = typeOption.pan_char.toUpperCase()
+                    if (row.pan_no.charAt(3) !== expectedChar) {
+                        validationError = `PAN character 4 must be "${expectedChar}" for type "${row.type}".`
+                    }
+                }
+            }
+
+            if (!validationError && row.gst_number) {
+                const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+                if (!gstRegex.test(row.gst_number)) {
+                    validationError = 'Invalid GST format.'
+                } else if (row.pan_no) {
+                    const panInGst = row.gst_number.substring(2, 12)
+                    if (panInGst !== row.pan_no.toUpperCase()) {
+                        validationError = 'GST PAN segment must match client PAN.'
+                    }
+                }
+            }
+            row.validationError = validationError
+
+            // Re-generate password if dob or pan changed
+            if (row.pan_no && row.dob) {
+                const dobParts = row.dob.split('-')
+                if (dobParts.length === 3) {
+                    row.credentials = {
+                        ...(row.credentials || {}),
+                        ais_tis_password: `${row.pan_no.toLowerCase()}${dobParts[2]}${dobParts[1]}${dobParts[0]}`
+                    }
+                }
+            }
+
+            // Re-evaluate database duplication check
+            row.isDuplicate = existingPansRef.current ? existingPansRef.current.has(row.pan_no) : false
+
+            updated[idx] = row
+            return updated
+        })
     }
 
     const handleConfirmImport = async () => {
@@ -780,13 +900,29 @@ export default function ClientsPage() {
                 {/* GST Number */}
                 <div>
                     <label className={labelCls}>GST No</label>
-                    <input 
-                        type="text" 
-                        value={form.gst_number} 
-                        onChange={e => setForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
-                        placeholder="GST Identification Number" 
-                        className={inputCls} 
-                    />
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            value={form.gst_number || ''} 
+                            onChange={e => setForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
+                            placeholder="GST Identification Number" 
+                            className={`${inputCls} pr-8`} 
+                        />
+                        {gstStatus && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                {gstStatus.valid ? (
+                                    <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                                ) : (
+                                    <ShieldAlert className="text-rose-500 w-4 h-4" />
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    {gstStatus && (
+                        <p className={`text-[9px] font-bold mt-1 ${gstStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {gstStatus.msg}
+                        </p>
+                    )}
                     {errors.gst_number && <p className="text-[10px] text-red-500 mt-1">{errors.gst_number[0]}</p>}
                 </div>
             </div>
@@ -1239,19 +1375,27 @@ export default function ClientsPage() {
                     </div>
 
                     {/* Preview Table */}
-                    <div className="overflow-x-auto border border-slate-200/60 rounded-3xl bg-white shadow-sm max-h-[50vh]">
+                    <div className="overflow-x-auto border border-slate-200/60 rounded-3xl bg-white shadow-sm max-h-[55vh]">
                         <table className="w-full text-xs text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 sticky top-0 z-10">
                                     <th className="px-4 py-3">Status</th>
                                     <th className="px-4 py-3">Client Name</th>
+                                    <th className="px-4 py-3">Name as per PAN</th>
                                     <th className="px-4 py-3">PAN No</th>
                                     <th className="px-4 py-3">Type</th>
                                     <th className="px-4 py-3">Group</th>
                                     <th className="px-4 py-3">Contact</th>
+                                    <th className="px-4 py-3">Alternative Contact</th>
                                     <th className="px-4 py-3">Email</th>
+                                    <th className="px-4 py-3">Reference No</th>
                                     <th className="px-4 py-3">Date Of Birth</th>
                                     <th className="px-4 py-3">City</th>
+                                    <th className="px-4 py-3">Pin Code</th>
+                                    <th className="px-4 py-3">State</th>
+                                    <th className="px-4 py-3">GST No</th>
+                                    <th className="px-4 py-3">E-Filing Password</th>
+                                    <th className="px-4 py-3">AIS/TIS Password</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -1263,60 +1407,200 @@ export default function ClientsPage() {
                                             className={`transition ${hasErr ? 'bg-rose-50/50 hover:bg-rose-50' : 'hover:bg-slate-50/30'}`}
                                         >
                                             {/* Status Badge */}
-                                            <td className="px-4 py-3">
-                                                {row.isDuplicate ? (
-                                                    <span className="inline-flex items-center gap-1 bg-rose-100 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                                                        <AlertTriangle size={11} /> Duplicate PAN
-                                                    </span>
-                                                ) : row.validationError ? (
-                                                    <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" title={row.validationError}>
-                                                        <AlertTriangle size={11} /> Format Error
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                                                        <ShieldCheck size={11} /> Ready
-                                                    </span>
-                                                )}
+                                            <td className="px-4 py-3 min-w-[150px]">
+                                                <div className="flex flex-col gap-1">
+                                                    {row.isDuplicate ? (
+                                                        <span className="inline-flex items-center gap-1 bg-rose-100 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                            <AlertTriangle size={11} /> Duplicate PAN
+                                                        </span>
+                                                    ) : row.validationError ? (
+                                                        <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                            <AlertTriangle size={11} /> Format Error
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                            <ShieldCheck size={11} /> Ready
+                                                        </span>
+                                                    )}
+                                                    {row.validationError && (
+                                                        <span className="text-[9px] font-bold text-rose-600 block leading-tight max-w-[140px] whitespace-normal">
+                                                            {row.validationError}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Name */}
-                                            <td className={`px-4 py-3 font-bold ${hasErr ? 'text-rose-900' : 'text-slate-800'}`}>
-                                                {row.name}
+                                            <td className="px-4 py-3 min-w-[180px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.name || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'name', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-bold text-slate-800"
+                                                />
+                                            </td>
+
+                                            {/* Name as per PAN */}
+                                            <td className="px-4 py-3 min-w-[180px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.name_as_per_pan || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'name_as_per_pan', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-700"
+                                                />
                                             </td>
 
                                             {/* PAN */}
-                                            <td className="px-4 py-3 font-mono font-bold text-slate-600">
-                                                {row.pan_no}
+                                            <td className="px-4 py-3 min-w-[130px]">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={10}
+                                                    value={row.pan_no || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'pan_no', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-mono font-bold text-slate-700 uppercase"
+                                                />
                                             </td>
 
                                             {/* Type */}
-                                            <td className="px-4 py-3 font-semibold text-slate-500">
-                                                {row.type}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <select 
+                                                    value={row.type || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'type', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                >
+                                                    <option value="">Select Type...</option>
+                                                    {types.map(t => (
+                                                        <option key={t.id} value={t.name}>{t.name}</option>
+                                                    ))}
+                                                </select>
                                             </td>
 
                                             {/* Group */}
-                                            <td className="px-4 py-3 font-bold text-indigo-500 uppercase tracking-wider text-[10px]">
-                                                {row.group}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <select 
+                                                    value={row.group || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'group', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                >
+                                                    <option value="">Select Group...</option>
+                                                    {groups.map(g => (
+                                                        <option key={g.id} value={g.name}>{g.name}</option>
+                                                    ))}
+                                                </select>
                                             </td>
 
                                             {/* Contact */}
-                                            <td className="px-4 py-3 font-semibold text-slate-500">
-                                                {row.contact || '—'}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={10}
+                                                    value={row.contact || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'contact', e.target.value.replace(/\D/g, ''))}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* Alternative Contact */}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={10}
+                                                    value={row.alternative_contact || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'alternative_contact', e.target.value.replace(/\D/g, ''))}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
                                             </td>
 
                                             {/* Email */}
-                                            <td className="px-4 py-3 font-semibold text-slate-500">
-                                                {row.email || '—'}
+                                            <td className="px-4 py-3 min-w-[180px]">
+                                                <input 
+                                                    type="email" 
+                                                    value={row.email || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'email', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* Reference No */}
+                                            <td className="px-4 py-3 min-w-[120px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.reference_no || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'reference_no', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
                                             </td>
 
                                             {/* DOB */}
-                                            <td className="px-4 py-3 font-semibold text-slate-500">
-                                                {row.dob || '—'}
+                                            <td className="px-4 py-3 min-w-[130px]">
+                                                <input 
+                                                    type="date" 
+                                                    value={row.dob || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'dob', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
                                             </td>
 
                                             {/* City */}
-                                            <td className="px-4 py-3 font-semibold text-slate-500">
-                                                {row.city || '—'}
+                                            <td className="px-4 py-3 min-w-[120px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.city || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'city', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* Pin Code */}
+                                            <td className="px-4 py-3 min-w-[120px]">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={6}
+                                                    value={row.pin_code || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'pin_code', e.target.value.replace(/\D/g, ''))}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* State */}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.state || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'state', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* GST No */}
+                                            <td className="px-4 py-3 min-w-[140px]">
+                                                <input 
+                                                    type="text" 
+                                                    maxLength={15}
+                                                    value={row.gst_number || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'gst_number', e.target.value.toUpperCase())}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600 uppercase"
+                                                />
+                                            </td>
+
+                                            {/* E-Filing Password */}
+                                            <td className="px-4 py-3 min-w-[130px]">
+                                                <input 
+                                                    type="text" 
+                                                    value={row.credentials?.efiling_password || ''} 
+                                                    onChange={e => handleUpdatePreviewRow(idx, 'credentials.efiling_password', e.target.value)}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
+                                                />
+                                            </td>
+
+                                            {/* AIS/TIS Password */}
+                                            <td className="px-4 py-3 min-w-[130px]">
+                                                <input 
+                                                    type="text" 
+                                                    disabled
+                                                    value={row.credentials?.ais_tis_password || ''} 
+                                                    className="w-full px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-400 font-mono font-semibold"
+                                                />
                                             </td>
                                         </tr>
                                     )

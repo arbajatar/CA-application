@@ -4,7 +4,7 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search, Copy, Globe
+  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import Sortable from 'sortablejs';
@@ -445,10 +445,112 @@ export default function TaskBuilderPage() {
   const isDuplicating = !!location.state?.duplicateData;
 
   // Client Modal States
+  const EMPTY_CLIENT_FORM = {
+    name: '',
+    name_as_per_pan: '',
+    pan_no: '',
+    type: '',
+    group: '',
+    contact: '',
+    alternative_contact: '',
+    email: '',
+    reference_no: '',
+    dob: '',
+    city: '',
+    pin_code: '',
+    state: '',
+    gst_number: '',
+    status: 'active',
+    credentials: {
+      efiling_password: '',
+      ais_tis_password: ''
+    }
+  };
+
   const [addClientOpen, setAddClientOpen] = useState(false);
-  const [clientForm, setClientForm] = useState({ name: '', contact: '', gst_number: '', status: 'active' });
+  const [clientForm, setClientForm] = useState(EMPTY_CLIENT_FORM);
   const [savingClient, setSavingClient] = useState(false);
   const [clientErrors, setClientErrors] = useState({});
+
+  // Client dynamic types & groups
+  const [clientTypes, setClientTypes] = useState([]);
+  const [clientGroups, setClientGroups] = useState([]);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [newTypePanChar, setNewTypePanChar] = useState('');
+  const [addGroupOpen, setAddGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  // Validate PAN locally in real-time
+  const getClientPanValidation = () => {
+    const pan = (clientForm?.pan_no || '').toUpperCase();
+    if (!pan) return null;
+    
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(pan)) {
+      return { valid: false, msg: 'Invalid general PAN format (e.g. ABCDE1234F).' };
+    }
+
+    const typeOption = clientTypes.find(t => t.name === clientForm.type);
+    if (typeOption && typeOption.pan_char) {
+      const expectedChar = typeOption.pan_char.toUpperCase();
+      const fourthChar = pan.charAt(3);
+      if (fourthChar !== expectedChar) {
+        return { 
+          valid: false, 
+          msg: `4th character of PAN must be "${expectedChar}" for type "${clientForm.type}".` 
+        };
+      }
+    }
+
+    return { valid: true, msg: 'PAN format is fully valid and verified!' };
+  };
+
+  const clientPanStatus = getClientPanValidation();
+
+  // Validate GST locally in real-time
+  const getClientGstValidation = () => {
+    const gst = (clientForm?.gst_number || '').trim().toUpperCase();
+    if (!gst) return null;
+    
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!gstRegex.test(gst)) {
+      return { valid: false, msg: 'Invalid GST format (e.g. 22AAAAA0000A1Z5).' };
+    }
+
+    if (clientForm?.pan_no) {
+      const panInGst = gst.substring(2, 12);
+      if (panInGst !== clientForm.pan_no.toUpperCase()) {
+        return { valid: false, msg: `GST characters 3-12 (${panInGst}) must match PAN No (${clientForm.pan_no.toUpperCase()}).` };
+      }
+    }
+
+    return { valid: true, msg: 'GST format is fully valid and verified!' };
+  };
+
+  const clientGstStatus = getClientGstValidation();
+
+  // Generate AIS & TIS password dynamically in real-time
+  useEffect(() => {
+    if (clientForm?.pan_no && clientForm?.dob) {
+      const panLower = clientForm.pan_no.toLowerCase();
+      const dobParts = clientForm.dob.split('-'); // YYYY-MM-DD
+      if (dobParts.length === 3) {
+        const year = dobParts[0];
+        const month = dobParts[1];
+        const day = dobParts[2];
+        const dobDigits = `${day}${month}${year}`;
+        setClientForm(prev => ({
+          ...prev,
+          credentials: {
+            ...(prev?.credentials || {}),
+            ais_tis_password: `${panLower}${dobDigits}`
+          }
+        }));
+      }
+    }
+  }, [clientForm?.pan_no, clientForm?.dob]);
 
   // Work Type Modal States
   const [addWorkTypeOpen, setAddWorkTypeOpen] = useState(false);
@@ -736,14 +838,74 @@ export default function TaskBuilderPage() {
   };
 
   const handleSaveClient = async () => {
-    setSavingClient(true); setClientErrors({});
+    // Run pre-submit PAN validation check
+    if (clientPanStatus && !clientPanStatus.valid) {
+      toast_pkg.error(clientPanStatus.msg);
+      return;
+    }
+
+    // Run pre-submit GST validation check
+    if (clientGstStatus && !clientGstStatus.valid) {
+      toast_pkg.error(clientGstStatus.msg);
+      return;
+    }
+    setSavingClient(true);
+    setClientErrors({});
     try {
-      const res = await api.post('/ca/clients', clientForm);
+      const payload = {
+        ...clientForm,
+        pan_no: clientForm.pan_no.toUpperCase() // Save always capitalized
+      };
+      const res = await api.post('/ca/clients', payload);
       setAddClientOpen(false);
-      showToast('Client added successfully');
+      showToast('Client registered successfully');
       await fetchClients(res.data.data.id);
-    } catch (e) { setClientErrors(e.response?.data?.errors ?? {}); }
-    finally { setSavingClient(false); }
+    } catch (e) { 
+      setClientErrors(e.response?.data?.errors ?? {});
+      toast_pkg.error('Please fix validation errors');
+    } finally { 
+      setSavingClient(false); 
+    }
+  };
+
+  const handleCreateType = async () => {
+    if (!newTypeName) return;
+    setSavingClient(true);
+    try {
+      const res = await api.post('/ca/client-types', {
+        name: newTypeName,
+        pan_char: newTypePanChar
+      });
+      setClientTypes(prev => [...prev, res.data.data]);
+      setClientForm(prev => ({ ...prev, type: res.data.data.name }));
+      setNewTypeName('');
+      setNewTypePanChar('');
+      setAddTypeOpen(false);
+      toast_pkg.success('Custom client type added successfully');
+    } catch (e) {
+      toast_pkg.error(e.response?.data?.message || 'Failed to create client type');
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName) return;
+    setSavingClient(true);
+    try {
+      const res = await api.post('/ca/client-groups', {
+        name: newGroupName
+      });
+      setClientGroups(prev => [...prev, res.data.data]);
+      setClientForm(prev => ({ ...prev, group: res.data.data.name }));
+      setNewGroupName('');
+      setAddGroupOpen(false);
+      toast_pkg.success('Custom client group added successfully');
+    } catch (e) {
+      toast_pkg.error(e.response?.data?.message || 'Failed to create client group');
+    } finally {
+      setSavingClient(false);
+    }
   };
 
   const handleSaveWorkType = async () => {
@@ -761,15 +923,19 @@ export default function TaskBuilderPage() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [clientsRes, workTypesRes, staffRes, statusesRes, rolesRes] = await Promise.all([
+        const [clientsRes, workTypesRes, staffRes, statusesRes, rolesRes, typesRes, groupsRes] = await Promise.all([
           api.get('/ca/clients?per_page=-1'),
           api.get('/ca/work-types'),
           api.get('/ca/staff?per_page=-1'),
           api.get('/task-statuses'),
-          api.get('/ca/roles')
+          api.get('/ca/roles'),
+          api.get('/ca/client-types'),
+          api.get('/ca/client-groups')
         ]);
 
         setAvailableRoles(rolesRes.data.data || []);
+        setClientTypes(typesRes.data.data || []);
+        setClientGroups(groupsRes.data.data || []);
 
         setFormSchema(prev => prev.map(field => {
           if (field.id === 'static_client_name') {
@@ -1221,41 +1387,413 @@ export default function TaskBuilderPage() {
       </div>
 
       {/* Add New Client Modal */}
-      <Modal open={addClientOpen} onClose={() => setAddClientOpen(false)} title="Add New Client">
+      <Modal open={addClientOpen} onClose={() => setAddClientOpen(false)} title="Register New CA Business Client" width="max-w-4xl">
+        <div className="space-y-6 max-h-[80vh] overflow-y-auto px-1">
+          {/* Main Form Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Client Name */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Client Name *</label>
+              <input 
+                type="text" 
+                value={clientForm.name} 
+                onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} 
+                placeholder="Enter Client Name" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.name && <p className="text-[10px] text-red-500 mt-1">{clientErrors.name[0]}</p>}
+            </div>
+
+            {/* Client Type */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Type *</label>
+              <select 
+                value={clientForm.type} 
+                onChange={e => {
+                  if (e.target.value === 'ADD_NEW') {
+                    setAddTypeOpen(true);
+                  } else {
+                    setClientForm(f => ({ ...f, type: e.target.value }));
+                  }
+                }} 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
+              >
+                <option value="">Select Type...</option>
+                {clientTypes.map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
+                <option value="ADD_NEW" className="text-indigo-600 font-bold bg-slate-50">+ Add New Option...</option>
+              </select>
+              {clientErrors.type && <p className="text-[10px] text-red-500 mt-1">{clientErrors.type[0]}</p>}
+            </div>
+
+            {/* Client Name As per PAN */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Client Name As Per PAN</label>
+              <input 
+                type="text" 
+                value={clientForm.name_as_per_pan} 
+                onChange={e => setClientForm(f => ({ ...f, name_as_per_pan: e.target.value }))} 
+                placeholder="Enter Name exactly as printed on PAN" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.name_as_per_pan && <p className="text-[10px] text-red-500 mt-1">{clientErrors.name_as_per_pan[0]}</p>}
+            </div>
+
+            {/* PAN Number with Validation Indicator */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">PAN No *</label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  maxLength={10}
+                  value={clientForm.pan_no} 
+                  onChange={e => setClientForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} 
+                  placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)" 
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 uppercase pr-8" 
+                />
+                {clientPanStatus && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {clientPanStatus.valid ? (
+                      <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                    ) : (
+                      <ShieldAlert className="text-rose-500 w-4 h-4" />
+                    )}
+                  </div>
+                )}
+              </div>
+              {clientPanStatus && (
+                <p className={`text-[9px] font-bold mt-1 ${clientPanStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {clientPanStatus.msg}
+                </p>
+              )}
+              {clientErrors.pan_no && <p className="text-[10px] text-red-500 mt-1">{clientErrors.pan_no[0]}</p>}
+            </div>
+
+            {/* Group */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Group *</label>
+              <select 
+                value={clientForm.group} 
+                onChange={e => {
+                  if (e.target.value === 'ADD_NEW') {
+                    setAddGroupOpen(true);
+                  } else {
+                    setClientForm(f => ({ ...f, group: e.target.value }));
+                  }
+                }} 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
+              >
+                <option value="">Select Group...</option>
+                {clientGroups.map(g => (
+                  <option key={g.id} value={g.name}>{g.name}</option>
+                ))}
+                <option value="ADD_NEW" className="text-indigo-600 font-bold bg-slate-50">+ Add New Option...</option>
+              </select>
+              {clientErrors.group && <p className="text-[10px] text-red-500 mt-1">{clientErrors.group[0]}</p>}
+            </div>
+
+            {/* Contact No */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Contact No</label>
+              <input 
+                type="text" 
+                maxLength={10}
+                value={clientForm.contact} 
+                onChange={e => setClientForm(f => ({ ...f, contact: e.target.value.replace(/\D/g, '') }))} 
+                placeholder="10-digit mobile number" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.contact && <p className="text-[10px] text-red-500 mt-1">{clientErrors.contact[0]}</p>}
+            </div>
+
+            {/* Alternative Contact No */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Alternative Contact No</label>
+              <input 
+                type="text" 
+                maxLength={10}
+                value={clientForm.alternative_contact} 
+                onChange={e => setClientForm(f => ({ ...f, alternative_contact: e.target.value.replace(/\D/g, '') }))} 
+                placeholder="Alternative 10-digit number" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.alternative_contact && <p className="text-[10px] text-red-500 mt-1">{clientErrors.alternative_contact[0]}</p>}
+            </div>
+
+            {/* Email Address */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Email ID</label>
+              <input 
+                type="email" 
+                value={clientForm.email} 
+                onChange={e => setClientForm(f => ({ ...f, email: e.target.value }))} 
+                placeholder="client@example.com" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.email && <p className="text-[10px] text-red-500 mt-1">{clientErrors.email[0]}</p>}
+            </div>
+
+            {/* Reference No */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Reference No</label>
+              <input 
+                type="text" 
+                value={clientForm.reference_no} 
+                onChange={e => setClientForm(f => ({ ...f, reference_no: e.target.value }))} 
+                placeholder="Enter reference details" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.reference_no && <p className="text-[10px] text-red-500 mt-1">{clientErrors.reference_no[0]}</p>}
+            </div>
+
+            {/* City */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">City</label>
+              <input 
+                type="text" 
+                value={clientForm.city} 
+                onChange={e => setClientForm(f => ({ ...f, city: e.target.value }))} 
+                placeholder="Enter City" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.city && <p className="text-[10px] text-red-500 mt-1">{clientErrors.city[0]}</p>}
+            </div>
+
+            {/* Pin Code */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Pin Code</label>
+              <input 
+                type="text" 
+                maxLength={6}
+                value={clientForm.pin_code} 
+                onChange={e => setClientForm(f => ({ ...f, pin_code: e.target.value.replace(/\D/g, '') }))} 
+                placeholder="6-digit postal code" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.pin_code && <p className="text-[10px] text-red-500 mt-1">{clientErrors.pin_code[0]}</p>}
+            </div>
+
+            {/* State */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">State</label>
+              <input 
+                type="text" 
+                value={clientForm.state} 
+                onChange={e => setClientForm(f => ({ ...f, state: e.target.value }))} 
+                placeholder="Enter State" 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.state && <p className="text-[10px] text-red-500 mt-1">{clientErrors.state[0]}</p>}
+            </div>
+
+            {/* Date of Birth */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date Of Birth *</label>
+              <input 
+                type="date" 
+                value={clientForm.dob} 
+                onChange={e => setClientForm(f => ({ ...f, dob: e.target.value }))} 
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+              />
+              {clientErrors.dob && <p className="text-[10px] text-red-500 mt-1">{clientErrors.dob[0]}</p>}
+            </div>
+
+            {/* GST Number */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">GST No</label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={clientForm.gst_number || ''} 
+                  onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
+                  placeholder="GST Identification Number" 
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 pr-8" 
+                />
+                {clientGstStatus && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {clientGstStatus.valid ? (
+                      <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                    ) : (
+                      <ShieldAlert className="text-rose-500 w-4 h-4" />
+                    )}
+                  </div>
+                )}
+              </div>
+              {clientGstStatus && (
+                <p className={`text-[9px] font-bold mt-1 ${clientGstStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {clientGstStatus.msg}
+                </p>
+              )}
+              {clientErrors.gst_number && <p className="text-[10px] text-red-500 mt-1">{clientErrors.gst_number[0]}</p>}
+            </div>
+          </div>
+
+          {/* Portal Credentials Section */}
+          <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="text-indigo-500 w-4 h-4" />
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Portal Credentials (Passwords)</h4>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowPasswords(!showPasswords)}
+                className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+              >
+                {showPasswords ? <EyeOff size={13} className="inline mr-1" /> : <Eye size={13} className="inline mr-1" />}
+                <span>{showPasswords ? 'Hide Credentials' : 'Reveal Credentials'}</span>
+              </button>
+            </div>
+
+            <div className="overflow-hidden border border-slate-200/60 rounded-2xl bg-white shadow-sm">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <th className="px-4 py-3">Portal URL</th>
+                    <th className="px-4 py-3">Auth Type</th>
+                    <th className="px-4 py-3">User ID</th>
+                    <th className="px-4 py-3">Password</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {/* EFILING row (Manual) */}
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
+                      <Globe size={13} className="text-slate-400" />
+                      <span>WWW.EFILING INCOME TAX</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-indigo-100">
+                        EFILING
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono font-bold text-slate-600">
+                      {clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input 
+                        type={showPasswords ? "text" : "password"} 
+                        value={clientForm.credentials.efiling_password}
+                        onChange={e => setClientForm(f => ({
+                          ...f,
+                          credentials: {
+                            ...f.credentials,
+                            efiling_password: e.target.value
+                          }
+                        }))}
+                        placeholder="Type manual password..."
+                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-700"
+                      />
+                    </td>
+                  </tr>
+
+                  {/* AIS & TIS row (Auto generated) */}
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
+                      <Globe size={13} className="text-slate-400" />
+                      <span>WWW.EFILING INCOME TAX</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-100">
+                        AIS & TIS
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono font-bold text-slate-600">
+                      {clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <input 
+                          type={showPasswords ? "text" : "password"} 
+                          value={clientForm.credentials.ais_tis_password}
+                          disabled
+                          className="w-full px-2 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
+                        />
+                        <span className="text-[9px] font-bold text-slate-400 mt-1">
+                          Auto Generated: lower(PAN) + DOB
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Form Footer Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button 
+              onClick={() => setAddClientOpen(false)} 
+              className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSaveClient} 
+              disabled={savingClient} 
+              className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
+            >
+              {savingClient ? 'Registering...' : 'Register Client'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Dropdown Lookups: ADD NEW TYPE Sub-modal */}
+      <Modal open={addTypeOpen} onClose={() => setAddTypeOpen(false)} title="Create Custom Client Type">
         <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Client Name *</label>
-            <input type="text" value={clientForm.name} onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter client name" className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" />
-            {clientErrors.name && <p className="text-xs text-red-500">{clientErrors.name[0]}</p>}
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Number</label>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Type Name *</label>
             <input 
-              type="text" 
-              value={clientForm.contact} 
-              onChange={e => {
-                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                setClientForm(f => ({ ...f, contact: val }));
-              }} 
-              placeholder="e.g. 9876543210" 
-              className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" 
+              type="text"
+              placeholder="e.g. Sole Proprietorship"
+              value={newTypeName}
+              onChange={e => setNewTypeName(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
             />
-            {clientErrors.contact && <p className="text-xs text-red-500">{clientErrors.contact[0]}</p>}
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GST Number</label>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Indian PAN 4th Character (Optional)</label>
             <input 
-              type="text" 
-              value={clientForm.gst_number} 
-              onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value }))} 
-              placeholder="Optional" 
-              className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-800/20 focus:border-slate-800 transition" 
+              type="text"
+              maxLength={1}
+              placeholder="e.g. F"
+              value={newTypePanChar}
+              onChange={e => setNewTypePanChar(e.target.value.toUpperCase())}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 uppercase"
             />
-            {clientErrors.gst_number && <p className="text-xs text-red-500">{clientErrors.gst_number[0]}</p>}
+            <p className="text-[9px] font-bold text-slate-400 mt-1">
+              Used to auto-validate client PAN cards. Example: P for Individual, C for Company, F for Firm.
+            </p>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => setAddClientOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-            <button onClick={handleSaveClient} disabled={savingClient} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{savingClient ? 'Saving...' : 'Save Client'}</button>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setAddTypeOpen(false)} disabled={savingClient} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button onClick={handleCreateType} disabled={savingClient} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-50">
+              {savingClient ? 'Adding...' : 'Add Type'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Dropdown Lookups: ADD NEW GROUP Sub-modal */}
+      <Modal open={addGroupOpen} onClose={() => setAddGroupOpen(false)} title="Create Custom Client Group">
+        <div className="space-y-4">
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Group Name *</label>
+            <input 
+              type="text"
+              placeholder="e.g. Salary-2027"
+              value={newGroupName}
+              onChange={e => setNewGroupName(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setAddGroupOpen(false)} disabled={savingClient} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+            <button onClick={handleCreateGroup} disabled={savingClient} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-50">
+              {savingClient ? 'Adding...' : 'Add Group'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -1378,19 +1916,19 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         {/* Actions */}
         {!isLive ? (
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-full" onClick={(e) => e.stopPropagation()}>
               <span className="text-[9px] font-bold text-slate-400 uppercase">Req</span>
-              <label className={`toggle-switch ${field.static ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <label className={`toggle-switch ${field.id === 'static_form_name' || field.id === 'static_work_type' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input
                   type="checkbox"
                   checked={field.required}
-                  onChange={(e) => !field.static && onUpdate('required', e.target.checked)}
-                  disabled={field.static}
+                  onChange={(e) => (field.id !== 'static_form_name' && field.id !== 'static_work_type') && onUpdate('required', e.target.checked)}
+                  disabled={field.id === 'static_form_name' || field.id === 'static_work_type'}
                 />
                 <span className="slider"></span>
               </label>
             </div>
-            <button onClick={onRemove} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
+            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -1444,7 +1982,27 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
             addNewLabel={isClient ? "Add New Client" : "Add New Type"}
             onAddNew={(search) => {
               if (isClient) {
-                modalActions.setClientForm({ name: search, contact: '', gst_number: '', status: 'active' });
+                modalActions.setClientForm({
+                  name: search,
+                  name_as_per_pan: '',
+                  pan_no: '',
+                  type: '',
+                  group: '',
+                  contact: '',
+                  alternative_contact: '',
+                  email: '',
+                  reference_no: '',
+                  dob: '',
+                  city: '',
+                  pin_code: '',
+                  state: '',
+                  gst_number: '',
+                  status: 'active',
+                  credentials: {
+                    efiling_password: '',
+                    ais_tis_password: ''
+                  }
+                });
                 modalActions.setClientErrors({});
                 modalActions.setAddClientOpen(true);
               } else {

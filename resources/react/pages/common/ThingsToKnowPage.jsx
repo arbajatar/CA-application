@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File, Search } from 'lucide-react'
+import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File, Search, Eye } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -10,6 +10,51 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 export default function ThingsToKnowPage() {
     const { user } = useAuth()
     const isAdmin = user?.role === 'ca'
+
+    const getRelativeUrl = (url) => {
+        if (!url) return '';
+        try {
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                const parsed = new URL(url);
+                return parsed.pathname;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        return url;
+    };
+
+    const handleDownload = async (e, url, filename) => {
+        e.preventDefault();
+        const toastId = toast.loading('Preparing download...');
+        try {
+            const relativeUrl = getRelativeUrl(url);
+            const response = await fetch(relativeUrl);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const blob = await response.blob();
+            
+            // Check if returned blob is actually HTML (which means missing file redirect)
+            if (blob.type.includes('html')) {
+                toast.error('The PDF file could not be found on the server.', { id: toastId });
+                return;
+            }
+
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+            toast.success('Download completed successfully!', { id: toastId });
+        } catch (error) {
+            console.error('Download failed:', error);
+            const relativeUrl = getRelativeUrl(url);
+            window.open(relativeUrl, '_blank');
+            toast.dismiss(toastId);
+        }
+    };
 
     const [activeTab, setActiveTab] = useState('videos')
     const [videos, setVideos] = useState([])
@@ -29,6 +74,7 @@ export default function ThingsToKnowPage() {
     const [deleteBrochureOpen, setDeleteBrochureOpen] = useState(false)
     const [brochureToDelete, setBrochureToDelete] = useState(null)
     const [savingBrochure, setSavingBrochure] = useState(false)
+    const [previewBrochure, setPreviewBrochure] = useState(null)
 
     // Folder/playlist drill-down: null = show group cards, string = open that group
     const [selectedVideoGroup, setSelectedVideoGroup] = useState(null)
@@ -505,9 +551,20 @@ export default function ThingsToKnowPage() {
                                                     <h3 className="font-bold text-gray-800 truncate" title={brochure.title}>{brochure.title}</h3>
                                                     <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">PDF Document</p>
                                                     <div className="flex items-center gap-3 mt-3">
-                                                        <a href={brochure.file_url} target="_blank" rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline">
-                                                            <Download size={14} /> View / Download
+                                                        <button 
+                                                            onClick={() => setPreviewBrochure(brochure)}
+                                                            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+                                                        >
+                                                            <Eye size={13} /> Preview
+                                                        </button>
+                                                        <span className="text-gray-300 text-xs">|</span>
+                                                        <a 
+                                                            href={getRelativeUrl(brochure.file_url)} 
+                                                            download={`${brochure.title}.pdf`}
+                                                            onClick={(e) => handleDownload(e, brochure.file_url, brochure.title)}
+                                                            className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 transition"
+                                                        >
+                                                            <Download size={13} /> Download
                                                         </a>
                                                     </div>
                                                 </div>
@@ -736,6 +793,44 @@ export default function ThingsToKnowPage() {
                 danger
                 loading={deleting}
             />
+
+            {/* Native PDF Preview Modal */}
+            <Modal
+                open={!!previewBrochure}
+                onClose={() => setPreviewBrochure(null)}
+                title={previewBrochure?.title || "Brochure Preview"}
+                width="max-w-4xl"
+            >
+                <div className="flex flex-col h-[75vh]">
+                    {/* Toolbar with action buttons */}
+                    <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-gray-50/50 rounded-t-xl shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+                            <File size={16} className="text-red-500" />
+                            <span>PDF Viewer</span>
+                        </div>
+                        <a 
+                            href={getRelativeUrl(previewBrochure?.file_url)} 
+                            download={`${previewBrochure?.title}.pdf`}
+                            onClick={(e) => handleDownload(e, previewBrochure.file_url, previewBrochure.title)}
+                            className="flex items-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-100"
+                        >
+                            <Download size={14} />
+                            <span>Download PDF</span>
+                        </a>
+                    </div>
+                    
+                    {/* PDF embed/iframe container */}
+                    <div className="flex-1 bg-slate-100 rounded-b-xl overflow-hidden relative">
+                        {previewBrochure && (
+                            <iframe 
+                                src={`${getRelativeUrl(previewBrochure.file_url)}#toolbar=0`} 
+                                className="w-full h-full border-none"
+                                title={previewBrochure.title}
+                            />
+                        )}
+                    </div>
+                </div>
+            </Modal>
         </div>
     )
 }
