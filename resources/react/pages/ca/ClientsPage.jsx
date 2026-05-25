@@ -711,7 +711,7 @@ export default function ClientsPage() {
     const labelCls = "text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1"
 
     const renderClientForm = () => (
-        <div className="space-y-6 max-h-[80vh] overflow-y-auto px-1">
+        <div className="space-y-6 px-1">
             {/* Main Form Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Client Name */}
@@ -1282,10 +1282,14 @@ export default function ClientsPage() {
                 )}
             </div>
 
-            {/* Registration/Edit Form Modal */}
             <Modal 
                 open={addOpen || editOpen} 
-                onClose={() => { setAddOpen(false); setEditOpen(false) }} 
+                onClose={() => { 
+                    setAddOpen(false); 
+                    setEditOpen(false); 
+                    setForm(EMPTY_FORM); 
+                    setErrors({}); 
+                }} 
                 title={editOpen ? 'Update Registered Client Details' : 'Register New CA Business Client'}
                 width="max-w-4xl" // Large layout for form elements
             >
