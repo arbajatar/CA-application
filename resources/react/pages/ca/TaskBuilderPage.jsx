@@ -439,6 +439,7 @@ export default function TaskBuilderPage() {
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toast, setToast] = useState({ show: false, message: '' });
+  const [saving, setSaving] = useState(false);
 
   const isDuplicating = !!location.state?.duplicateData;
 
@@ -684,6 +685,7 @@ export default function TaskBuilderPage() {
       dynamicFields['CA Rating'] = caRatingVal;
     }
 
+    setSaving(true);
     try {
       const response = await api.post('/ca/tasks', {
         ...staticFields,
@@ -701,6 +703,8 @@ export default function TaskBuilderPage() {
     } catch (err) {
       console.error(err);
       showToast('Failed to create Sheet. ' + (err.response?.data?.message || ''));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1139,8 +1143,8 @@ export default function TaskBuilderPage() {
 
               {formSchema.length > 0 && (
                 <div className="mt-3 flex justify-start">
-                  <button onClick={submitForm} className="create-btn">
-                    {viewMode === 'builder' ? 'Create Form' : 'Submit Form'}
+                  <button onClick={submitForm} disabled={saving} className="create-btn disabled:opacity-50">
+                    {viewMode === 'builder' ? 'Create Form' : (saving ? 'Publishing...' : 'Submit Form')}
                   </button>
                 </div>
               )}

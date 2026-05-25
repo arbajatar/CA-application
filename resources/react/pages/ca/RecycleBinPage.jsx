@@ -355,7 +355,6 @@ export default function RecycleBinPage() {
                 )}
             </div>
 
-            {/* Confirm Dialogs */}
             <ConfirmDialog
                 open={confirmRestoreOpen}
                 onClose={() => !actionLoading && setConfirmRestoreOpen(false)}
@@ -366,8 +365,8 @@ export default function RecycleBinPage() {
                         ? `Are you sure you want to restore "${selectedItem?.name}"? Doing so will recover the client record and any associated soft-deleted sheets.`
                         : `Are you sure you want to restore this sheet/task? It will recover the sheet and all its related subtasks.`
                 }
-                confirmLabel={actionLoading ? "Restoring..." : "Restore Data"}
-                disabled={actionLoading}
+                confirmLabel="Restore Data"
+                loading={actionLoading}
             />
 
             <ConfirmDialog
@@ -376,9 +375,9 @@ export default function RecycleBinPage() {
                 onConfirm={handleDeletePermanently}
                 title={`PERMANENTLY DELETE ${activeTab === 'clients' ? 'Client' : 'Sheet/Task'}`}
                 message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, logs, and subtasks from the database forever.`}
-                confirmLabel={actionLoading ? "Purging..." : "Delete Permanently"}
+                confirmLabel="Delete Permanently"
                 danger
-                disabled={actionLoading}
+                loading={actionLoading}
             />
         </div>
     )

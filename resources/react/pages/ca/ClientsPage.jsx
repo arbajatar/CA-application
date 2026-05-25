@@ -226,6 +226,7 @@ export default function ClientsPage() {
 
     const handleCreateType = async () => {
         if (!newTypeName) return
+        setSaving(true)
         try {
             const res = await api.post('/ca/client-types', {
                 name: newTypeName,
@@ -239,11 +240,14 @@ export default function ClientsPage() {
             toast.success('Custom client type added successfully')
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to create client type')
+        } finally {
+            setSaving(false)
         }
     }
 
     const handleCreateGroup = async () => {
         if (!newGroupName) return
+        setSaving(true)
         try {
             const res = await api.post('/ca/client-groups', {
                 name: newGroupName
@@ -255,6 +259,8 @@ export default function ClientsPage() {
             toast.success('Custom client group added successfully')
         } catch (e) {
             toast.error(e.response?.data?.message || 'Failed to create client group')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -1164,8 +1170,10 @@ export default function ClientsPage() {
                         </p>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                        <button onClick={() => setAddTypeOpen(false)} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">Cancel</button>
-                        <button onClick={handleCreateType} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675]">Add Type</button>
+                        <button onClick={() => setAddTypeOpen(false)} disabled={saving} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                        <button onClick={handleCreateType} disabled={saving} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-50">
+                            {saving ? 'Adding...' : 'Add Type'}
+                        </button>
                     </div>
                 </div>
             </Modal>
@@ -1184,8 +1192,10 @@ export default function ClientsPage() {
                         />
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                        <button onClick={() => setAddGroupOpen(false)} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50">Cancel</button>
-                        <button onClick={handleCreateGroup} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675]">Add Group</button>
+                        <button onClick={() => setAddGroupOpen(false)} disabled={saving} className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
+                        <button onClick={handleCreateGroup} disabled={saving} className="px-4 py-2 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-50">
+                            {saving ? 'Adding...' : 'Add Group'}
+                        </button>
                     </div>
                 </div>
             </Modal>
