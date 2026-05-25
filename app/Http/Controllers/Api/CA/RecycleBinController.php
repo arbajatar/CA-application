@@ -37,8 +37,8 @@ class RecycleBinController extends Controller
         $tasks = Task::onlyTrashed()
             ->with([
                 'client' => fn($q) => $q->withTrashed(),
-                'workType' => fn($q) => $q->withTrashed(),
-                'assignedTo' => fn($q) => $q->withTrashed()
+                'workType',
+                'assignedTo'
             ])
             ->latest('deleted_at')
             ->get();

@@ -6,6 +6,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Spinner from '../../components/ui/Spinner'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
+import Tooltip from '../../components/ui/Tooltip'
 
 export default function PortalListPage() {
     const { user } = useAuth()
@@ -154,12 +155,16 @@ export default function PortalListPage() {
                                         {isCa && (
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition shadow-sm bg-white border border-gray-100">
-                                                        <Pencil size={14} />
-                                                    </button>
-                                                    <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition shadow-sm bg-white border border-gray-100">
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <Tooltip content="Edit Portal">
+                                                        <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition shadow-sm bg-white border border-gray-100">
+                                                            <Pencil size={14} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip content="Delete Portal">
+                                                        <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition shadow-sm bg-white border border-gray-100">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             </td>
                                         )}

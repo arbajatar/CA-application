@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Tooltip from '../../components/ui/Tooltip'
 
 export default function RecycleBinPage() {
     const [activeTab, setActiveTab] = useState('clients') // 'clients' | 'tasks'
@@ -259,20 +260,22 @@ export default function RecycleBinPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => handleOpenRestore(client)}
-                                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                                                        title="Restore Client & Sheets"
-                                                    >
-                                                        <RotateCcw size={15} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleOpenDelete(client)}
-                                                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                                        title="Permanently Delete Client"
-                                                    >
-                                                        <Trash2 size={15} />
-                                                    </button>
+                                                    <Tooltip content="Restore Client">
+                                                        <button
+                                                            onClick={() => handleOpenRestore(client)}
+                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                        >
+                                                            <RotateCcw size={15} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip content="Delete Client" position="left">
+                                                        <button
+                                                            onClick={() => handleOpenDelete(client)}
+                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             </td>
                                         </tr>
@@ -330,20 +333,22 @@ export default function RecycleBinPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => handleOpenRestore(task)}
-                                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                                                        title="Restore Sheet & Subtasks"
-                                                    >
-                                                        <RotateCcw size={15} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleOpenDelete(task)}
-                                                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                                        title="Permanently Delete Sheet"
-                                                    >
-                                                        <Trash2 size={15} />
-                                                    </button>
+                                                    <Tooltip content="Restore Sheet & Subtasks">
+                                                        <button
+                                                            onClick={() => handleOpenRestore(task)}
+                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                        >
+                                                            <RotateCcw size={15} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip content="Permanently Delete Sheet" position="left">
+                                                        <button
+                                                            onClick={() => handleOpenDelete(task)}
+                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             </td>
                                         </tr>

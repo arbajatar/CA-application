@@ -6,6 +6,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Tooltip from '../../components/ui/Tooltip'
 
 const EMPTY_FORM = {
     name: '',
@@ -1074,20 +1075,22 @@ export default function ClientsPage() {
                                         {/* Actions */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button 
-                                                    onClick={() => openEdit(c)} 
-                                                    className="p-2 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-[#1F5C99] transition border border-transparent hover:border-slate-100"
-                                                    title="Edit client details"
-                                                >
-                                                    <Pencil size={14} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => { setSelected(c); setDeleteOpen(true) }} 
-                                                    className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"
-                                                    title="Archive client"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                <Tooltip content="Edit Client">
+                                                    <button 
+                                                        onClick={() => openEdit(c)} 
+                                                        className="p-2 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-[#1F5C99] transition border border-transparent hover:border-slate-100"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                </Tooltip>
+                                                <Tooltip content="Archive Client">
+                                                    <button 
+                                                        onClick={() => { setSelected(c); setDeleteOpen(true) }} 
+                                                        className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </Tooltip>
                                             </div>
                                         </td>
                                     </tr>

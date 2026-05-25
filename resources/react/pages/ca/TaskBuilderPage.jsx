@@ -12,6 +12,7 @@ import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import '../../styles/task-builder.css';
 
@@ -1109,13 +1110,15 @@ export default function TaskBuilderPage() {
                                   />
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveRolePermission(perm.role_id)}
-                                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <Tooltip content="Remove Permission" position="left">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveRolePermission(perm.role_id)}
+                                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </Tooltip>
                                 </td>
                               </tr>
                             );

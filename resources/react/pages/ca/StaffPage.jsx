@@ -6,6 +6,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Tooltip from '../../components/ui/Tooltip'
 
 const EMPTY_FORM = { name: '', username: '', password: '', role_id: '' }
 
@@ -242,19 +243,27 @@ export default function StaffPage() {
                                             <StatusBadge status={s.is_active ? 'active' : 'inactive'} />
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_id: s.role_id || '', password: '' }); setErrors({}); setEditOpen(true) }}
-                                                    className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
-                                                <button onClick={() => { setSelected(s); setResetPass({ password: '', password_confirmation: '' }); setErrors({}); setResetOpen(true) }}
-                                                    className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><KeyRound size={15} /></button>
-                                                {s.is_active ? (
-                                                    <button onClick={() => { setSelected(s); setDeactivateOpen(true) }}
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition" title="Deactivate"><UserMinus size={15} /></button>
-                                                ) : (
-                                                    <button onClick={() => { setSelected(s); setActivateOpen(true) }}
-                                                        className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition" title="Activate"><UserCheck size={15} /></button>
-                                                )}
-                                            </div>
+                                             <div className="flex items-center gap-2">
+                                                 <Tooltip content="Edit Member">
+                                                     <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_id: s.role_id || '', password: '' }); setErrors({}); setEditOpen(true) }}
+                                                         className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                 </Tooltip>
+                                                 <Tooltip content="Reset Password">
+                                                     <button onClick={() => { setSelected(s); setResetPass({ password: '', password_confirmation: '' }); setErrors({}); setResetOpen(true) }}
+                                                         className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><KeyRound size={15} /></button>
+                                                 </Tooltip>
+                                                 {s.is_active ? (
+                                                     <Tooltip content="Deactivate Member">
+                                                         <button onClick={() => { setSelected(s); setDeactivateOpen(true) }}
+                                                             className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><UserMinus size={15} /></button>
+                                                     </Tooltip>
+                                                 ) : (
+                                                     <Tooltip content="Activate Member">
+                                                         <button onClick={() => { setSelected(s); setActivateOpen(true) }}
+                                                             className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition"><UserCheck size={15} /></button>
+                                                     </Tooltip>
+                                                 )}
+                                             </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -386,22 +395,24 @@ export default function StaffPage() {
                                     <div key={r.id} className="flex items-center justify-between py-2.5">
                                         <span className="text-sm font-medium text-gray-800">{r.name}</span>
                                         <div className="flex gap-2">
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
-                                                className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
-                                                title="Edit Role"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleDeleteRoleClick(r)}
-                                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
-                                                title="Delete Role"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            <Tooltip content="Edit Role" position="left">
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
+                                                    className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip content="Delete Role" position="left">
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => handleDeleteRoleClick(r)}
+                                                    className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </Tooltip>
                                         </div>
                                     </div>
                                 ))}

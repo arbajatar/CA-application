@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
+import Tooltip from '../../components/ui/Tooltip'
 
 export default function SettingsPage() {
     const [workTypes, setWorkTypes] = useState([])
@@ -102,18 +103,20 @@ export default function SettingsPage() {
                                         {wt.name}
                                     </span>
                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => { setEditWt(wt); setWtName(wt.name); setWtError(''); setWtModal(true) }}
-                                            title="Edit Work Type"
-                                            className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition">
-                                            <Pencil size={14} />
-                                        </button>
-                                        <button onClick={() => handleToggle(wt)} 
-                                            title={wt.is_active ? 'Deactivate' : 'Activate'}
-                                            className="text-gray-400 hover:text-gray-600 transition">
-                                            {wt.is_active
-                                                ? <ToggleRight size={22} className="text-green-500" />
-                                                : <ToggleLeft size={22} />}
-                                        </button>
+                                        <Tooltip content="Edit Work Type">
+                                            <button onClick={() => { setEditWt(wt); setWtName(wt.name); setWtError(''); setWtModal(true) }}
+                                                className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition">
+                                                <Pencil size={14} />
+                                            </button>
+                                        </Tooltip>
+                                        <Tooltip content={wt.is_active ? 'Deactivate' : 'Activate'}>
+                                            <button onClick={() => handleToggle(wt)} 
+                                                className="text-gray-400 hover:text-gray-600 transition">
+                                                {wt.is_active
+                                                    ? <ToggleRight size={22} className="text-green-500" />
+                                                    : <ToggleLeft size={22} />}
+                                            </button>
+                                        </Tooltip>
                                     </div>
                                 </div>
                             ))}

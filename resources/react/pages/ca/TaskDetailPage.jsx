@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 import Spinner from '../../components/ui/Spinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
+import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
 
@@ -793,13 +794,15 @@ export default function TaskDetailPage() {
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleRemoveRolePermission(perm.role_id)}
-                                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
+                                                        <Tooltip content="Remove Permission" position="left">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveRolePermission(perm.role_id)}
+                                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </Tooltip>
                                                     </td>
                                                 </tr>
                                             );

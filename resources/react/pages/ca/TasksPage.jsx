@@ -7,6 +7,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Tooltip from '../../components/ui/Tooltip'
 import { formatDate } from '../../utils/dateHelper'
 
 
@@ -881,22 +882,24 @@ export default function TasksPage() {
     );
 
     const SheetSmallCard = ({ task }) => (
-        <div 
-            onClick={() => navigate(`/ca/tasks/${task.id}`)}
-            className="group cursor-pointer bg-white rounded-xl p-3 border border-gray-100 hover:border-[#1F5C99] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none"
-        >
-            <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">
-                <FileText size={18} />
+        <Tooltip content={`${task.form_name || 'Unnamed Sheet'} — ${task.client?.name || 'No Client'}`}>
+            <div 
+                onClick={() => navigate(`/ca/tasks/${task.id}`)}
+                className="group cursor-pointer bg-white rounded-xl p-3 border border-gray-100 hover:border-[#1F5C99] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none w-full"
+            >
+                <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">
+                    <FileText size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors">
+                        {task.form_name || 'Unnamed Sheet'}
+                    </h4>
+                    <p className="text-[10px] text-gray-400 truncate">
+                        {task.client?.name || '—'}
+                    </p>
+                </div>
             </div>
-            <div className="min-w-0 flex-1">
-                <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors" title={task.form_name || 'Unnamed Sheet'}>
-                    {task.form_name || 'Unnamed Sheet'}
-                </h4>
-                <p className="text-[10px] text-gray-400 truncate" title={task.client?.name || 'No Client'}>
-                    {task.client?.name || '—'}
-                </p>
-            </div>
-        </div>
+        </Tooltip>
     );
 
     const summaryCards = [
@@ -1297,10 +1300,12 @@ export default function TasksPage() {
                                     <div className="flex gap-4 overflow-x-auto pb-3 pt-1 px-1 no-scrollbar scroll-smooth">
                                         {allFields.map(field => (
                                             <div key={field.key} className="relative min-w-[200px] shrink-0 bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-[#1F5C99]/30 transition">
-                                                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 truncate" title={field.label}>
-                                                    {field.label}
-                                                    {field.isStatic && <span className="ml-1.5 text-[9px] font-semibold text-[#1F5C99] bg-[#1F5C99]/5 px-1 py-0.5 rounded">System</span>}
-                                                </label>
+                                                <Tooltip content={field.label} position="bottom">
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 truncate cursor-help">
+                                                        {field.label}
+                                                        {field.isStatic && <span className="ml-1.5 text-[9px] font-semibold text-[#1F5C99] bg-[#1F5C99]/5 px-1 py-0.5 rounded">System</span>}
+                                                    </label>
+                                                </Tooltip>
                                                 <div className="relative">
                                                     <input
                                                         type="text"
@@ -1580,15 +1585,25 @@ export default function TasksPage() {
                                                          })}
                                                     <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover/row:bg-gray-100 transition shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
-                                                                <Eye size={15} />
-                                                            </button>
-                                                            <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
-                                                            <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition" title="Duplicate Sheet">
-                                                                <Copy size={15} />
-                                                            </button>
-                                                            <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
-                                                            <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                                                            <Tooltip content="View Sheet">
+                                                                <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                                    <Eye size={15} />
+                                                                </button>
+                                                            </Tooltip>
+                                                            <Tooltip content="Edit Sheet">
+                                                                <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                            </Tooltip>
+                                                            <Tooltip content="Duplicate Sheet">
+                                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition">
+                                                                    <Copy size={15} />
+                                                                </button>
+                                                            </Tooltip>
+                                                            <Tooltip content="Reassign Staff">
+                                                                <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
+                                                            </Tooltip>
+                                                            <Tooltip content="Delete Sheet" position="left">
+                                                                <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                                                            </Tooltip>
                                                         </div>
                                                     </td>
                                                 </tr>
