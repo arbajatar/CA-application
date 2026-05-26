@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, ShieldCheck, Save } from 'lucide-react'
+import { Lock, ShieldCheck, Save, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api/axios'
 
@@ -11,6 +11,9 @@ export default function ProfilePage() {
         password: '',
         password_confirmation: '',
     })
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+    const [showNewPassword, setShowNewPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
@@ -89,12 +92,19 @@ export default function ProfilePage() {
                                     <div className="relative">
                                         <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                         <input
-                                            type="password"
+                                            type={showCurrentPassword ? 'text' : 'password'}
                                             value={form.current_password}
                                             onChange={e => setForm(f => ({ ...f, current_password: e.target.value }))}
                                             placeholder="••••••••"
-                                            className="w-full pl-9 pr-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
+                                            className="w-full pl-9 pr-10 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                        >
+                                            {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -104,12 +114,19 @@ export default function ProfilePage() {
                                     <div className="relative">
                                         <ShieldCheck size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                         <input
-                                            type="password"
+                                            type={showNewPassword ? 'text' : 'password'}
                                             value={form.password}
                                             onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                                             placeholder="••••••••"
-                                            className="w-full pl-9 pr-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
+                                            className="w-full pl-9 pr-10 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewPassword(!showNewPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                        >
+                                            {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -118,13 +135,22 @@ export default function ProfilePage() {
                                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
                                     Confirm New Password
                                 </label>
-                                <input
-                                    type="password"
-                                    value={form.password_confirmation}
-                                    onChange={e => setForm(f => ({ ...f, password_confirmation: e.target.value }))}
-                                    placeholder="••••••••"
-                                    className={inputCls}
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showConfirmPassword ? 'text' : 'password'}
+                                        value={form.password_confirmation}
+                                        onChange={e => setForm(f => ({ ...f, password_confirmation: e.target.value }))}
+                                        placeholder="••••••••"
+                                        className={`${inputCls} pr-10`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
                             </div>
 
                             {error && <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, ToggleLeft, ToggleRight, Save } from 'lucide-react'
+import { Plus, Pencil, ToggleLeft, ToggleRight, Save, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
@@ -16,6 +16,9 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false)
 
     const [passForm, setPassForm] = useState({ current_password: '', password: '', password_confirmation: '' })
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+    const [showNewPassword, setShowNewPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [passError, setPassError] = useState('')
     const [passSuccess, setPassSuccess] = useState('')
     const [passSaving, setPassSaving] = useState(false)
@@ -130,21 +133,48 @@ export default function SettingsPage() {
                     <form onSubmit={handleChangePassword} className="space-y-4">
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Current Password</label>
-                            <input type="password" value={passForm.current_password}
-                                onChange={e => setPassForm(f => ({ ...f, current_password: e.target.value }))}
-                                placeholder="Enter current password" className={inputCls} />
+                            <div className="relative">
+                                <input type={showCurrentPassword ? 'text' : 'password'} value={passForm.current_password}
+                                    onChange={e => setPassForm(f => ({ ...f, current_password: e.target.value }))}
+                                    placeholder="Enter current password" className={`${inputCls} pr-10`} />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                >
+                                    {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">New Secure Password</label>
-                            <input type="password" value={passForm.password}
-                                onChange={e => setPassForm(f => ({ ...f, password: e.target.value }))}
-                                placeholder="Enter new password" className={inputCls} />
+                            <div className="relative">
+                                <input type={showNewPassword ? 'text' : 'password'} value={passForm.password}
+                                    onChange={e => setPassForm(f => ({ ...f, password: e.target.value }))}
+                                    placeholder="Enter new password" className={`${inputCls} pr-10`} />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                >
+                                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Confirm New Password</label>
-                            <input type="password" value={passForm.password_confirmation}
-                                onChange={e => setPassForm(f => ({ ...f, password_confirmation: e.target.value }))}
-                                placeholder="Repeat new password" className={inputCls} />
+                            <div className="relative">
+                                <input type={showConfirmPassword ? 'text' : 'password'} value={passForm.password_confirmation}
+                                    onChange={e => setPassForm(f => ({ ...f, password_confirmation: e.target.value }))}
+                                    placeholder="Repeat new password" className={`${inputCls} pr-10`} />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition z-10 cursor-pointer"
+                                >
+                                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
                         </div>
                         {passError && <p className="text-xs text-red-500">{passError}</p>}
                         {passSuccess && <p className="text-xs text-green-600">{passSuccess}</p>}

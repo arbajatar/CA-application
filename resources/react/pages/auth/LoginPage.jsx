@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShieldCheck, User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, User, Lock, ArrowRight, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const roles = [
@@ -58,12 +58,13 @@ export default function LoginPage() {
                         <select
                             value={role}
                             onChange={e => setRole(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/30 focus:border-[#1F5C99] transition"
+                            className="w-full pl-10 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/30 focus:border-[#1F5C99] transition cursor-pointer"
                         >
                             {roles.map(r => (
                                 <option key={r.value} value={r.value}>{r.label}</option>
                             ))}
                         </select>
+                        <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
                     {/* Username */}
@@ -93,7 +94,7 @@ export default function LoginPage() {
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition p-1"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition p-1 z-10 cursor-pointer"
                         >
                             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                         </button>
@@ -110,10 +111,19 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition disabled:opacity-60"
+                        className="w-full bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition disabled:opacity-60 cursor-pointer"
                     >
-                        {loading ? 'Authorizing...' : 'Authorize Access'}
-                        {!loading && <ArrowRight size={16} />}
+                        {loading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Authorizing...</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>Authorize Access</span>
+                                <ArrowRight size={16} />
+                            </>
+                        )}
                     </button>
 
                     {/* Hint */}
