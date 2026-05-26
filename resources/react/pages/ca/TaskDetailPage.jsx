@@ -868,102 +868,147 @@ export default function TaskDetailPage() {
                     </div>
 
                     {/* Dynamic Fields */}
-                    {task.dynamic_fields && Object.entries(task.dynamic_fields).map(([label, value]) => {
-                        // Skip system keys
-                        if (['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)) return null;
+                    {(() => {
+                        const fieldsToRender = [];
+                        const seenLabels = new Set(['schema', 'multi_rows', 'field_names', 'field_types']);
 
-                        const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
-                        const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
-                        const isRating = label === 'CA Rating';
-                        const isFeedback = label === 'CA Feedback';
+                        // 1. First add fields defined in the schema
+                        if (schema && schema.length > 0) {
+                            schema.forEach(field => {
+                                const label = field.label;
+                                if (label && !seenLabels.has(label)) {
+                                    fieldsToRender.push({
+                                        label,
+                                        value: task.dynamic_fields?.[label] ?? ''
+                                    });
+                                    seenLabels.add(label);
+                                }
+                            });
+                        }
 
-                        return (
-                            <div key={label} className="space-y-1 group">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                                <div className="flex items-center">
-                                    <div className="text-sm font-bold text-slate-700">
-                                        {isRating ? (
-                                            <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
-                                                {Array.from({ length: 5 }).map((_, i) => {
-                                                    const starNum = i + 1;
-                                                    const isFilled = starNum <= parseInt(value || '0');
-                                                    return (
-                                                        <button 
-                                                            key={i} 
-                                                            type="button"
-                                                            onClick={() => handleUpdateSingleDynamicField('CA Rating', String(starNum))}
-                                                            className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
-                                                            title={`Rate ${starNum} Stars`}
-                                                        >
-                                                            ★
-                                                        </button>
-                                                    );
-                                                })}
-                                                <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
-                                            </div>
-                                        ) : isFeedback ? (
-                                            <div className="flex items-center gap-2 group/edit-inline w-full">
-                                                {isEditingFeedbackInline ? (
-                                                    <div className="flex items-center gap-2 w-full max-w-[300px]">
-                                                        <input 
-                                                            type="text" 
-                                                            value={inlineFeedbackValue} 
-                                                            onChange={e => setInlineFeedbackValue(e.target.value)}
-                                                            onBlur={() => {
-                                                                setIsEditingFeedbackInline(false);
-                                                                handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
-                                                            }}
-                                                            onKeyDown={e => {
-                                                                if (e.key === 'Enter') {
+                        // 2. Add CA Rating & CA Feedback next, permanently guaranteeing they are visible
+                        if (!seenLabels.has('CA Rating')) {
+                            fieldsToRender.push({
+                                label: 'CA Rating',
+                                value: task.dynamic_fields?.['CA Rating'] ?? '0'
+                            });
+                            seenLabels.add('CA Rating');
+                        }
+                        if (!seenLabels.has('CA Feedback')) {
+                            fieldsToRender.push({
+                                label: 'CA Feedback',
+                                value: task.dynamic_fields?.['CA Feedback'] ?? ''
+                            });
+                            seenLabels.add('CA Feedback');
+                        }
+
+                        // 3. Fallback to add any remaining keys in dynamic_fields not covered yet
+                        if (task.dynamic_fields) {
+                            Object.entries(task.dynamic_fields).forEach(([label, value]) => {
+                                if (!seenLabels.has(label)) {
+                                    fieldsToRender.push({
+                                        label,
+                                        value: value ?? ''
+                                    });
+                                    seenLabels.add(label);
+                                }
+                            });
+                        }
+
+                        return fieldsToRender.map(({ label, value }) => {
+                            const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
+                            const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
+                            const isRating = label === 'CA Rating';
+                            const isFeedback = label === 'CA Feedback';
+
+                            return (
+                                <div key={label} className="space-y-1 group">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                                    <div className="flex items-center">
+                                        <div className="text-sm font-bold text-slate-700">
+                                            {isRating ? (
+                                                <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
+                                                    {Array.from({ length: 5 }).map((_, i) => {
+                                                        const starNum = i + 1;
+                                                        const isFilled = starNum <= parseInt(value || '0');
+                                                        return (
+                                                            <button 
+                                                                key={i} 
+                                                                type="button"
+                                                                onClick={() => handleUpdateSingleDynamicField('CA Rating', String(starNum))}
+                                                                className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                                                                title={`Rate ${starNum} Stars`}
+                                                            >
+                                                                ★
+                                                            </button>
+                                                        );
+                                                    })}
+                                                    <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
+                                                </div>
+                                            ) : isFeedback ? (
+                                                <div className="flex items-center gap-2 group/edit-inline w-full">
+                                                    {isEditingFeedbackInline ? (
+                                                        <div className="flex items-center gap-2 w-full max-w-[300px]">
+                                                            <input 
+                                                                type="text" 
+                                                                value={inlineFeedbackValue} 
+                                                                onChange={e => setInlineFeedbackValue(e.target.value)}
+                                                                onBlur={() => {
                                                                     setIsEditingFeedbackInline(false);
                                                                     handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
-                                                                }
+                                                                }}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') {
+                                                                        setIsEditingFeedbackInline(false);
+                                                                        handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
+                                                                    }
+                                                                }}
+                                                                autoFocus
+                                                                className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 w-full focus:bg-white focus:border-indigo-500 outline-none transition"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div 
+                                                            onClick={() => {
+                                                                setInlineFeedbackValue(value || '');
+                                                                setIsEditingFeedbackInline(true);
                                                             }}
-                                                            autoFocus
-                                                            className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 w-full focus:bg-white focus:border-indigo-500 outline-none transition"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div 
-                                                        onClick={() => {
-                                                            setInlineFeedbackValue(value || '');
-                                                            setIsEditingFeedbackInline(true);
-                                                        }}
-                                                        className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group"
-                                                        title="Click to Edit Feedback"
-                                                    >
-                                                        <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
-                                                        <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : isLink ? (
-                                            <a 
-                                                href={hrefVal} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer" 
-                                                className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 font-bold"
+                                                            className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group"
+                                                            title="Click to Edit Feedback"
+                                                        >
+                                                            <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
+                                                            <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : isLink ? (
+                                                <a 
+                                                    href={hrefVal} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 font-bold"
+                                                >
+                                                    {value}
+                                                    <Globe size={12} className="shrink-0" />
+                                                </a>
+                                            ) : (
+                                                Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))
+                                            )}
+                                        </div>
+                                        {!isFeedback && value && typeof value !== 'boolean' && (
+                                            <button
+                                                onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                                className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm"
+                                                title="Copy"
                                             >
-                                                {value}
-                                                <Globe size={12} className="shrink-0" />
-                                            </a>
-                                        ) : (
-                                            Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))
+                                                <Copy size={12} />
+                                            </button>
                                         )}
                                     </div>
-                                    {!isFeedback && value && typeof value !== 'boolean' && (
-                                        <button
-                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
-                                            className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm"
-                                            title="Copy"
-                                        >
-                                            <Copy size={12} />
-                                        </button>
-                                    )}
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        });
+                    })()}
                 </div>
             </div>
 

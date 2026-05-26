@@ -1518,12 +1518,12 @@ export default function TasksPage() {
                                                             if (col.id === 'task_particular') {
                                                                 const draftVal = pendingUpdates[t.id]?.task_particular !== undefined ? pendingUpdates[t.id].task_particular : (t.task_particular || '');
                                                                 return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
-                                                                        <input 
-                                                                            type="text" 
+                                                                    <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                        <textarea 
                                                                             value={draftVal}
                                                                             onChange={e => handleBulkFieldChange(t.id, 'task_particular', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                            rows={2}
+                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
                                                                         />
                                                                     </td>
                                                                 );
@@ -1531,12 +1531,12 @@ export default function TasksPage() {
                                                             if (col.id === 'remarks') {
                                                                 const draftVal = pendingUpdates[t.id]?.remarks !== undefined ? pendingUpdates[t.id].remarks : (t.remarks || '');
                                                                 return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
-                                                                        <input 
-                                                                            type="text" 
+                                                                    <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                        <textarea 
                                                                             value={draftVal}
                                                                             onChange={e => handleBulkFieldChange(t.id, 'remarks', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                            rows={2}
+                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
                                                                         />
                                                                     </td>
                                                                 );
@@ -1571,6 +1571,18 @@ export default function TasksPage() {
                                                                 }
 
                                                                 const displayVal = Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || ''));
+                                                                if (col.fieldName === 'CA Feedback') {
+                                                                    return (
+                                                                        <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                            <textarea 
+                                                                                value={displayVal}
+                                                                                onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
+                                                                                rows={2}
+                                                                                className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
+                                                                            />
+                                                                        </td>
+                                                                    );
+                                                                }
                                                                 return (
                                                                     <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[160px]">
                                                                         <input 
