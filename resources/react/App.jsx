@@ -22,6 +22,7 @@ import TaskBuilderPage from './pages/ca/TaskBuilderPage'
 import TaskDetailPage from './pages/ca/TaskDetailPage'
 import ThingsToKnowPage from './pages/common/ThingsToKnowPage'
 import ReportsPage from './pages/ca/ReportsPage'
+import TeamReportPage from './pages/ca/TeamReportPage'
 import RecycleBinPage from './pages/ca/RecycleBinPage'
 
 function CALayout({ children }) {
@@ -175,6 +176,11 @@ export default function App() {
               <CALayout><ReportsPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
+          <Route path="/ca/reports/team" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><TeamReportPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
           <Route path="/ca/reports/:type" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><ReportsPage /></CALayout>
@@ -190,6 +196,11 @@ export default function App() {
           <Route path="/staff/tasks" element={
             <ProtectedRoute><RoleRoute role="staff">
               <StaffLayout><MyTasksPage /></StaffLayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/staff/reports/team" element={
+            <ProtectedRoute><RoleRoute role="staff">
+              <StaffLayout><TeamReportPage /></StaffLayout>
             </RoleRoute></ProtectedRoute>
           } />
            <Route path="/staff/profile" element={

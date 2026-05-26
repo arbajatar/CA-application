@@ -53,6 +53,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // Portals list accessible to all authenticated users
     Route::get('/ca/portals', [\App\Http\Controllers\Api\CA\PortalController::class, 'index']);
 
+    // Daily Work Progress Reports endpoints
+    Route::get('/daily-reports', [\App\Http\Controllers\Api\CA\DailyWorkReportController::class, 'index']);
+    Route::post('/daily-reports', [\App\Http\Controllers\Api\CA\DailyWorkReportController::class, 'store']);
+    Route::patch('/daily-reports/{id}', [\App\Http\Controllers\Api\CA\DailyWorkReportController::class, 'update']);
+    Route::delete('/daily-reports/{id}', [\App\Http\Controllers\Api\CA\DailyWorkReportController::class, 'destroy']);
+
+    // Read-only dependency endpoints for daily reporting (accessible to staff & CA)
+    Route::get('/daily-reports/clients', [ClientController::class, 'index']);
+    Route::get('/daily-reports/client-types', [ClientController::class, 'types']);
+    Route::get('/daily-reports/client-groups', [ClientController::class, 'groups']);
+    Route::get('/daily-reports/work-types', [WorkTypeController::class, 'index']);
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 
