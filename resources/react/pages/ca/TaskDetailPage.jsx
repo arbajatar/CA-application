@@ -1041,7 +1041,7 @@ export default function TaskDetailPage() {
                                 <th className="px-6 py-4 text-left">Status</th>
                                 <th className="px-6 py-4 text-left">Sub Status</th>
                                 <th className="px-6 py-4 text-left">Due date</th>
-                                <th className="px-6 py-4 text-left">Remarks</th>
+                                <th className="px-6 py-4 text-left min-w-[240px]">Remarks</th>
                                 <th className="px-6 py-4 text-center">Attachment</th>
                                 <th className="px-6 py-4 text-right"></th>
                             </tr>
@@ -1116,17 +1116,17 @@ export default function TaskDetailPage() {
                                             className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer"
                                         />
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center group/rem">
+                                    <td className="px-6 py-5 min-w-[240px]">
+                                        <div className="flex items-center group/rem w-full">
                                             <textarea
                                                 defaultValue={st.remarks}
                                                 onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
                                                 placeholder="Remarks..."
                                                 rows="1"
-                                                className="bg-transparent border-none focus:ring-0 text-xs font-medium text-slate-400 w-full resize-y min-h-[30px]"
+                                                className="bg-transparent hover:bg-slate-50 border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition-all leading-relaxed"
                                             />
                                             {st.remarks && (
-                                                <button onClick={() => handleCopy(st.remarks)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                                <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
                                             )}
                                         </div>
                                     </td>
