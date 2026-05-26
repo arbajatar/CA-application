@@ -421,7 +421,7 @@ export default function ClientsPage() {
             a.download = `Clients_Register_${new Date().toISOString().split('T')[0]}.xlsx`
             a.click()
             window.URL.revokeObjectURL(url)
-            toast.success('Clients list exported successfully with professional styling!')
+            toast.success('Client List exported successfully')
         } catch (e) {
             console.error(e)
             toast.error('Failed to export clients list.')
