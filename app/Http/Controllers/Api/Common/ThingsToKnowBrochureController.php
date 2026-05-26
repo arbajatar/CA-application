@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 
+use App\Helpers\UploadHelper;
+
 class ThingsToKnowBrochureController extends Controller
 {
     public function index(): JsonResponse
@@ -25,7 +27,7 @@ class ThingsToKnowBrochureController extends Controller
             'group_name' => 'nullable|string|max:255',
         ]);
 
-        $path = $request->file('file')->store('brochures', 'public');
+        $path = UploadHelper::upload($request->file('file'), 'brochures');
 
         $brochure = ThingsToKnowBrochure::create([
             'title' => $request->title,

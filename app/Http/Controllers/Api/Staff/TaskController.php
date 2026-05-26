@@ -11,6 +11,8 @@ use App\Models\TaskLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+use App\Helpers\UploadHelper;
+
 class TaskController extends Controller
 {
     public function index(Request $request)
@@ -132,7 +134,7 @@ class TaskController extends Controller
             if (!$task->allow_attachments) {
                 return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
             }
-            $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
+            $screenshotPath = UploadHelper::upload($request->file('screenshot'), 'task_screenshots');
         }
 
         // Log the status change

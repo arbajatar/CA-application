@@ -10,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
+use App\Helpers\UploadHelper;
+
 class SubTaskController extends Controller
 {
     public function index(Request $request): JsonResponse
@@ -72,7 +74,7 @@ class SubTaskController extends Controller
             if (!$task || !$task->allow_attachments) {
                 return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
             }
-            $screenshotPath = $request->file('screenshot')->store('task_screenshots', 'public');
+            $screenshotPath = UploadHelper::upload($request->file('screenshot'), 'task_screenshots');
         }
 
         // Simple status update for now, maybe add transition logic later like in TaskController
