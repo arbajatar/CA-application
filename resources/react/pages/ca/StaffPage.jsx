@@ -176,6 +176,41 @@ export default function StaffPage() {
         }
     }
 
+    const handleCloseAdd = () => {
+        setAddOpen(false)
+        setForm(EMPTY_FORM)
+        setErrors({})
+    }
+
+    const handleCloseEdit = () => {
+        setEditOpen(false)
+        setSelected(null)
+        setForm(EMPTY_FORM)
+        setErrors({})
+    }
+
+    const handleCloseReset = () => {
+        setResetOpen(false)
+        setSelected(null)
+        setResetPass({ password: '', password_confirmation: '' })
+        setErrors({})
+    }
+
+    const handleCloseDeactivate = () => {
+        setDeactivateOpen(false)
+        setSelected(null)
+    }
+
+    const handleCloseActivate = () => {
+        setActivateOpen(false)
+        setSelected(null)
+    }
+
+    const handleCloseDeleteRole = () => {
+        setDeleteRoleOpen(false)
+        setRoleToDelete(null)
+    }
+
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
     const renderField = (label, error, children) => (
@@ -236,6 +271,8 @@ export default function StaffPage() {
                         <div className="relative w-full sm:w-48">
                             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input type="text" placeholder="Search staff..." value={search}
+                                autoComplete="off"
+                                name="staff_search_query"
                                 onChange={e => { setSearch(e.target.value); setPage(1) }}
                                 className="pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                         </div>
@@ -319,183 +356,196 @@ export default function StaffPage() {
             </div>
 
             {/* Add Modal */}
-            <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add New Staff Member">
-                <div className="space-y-4">
-                    {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
-                    {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
-                    {renderField("Assign Role", errors.role_id?.[0], (
-                        <select 
-                            value={form.role_id || ''} 
-                            onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
-                            className={inputCls}
-                        >
-                            <option value="">Select Role</option>
-                            {roles.map(r => (
-                                <option key={r.id} value={r.id}>{r.name}</option>
-                            ))}
-                        </select>
-                    ))}
-                    {renderField("Password *", errors.password?.[0], (
-                        <div className="relative">
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                value={form.password}
-                                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                                placeholder="Min 6 characters"
-                                className={`${inputCls} pr-10`}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+            {addOpen && (
+                <Modal open={addOpen} onClose={handleCloseAdd} title="Add New Staff Member">
+                    <div className="space-y-4">
+                        {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
+                        {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
+                        {renderField("Assign Role", errors.role_id?.[0], (
+                            <select 
+                                value={form.role_id || ''} 
+                                onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
+                                className={inputCls}
                             >
-                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
+                                <option value="">Select Role</option>
+                                {roles.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
+                            </select>
+                        ))}
+                        {renderField("Password *", errors.password?.[0], (
+                            <div className="relative">
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={form.password}
+                                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                                    placeholder="Min 6 characters"
+                                    className={`${inputCls} pr-10`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                                >
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                        ))}
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button type="button" onClick={handleCloseAdd} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                            <button type="button" onClick={handleAdd} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Add Member'}</button>
                         </div>
-                    ))}
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                        <button onClick={handleAdd} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Add Member'}</button>
                     </div>
-                </div>
-            </Modal>
+                </Modal>
+            )}
 
             {/* Edit Modal */}
-            <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Staff Member">
-                <div className="space-y-4">
-                    {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />)}
-                    {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
-                    {renderField("Assign Role", errors.role_id?.[0], (
-                        <select 
-                            value={form.role_id || ''} 
-                            onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
-                            className={inputCls}
-                        >
-                            <option value="">Select Role</option>
-                            {roles.map(r => (
-                                <option key={r.id} value={r.id}>{r.name}</option>
-                            ))}
-                        </select>
-                    ))}
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setEditOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                        <button onClick={handleEdit} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Changes'}</button>
+            {editOpen && selected && (
+                <Modal open={editOpen} onClose={handleCloseEdit} title="Edit Staff Member">
+                    <div className="space-y-4">
+                        {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />)}
+                        {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
+                        {renderField("Assign Role", errors.role_id?.[0], (
+                            <select 
+                                value={form.role_id || ''} 
+                                onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
+                                className={inputCls}
+                            >
+                                <option value="">Select Role</option>
+                                {roles.map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                ))}
+                            </select>
+                        ))}
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button type="button" onClick={handleCloseEdit} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                            <button type="button" onClick={handleEdit} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Save Changes'}</button>
+                        </div>
                     </div>
-                </div>
-            </Modal>
+                </Modal>
+            )}
 
             {/* Role Management Modal */}
-            <Modal open={roleManagementOpen} onClose={() => setRoleManagementOpen(false)} title="Role Management">
-                <div className="space-y-6">
-                    <form onSubmit={handleSaveRole} className="space-y-3">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            {editingRole ? 'Edit Role Name' : 'Create New Role'}
-                        </label>
-                        <div className="flex gap-2">
-                            <input 
-                                type="text" 
-                                value={roleNameInput} 
-                                onChange={e => setRoleNameInput(e.target.value)} 
-                                placeholder="e.g. Senior Accountant" 
-                                className={inputCls} 
-                                required
-                            />
-                            <button 
-                                type="submit" 
-                                disabled={roleSaving}
-                                className="px-5 py-2.5 bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition text-sm font-semibold whitespace-nowrap"
-                            >
-                                {roleSaving ? 'Saving...' : (editingRole ? 'Update' : 'Create')}
-                            </button>
-                            {editingRole && (
+            {roleManagementOpen && (
+                <Modal open={roleManagementOpen} onClose={() => setRoleManagementOpen(false)} title="Role Management">
+                    <div className="space-y-6">
+                        <form onSubmit={handleSaveRole} className="space-y-3">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                {editingRole ? 'Edit Role Name' : 'Create New Role'}
+                            </label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={roleNameInput} 
+                                    onChange={e => setRoleNameInput(e.target.value)} 
+                                    placeholder="e.g. Senior Accountant" 
+                                    className={inputCls} 
+                                    required
+                                />
                                 <button 
-                                    type="button" 
-                                    onClick={() => { setEditingRole(null); setRoleNameInput('') }}
-                                    className="px-4 py-2.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold"
+                                    type="submit" 
+                                    disabled={roleSaving}
+                                    className="px-5 py-2.5 bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition text-sm font-semibold whitespace-nowrap"
                                 >
-                                    Cancel
+                                    {roleSaving ? 'Saving...' : (editingRole ? 'Update' : 'Create')}
                                 </button>
+                                {editingRole && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => { setEditingRole(null); setRoleNameInput('') }}
+                                        className="px-4 py-2.5 border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
+                            {roleErrors.name && <p className="text-xs text-red-500">{roleErrors.name[0]}</p>}
+                        </form>
+
+                        <div className="border-t border-gray-100 pt-4">
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Existing Roles</h3>
+                            {rolesLoading ? <Spinner /> : roles.length === 0 ? (
+                                <p className="text-sm text-gray-400 py-2">No roles created yet.</p>
+                            ) : (
+                                <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
+                                    {roles.map(r => (
+                                        <div key={r.id} className="flex items-center justify-between py-2.5">
+                                            <span className="text-sm font-medium text-gray-800">{r.name}</span>
+                                            <div className="flex gap-2">
+                                                <Tooltip content="Edit Role" position="left">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
+                                                        className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                </Tooltip>
+                                                <Tooltip content="Delete Role" position="left">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleDeleteRoleClick(r)}
+                                                        className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
-                        {roleErrors.name && <p className="text-xs text-red-500">{roleErrors.name[0]}</p>}
-                    </form>
-
-                    <div className="border-t border-gray-100 pt-4">
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Existing Roles</h3>
-                        {rolesLoading ? <Spinner /> : roles.length === 0 ? (
-                            <p className="text-sm text-gray-400 py-2">No roles created yet.</p>
-                        ) : (
-                            <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
-                                {roles.map(r => (
-                                    <div key={r.id} className="flex items-center justify-between py-2.5">
-                                        <span className="text-sm font-medium text-gray-800">{r.name}</span>
-                                        <div className="flex gap-2">
-                                            <Tooltip content="Edit Role" position="left">
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
-                                                    className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
-                                                >
-                                                    <Pencil size={14} />
-                                                </button>
-                                            </Tooltip>
-                                            <Tooltip content="Delete Role" position="left">
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => handleDeleteRoleClick(r)}
-                                                    className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </Tooltip>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
-                </div>
-            </Modal>
+                </Modal>
+            )}
 
             {/* Reset Password Modal */}
-            <Modal open={resetOpen} onClose={() => setResetOpen(false)} title={`Reset Password — ${selected?.name}`}>
-                <div className="space-y-4">
-                    {renderField("New Password *", errors.password?.[0], (
-                        <div className="relative">
-                            <input
-                                type={showResetPassword ? 'text' : 'password'}
-                                value={resetPass.password}
-                                onChange={e => setResetPass(r => ({ ...r, password: e.target.value }))}
-                                placeholder="Min 6 characters"
-                                className={`${inputCls} pr-10`}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowResetPassword(!showResetPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                            >
-                                {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
-                        </div>
-                    ))}
-                    {renderField("Confirm Password *", errors.password_confirmation?.[0], (
-                        <div className="relative">
-                            <input
-                                type={showResetPassword ? 'text' : 'password'}
-                                value={resetPass.password_confirmation}
-                                onChange={e => setResetPass(r => ({ ...r, password_confirmation: e.target.value }))}
-                                placeholder="Repeat password"
-                                className={`${inputCls} pr-10`}
-                            />
+            {resetOpen && selected && (
+                <Modal open={resetOpen} onClose={handleCloseReset} title={`Reset Password — ${selected.name}`}>
+                    <form onSubmit={e => { e.preventDefault(); handleReset(); }} autoComplete="off" className="space-y-4">
+                        {/* Dummy inputs to intercept browser autofill */}
+                        <input type="text" name="prevent_autofill_username" style={{ display: 'none' }} autoComplete="off" />
+                        <input type="password" name="prevent_autofill_password" style={{ display: 'none' }} autoComplete="off" />
 
+                        {renderField("New Password *", errors.password?.[0], (
+                            <div className="relative">
+                                <input
+                                    type={showResetPassword ? 'text' : 'password'}
+                                    value={resetPass.password}
+                                    onChange={e => setResetPass(r => ({ ...r, password: e.target.value }))}
+                                    placeholder="Min 6 characters"
+                                    autoComplete="new-password"
+                                    className={`${inputCls} pr-10`}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowResetPassword(!showResetPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                                >
+                                    {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                        ))}
+                        {renderField("Confirm Password *", errors.password_confirmation?.[0], (
+                            <div className="relative">
+                                <input
+                                    type={showResetPassword ? 'text' : 'password'}
+                                    value={resetPass.password_confirmation}
+                                    onChange={e => setResetPass(r => ({ ...r, password_confirmation: e.target.value }))}
+                                    placeholder="Repeat password"
+                                    autoComplete="new-password"
+                                    className={`${inputCls} pr-10`}
+                                />
+                            </div>
+                        ))}
+                        <div className="flex justify-end gap-3 pt-2">
+                            <button type="button" onClick={handleCloseReset} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                            <button type="button" onClick={handleReset} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Resetting...' : 'Reset Password'}</button>
                         </div>
-                    ))}
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setResetOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                        <button onClick={handleReset} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Resetting...' : 'Reset Password'}</button>
-                    </div>
-                </div>
-            </Modal>
+                    </form>
+                </Modal>
+            )}
 
             <ConfirmDialog open={deactivateOpen} onClose={() => setDeactivateOpen(false)} onConfirm={handleDeactivate} danger loading={saving}
                 title="Deactivate Staff Member" message={`Deactivate "${selected?.name}"? They will lose access immediately.`} confirmLabel="Deactivate" />

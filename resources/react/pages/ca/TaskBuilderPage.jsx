@@ -4,9 +4,9 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye
+  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye, ArrowLeft
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
@@ -221,6 +221,7 @@ function MultiSearchableSelect({ value = [], options, placeholder, onChange }) {
 
 export default function TaskBuilderPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
     // SECTION 1: Sheet Meta Information
@@ -1074,13 +1075,22 @@ export default function TaskBuilderPage() {
             {/* Form Area */}
             <div className="form-container">
               <div className="sticky top-[65px] lg:relative lg:top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-md lg:backdrop-blur-none py-3 mb-3 flex justify-between items-center -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-slate-200 lg:border-none">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
-                    {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
-                  </h2>
-                  <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
-                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
-                  </p>
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/ca/tasks')}
+                    className="p-2 mr-1 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition shadow-sm cursor-pointer z-10"
+                    title="Back to Tasks"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
+                      {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
+                    </h2>
+                    <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
+                      {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {viewMode === 'live' ? (
@@ -1962,7 +1972,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           isLive={isLive}
           modalActions={modalActions}
         />
-        {field.value && (
+        {field.value && field.type !== 'dropdown' && field.type !== 'subtasks_list' && (
           <button
             onClick={handleCopy}
             className="absolute right-3 top-3 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10"

@@ -549,7 +549,14 @@ export default function MyTasksPage() {
                                                 <div key={key} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                                                     <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
                                                     <p className="text-sm font-semibold text-gray-800">
-                                                        {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || '—')}
+                                                        {typeof val === 'boolean' 
+                                                            ? (val ? 'Yes' : 'No') 
+                                                            : Array.isArray(val)
+                                                                ? val.join(', ')
+                                                                : typeof val === 'object' && val !== null
+                                                                    ? JSON.stringify(val)
+                                                                    : (val || '—')
+                                                        }
                                                     </p>
                                                 </div>
                                             ))}
