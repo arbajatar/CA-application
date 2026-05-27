@@ -60,7 +60,7 @@ class UpdateClientRequest extends FormRequest
             'alternative_contact' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
             'email' => ['nullable', 'email', 'max:255'],
             'reference_no' => ['nullable', 'string', 'max:255'],
-            'dob' => ['sometimes', 'date'],
+            'dob' => ['nullable', 'date'],
             'city' => ['nullable', 'string', 'max:255'],
             'pin_code' => ['nullable', 'string', 'max:10'],
             'state' => ['nullable', 'string', 'max:255'],
@@ -78,7 +78,6 @@ class UpdateClientRequest extends FormRequest
             'pan_no.regex' => 'The PAN number must be in a valid format (e.g. ABCDE1234F).',
             'pan_no.size' => 'The PAN number must be exactly 10 characters long.',
             'pan_no.unique' => 'This PAN number is already registered to another client.',
-            'dob.required' => 'The Date of Birth field is required.',
         ];
     }
 }

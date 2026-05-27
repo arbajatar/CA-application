@@ -912,10 +912,10 @@ export default function ClientsPage() {
 
                 {/* Date of Birth */}
                 <div>
-                    <label className={labelCls}>Date Of Birth *</label>
+                    <label className={labelCls}>Date Of Birth</label>
                     <input 
                         type="date" 
-                        value={form.dob} 
+                        value={form.dob || ''} 
                         onChange={e => setForm(f => ({ ...f, dob: e.target.value }))} 
                         className={inputCls} 
                     />
