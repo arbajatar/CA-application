@@ -16,11 +16,21 @@ const statusFilters = [
     { value: 'other', label: 'Other' },
 ]
 
-function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub }) {
+function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, active, onClick }) {
     return (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-3">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${iconBg}`}>
-                <Icon size={22} className={iconColor} />
+        <div 
+            onClick={onClick}
+            className={`bg-white rounded-2xl p-6 shadow-sm border transition-all cursor-pointer select-none flex flex-col gap-3 group relative overflow-hidden ${
+                active ? 'border-[#1F5C99] ring-2 ring-[#1F5C99]/20 bg-[#F8FAFC]' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'
+            }`}
+        >
+            <div className="flex items-center justify-between">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${iconBg}`}>
+                    <Icon size={22} className={iconColor} />
+                </div>
+                <div className="text-slate-300 opacity-0 group-hover:opacity-100 group-hover:text-[#1F5C99] transition-all duration-300 absolute top-4 right-4 animate-in fade-in duration-200">
+                    <Eye size={16} />
+                </div>
             </div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
             <p className="text-4xl font-bold text-gray-800">{String(value).padStart(2, '0')}</p>
@@ -145,12 +155,36 @@ export default function MyTasksPage() {
         : false;
 
     const cards = summary ? [
-        { icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_tasks,      sub: 'All sheets assigned' },
-        { icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending,          sub: 'Waiting to start' },
-        { icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress,  sub: 'Currently active' },
-        { icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete,         sub: 'Finalized tasks' },
-        { icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done,   sub: 'Excluded tasks' },
-        { icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other,            sub: 'Other tasks' },
+        { 
+            icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_tasks,      sub: 'All sheets assigned',
+            active: activeTab === 'tasks' && statusFilter === '',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter(''); }
+        },
+        { 
+            icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending,          sub: 'Waiting to start',
+            active: activeTab === 'tasks' && statusFilter === 'pending',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter('pending'); }
+        },
+        { 
+            icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress,  sub: 'Currently active',
+            active: activeTab === 'tasks' && statusFilter === 'work_in_progress',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter('work_in_progress'); }
+        },
+        { 
+            icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete,         sub: 'Finalized tasks',
+            active: activeTab === 'tasks' && statusFilter === 'complete',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter('complete'); }
+        },
+        { 
+            icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done,   sub: 'Excluded tasks',
+            active: activeTab === 'tasks' && statusFilter === 'not_to_be_done',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter('not_to_be_done'); }
+        },
+        { 
+            icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other,            sub: 'Other tasks',
+            active: activeTab === 'tasks' && statusFilter === 'other',
+            onClick: () => { setActiveTab('tasks'); setStatusFilter('other'); }
+        },
     ] : []
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
@@ -161,7 +195,7 @@ export default function MyTasksPage() {
 
             {/* Summary Cards */}
             {summary ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 animate-fade-in">
                     {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
                     <SummaryCard
                         icon={ClipboardList}
@@ -170,6 +204,8 @@ export default function MyTasksPage() {
                         label="My Subtasks"
                         value={subTasks.length}
                         sub="Assigned subtasks"
+                        active={activeTab === 'subtasks'}
+                        onClick={() => { setActiveTab('subtasks'); setStatusFilter(''); }}
                     />
                 </div>
             ) : <Spinner />}
@@ -238,18 +274,22 @@ export default function MyTasksPage() {
                                     tasks?.length === 0 ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
                                     ) : tasks?.map((t, i) => (
-                                        <tr key={t.id} className="hover:bg-gray-100 transition">
+                                        <tr 
+                                            key={t.id} 
+                                            className="hover:bg-slate-50 transition-all cursor-pointer"
+                                            onClick={() => openView(t)}
+                                        >
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
                                             <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.client?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.date_inward)}</td>
                                             <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
                                             <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">{t.remarks ?? '—'}</td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openView(t); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
                                                     {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && t.user_permissions?.can_write !== false && (
-                                                        <button onClick={() => openUpdate(t)} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
+                                                        <button onClick={(e) => { e.stopPropagation(); openUpdate(t); }} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
                                                     )}
                                                 </div>
                                             </td>
@@ -259,7 +299,11 @@ export default function MyTasksPage() {
                                     subTasks?.length === 0 ? (
                                         <tr><td colSpan={8} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
                                     ) : subTasks?.map((st, i) => (
-                                        <tr key={st.id} className="hover:bg-gray-100 transition">
+                                        <tr 
+                                            key={st.id} 
+                                            className="hover:bg-slate-50 transition-all cursor-pointer"
+                                            onClick={() => openView(st)}
+                                        >
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
                                             <td className="px-6 py-4 font-semibold text-gray-800">{st.title}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{st.task?.work_type || 'N/A'}</td>
@@ -269,12 +313,12 @@ export default function MyTasksPage() {
                                             <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-700">
                                                 {st.sub_status || <span className="text-gray-300 italic">—</span>}
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
                                                 <div className="flex items-center gap-2">
-                                                    <button onClick={() => openView(st)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openView(st); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
                                                     {st.user_permissions?.can_write !== false && (
                                                         <button
-                                                            onClick={() => openUpdate(st)}
+                                                            onClick={(e) => { e.stopPropagation(); openUpdate(st); }}
                                                             className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
                                                         >
                                                             Update
@@ -495,18 +539,20 @@ export default function MyTasksPage() {
                                 </div>
                             )}
 
-                            {selected.dynamic_fields && Object.keys(selected.dynamic_fields).length > 0 && (
+                            {selected.dynamic_fields && Object.keys(selected.dynamic_fields).filter(key => !['schema', 'multi_rows', 'field_names', 'field_types'].includes(key)).length > 0 && (
                                 <div className="space-y-4">
                                     <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Custom Fields Information</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {Object.entries(selected.dynamic_fields).map(([key, val]) => (
-                                            <div key={key} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
-                                                <p className="text-sm font-semibold text-gray-800">
-                                                    {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || '—')}
-                                                </p>
-                                            </div>
-                                        ))}
+                                        {Object.entries(selected.dynamic_fields)
+                                            .filter(([key]) => !['schema', 'multi_rows', 'field_names', 'field_types'].includes(key))
+                                            .map(([key, val]) => (
+                                                <div key={key} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                                    <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
+                                                    <p className="text-sm font-semibold text-gray-800">
+                                                        {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || '—')}
+                                                    </p>
+                                                </div>
+                                            ))}
                                     </div>
                                 </div>
                             )}

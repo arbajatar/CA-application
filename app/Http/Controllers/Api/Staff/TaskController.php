@@ -59,8 +59,12 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
-        // Ensure staff can only view their own task
-        if ($task->allocated_to !== $request->user()->id) {
+        $user = $request->user();
+        $isAllocated = $task->allocated_to === $user->id;
+        $hasAssignedSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
+
+        // Ensure staff can only view tasks allocated to them OR tasks where they have an assigned subtask
+        if (!$isAllocated && !$hasAssignedSubtask) {
             return response()->json(['message' => 'You do not have access to this task.'], 403);
         }
 
