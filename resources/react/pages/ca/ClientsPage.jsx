@@ -527,7 +527,8 @@ export default function ClientsPage() {
 
                         // Validate GST if provided
                         const rawGst = idxGst !== -1 ? String(rowData[idxGst] || '').trim().toUpperCase() : ''
-                        if (rawGst) {
+                        const isGstEmpty = !rawGst || rawGst === '-' || rawGst === '—' || rawGst === 'N/A' || rawGst === 'NA'
+                        if (rawGst && !isGstEmpty) {
                             const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
                             if (!gstRegex.test(rawGst)) {
                                 validationError = 'Invalid GST format.'
@@ -579,7 +580,7 @@ export default function ClientsPage() {
                             city: idxCity !== -1 ? String(rowData[idxCity] || '').trim() : '',
                             pin_code: idxPin !== -1 ? String(rowData[idxPin] || '').trim() : '',
                             state: idxState !== -1 ? String(rowData[idxState] || '').trim() : '',
-                            gst_number: idxGst !== -1 ? String(rowData[idxGst] || '').trim() : '',
+                            gst_number: (idxGst !== -1 && !isGstEmpty) ? rawGst : '',
                             credentials: {
                                 efiling_password: idxEfilingPwd !== -1 ? String(rowData[idxEfilingPwd] || '').trim() : '',
                                 ais_tis_password: aisTisPassword
@@ -613,6 +614,10 @@ export default function ClientsPage() {
 
             if (field === 'pan_no') {
                 row.pan_no = String(val || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+            } else if (field === 'gst_number') {
+                const cleanedGst = String(val || '').trim().toUpperCase()
+                const isGstEmpty = !cleanedGst || cleanedGst === '-' || cleanedGst === '—' || cleanedGst === 'N/A' || cleanedGst === 'NA'
+                row.gst_number = isGstEmpty ? '' : cleanedGst
             } else if (field.startsWith('credentials.')) {
                 const subKey = field.split('.')[1]
                 row.credentials = {
@@ -641,13 +646,16 @@ export default function ClientsPage() {
             }
 
             if (!validationError && row.gst_number) {
-                const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-                if (!gstRegex.test(row.gst_number)) {
-                    validationError = 'Invalid GST format.'
-                } else if (row.pan_no) {
-                    const panInGst = row.gst_number.substring(2, 12)
-                    if (panInGst !== row.pan_no.toUpperCase()) {
-                        validationError = 'GST PAN segment must match client PAN.'
+                const isGstEmpty = !row.gst_number || row.gst_number === '-' || row.gst_number === '—' || row.gst_number === 'N/A' || row.gst_number === 'NA'
+                if (!isGstEmpty) {
+                    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+                    if (!gstRegex.test(row.gst_number)) {
+                        validationError = 'Invalid GST format.'
+                    } else if (row.pan_no) {
+                        const panInGst = row.gst_number.substring(2, 12)
+                        if (panInGst !== row.pan_no.toUpperCase()) {
+                            validationError = 'GST PAN segment must match client PAN.'
+                        }
                     }
                 }
             }
