@@ -7,8 +7,9 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
+import CustomSelect from '../../components/ui/CustomSelect'
 
-const EMPTY_FORM = { name: '', username: '', password: '', role_id: '' }
+const EMPTY_FORM = { name: '', username: '', password: '', role_ids: [], employee_code: '', address: '', email: '', mobile: '' }
 
 export default function StaffPage() {
     const [staff, setStaff] = useState([])
@@ -121,7 +122,7 @@ export default function StaffPage() {
     const handleAdd = async () => {
         setSaving(true); setErrors({})
         try {
-            await api.post('/ca/staff', { ...form, role_id: form.role_id || null })
+            await api.post('/ca/staff', { ...form, role_ids: form.role_ids || [] })
             toast.success('Staff member added successfully')
             setAddOpen(false); setForm(EMPTY_FORM); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
@@ -131,7 +132,15 @@ export default function StaffPage() {
     const handleEdit = async () => {
         setSaving(true); setErrors({})
         try {
-            await api.put(`/ca/staff/${selected.id}`, { name: form.name, username: form.username, role_id: form.role_id || null })
+            await api.put(`/ca/staff/${selected.id}`, { 
+                name: form.name, 
+                username: form.username, 
+                role_ids: form.role_ids || [],
+                employee_code: form.employee_code,
+                address: form.address,
+                email: form.email,
+                mobile: form.mobile,
+            })
             toast.success('Staff member updated successfully')
             setEditOpen(false); fetchStaff()
         } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
@@ -225,16 +234,16 @@ export default function StaffPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Team Members</h1>
-                    <p className="text-sm text-gray-400 mt-1">Manage your office staff, roles, and access credentials.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Members</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">Manage your office staff, roles, and access credentials.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <button onClick={() => { setRoleNameInput(''); setEditingRole(null); setRoleErrors({}); setRoleManagementOpen(true) }}
-                        className="flex items-center justify-center gap-2 border border-gray-300 hover:border-gray-400 bg-white hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
+                        className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition active:scale-95 w-full sm:w-auto">
                         <Shield size={16} /> Role Management
                     </button>
                     <button onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
+                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition active:scale-95 w-full sm:w-auto">
                         <Plus size={16} /> Add New Member
                     </button>
                 </div>
@@ -245,27 +254,27 @@ export default function StaffPage() {
                     <h2 className="text-base font-semibold text-gray-700 whitespace-nowrap">Staff Directory</h2>
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                         {/* Role Filter */}
-                        <select 
-                            value={filterRoleId} 
+                        <CustomSelect
+                            value={filterRoleId}
                             onChange={e => { setFilterRoleId(e.target.value); setPage(1) }}
-                            className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-gray-600"
-                        >
-                            <option value="">All Roles</option>
-                            {roles.map(r => (
-                                <option key={r.id} value={r.id}>{r.name}</option>
-                            ))}
-                        </select>
+                            options={[
+                                { value: '', label: 'All Roles' },
+                                ...roles.map(r => ({ value: r.id, label: r.name }))
+                            ]}
+                            widthClass="w-full sm:w-auto min-w-[125px]"
+                        />
 
                         {/* Status Filter */}
-                        <select 
-                            value={filterStatus} 
+                        <CustomSelect
+                            value={filterStatus}
                             onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-                            className="px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-gray-600"
-                        >
-                            <option value="">All Statuses</option>
-                            <option value="active">Active Only</option>
-                            <option value="inactive">Inactive Only</option>
-                        </select>
+                            options={[
+                                { value: '', label: 'All Statuses' },
+                                { value: 'active', label: 'Active Only' },
+                                { value: 'inactive', label: 'Inactive Only' }
+                            ]}
+                            widthClass="w-full sm:w-auto min-w-[125px]"
+                        />
 
                         {/* Search Input */}
                         <div className="relative w-full sm:w-48">
@@ -307,9 +316,19 @@ export default function StaffPage() {
                                         </td>
                                         <td className="px-6 py-4 text-gray-600">{s.username}</td>
                                         <td className="px-6 py-4">
-                                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
-                                                {s.role_label.toUpperCase()}
-                                            </span>
+                                            <div className="flex flex-wrap gap-1">
+                                                {s.custom_roles && s.custom_roles.length > 0 ? (
+                                                    s.custom_roles.map(r => (
+                                                        <span key={r.id} className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 uppercase">
+                                                            {r.name}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 uppercase">
+                                                        {s.role_label}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <StatusBadge status={s.is_active ? 'active' : 'inactive'} />
@@ -317,7 +336,7 @@ export default function StaffPage() {
                                         <td className="px-6 py-4">
                                              <div className="flex items-center gap-2">
                                                  <Tooltip content="Edit Member">
-                                                     <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_id: s.role_id || '', password: '' }); setErrors({}); setEditOpen(true) }}
+                                                     <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_ids: s.role_ids || [], password: '', employee_code: s.employee_code || '', address: s.address || '', email: s.email || '', mobile: s.mobile || '' }); setErrors({}); setEditOpen(true) }}
                                                          className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
                                                  </Tooltip>
                                                  <Tooltip content="Reset Password">
@@ -361,17 +380,42 @@ export default function StaffPage() {
                     <div className="space-y-4">
                         {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
                         {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
-                        {renderField("Assign Role", errors.role_id?.[0], (
-                            <select 
-                                value={form.role_id || ''} 
-                                onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
-                                className={inputCls}
-                            >
-                                <option value="">Select Role</option>
-                                {roles.map(r => (
-                                    <option key={r.id} value={r.id}>{r.name}</option>
-                                ))}
-                            </select>
+                        {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} />)}
+                        {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} />)}
+                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} />)}
+                        {renderField("Address", errors.address?.[0], <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Enter address" className={`${inputCls} h-20 resize-none`} />)}
+                        {renderField("Assign Roles", errors.role_ids?.[0], (
+                            <div>
+                                <div className="grid grid-cols-2 gap-2 border border-gray-150 rounded-xl p-3 bg-gray-50/50 max-h-36 overflow-y-auto">
+                                    {roles.map(r => {
+                                        const isChecked = form.role_ids?.includes(r.id);
+                                        return (
+                                            <label key={r.id} className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={e => {
+                                                        const checked = e.target.checked;
+                                                        setForm(f => {
+                                                            const current = f.role_ids || [];
+                                                            const updated = checked 
+                                                                ? [...current, r.id] 
+                                                                : current.filter(id => id !== r.id);
+                                                            return { ...f, role_ids: updated };
+                                                        });
+                                                    }}
+                                                    className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                                />
+                                                {r.name}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                <div className="flex items-start gap-2 mt-2 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-300 font-medium shadow-sm">
+                                    <span className="text-amber-400 font-bold shrink-0">💡 Note:</span>
+                                    <span>If multiple roles are assigned, the <strong className="text-amber-300">highest role's permissions</strong> will be applicable.</span>
+                                </div>
+                            </div>
                         ))}
                         {renderField("Password *", errors.password?.[0], (
                             <div className="relative">
@@ -405,17 +449,42 @@ export default function StaffPage() {
                     <div className="space-y-4">
                         {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />)}
                         {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
-                        {renderField("Assign Role", errors.role_id?.[0], (
-                            <select 
-                                value={form.role_id || ''} 
-                                onChange={e => setForm(f => ({ ...f, role_id: e.target.value }))} 
-                                className={inputCls}
-                            >
-                                <option value="">Select Role</option>
-                                {roles.map(r => (
-                                    <option key={r.id} value={r.id}>{r.name}</option>
-                                ))}
-                            </select>
+                        {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} />)}
+                        {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} />)}
+                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} />)}
+                        {renderField("Address", errors.address?.[0], <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Enter address" className={`${inputCls} h-20 resize-none`} />)}
+                        {renderField("Assign Roles", errors.role_ids?.[0], (
+                            <div>
+                                <div className="grid grid-cols-2 gap-2 border border-gray-150 rounded-xl p-3 bg-gray-50/50 max-h-36 overflow-y-auto">
+                                    {roles.map(r => {
+                                        const isChecked = form.role_ids?.includes(r.id);
+                                        return (
+                                            <label key={r.id} className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={e => {
+                                                        const checked = e.target.checked;
+                                                        setForm(f => {
+                                                            const current = f.role_ids || [];
+                                                            const updated = checked 
+                                                                ? [...current, r.id] 
+                                                                : current.filter(id => id !== r.id);
+                                                            return { ...f, role_ids: updated };
+                                                        });
+                                                    }}
+                                                    className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                                />
+                                                {r.name}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                <div className="flex items-start gap-2 mt-2 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-300 font-medium shadow-sm">
+                                    <span className="text-amber-400 font-bold shrink-0">💡 Note:</span>
+                                    <span>If multiple roles are assigned, the <strong className="text-amber-300">highest role's permissions</strong> will be applicable.</span>
+                                </div>
+                            </div>
                         ))}
                         <div className="flex justify-end gap-3 pt-2">
                             <button type="button" onClick={handleCloseEdit} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>

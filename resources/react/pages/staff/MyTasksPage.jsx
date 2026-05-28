@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Activity, Info, CheckCircle, Search, Eye } from 'lucide-react'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
+import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
 
 const statusFilters = [
@@ -20,9 +21,10 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, active,
     return (
         <div 
             onClick={onClick}
-            className={`bg-white rounded-2xl p-6 shadow-sm border transition-all cursor-pointer select-none flex flex-col gap-3 group relative overflow-hidden ${
-                active ? 'border-[#1F5C99] ring-2 ring-[#1F5C99]/20 bg-[#F8FAFC]' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'
-            }`}
+            className={`rounded-2xl p-6 transition-all duration-200 flex flex-col gap-3 group relative overflow-hidden border
+                ${active 
+                    ? 'bg-[#1F5C99]/5 border-[#1F5C99] shadow-md ring-4 ring-[#1F5C99]/10 -translate-y-1' 
+                    : 'bg-white border-slate-200/80 shadow-sm hover:border-[#1F5C99]/40 hover:-translate-y-0.5 hover:shadow-md'}`}
         >
             <div className="flex items-center justify-between">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${iconBg}`}>
@@ -32,9 +34,9 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, active,
                     <Eye size={16} />
                 </div>
             </div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className="text-4xl font-bold text-gray-800">{String(value).padStart(2, '0')}</p>
-            <p className="text-xs text-gray-400">{sub}</p>
+            <p className="text-xs font-bold text-slate-900 uppercase tracking-wider">{label}</p>
+            <p className="text-4xl font-extrabold text-slate-900">{String(value).padStart(2, '0')}</p>
+            <p className="text-xs text-slate-600">{sub}</p>
         </div>
     )
 }
@@ -61,7 +63,7 @@ export default function MyTasksPage() {
     const [viewLoading, setViewLoading] = useState(false)
 
     const fetchSummary = async () => {
-        const res = await api.get('/staff/dashboard')
+        const res = await api.get('/staff/dashboard/summary')
         setSummary(res.data)
     }
 
@@ -241,15 +243,13 @@ export default function MyTasksPage() {
                             className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-48 transition"
                         />
                     </div>
-                    <select
+                    <CustomSelect
                         value={statusFilter}
                         onChange={e => setStatusFilter(e.target.value)}
-                        className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
-                    >
-                        {statusFilters.map(s => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                    </select>
+                        options={statusFilters}
+                        widthClass="w-full sm:w-auto min-w-[125px]"
+                        className="flex-1 sm:flex-none"
+                    />
                 </div>
 
                 {/* Table */}

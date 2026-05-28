@@ -617,12 +617,12 @@ export default function TaskDetailPage() {
                             <Layout size={14} className="text-indigo-500" />
                             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">Form Workspace</span>
                         </div>
-                        <h1 className="text-2xl font-black text-slate-900 mt-1">
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
                             {isEditing ? (
                                 <input
                                     value={formName}
                                     onChange={e => setFormName(e.target.value)}
-                                    className="bg-transparent border-b-2 border-indigo-500 outline-none focus:border-indigo-600 transition min-w-[300px]"
+                                    className="bg-transparent border-b-2 border-[#1F5C99] outline-none focus:border-[#1F5C99] transition min-w-[300px]"
                                     placeholder="Form Name"
                                 />
                             ) : (
@@ -632,14 +632,14 @@ export default function TaskDetailPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={handleExport} className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-emerald-700 transition shadow-xl shadow-emerald-100">
-                        <FileDown size={18} /> Export Excel
+                    <button onClick={handleExport} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 cursor-pointer">
+                        <FileDown size={15} /> Export Excel
                     </button>
-                    <button onClick={() => navigate('/ca/tasks/builder')} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition shadow-sm">
+                    <button onClick={() => navigate('/ca/tasks/builder')} className="flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm hover:bg-gray-50 active:scale-95 transition duration-200 cursor-pointer">
                         Open Form Builder
                     </button>
-                    <button onClick={handleAddSubTask} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-sm font-black hover:bg-indigo-700 transition shadow-xl shadow-indigo-200">
-                        <Plus size={18} /> New Subtask
+                    <button onClick={handleAddSubTask} className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 cursor-pointer">
+                        <Plus size={15} /> New Subtask
                     </button>
                 </div>
             </div>

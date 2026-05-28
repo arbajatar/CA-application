@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File, Search, Eye } from 'lucide-react'
+import { Video, FileText, Plus, Trash2, ExternalLink, Play, Download, File, Search, Eye, Pencil, Check, X } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -9,7 +9,54 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 export default function ThingsToKnowPage() {
     const { user } = useAuth()
-    const isAdmin = user?.role === 'ca'
+    const isAdmin = user?.role === 'ca' || user?.role === 'staff'
+    const rolePrefix = user?.role === 'ca' ? '/ca' : '/staff'
+
+    const getFileExtension = (url) => {
+        if (!url) return '';
+        const parts = url.split('.');
+        return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    };
+
+    const getDocumentTypeLabel = (ext) => {
+        switch(ext) {
+            case 'pdf': return 'PDF Document';
+            case 'doc':
+            case 'docx': return 'Word Document';
+            case 'xls':
+            case 'xlsx': return 'Excel Spreadsheet';
+            case 'ppt':
+            case 'pptx': return 'PowerPoint Presentation';
+            case 'zip':
+            case 'rar': return 'Compressed Archive';
+            case 'csv': return 'CSV Spreadsheet';
+            case 'txt': return 'Text File';
+            case 'rtf': return 'Rich Text Format';
+            default: return ext ? `${ext.toUpperCase()} File` : 'Document';
+        }
+    };
+
+    const getDocColorClasses = (ext) => {
+        switch (ext) {
+            case 'pdf':
+                return 'bg-red-50 text-red-500';
+            case 'doc':
+            case 'docx':
+                return 'bg-blue-50 text-blue-500';
+            case 'xls':
+            case 'xlsx':
+            case 'csv':
+                return 'bg-emerald-50 text-emerald-500';
+            case 'ppt':
+            case 'pptx':
+                return 'bg-amber-50 text-amber-600';
+            case 'zip':
+            case 'rar':
+                return 'bg-purple-50 text-purple-500';
+            default:
+                return 'bg-gray-50 text-gray-500';
+        }
+    };
 
     const getRelativeUrl = (url) => {
         if (!url) return '';
@@ -35,14 +82,24 @@ export default function ThingsToKnowPage() {
             
             // Check if returned blob is actually HTML (which means missing file redirect)
             if (blob.type.includes('html')) {
-                toast.error('The PDF file could not be found on the server.', { id: toastId });
+                toast.error('The file could not be found on the server.', { id: toastId });
                 return;
             }
 
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = blobUrl;
-            link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+            
+            const ext = getFileExtension(url);
+            let finalFilename = filename;
+            if (ext) {
+                const dotExt = `.${ext}`;
+                if (!filename.toLowerCase().endsWith(dotExt.toLowerCase())) {
+                    finalFilename = `${filename}${dotExt}`;
+                }
+            }
+            link.download = finalFilename;
+            
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -81,8 +138,8 @@ export default function ThingsToKnowPage() {
     const [selectedBrochureGroup, setSelectedBrochureGroup] = useState(null)
     const [showNewVideoGroupInput, setShowNewVideoGroupInput] = useState(false)
     const [showNewBrochureGroupInput, setShowNewBrochureGroupInput] = useState(false)
-    const [videoSearchQuery, setVideoSearchQuery] = useState('')
-    const [brochureSearchQuery, setBrochureSearchQuery] = useState('')
+    const [searchQuery, setSearchQuery] = useState('')
+    const [editingGroup, setEditingGroup] = useState({ type: null, name: '', value: '' })
 
     const fetchVideos = async () => {
         setLoading(true)
@@ -108,15 +165,41 @@ export default function ThingsToKnowPage() {
         }
     }
 
+    const handleRenameGroup = async () => {
+        if (!editingGroup.value.trim() || editingGroup.value.trim() === editingGroup.name) {
+            setEditingGroup({ type: null, name: '', value: '' })
+            return
+        }
+
+        const isVideo = editingGroup.type === 'videos'
+        const endpoint = isVideo ? `${rolePrefix}/things-to-know/videos/group` : `${rolePrefix}/things-to-know/brochures/group`
+        
+        try {
+            await api.patch(endpoint, {
+                old_group_name: editingGroup.name,
+                new_group_name: editingGroup.value.trim()
+            })
+            toast.success('Category renamed successfully')
+            setEditingGroup({ type: null, name: '', value: '' })
+            if (isVideo) {
+                fetchVideos()
+            } else {
+                fetchBrochures()
+            }
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to rename category')
+        }
+    }
+
     useEffect(() => {
         if (activeTab === 'videos') {
             fetchVideos()
             setSelectedVideoGroup(null)
-            setVideoSearchQuery('')
+            setSearchQuery('')
         } else if (activeTab === 'brochures') {
             fetchBrochures()
             setSelectedBrochureGroup(null)
-            setBrochureSearchQuery('')
+            setSearchQuery('')
         }
     }, [activeTab])
 
@@ -124,7 +207,7 @@ export default function ThingsToKnowPage() {
         e.preventDefault()
         setSaving(true)
         try {
-            await api.post('/ca/things-to-know/videos', newVideo)
+            await api.post(`${rolePrefix}/things-to-know/videos`, newVideo)
             toast.success('Video added successfully')
             setAddModalOpen(false)
             setNewVideo({ title: '', url: '', group_name: 'General' })
@@ -146,7 +229,7 @@ export default function ThingsToKnowPage() {
         if (!videoToDelete) return
         setDeleting(true)
         try {
-            await api.delete(`/ca/things-to-know/videos/${videoToDelete.id}`)
+            await api.delete(`${rolePrefix}/things-to-know/videos/${videoToDelete.id}`)
             toast.success('Video removed successfully')
             setDeleteVideoOpen(false)
             setVideoToDelete(null)
@@ -161,7 +244,7 @@ export default function ThingsToKnowPage() {
     const handleAddBrochure = async (e) => {
         e.preventDefault()
         if (!newBrochure.file) {
-            toast.error('Please select a PDF file')
+            toast.error('Please select a document file')
             return
         }
 
@@ -178,7 +261,7 @@ export default function ThingsToKnowPage() {
             formData.append('file', newBrochure.file)
             formData.append('group_name', newBrochure.group_name || 'General')
 
-            await api.post('/ca/things-to-know/brochures', formData, {
+            await api.post(`${rolePrefix}/things-to-know/brochures`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             })
             toast.success('Brochure added successfully')
@@ -202,7 +285,7 @@ export default function ThingsToKnowPage() {
         if (!brochureToDelete) return
         setDeleting(true)
         try {
-            await api.delete(`/ca/things-to-know/brochures/${brochureToDelete.id}`)
+            await api.delete(`${rolePrefix}/things-to-know/brochures/${brochureToDelete.id}`)
             toast.success('Brochure removed successfully')
             setDeleteBrochureOpen(false)
             setBrochureToDelete(null)
@@ -229,28 +312,41 @@ export default function ThingsToKnowPage() {
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-2 border-b border-gray-200">
-                <button
-                    onClick={() => setActiveTab('videos')}
-                    className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'videos'
-                            ? 'border-[#1F5C99] text-[#1F5C99]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                >
-                    <Video size={18} />
-                    Videos
-                </button>
-                <button
-                    onClick={() => setActiveTab('brochures')}
-                    className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'brochures'
-                            ? 'border-[#1F5C99] text-[#1F5C99]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                >
-                    <FileText size={18} />
-                    Brochures
-                </button>
+            {/* Tabs & Search */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setActiveTab('videos')}
+                        className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'videos'
+                                ? 'border-[#1F5C99] text-[#1F5C99]'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <Video size={18} />
+                        Videos
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('brochures')}
+                        className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${activeTab === 'brochures'
+                                ? 'border-[#1F5C99] text-[#1F5C99]'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <FileText size={18} />
+                        Brochures
+                    </button>
+                </div>
+
+                <div className="relative pb-2 md:pb-0 md:pr-2 w-full md:w-64">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder={activeTab === 'videos' ? "Search videos/playlists..." : "Search brochures/categories..."}
+                        className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition w-full"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                    />
+                </div>
             </div>
 
             {/* Content Section */}
@@ -262,7 +358,7 @@ export default function ThingsToKnowPage() {
                             <div className="flex items-center gap-3">
                                 {selectedVideoGroup && (
                                     <button
-                                        onClick={() => { setSelectedVideoGroup(null); setVideoSearchQuery('') }}
+                                        onClick={() => { setSelectedVideoGroup(null); setSearchQuery('') }}
                                         className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-800 transition"
                                     >
                                         <span className="text-lg leading-none">←</span> Playlists
@@ -274,18 +370,6 @@ export default function ThingsToKnowPage() {
                                 </h2>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
-                                {selectedVideoGroup && (
-                                    <div className="relative">
-                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                        <input
-                                            type="text"
-                                            placeholder="Search videos..."
-                                            className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition w-full md:w-56"
-                                            value={videoSearchQuery}
-                                            onChange={e => setVideoSearchQuery(e.target.value)}
-                                        />
-                                    </div>
-                                )}
                                 {isAdmin && (
                                     <button
                                         onClick={() => setAddModalOpen(true)}
@@ -308,7 +392,14 @@ export default function ThingsToKnowPage() {
                         ) : selectedVideoGroup === null ? (
                             // ── FOLDER VIEW: show playlist cards ──────────────────────────
                             (() => {
-                                const groups = [...new Set(videos.map(v => v.group_name || 'General'))].sort((a, b) => {
+                                const groups = [...new Set(
+                                    videos
+                                        .filter(v => 
+                                            (v.group_name || 'General').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            v.title.toLowerCase().includes(searchQuery.toLowerCase())
+                                        )
+                                        .map(v => v.group_name || 'General')
+                                )].sort((a, b) => {
                                     if (a === 'General') return -1;
                                     if (b === 'General') return 1;
                                     return a.localeCompare(b);
@@ -318,11 +409,12 @@ export default function ThingsToKnowPage() {
                                         {groups.map(group => {
                                             const groupVideos = videos.filter(v => (v.group_name || 'General') === group);
                                             const firstYtId = getYoutubeId(groupVideos[0]?.url || '');
+                                            const isEditing = editingGroup.type === 'videos' && editingGroup.name === group;
                                             return (
-                                                <button
+                                                <div
                                                     key={group}
-                                                    onClick={() => setSelectedVideoGroup(group)}
-                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-red-100 transition-all duration-300 focus:outline-none"
+                                                    onClick={() => !isEditing && setSelectedVideoGroup(group)}
+                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-red-100 transition-all duration-300 cursor-pointer"
                                                 >
                                                     {/* Thumbnail strip */}
                                                     <div className="relative h-36 bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
@@ -354,12 +446,56 @@ export default function ThingsToKnowPage() {
                                                         <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0">
                                                             <Play fill="currentColor" size={16} />
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className="font-extrabold text-gray-800 truncate">{group}</p>
-                                                            <p className="text-xs text-gray-400 mt-0.5">Playlist · {groupVideos.length} {groupVideos.length === 1 ? 'video' : 'videos'}</p>
-                                                        </div>
+                                                        {isEditing ? (
+                                                            <div className="flex items-center gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+                                                                <input
+                                                                    autoFocus
+                                                                    type="text"
+                                                                    className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-red-500 font-semibold"
+                                                                    value={editingGroup.value}
+                                                                    onChange={e => setEditingGroup({ ...editingGroup, value: e.target.value })}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') handleRenameGroup()
+                                                                        else if (e.key === 'Escape') setEditingGroup({ type: null, name: '', value: '' })
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={handleRenameGroup}
+                                                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition shrink-0"
+                                                                    title="Save"
+                                                                >
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingGroup({ type: null, name: '', value: '' })}
+                                                                    className="p-1 text-red-600 hover:bg-red-50 rounded transition shrink-0"
+                                                                    title="Cancel"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-between w-full min-w-0">
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="font-extrabold text-gray-800 truncate">{group}</p>
+                                                                    <p className="text-xs text-gray-400 mt-0.5">Playlist · {groupVideos.length} {groupVideos.length === 1 ? 'video' : 'videos'}</p>
+                                                                </div>
+                                                                {isAdmin && group !== 'General' && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingGroup({ type: 'videos', name: group, value: group });
+                                                                        }}
+                                                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-slate-50 rounded-lg transition opacity-0 group-hover:opacity-100 shrink-0 ml-1"
+                                                                        title="Rename Category"
+                                                                    >
+                                                                        <Pencil size={13} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </button>
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -370,7 +506,7 @@ export default function ThingsToKnowPage() {
                             (() => {
                                 const groupVideos = videos
                                     .filter(v => (v.group_name || 'General') === selectedVideoGroup)
-                                    .filter(v => v.title.toLowerCase().includes(videoSearchQuery.toLowerCase()));
+                                    .filter(v => v.title.toLowerCase().includes(searchQuery.toLowerCase()));
                                 if (groupVideos.length === 0) {
                                     return (
                                         <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
@@ -435,7 +571,7 @@ export default function ThingsToKnowPage() {
                             <div className="flex items-center gap-3">
                                 {selectedBrochureGroup && (
                                     <button
-                                        onClick={() => { setSelectedBrochureGroup(null); setBrochureSearchQuery('') }}
+                                        onClick={() => { setSelectedBrochureGroup(null); setSearchQuery('') }}
                                         className="flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-gray-800 transition"
                                     >
                                         <span className="text-lg leading-none">←</span> Categories
@@ -447,18 +583,6 @@ export default function ThingsToKnowPage() {
                                 </h2>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
-                                {selectedBrochureGroup && (
-                                    <div className="relative">
-                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                        <input
-                                            type="text"
-                                            placeholder="Search brochures..."
-                                            className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition w-full md:w-56"
-                                            value={brochureSearchQuery}
-                                            onChange={e => setBrochureSearchQuery(e.target.value)}
-                                        />
-                                    </div>
-                                )}
                                 {isAdmin && (
                                     <button
                                         onClick={() => setAddBrochureOpen(true)}
@@ -481,7 +605,14 @@ export default function ThingsToKnowPage() {
                         ) : selectedBrochureGroup === null ? (
                             // ── FOLDER VIEW: show category cards ──────────────────────────
                             (() => {
-                                const groups = [...new Set(brochures.map(b => b.group_name || 'General'))].sort((a, b) => {
+                                const groups = [...new Set(
+                                    brochures
+                                        .filter(b => 
+                                            (b.group_name || 'General').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                            b.title.toLowerCase().includes(searchQuery.toLowerCase())
+                                        )
+                                        .map(b => b.group_name || 'General')
+                                )].sort((a, b) => {
                                     if (a === 'General') return -1;
                                     if (b === 'General') return 1;
                                     return a.localeCompare(b);
@@ -490,11 +621,12 @@ export default function ThingsToKnowPage() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                                         {groups.map(group => {
                                             const groupBrochures = brochures.filter(b => (b.group_name || 'General') === group);
+                                            const isEditing = editingGroup.type === 'brochures' && editingGroup.name === group;
                                             return (
-                                                <button
+                                                <div
                                                     key={group}
-                                                    onClick={() => setSelectedBrochureGroup(group)}
-                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-blue-100 transition-all duration-300 focus:outline-none"
+                                                    onClick={() => !isEditing && setSelectedBrochureGroup(group)}
+                                                    className="group text-left bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-blue-100 transition-all duration-300 cursor-pointer"
                                                 >
                                                     {/* Folder cover art */}
                                                     <div className="relative h-36 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center overflow-hidden">
@@ -515,12 +647,56 @@ export default function ThingsToKnowPage() {
                                                         <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
                                                             <FileText size={16} />
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className="font-extrabold text-gray-800 truncate">{group}</p>
-                                                            <p className="text-xs text-gray-400 mt-0.5">Documents · {groupBrochures.length} {groupBrochures.length === 1 ? 'file' : 'files'}</p>
-                                                        </div>
+                                                        {isEditing ? (
+                                                            <div className="flex items-center gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+                                                                <input
+                                                                    autoFocus
+                                                                    type="text"
+                                                                    className="flex-1 min-w-0 px-2 py-1 text-xs border border-gray-350 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
+                                                                    value={editingGroup.value}
+                                                                    onChange={e => setEditingGroup({ ...editingGroup, value: e.target.value })}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') handleRenameGroup()
+                                                                        else if (e.key === 'Escape') setEditingGroup({ type: null, name: '', value: '' })
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={handleRenameGroup}
+                                                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition shrink-0"
+                                                                    title="Save"
+                                                                >
+                                                                    <Check size={14} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingGroup({ type: null, name: '', value: '' })}
+                                                                    className="p-1 text-red-600 hover:bg-red-50 rounded transition shrink-0"
+                                                                    title="Cancel"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-between w-full min-w-0">
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="font-extrabold text-gray-800 truncate">{group}</p>
+                                                                    <p className="text-xs text-gray-400 mt-0.5">Documents · {groupBrochures.length} {groupBrochures.length === 1 ? 'file' : 'files'}</p>
+                                                                </div>
+                                                                {isAdmin && group !== 'General' && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingGroup({ type: 'brochures', name: group, value: group });
+                                                                        }}
+                                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition opacity-0 group-hover:opacity-100 shrink-0 ml-1"
+                                                                        title="Rename Category"
+                                                                    >
+                                                                        <Pencil size={13} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </button>
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -531,7 +707,7 @@ export default function ThingsToKnowPage() {
                             (() => {
                                 const groupBrochures = brochures
                                     .filter(b => (b.group_name || 'General') === selectedBrochureGroup)
-                                    .filter(b => b.title.toLowerCase().includes(brochureSearchQuery.toLowerCase()));
+                                    .filter(b => b.title.toLowerCase().includes(searchQuery.toLowerCase()));
                                 if (groupBrochures.length === 0) {
                                     return (
                                         <div className="bg-white rounded-2xl p-12 shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
@@ -542,40 +718,48 @@ export default function ThingsToKnowPage() {
                                 }
                                 return (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {groupBrochures.map((brochure) => (
-                                            <div key={brochure.id} className="group bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-xl transition-all duration-300 flex items-center gap-4">
-                                                <div className="w-14 h-14 rounded-xl bg-red-50 flex items-center justify-center text-red-500 shrink-0 group-hover:scale-110 transition-transform">
-                                                    <File size={28} />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-bold text-gray-800 truncate" title={brochure.title}>{brochure.title}</h3>
-                                                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">PDF Document</p>
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <button 
-                                                            onClick={() => setPreviewBrochure(brochure)}
-                                                            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
-                                                        >
-                                                            <Eye size={13} /> Preview
-                                                        </button>
-                                                        <span className="text-gray-300 text-xs">|</span>
-                                                        <a 
-                                                            href={getRelativeUrl(brochure.file_url)} 
-                                                            download={`${brochure.title}.pdf`}
-                                                            onClick={(e) => handleDownload(e, brochure.file_url, brochure.title)}
-                                                            className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 transition"
-                                                        >
-                                                            <Download size={13} /> Download
-                                                        </a>
+                                        {groupBrochures.map((brochure) => {
+                                            const ext = getFileExtension(brochure.file_url);
+                                            const canPreview = ext === 'pdf';
+                                            return (
+                                                <div key={brochure.id} className="group bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-xl transition-all duration-300 flex items-center gap-4">
+                                                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${getDocColorClasses(ext)}`}>
+                                                        <File size={28} />
                                                     </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-bold text-gray-800 truncate" title={brochure.title}>{brochure.title}</h3>
+                                                        <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">{getDocumentTypeLabel(ext)}</p>
+                                                        <div className="flex items-center gap-3 mt-3">
+                                                            {canPreview && (
+                                                                <>
+                                                                    <button 
+                                                                        onClick={() => setPreviewBrochure(brochure)}
+                                                                        className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+                                                                    >
+                                                                        <Eye size={13} /> Preview
+                                                                    </button>
+                                                                    <span className="text-gray-300 text-xs">|</span>
+                                                                </>
+                                                            )}
+                                                            <a 
+                                                                href={getRelativeUrl(brochure.file_url)} 
+                                                                download={brochure.title}
+                                                                onClick={(e) => handleDownload(e, brochure.file_url, brochure.title)}
+                                                                className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 transition"
+                                                            >
+                                                                <Download size={13} /> Download
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                    {isAdmin && (
+                                                        <button onClick={() => handleDeleteBrochure(brochure)}
+                                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Brochure">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
                                                 </div>
-                                                {isAdmin && (
-                                                    <button onClick={() => handleDeleteBrochure(brochure)}
-                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Brochure">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 );
                             })()
@@ -692,12 +876,12 @@ export default function ThingsToKnowPage() {
                         />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">PDF File</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Document File</label>
                         <div className="relative">
                             <input
                                 required
                                 type="file"
-                                accept=".pdf"
+                                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.csv,.txt,.rtf"
                                 className="hidden"
                                 id="brochure-file"
                                 onChange={e => setNewBrochure({ ...newBrochure, file: e.target.files[0] })}
@@ -707,12 +891,12 @@ export default function ThingsToKnowPage() {
                                 className="flex items-center justify-between w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition"
                             >
                                 <span className="text-sm text-gray-500 truncate">
-                                    {newBrochure.file ? newBrochure.file.name : 'Select PDF file...'}
+                                    {newBrochure.file ? newBrochure.file.name : 'Select file...'}
                                 </span>
                                 <Plus size={18} className="text-gray-400" />
                             </label>
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">Maximum file size: 10MB (PDF only)</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Maximum file size: 10MB (PDF, Word, Excel, PPT, ZIP, CSV, TXT, RTF)</p>
                     </div>
                     <div className="space-y-1">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Category / Group</label>

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
     ClipboardList, Calendar, Users, Briefcase, Clock, 
     FileSpreadsheet, Plus, Search, Edit3, Trash2, CheckCircle2, 
     AlertCircle, ChevronDown, ChevronUp, UserCheck, CheckSquare, 
     ArrowUpDown, RefreshCw, X, MessageSquare, Info,
-    ShieldCheck, ShieldAlert
+    ShieldCheck, ShieldAlert, Folder, ArrowLeft, User, ChevronRight
 } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -13,7 +13,144 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ExcelJS from 'exceljs'
 import StatusBadge from '../../components/ui/StatusBadge'
+import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+const formatTime12Hour = (time24) => {
+    if (!time24 || time24 === '—') return '—'
+    const parts = time24.split(':')
+    if (parts.length < 2) return time24
+    let hours = parseInt(parts[0], 10)
+    const minutes = parts[1]
+    if (isNaN(hours)) return time24
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12
+    hours = hours ? hours : 12 // the hour '0' should be '12'
+    const hoursStr = String(hours).padStart(2, '0')
+    return `${hoursStr}:${minutes} ${ampm}`
+}
+
+const parseTime24Hour = (time12) => {
+    if (!time12) return ''
+    const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+    if (!match) return time12
+    let hours = parseInt(match[1], 10)
+    const minutes = match[2]
+    const ampm = match[3].toUpperCase()
+    if (ampm === 'PM' && hours < 12) hours += 12
+    if (ampm === 'AM' && hours === 12) hours = 0
+    return `${String(hours).padStart(2, '0')}:${minutes}`
+}
+
+function TimePicker12Hour({ value, onChange, label, className = "" }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
+
+    let currentHour = "10";
+    let currentMinute = "00";
+    let currentAmpm = "AM";
+
+    if (value) {
+        const parts = value.split(':');
+        if (parts.length >= 2) {
+            let h = parseInt(parts[0], 10);
+            const m = parts[1];
+            if (!isNaN(h)) {
+                currentAmpm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12;
+                h = h ? h : 12;
+                currentHour = String(h).padStart(2, '0');
+                currentMinute = String(m).substring(0, 2);
+            }
+        }
+    }
+
+    const hoursList = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+    const minutesList = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (containerRef.current && !containerRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleSelect = (hour, minute, ampm) => {
+        let h = parseInt(hour, 10);
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        const formatted24 = `${String(h).padStart(2, '0')}:${minute}`;
+        onChange(formatted24);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            {label && <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">{label}</label>}
+            <div 
+                onClick={() => setIsOpen(!isOpen)}
+                className={`flex items-center justify-between px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition font-semibold text-gray-800 ${className}`}
+            >
+                <span>{`${currentHour}:${currentMinute} ${currentAmpm}`}</span>
+                <Clock size={16} className="text-gray-400" />
+            </div>
+            
+            {isOpen && (
+                <div className="absolute left-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl p-3 z-50 flex gap-2 w-64">
+                    {/* Hours */}
+                    <div className="flex-1 flex flex-col h-40 overflow-y-auto select-none border-r border-gray-100 pr-1">
+                        <p className="text-[10px] font-bold text-gray-400 text-center sticky top-0 bg-white pb-1">HR</p>
+                        {hoursList.map(h => (
+                            <button
+                                type="button"
+                                key={h}
+                                onClick={() => handleSelect(h, currentMinute, currentAmpm)}
+                                className={`py-1 text-xs font-semibold rounded-lg hover:bg-gray-100 transition ${h === currentHour ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold' : 'text-gray-700'}`}
+                            >
+                                {h}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Minutes */}
+                    <div className="flex-1 flex flex-col h-40 overflow-y-auto select-none pr-1">
+                        <p className="text-[10px] font-bold text-gray-400 text-center sticky top-0 bg-white pb-1">MIN</p>
+                        {minutesList.map(m => (
+                            <button
+                                type="button"
+                                key={m}
+                                onClick={() => handleSelect(currentHour, m, currentAmpm)}
+                                className={`py-1 text-xs font-semibold rounded-lg hover:bg-gray-100 transition ${m === currentMinute ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold' : 'text-gray-700'}`}
+                            >
+                                {m}
+                            </button>
+                        ))}
+                    </div>
+                    {/* AM/PM */}
+                    <div className="w-12 flex flex-col justify-center gap-1 border-l border-gray-100 pl-2">
+                        {['AM', 'PM'].map(period => (
+                            <button
+                                type="button"
+                                key={period}
+                                onClick={() => handleSelect(currentHour, currentMinute, period)}
+                                className={`py-2 text-xs font-bold rounded-lg hover:bg-gray-100 transition ${period === currentAmpm ? 'bg-[#1F5C99] text-white' : 'text-gray-600'}`}
+                            >
+                                {period}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+            
+            {/* Folders grid */}
+        </div>
+    );
+}
+
+
 
 const DURATION_OPTIONS = [
     { value: '1st Half', label: '1st Half' },
@@ -158,7 +295,53 @@ export default function TeamReportPage() {
     const [saving, setSaving] = useState(false)
     const [search, setSearch] = useState('')
     const [filterStaff, setFilterStaff] = useState('')
+    const [selectedStaffId, setSelectedStaffId] = useState(null)
+    const [editingRowId, setEditingRowId] = useState(null)
+    const [inlineForm, setInlineForm] = useState(null)
+    const [inlineNewRows, setInlineNewRows] = useState([])
     const [filterClient, setFilterClient] = useState('')
+    const [notesList, setNotesList] = useState([])
+    const notesKey = selectedStaffId ? `team_notes_staff_${selectedStaffId}` : `team_notes_general`
+
+    useEffect(() => {
+        const saved = localStorage.getItem(notesKey)
+        try {
+            const parsed = saved ? JSON.parse(saved) : []
+            setNotesList(parsed.length > 0 ? parsed : [{ id: 'init', text: '', timestamp: new Date().toLocaleString() }])
+        } catch {
+            setNotesList([{ id: 'init', text: '', timestamp: new Date().toLocaleString() }])
+        }
+    }, [notesKey])
+
+    const handleSaveNotesList = (newList) => {
+        setNotesList(newList)
+        localStorage.setItem(notesKey, JSON.stringify(newList))
+    }
+
+    const handleUpdateNoteText = (id, text) => {
+        const updated = notesList.map(n => n.id === id ? { ...n, text } : n)
+        handleSaveNotesList(updated)
+    }
+
+    const handleAddNoteAfter = (id) => {
+        const idx = notesList.findIndex(n => n.id === id)
+        const newNote = {
+            id: `note-${Date.now()}`,
+            text: '',
+            timestamp: new Date().toLocaleString()
+        }
+        const updated = [...notesList]
+        updated.splice(idx + 1, 0, newNote)
+        handleSaveNotesList(updated)
+    }
+
+    const handleDeleteNote = (id) => {
+        let updated = notesList.filter(n => n.id !== id)
+        if (updated.length === 0) {
+            updated = [{ id: `note-${Date.now()}`, text: '', timestamp: new Date().toLocaleString() }]
+        }
+        handleSaveNotesList(updated)
+    }
     const [filterStatus, setFilterStatus] = useState('')
     const todayStr = new Date().toISOString().substring(0, 10)
     const [startDate, setStartDate] = useState(todayStr)
@@ -457,7 +640,7 @@ export default function TeamReportPage() {
             status: 'pending',
             pct_completion: 50,
             final_remark: '',
-            user_id: user?.id || '',
+            user_id: filterStaff || user?.id || '',
             ca_review: '',
             ca_remark: ''
         })
@@ -518,6 +701,81 @@ export default function TeamReportPage() {
         } finally {
             setSaving(false)
         }
+    }
+
+    const handleStartInlineEdit = (report) => {
+        setEditingRowId(report.id)
+        setInlineForm({
+            date: report.date || new Date().toISOString().substring(0, 10),
+            main_task: report.main_task || 'ACCOUNTING',
+            sub_task: report.sub_task || '',
+            duration: report.duration || '1st Half',
+            start_time: report.start_time || '10:15',
+            end_time: report.end_time || '12:15',
+            client_id: report.client_id || '',
+            client_name_custom: report.client_name_custom || '',
+            sub_task_description: report.sub_task_description || '',
+            status: report.status || 'pending',
+            pct_completion: report.pct_completion || 50,
+            final_remark: report.final_remark || '',
+            user_id: report.user_id,
+            ca_review: report.ca_review || '',
+            ca_remark: report.ca_remark || ''
+        })
+    }
+
+    const handleSaveInlineEdit = async (reportId) => {
+        setSaving(true)
+        try {
+            const isNew = String(reportId).startsWith('new-')
+            const payload = { ...inlineForm }
+            if (payload.client_name_custom) {
+                payload.client_id = null
+            } else {
+                payload.client_name_custom = null
+            }
+            if (isNew) {
+                await api.post('/daily-reports', payload)
+                toast.success('Daily report added inline successfully')
+                setInlineNewRows(prev => prev.filter(r => r.id !== reportId))
+            } else {
+                await api.patch(`/daily-reports/${reportId}`, payload)
+                toast.success('Daily report updated inline successfully')
+            }
+            setEditingRowId(null)
+            setInlineForm(null)
+            fetchReports()
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to save inline work progress report')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleAddRowInline = () => {
+        const tempId = `new-${Date.now()}`
+        const newRow = {
+            id: tempId,
+            date: new Date().toISOString().substring(0, 10),
+            main_task: 'ACCOUNTING',
+            sub_task: '',
+            duration: '1st Half',
+            start_time: '10:15',
+            end_time: '12:15',
+            client_id: '',
+            client_name_custom: '',
+            sub_task_description: '',
+            status: 'pending',
+            pct_completion: 50,
+            final_remark: '',
+            user_id: filterStaff || user?.id || '',
+            user_name: user?.name || '',
+            ca_review: '',
+            ca_remark: ''
+        }
+        setInlineNewRows(prev => [...prev, newRow])
+        setEditingRowId(tempId)
+        setInlineForm({ ...newRow })
     }
 
     // CA Review Handlers
@@ -660,6 +918,103 @@ export default function TeamReportPage() {
         } else {
             setSortBy(field)
             setSortOrder('desc')
+        }
+    }
+
+    const handleDownloadPDF = () => {
+        try {
+            const doc = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            })
+
+            // Title
+            doc.setFontSize(16)
+            doc.setTextColor(31, 92, 153) // Deep Navy
+            doc.text('TEAM DAILY WORK PROGRESS REPORT', 14, 15)
+
+            // Subtitle metadata
+            doc.setFontSize(9)
+            doc.setTextColor(100, 100, 100)
+            doc.text(`Generated At: ${new Date().toLocaleString()}`, 14, 20)
+
+            // Prepare columns and rows
+            const headers = [
+                '#',
+                ...(isCA ? ['Team Member'] : []),
+                'Date',
+                'Main Task',
+                'Sub Task',
+                'Duration',
+                'Start',
+                'End',
+                'Hours',
+                'Client',
+                'Description',
+                'Status',
+                '% Done',
+                'Remark',
+                'Review',
+                'Feedback'
+            ]
+
+            const tableRows = displayedReports.map((report, idx) => [
+                idx + 1,
+                ...(isCA ? [report.user_name || '—'] : []),
+                formatDate(report.date),
+                report.main_task,
+                report.sub_task || '—',
+                report.duration || '—',
+                formatTime12Hour(report.start_time),
+                formatTime12Hour(report.end_time),
+                report.hours_taken ? `${report.hours_taken} hrs` : '0',
+                report.client_name || '—',
+                report.sub_task_description || '—',
+                report.status.toUpperCase(),
+                `${report.pct_completion}%`,
+                report.final_remark || '—',
+                report.ca_review || '—',
+                report.ca_remark || '—'
+            ])
+
+            autoTable(doc, {
+                head: [headers],
+                body: tableRows,
+                startY: 25,
+                theme: 'striped',
+                styles: {
+                    fontSize: 7,
+                    cellPadding: 1.5,
+                    valign: 'middle',
+                    font: 'helvetica'
+                },
+                headStyles: {
+                    fillColor: [31, 92, 153], // #1F5C99
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold'
+                },
+                margin: { top: 25, right: 10, bottom: 15, left: 10 },
+                didParseCell: function(data) {
+                    if (data.column.index === (isCA ? 11 : 10)) {
+                        const val = data.cell.text[0];
+                        if (val === 'COMPLETE') {
+                            data.cell.styles.textColor = [22, 101, 52]; // Green
+                            data.cell.styles.fontStyle = 'bold';
+                        } else if (val === 'WORK_IN_PROGRESS') {
+                            data.cell.styles.textColor = [30, 64, 175]; // Blue
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                    }
+                }
+            })
+
+            // Save PDF
+            doc.save(`Daily_Work_Progress_Report_${new Date().toISOString().substring(0, 10)}.pdf`)
+            toast.success('PDF report downloaded successfully!')
+        } catch (err) {
+            console.error(err)
+            toast.error('Failed to generate PDF')
         }
     }
 
@@ -878,82 +1233,185 @@ export default function TeamReportPage() {
     const notToBeDoneCount = reports.filter(r => r.status === 'not_to_be_done').length
     const otherCount = reports.filter(r => r.status === 'other').length
 
+    if (isCA && selectedStaffId === null) {
+        return (
+            <div className="space-y-4 pb-8 transition-all">
+                {/* Header section */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Work Reports</h1>
+                        <p className="text-sm font-medium text-slate-500 mt-1">
+                            Select an employee folder below to overview their progress, logged hours, and review their activities.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Folders grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                    {/* All Employees Card */}
+                    <div 
+                        onClick={() => {
+                            setSelectedStaffId("all");
+                            setFilterStaff("");
+                        }}
+                        className="group cursor-pointer p-5 bg-white rounded-2xl border border-slate-250 hover:border-[#1F5C99] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none"
+                    >
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm">
+                            <Folder size={32} className="text-slate-600" fill="currentColor" fillOpacity={0.2} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">All Team Members</h3>
+                            <p className="text-[10px] text-[#1F5C99] font-bold uppercase tracking-wider mt-1.5">Unified View</p>
+                        </div>
+                    </div>
+
+                    {/* Staff Folders */}
+                    {staff.map((member, idx) => {
+                        const colors = [
+                            { bg: 'bg-blue-50', text: 'text-blue-500' },
+                            { bg: 'bg-orange-50', text: 'text-orange-500' },
+                            { bg: 'bg-emerald-50', text: 'text-emerald-500' },
+                            { bg: 'bg-sky-50', text: 'text-sky-500' },
+                            { bg: 'bg-teal-50', text: 'text-teal-500' },
+                            { bg: 'bg-red-50', text: 'text-red-500' },
+                            { bg: 'bg-indigo-50', text: 'text-indigo-500' },
+                            { bg: 'bg-purple-50', text: 'text-purple-500' },
+                            { bg: 'bg-pink-50', text: 'text-pink-500' },
+                        ];
+                        const color = colors[idx % colors.length];
+
+                        const borderClasses = {
+                            'text-slate-500': 'border-slate-200 hover:border-slate-500',
+                            'text-blue-500': 'border-blue-200 hover:border-blue-500',
+                            'text-orange-500': 'border-orange-200 hover:border-orange-500',
+                            'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
+                            'text-sky-500': 'border-sky-200 hover:border-sky-500',
+                            'text-teal-500': 'border-teal-200 hover:border-teal-500',
+                            'text-red-500': 'border-red-200 hover:border-red-500',
+                            'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
+                            'text-purple-500': 'border-purple-200 hover:border-purple-500',
+                            'text-pink-500': 'border-pink-200 hover:border-pink-500',
+                        };
+                        const colorClasses = borderClasses[color.text] || 'border-slate-200 hover:border-[#1F5C99]';
+
+                        return (
+                            <div 
+                                key={member.id}
+                                onClick={() => {
+                                    setSelectedStaffId(member.id);
+                                    setFilterStaff(member.id);
+                                }}
+                                className={`group cursor-pointer p-5 bg-white rounded-2xl border ${colorClasses} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none`}
+                            >
+                                <div className={`w-16 h-16 rounded-2xl ${color.bg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}>
+                                    <Folder size={32} className={color.text} fill="currentColor" fillOpacity={0.2} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors line-clamp-1" title={member.name}>
+                                        {member.name}
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">
+                                        {member.role === 'ca' ? 'CA Admin' : 'Staff'}
+                                    </p>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-8 pb-12 transition-all">
-            {/* Header section with high-end premium aesthetics */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#1F5C99]/5 rounded-full blur-3xl -z-10"></div>
-                <div className="space-y-1">
-                    <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Team Daily Work Progress Report</h1>
-                    <p className="text-sm text-gray-500 font-medium">
-                        {isCA ? 'Administrative portal for overviewing employee progress, remarks, and review logging.' : 'My personal workspace for submitting and editing daily progress activities.'}
-                    </p>
+            {isCA && selectedStaffId !== null && (
+                <button 
+                    onClick={() => {
+                        setSelectedStaffId(null);
+                        setFilterStaff("");
+                    }}
+                    className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-[#1F5C99] transition cursor-pointer"
+                >
+                    <ArrowLeft size={16} /> Back to Staff Folders
+                </button>
+            )}
+            {/* Header section */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Daily Work Progress Report</h1>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleDownloadPDF}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm cursor-pointer"
+                    >
+                        <svg className="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Download PDF
+                    </button>
                     <button 
                         onClick={handleExportExcel}
-                        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-gray-200 text-gray-700 font-bold text-sm hover:bg-gray-50 active:bg-gray-100 transition shadow-sm"
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-semibold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm cursor-pointer"
                     >
-                        <FileSpreadsheet size={16} className="text-green-600" />
+                        <FileSpreadsheet size={14} className="text-emerald-700" />
                         Export Excel
                     </button>
                     <button 
                         onClick={openCreateModal}
-                        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#0f1c2e] hover:bg-[#1a304e] active:bg-[#08101b] text-white font-bold text-sm transition shadow-sm"
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f1c2e] hover:bg-[#1a304e] active:scale-95 text-white font-semibold text-xs uppercase tracking-wider transition shadow-sm cursor-pointer"
                     >
-                        <Plus size={16} />
+                        <Plus size={14} />
                         Log Today's Work
                     </button>
                 </div>
             </div>
 
             {/* Premium Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-[#EEF4FB] text-[#1F5C99] flex items-center justify-center">
-                        <Clock size={24} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-white to-blue-50/20 p-4 rounded-2xl border border-blue-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-blue-100 transition-all duration-200">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1F5C99] to-[#3b82f6] text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <Clock size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Total Hours Logged</p>
-                        <p className="text-2xl font-bold text-gray-800">{totalHours.toFixed(1)} hrs</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Hours Logged</p>
+                        <p className="text-xl font-bold text-gray-900 mt-0.5">{totalHours.toFixed(1)} hrs</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <CheckSquare size={24} />
+                <div className="bg-gradient-to-br from-white to-emerald-50/20 p-4 rounded-2xl border border-emerald-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-emerald-100 transition-all duration-200">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <CheckSquare size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Logged Activities</p>
-                        <p className="text-2xl font-bold text-gray-800">{displayedReports.length}</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Logged Activities</p>
+                        <p className="text-xl font-bold text-gray-900 mt-0.5">{displayedReports.length}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                        <UserCheck size={24} />
+                <div className="bg-gradient-to-br from-white to-amber-50/20 p-4 rounded-2xl border border-amber-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-amber-100 transition-all duration-200">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <UserCheck size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Pending Reviews</p>
-                        <p className="text-2xl font-bold text-gray-800">{pendingReviews}</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Reviews</p>
+                        <p className="text-xl font-bold text-gray-900 mt-0.5">{pendingReviews}</p>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-5">
-                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <ClipboardList size={24} />
+                <div className="bg-gradient-to-br from-white to-[#F9F7FC] p-4 rounded-2xl border border-purple-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-purple-100 transition-all duration-200">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <Briefcase size={20} />
                     </div>
                     <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Avg Completion %</p>
-                        <p className="text-2xl font-bold text-gray-800">{completionAvg}%</p>
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Avg Completion %</p>
+                        <p className="text-xl font-bold text-gray-900 mt-0.5">{completionAvg}%</p>
                     </div>
                 </div>
             </div>
 
             {/* Interactive Status Cards Grid */}
-            <div className="space-y-2">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Filter by Status</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-slate-650 uppercase tracking-wider px-1">Filter by Status</p>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                     {[
                         {
                             status: '',
@@ -963,7 +1421,7 @@ export default function TeamReportPage() {
                             textClass: 'text-[#1F5C99]',
                             activeBorder: 'border-[#1F5C99]',
                             activeBg: 'bg-[#EEF4FB]',
-                            ring: 'ring-[#1F5C99]/20'
+                            ring: 'ring-[#1F5C99]/10'
                         },
                         {
                             status: 'pending',
@@ -972,8 +1430,8 @@ export default function TeamReportPage() {
                             colorClass: 'bg-amber-400',
                             textClass: 'text-amber-700',
                             activeBorder: 'border-amber-400',
-                            activeBg: 'bg-amber-50/40',
-                            ring: 'ring-amber-400/20'
+                            activeBg: 'bg-amber-50/30',
+                            ring: 'ring-amber-400/10'
                         },
                         {
                             status: 'work_in_progress',
@@ -982,8 +1440,8 @@ export default function TeamReportPage() {
                             colorClass: 'bg-blue-500',
                             textClass: 'text-blue-700',
                             activeBorder: 'border-blue-500',
-                            activeBg: 'bg-blue-50/40',
-                            ring: 'ring-blue-500/20'
+                            activeBg: 'bg-blue-50/30',
+                            ring: 'ring-blue-500/10'
                         },
                         {
                             status: 'complete',
@@ -992,8 +1450,8 @@ export default function TeamReportPage() {
                             colorClass: 'bg-emerald-500',
                             textClass: 'text-emerald-700',
                             activeBorder: 'border-emerald-500',
-                            activeBg: 'bg-emerald-50/40',
-                            ring: 'ring-emerald-500/20'
+                            activeBg: 'bg-emerald-50/30',
+                            ring: 'ring-emerald-500/10'
                         },
                         {
                             status: 'not_to_be_done',
@@ -1002,8 +1460,8 @@ export default function TeamReportPage() {
                             colorClass: 'bg-rose-500',
                             textClass: 'text-rose-700',
                             activeBorder: 'border-rose-500',
-                            activeBg: 'bg-rose-50/40',
-                            ring: 'ring-rose-500/20'
+                            activeBg: 'bg-rose-50/30',
+                            ring: 'ring-rose-500/10'
                         },
                         {
                             status: 'other',
@@ -1013,34 +1471,34 @@ export default function TeamReportPage() {
                             textClass: 'text-slate-700',
                             activeBorder: 'border-slate-400',
                             activeBg: 'bg-slate-50',
-                            ring: 'ring-slate-400/20'
+                            ring: 'ring-slate-400/10'
                         }
                     ].map(c => (
                         <button
                             key={c.status}
                             type="button"
                             onClick={() => setFilterStatus(c.status)}
-                            className={`flex items-center justify-between px-4 py-3 rounded-2xl border transition-all duration-200 shadow-sm ${
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-sm ${
                                 filterStatus === c.status
-                                    ? `${c.activeBorder} ${c.activeBg} ring-2 ${c.ring} font-bold transform translate-y-[1px]`
-                                    : 'bg-white border-gray-100 hover:border-gray-200 hover:shadow-md'
+                                    ? `${c.activeBorder} ${c.activeBg} ring-1 ${c.ring} font-bold`
+                                    : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow'
                             }`}
                         >
-                            <div className="flex items-center gap-2">
-                                <span className={`w-2.5 h-2.5 rounded-full ${c.colorClass} shadow-sm`}></span>
-                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{c.label}</span>
+                            <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${c.colorClass} shadow-sm`}></span>
+                                <span className="text-[10px] font-bold text-slate-750 uppercase tracking-wider">{c.label}</span>
                             </div>
-                            <span className={`text-sm font-extrabold ${c.textClass}`}>{c.count}</span>
+                            <span className={`text-xs font-extrabold ${c.textClass}`}>{c.count}</span>
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Filter Section with high-quality widgets */}
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                    <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
-                        <Search size={16} className="text-[#1F5C99]" />
+                    <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Search size={14} className="text-[#1F5C99]" />
                         Search & Advanced Filters
                     </h3>
                     <button 
@@ -1053,64 +1511,62 @@ export default function TeamReportPage() {
                             setStartDate(todayStr)
                             setEndDate(todayStr)
                         }}
-                        className="text-xs font-semibold text-gray-400 hover:text-red-500 active:text-red-600 transition flex items-center gap-1"
+                        className="text-[10px] font-semibold text-gray-400 hover:text-red-500 active:text-red-600 transition flex items-center gap-1"
                     >
-                        <RefreshCw size={12} /> Clear all filters
+                        <RefreshCw size={10} /> Clear all filters
                     </button>
                 </div>
-                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                     {/* Search field */}
                     <div className="relative md:col-span-2">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
                             placeholder="Search tasks, descriptions, clients..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
+                            className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] transition font-semibold"
                         />
                     </div>
 
                     {/* Employee Filter - CA Only */}
                     {isCA ? (
-                        <select
+                        <CustomSelect
                             value={filterStaff}
                             onChange={e => setFilterStaff(e.target.value)}
-                            className="py-2.5 px-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
-                        >
-                            <option value="">All Team Members</option>
-                            <option value={user?.id}>{user?.name} (Admin / Me)</option>
-                            {staff.map(s => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                        </select>
+                            options={[
+                                { value: '', label: 'All Team Members' },
+                                ...(user ? [{ value: user.id, label: `${user.name} (Admin / Me)` }] : []),
+                                ...staff.map(s => ({ value: s.id, label: s.name }))
+                            ]}
+                            widthClass="w-full sm:w-auto"
+                        />
                     ) : (
-                        <div className="py-2.5 px-4 text-sm bg-gray-50 border border-gray-100 rounded-xl text-gray-400 font-bold italic">
+                        <div className="py-1.5 px-3 text-xs bg-gray-50 border border-slate-200 rounded-lg text-gray-450 font-bold italic">
                             My Logs only
                         </div>
                     )}
 
                     {/* Client Filter */}
-                    <select
+                    <CustomSelect
                         value={filterClient}
                         onChange={e => setFilterClient(e.target.value)}
-                        className="py-2.5 px-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
-                    >
-                        <option value="">All Clients (Optional)</option>
-                        {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
+                        options={[
+                            { value: '', label: 'All Clients (Optional)' },
+                            ...clients.map(c => ({ value: c.id, label: c.name }))
+                        ]}
+                        widthClass="w-full sm:w-auto"
+                    />
 
                     {/* Custom Date Range Picker */}
                     <div className="relative col-span-1 sm:col-span-2">
                         <button
                             type="button"
                             onClick={() => setShowCustomCalendar(!showCustomCalendar)}
-                            className="w-full flex items-center justify-between gap-2 py-2.5 px-4 text-sm bg-gray-50 border border-gray-100 rounded-xl hover:border-gray-200 transition text-gray-700 font-semibold shadow-sm"
+                            className="w-full flex items-center justify-between gap-1.5 py-1.5 px-3 text-xs bg-gray-50 border border-slate-200 rounded-lg hover:border-slate-350 transition text-gray-700 font-semibold shadow-sm"
                         >
-                            <div className="flex items-center gap-2">
-                                <Calendar size={15} className="text-[#1F5C99]" />
+                            <div className="flex items-center gap-1.5">
+                                <Calendar size={13} className="text-[#1F5C99]" />
                                 <span>
                                     {startDate && endDate 
                                         ? `${formatDate(startDate)} - ${formatDate(endDate)}` 
@@ -1119,27 +1575,27 @@ export default function TeamReportPage() {
                                             : 'Select Date Range'}
                                 </span>
                             </div>
-                            <ChevronDown size={14} className="text-gray-400" />
+                            <ChevronDown size={12} className="text-gray-400" />
                         </button>
                         
                         {showCustomCalendar && (
-                            <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 z-50 w-72 animate-fade-in">
+                            <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 p-3 z-50 w-64 animate-fade-in">
                                 {/* Month Header */}
-                                <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center justify-between mb-3">
                                     <button 
                                         type="button"
                                         onClick={prevCalendarMonth} 
-                                        className="p-1.5 hover:bg-gray-100 rounded-lg transition text-gray-600 font-bold"
+                                        className="p-1 hover:bg-gray-100 rounded-md transition text-gray-600 font-bold text-xs"
                                     >
                                         &larr;
                                     </button>
-                                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                                    <h4 className="text-[11px] font-bold text-gray-800 uppercase tracking-wider">
                                         {calendarDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
                                     </h4>
                                     <button 
                                         type="button"
                                         onClick={nextCalendarMonth} 
-                                        className="p-1.5 hover:bg-gray-100 rounded-lg transition text-gray-600 font-bold"
+                                        className="p-1 hover:bg-gray-100 rounded-md transition text-gray-600 font-bold text-xs"
                                     >
                                         &rarr;
                                     </button>
@@ -1223,40 +1679,40 @@ export default function TeamReportPage() {
                     ) : (
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-widest border-b border-gray-100 bg-gray-50">
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">#</th>
-                                    {isCA && <th className="px-6 py-4 text-left whitespace-nowrap">Team Member</th>}
-                                    <th onClick={() => handleSort('date')} className="px-6 py-4 text-left whitespace-nowrap cursor-pointer hover:text-gray-700">
+                                <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">#</th>
+                                    {isCA && <th className="px-6 py-3.5 text-left whitespace-nowrap">Team Member</th>}
+                                    <th onClick={() => handleSort('date')} className="px-6 py-3.5 text-left whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5">
-                                            Date <ArrowUpDown size={12} />
+                                            Date <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Main Task / Work Type</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Sub Task</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Duration</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap">Start Time</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap">End Time</th>
-                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-4 text-right whitespace-nowrap cursor-pointer hover:text-gray-700">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Main Task / Work Type</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Sub Task</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Duration</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap">Start Time</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap">End Time</th>
+                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5 justify-end">
-                                            Hours <ArrowUpDown size={12} />
+                                            Hours <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Client</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Sub Task Description</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Status</th>
-                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-4 text-center whitespace-nowrap cursor-pointer hover:text-gray-700">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Client</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Sub Task Description</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Status</th>
+                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-3.5 text-center whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5 justify-center">
-                                            % Done <ArrowUpDown size={12} />
+                                            % Done <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">Final Remark</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">CA Review</th>
-                                    <th className="px-6 py-4 text-left whitespace-nowrap">CA Remark</th>
-                                    <th className="px-6 py-4 text-center whitespace-nowrap sticky right-0 bg-gray-50 z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-gray-100">Actions</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Final Remark</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">CA Review</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">CA Remark</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap sticky right-0 bg-[#1F5C99] z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {displayedReports.length === 0 ? (
+                                {[...displayedReports, ...inlineNewRows].length === 0 ? (
                                     <tr>
                                         <td colSpan={isCA ? 17 : 16} className="text-center py-20 text-gray-400 font-medium">
                                             <ClipboardList size={40} className="mx-auto text-gray-300 mb-3" />
@@ -1264,148 +1720,418 @@ export default function TeamReportPage() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    displayedReports.map((report, idx) => (
-                                        <tr 
-                                            key={report.id} 
-                                            className={`group hover:bg-slate-100 transition ${
-                                                (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
-                                                    ? 'bg-amber-50/80 hover:bg-amber-100/90 border-l-4 border-amber-500'
-                                                    : ''
-                                            }`}
-                                        >
-                                            <td className="px-6 py-4 text-gray-400 font-bold">{idx + 1}</td>
-                                            {isCA && (
-                                                <td className="px-6 py-4 font-bold text-[#1F5C99] whitespace-nowrap">
-                                                    {report.user_name}
-                                                </td>
-                                            )}
-                                            <td className="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
-                                                {formatDate(report.date)}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-800 whitespace-nowrap font-medium">
-                                                {report.main_task}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate" title={report.sub_task}>
-                                                {report.sub_task || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap font-medium">
-                                                {report.duration || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 text-center text-gray-500 whitespace-nowrap">
-                                                {report.start_time || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 text-center text-gray-500 whitespace-nowrap">
-                                                {report.end_time || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
-                                                {report.hours_taken ? `${report.hours_taken} hrs` : '—'}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 font-semibold whitespace-nowrap">
-                                                {report.client_name || <span className="text-gray-300 italic">Optional</span>}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate" title={report.sub_task_description}>
-                                                {report.sub_task_description || '—'}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <StatusBadge status={report.status} />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col items-center justify-center gap-1">
-                                                    <span className="font-bold text-gray-700 text-xs">{report.pct_completion}%</span>
-                                                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="h-full bg-emerald-500" 
-                                                            style={{ width: `${report.pct_completion}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate" title={report.final_remark}>
-                                                {report.final_remark || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap min-w-[200px]">
-                                                {isCA ? (
-                                                    <select
-                                                        value={pendingUpdates[report.id]?.ca_review !== undefined ? pendingUpdates[report.id].ca_review : (report.ca_review || '')}
-                                                        onChange={e => {
-                                                            if (e.target.value === 'ADD_NEW') {
-                                                                handleAddCustomReview(
-                                                                    pendingUpdates[report.id]?.ca_review || report.ca_review || '',
-                                                                    val => handleBulkFieldChange(report.id, 'ca_review', val)
-                                                                )
-                                                            } else {
-                                                                handleBulkFieldChange(report.id, 'ca_review', e.target.value)
-                                                            }
-                                                        }}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] text-gray-700 font-semibold bg-white"
-                                                    >
-                                                        <option value="">Awaiting Review</option>
-                                                        {combinedReviewOptions.map(o => (
-                                                            <option key={o.value} value={o.value}>{o.label}</option>
-                                                        ))}
-                                                        <option value="ADD_NEW" className="text-[#1F5C99] font-bold bg-[#1F5C99]/5">+ Add Custom Review Status...</option>
-                                                    </select>
-                                                ) : report.ca_review ? (
-                                                    <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700 border border-green-100">
-                                                        {report.ca_review}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-300 italic text-xs">Awaiting Review</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-500 min-w-[180px]">
-                                                {isCA ? (
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Write review comment..."
-                                                        value={pendingUpdates[report.id]?.ca_remark !== undefined ? pendingUpdates[report.id].ca_remark : (report.ca_remark || '')}
-                                                        onChange={e => handleBulkFieldChange(report.id, 'ca_remark', e.target.value)}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] text-gray-700 font-semibold bg-white"
-                                                    />
-                                                ) : (
-                                                    report.ca_remark || '—'
-                                                )}
-                                            </td>
-                                            <td className={`px-6 py-4 text-center whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] transition ${
-                                                (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
-                                                    ? 'bg-amber-50 group-hover:bg-amber-100/90'
-                                                    : 'bg-white group-hover:bg-slate-100'
-                                            }`}>
-                                                <div className="flex items-center gap-2 justify-center">
+                                    [...displayedReports, ...inlineNewRows].map((report, idx) => {
+                                        const isEditing = editingRowId === report.id;
+                                        if (isEditing) {
+                                            return (
+                                                <tr key={report.id} className="bg-blue-50/40 hover:bg-blue-50/60 transition">
+                                                    <td className="px-6 py-4 text-gray-400 font-bold">
+                                                        {String(report.id).startsWith('new-') ? 'New' : idx + 1}
+                                                    </td>
                                                     {isCA && (
-                                                        <button 
-                                                            onClick={() => openReviewModal(report)}
-                                                            className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition"
-                                                            title="Write Review & Comments"
-                                                        >
-                                                            Review
-                                                        </button>
+                                                        <td className="px-6 py-4 font-bold whitespace-nowrap">
+                                                            <select 
+                                                                value={inlineForm.user_id} 
+                                                                onChange={e => setInlineForm(p => ({ ...p, user_id: e.target.value }))}
+                                                                className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                            >
+                                                                <option value={user?.id}>{user?.name} (Admin / Me)</option>
+                                                                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            </select>
+                                                        </td>
                                                     )}
-                                                    <button 
-                                                        onClick={() => openEditModal(report)}
-                                                        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition"
-                                                        title="Edit Daily Work Log"
-                                                    >
-                                                        <Edit3 size={15} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => {
-                                                            setSelectedReport(report)
-                                                            setDeleteModalOpen(true)
-                                                        }}
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition"
-                                                        title="Delete Daily Work Log"
-                                                    >
-                                                        <Trash2 size={15} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input 
+                                                            type="date" 
+                                                            value={inlineForm.date} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, date: e.target.value }))} 
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white font-semibold"
+                                                            required
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <select 
+                                                            value={inlineForm.main_task} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, main_task: e.target.value }))}
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                            required
+                                                        >
+                                                            {combinedMainTasks.map(t => <option key={t} value={t}>{t}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input 
+                                                            type="text" 
+                                                            value={inlineForm.sub_task} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task: e.target.value }))} 
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-32 font-semibold"
+                                                            placeholder="Sub Task"
+                                                            required
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <select 
+                                                            value={inlineForm.duration} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, duration: e.target.value }))}
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                        >
+                                                            {combinedDurations.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        <TimePicker12Hour 
+                                                            value={inlineForm.start_time} 
+                                                            onChange={val => setInlineForm(p => ({ ...p, start_time: val }))} 
+                                                            className="!py-1 !px-2 text-xs"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                        <TimePicker12Hour 
+                                                            value={inlineForm.end_time} 
+                                                            onChange={val => setInlineForm(p => ({ ...p, end_time: val }))} 
+                                                            className="!py-1 !px-2 text-xs"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
+                                                        {calculateHours(inlineForm.start_time, inlineForm.end_time)} hrs
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <select 
+                                                            value={inlineForm.client_id || ''} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, client_id: e.target.value }))}
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                        >
+                                                            <option value="">Select Client</option>
+                                                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input 
+                                                            type="text" 
+                                                            value={inlineForm.sub_task_description} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task_description: e.target.value }))} 
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
+                                                            placeholder="Description"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <select 
+                                                            value={inlineForm.status} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, status: e.target.value }))}
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                        >
+                                                            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input 
+                                                            type="number" 
+                                                            min="0" 
+                                                            max="100" 
+                                                            step="5" 
+                                                            value={inlineForm.pct_completion} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, pct_completion: parseInt(e.target.value) || 0 }))} 
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-16"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <input 
+                                                            type="text" 
+                                                            value={inlineForm.final_remark} 
+                                                            onChange={e => setInlineForm(p => ({ ...p, final_remark: e.target.value }))} 
+                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
+                                                            placeholder="Remark"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {isCA ? (
+                                                            <select 
+                                                                value={inlineForm.ca_review} 
+                                                                onChange={e => setInlineForm(p => ({ ...p, ca_review: e.target.value }))}
+                                                                className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
+                                                            >
+                                                                <option value="">Awaiting Review</option>
+                                                                {combinedReviewOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                                            </select>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic text-xs">{inlineForm.ca_review || 'Awaiting Review'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {isCA ? (
+                                                            <input 
+                                                                type="text" 
+                                                                value={inlineForm.ca_remark} 
+                                                                onChange={e => setInlineForm(p => ({ ...p, ca_remark: e.target.value }))} 
+                                                                className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
+                                                                placeholder="Feedback"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-gray-450 text-xs">{inlineForm.ca_remark || '—'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center whitespace-nowrap sticky right-0 bg-blue-50/90 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
+                                                        <div className="flex items-center gap-2 justify-center">
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => handleSaveInlineEdit(report.id)} 
+                                                                disabled={saving}
+                                                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition cursor-pointer"
+                                                                title="Save"
+                                                            >
+                                                                <CheckCircle2 size={16} />
+                                                            </button>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingRowId(null);
+                                                                    setInlineForm(null);
+                                                                    if (String(report.id).startsWith('new-')) {
+                                                                        setInlineNewRows(prev => prev.filter(r => r.id !== report.id));
+                                                                    }
+                                                                }} 
+                                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                                                title="Cancel"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+
+                                        return (
+                                            <tr 
+                                                key={report.id} 
+                                                className={`group hover:bg-slate-100 transition ${
+                                                    (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
+                                                        ? 'bg-amber-50/80 hover:bg-amber-100/90 border-l-4 border-amber-500'
+                                                        : ''
+                                                }`}
+                                            >
+                                                <td className="px-6 py-4 text-gray-400 font-bold">{String(report.id).startsWith('new-') ? 'New' : idx + 1}</td>
+                                                {isCA && (
+                                                    <td className="px-6 py-4 font-bold text-[#1F5C99] whitespace-nowrap">
+                                                        {report.user_name}
+                                                    </td>
+                                                )}
+                                                <td className="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
+                                                    {formatDate(report.date)}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-800 whitespace-nowrap font-medium">
+                                                    {report.main_task}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate" title={report.sub_task}>
+                                                    {report.sub_task || '—'}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap font-medium">
+                                                    {report.duration || '—'}
+                                                </td>
+                                                <td className="px-6 py-4 text-center text-gray-500 whitespace-nowrap">
+                                                    {formatTime12Hour(report.start_time)}
+                                                </td>
+                                                <td className="px-6 py-4 text-center text-gray-500 whitespace-nowrap">
+                                                    {formatTime12Hour(report.end_time)}
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-bold text-gray-800 whitespace-nowrap">
+                                                    {report.hours_taken ? `${report.hours_taken} hrs` : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 font-semibold whitespace-nowrap">
+                                                    {report.client_name || <span className="text-gray-300 italic">Optional</span>}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate" title={report.sub_task_description}>
+                                                    {report.sub_task_description || '—'}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <StatusBadge status={report.status} />
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-col items-center justify-center gap-1">
+                                                        <span className="font-bold text-gray-700 text-xs">{report.pct_completion}%</span>
+                                                        <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full bg-emerald-500" 
+                                                                style={{ width: `${report.pct_completion}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 max-w-[200px] truncate" title={report.final_remark}>
+                                                    {report.final_remark || '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap min-w-[200px]">
+                                                    {isCA ? (
+                                                        <select
+                                                            value={pendingUpdates[report.id]?.ca_review !== undefined ? pendingUpdates[report.id].ca_review : (report.ca_review || '')}
+                                                            onChange={e => {
+                                                                if (e.target.value === 'ADD_NEW') {
+                                                                    handleAddCustomReview(
+                                                                        pendingUpdates[report.id]?.ca_review || report.ca_review || '',
+                                                                        val => handleBulkFieldChange(report.id, 'ca_review', val)
+                                                                    )
+                                                                } else {
+                                                                    handleBulkFieldChange(report.id, 'ca_review', e.target.value)
+                                                                }
+                                                            }}
+                                                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] text-gray-700 font-semibold bg-white"
+                                                        >
+                                                            <option value="">Awaiting Review</option>
+                                                            {combinedReviewOptions.map(o => (
+                                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                                            ))}
+                                                            <option value="ADD_NEW" className="text-[#1F5C99] font-bold bg-[#1F5C99]/5">+ Add Custom Review Status...</option>
+                                                        </select>
+                                                    ) : report.ca_review ? (
+                                                        <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700 border border-green-100">
+                                                            {report.ca_review}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-300 italic text-xs">Awaiting Review</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-500 min-w-[180px]">
+                                                    {isCA ? (
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Write review comment..."
+                                                            value={pendingUpdates[report.id]?.ca_remark !== undefined ? pendingUpdates[report.id].ca_remark : (report.ca_remark || '')}
+                                                            onChange={e => handleBulkFieldChange(report.id, 'ca_remark', e.target.value)}
+                                                            className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] text-gray-700 font-semibold bg-white"
+                                                        />
+                                                    ) : (
+                                                        report.ca_remark || '—'
+                                                    )}
+                                                </td>
+                                                <td className={`px-6 py-4 text-center whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] transition ${
+                                                    (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
+                                                        ? 'bg-amber-50 group-hover:bg-amber-100/90'
+                                                        : 'bg-white group-hover:bg-slate-100'
+                                                }`}>
+                                                    <div className="flex items-center gap-2 justify-center">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleStartInlineEdit(report)}
+                                                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-gray-700 font-bold text-xs transition cursor-pointer"
+                                                            title="Edit Inline"
+                                                        >
+                                                            Inline Edit
+                                                        </button>
+                                                        {isCA && (
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => openReviewModal(report)}
+                                                                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition cursor-pointer"
+                                                                title="Write Review & Comments"
+                                                            >
+                                                                Review
+                                                            </button>
+                                                        )}
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => openEditModal(report)}
+                                                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition cursor-pointer"
+                                                            title="Edit Daily Work Log"
+                                                        >
+                                                            <Edit3 size={15} />
+                                                        </button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedReport(report)
+                                                                setDeleteModalOpen(true)
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
+                                                            title="Delete Daily Work Log"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
+                                    <tr className="bg-gray-50/50 hover:bg-slate-50 transition cursor-pointer" onClick={handleAddRowInline}>
+                                        <td colSpan={isCA ? 17 : 16} className="px-6 py-4 text-center text-[#1F5C99] font-bold text-sm">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <Plus size={16} /> Add New Row Inline
+                                            </div>
+                                        </td>
+                                    </tr>
                             </tbody>
                         </table>
                     )}
+                </div>
+            </div>
+
+            {/* Notes Section at the Bottom */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 space-y-6">
+                <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                    <div className="space-y-1">
+                        <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2 select-none">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#1F5C99] shadow-sm"></span>
+                            Important Notes Registry
+                        </h3>
+                        <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Internal reminders & administrative observations</p>
+                    </div>
+                    <span className="text-xs font-bold text-[#1F5C99] bg-[#EEF4FB] px-3 py-1.5 rounded-xl select-none">
+                        {new Date().toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    </span>
+                </div>
+
+                <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto pr-1">
+                    {notesList.map((note, idx) => (
+                        <div key={note.id} className="flex flex-col md:flex-row md:items-start gap-4 py-4 first:pt-0 last:pb-0">
+                            {/* Date/Time badge */}
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-gray-50 px-2.5 py-1.5 rounded-xl select-none w-fit">
+                                <Calendar size={13} className="text-[#1F5C99]" />
+                                <span>{note.timestamp}</span>
+                            </div>
+
+                            {/* Auto-growing Textarea to wrap text naturally */}
+                            <textarea
+                                value={note.text}
+                                onChange={e => {
+                                    handleUpdateNoteText(note.id, e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                }}
+                                placeholder="Write your observation/note here... (Saved automatically)"
+                                rows={1}
+                                className="flex-1 bg-gray-50 border border-slate-200 focus:border-[#1F5C99] outline-none focus:ring-2 focus:ring-[#1F5C99]/15 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-slate-450 font-semibold resize-none h-auto min-h-[38px] transition"
+                                style={{ height: 'auto' }}
+                                ref={el => {
+                                    if (el) {
+                                        el.style.height = 'auto';
+                                        el.style.height = el.scrollHeight + 'px';
+                                    }
+                                }}
+                            />
+
+                            {/* Always visible action buttons */}
+                            <div className="flex items-center gap-2 select-none self-end md:self-start">
+                                {idx === notesList.length - 1 && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleAddNoteAfter(note.id)}
+                                        className="p-2 text-white bg-[#1F5C99] hover:bg-[#154673] rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center"
+                                        title="Add Note Row"
+                                    >
+                                        <Plus size={14} />
+                                    </button>
+                                )}
+                                <button 
+                                    type="button"
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition cursor-pointer flex items-center justify-center"
+                                    title="Delete Note"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -1532,27 +2258,20 @@ export default function TeamReportPage() {
                         </div>
 
                         {/* Hours / Timings */}
-                        <div className={selectedReport ? "grid grid-cols-2 gap-2" : "space-y-1"}>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Start Time</label>
-                                <input
-                                    type="time"
-                                    name="start_time"
-                                    value={logForm.start_time}
-                                    onChange={handleLogFormChange}
-                                    className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
-                                />
-                            </div>
-                            {selectedReport && (
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">End Time</label>
-                                    <input
-                                        type="time"
-                                        name="end_time"
-                                        value={logForm.end_time}
-                                        onChange={handleLogFormChange}
-                                        className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
-                                    />
+                        <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                            <TimePicker12Hour
+                                value={logForm.start_time}
+                                onChange={val => setLogForm(prev => ({ ...prev, start_time: val }))}
+                                label="Start Time"
+                            />
+                            <TimePicker12Hour
+                                value={logForm.end_time}
+                                onChange={val => setLogForm(prev => ({ ...prev, end_time: val }))}
+                                label="End Time"
+                            />
+                            {currentCalculatedHours > 0 && (
+                                <div className="col-span-2 flex items-center gap-2 px-4 py-3 bg-[#EEF4FB] text-[#1F5C99] rounded-xl border border-[#1F5C99]/20 text-xs font-bold">
+                                    <Info size={14} /> Total time calculated automatically: {currentCalculatedHours} Hours
                                 </div>
                             )}
                         </div>
@@ -1716,12 +2435,7 @@ export default function TeamReportPage() {
                         )}
                     </div>
 
-                    {/* Output timing feedback */}
-                    {currentCalculatedHours > 0 && (
-                        <div className="flex items-center gap-2 px-4 py-3 bg-[#EEF4FB] text-[#1F5C99] rounded-xl border border-[#1F5C99]/20 text-xs font-bold">
-                            <Info size={14} /> Total time calculated automatically: {currentCalculatedHours} Hours
-                        </div>
-                    )}
+
 
                     {/* Buttons */}
                     <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">

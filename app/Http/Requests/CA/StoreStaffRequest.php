@@ -17,7 +17,12 @@ class StoreStaffRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'username' => ['required', 'string', 'max:255', 'unique:users,username'],
             'password' => ['required', 'string', 'min:6'],
-            'role_id' => ['nullable', 'exists:roles,id'],
+            'role_ids' => ['nullable', 'array'],
+            'role_ids.*' => ['exists:roles,id'],
+            'employee_code' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'mobile' => ['nullable', 'string', 'max:20'],
         ];
     }
 }

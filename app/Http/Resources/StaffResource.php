@@ -14,13 +14,19 @@ class StaffResource extends JsonResource
             'name' => $this->name,
             'username' => $this->username,
             'role' => $this->role->value,
-            'role_label' => $this->role_id && $this->customRole ? $this->customRole->name : $this->role->label(),
-            'role_id' => $this->role_id,
-            'custom_role' => $this->customRole ? [
-                'id' => $this->customRole->id,
-                'name' => $this->customRole->name,
-            ] : null,
+            'role_label' => $this->roles->isNotEmpty() ? $this->roles->pluck('name')->implode(', ') : $this->role->label(),
+            'role_ids' => $this->roles->pluck('id')->toArray(),
+            'custom_roles' => $this->roles->map(fn($r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+            ]),
             'is_active' => $this->is_active,
+            'employee_code' => $this->employee_code,
+            'address' => $this->address,
+            'email' => $this->email,
+            'mobile' => $this->mobile,
+            'profile_photo' => $this->profile_photo,
+            'profile_photo_url' => $this->profile_photo_url,
             'created_at' => $this->created_at->toDateString(),
         ];
     }

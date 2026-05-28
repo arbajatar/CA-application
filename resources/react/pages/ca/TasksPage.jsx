@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical, ArrowUpDown, ArrowUp, ArrowDown, FileText, CircleDashed, Clock, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, UserRoundCog, PlusCircle, Eye, Download, Copy, Folder as FolderIcon, ChevronLeft, Sliders, X, GripVertical, ArrowUpDown, ArrowUp, ArrowDown, FileText, CircleDashed, Clock, CheckCircle2, Circle, ChevronDown } from 'lucide-react'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
+import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
 
 
@@ -849,43 +850,84 @@ export default function TasksPage() {
 
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
-    const FolderCard = ({ name, iconBg, iconColor, onClick }) => (
-        <div
-            onClick={onClick}
-            className="group cursor-pointer p-5 bg-white rounded-2xl border border-gray-100 hover:border-[#1F5C99] hover:shadow-xl transition-all duration-300 flex flex-col items-center gap-4 text-center select-none"
-        >
-            <div className={`w-16 h-16 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
-                <FolderIcon size={32} className={iconColor} fill="currentColor" fillOpacity={0.2} />
-            </div>
-            <div>
-                <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">{name}</h3>
-            </div>
-        </div>
-    );
+    const FolderCard = ({ name, iconBg, iconColor, onClick }) => {
+        const borderClasses = {
+            'text-slate-500': 'border-slate-200 hover:border-slate-500',
+            'text-blue-500': 'border-blue-200 hover:border-blue-500',
+            'text-orange-500': 'border-orange-200 hover:border-orange-500',
+            'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
+            'text-sky-500': 'border-sky-200 hover:border-sky-500',
+            'text-teal-500': 'border-teal-200 hover:border-teal-500',
+            'text-red-500': 'border-red-200 hover:border-red-500',
+            'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
+            'text-purple-500': 'border-purple-200 hover:border-purple-500',
+            'text-pink-500': 'border-pink-200 hover:border-pink-500',
+        };
+        const colorClasses = borderClasses[iconColor] || 'border-slate-200 hover:border-[#1F5C99]';
 
-    const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) => (
-        <div 
-            onClick={onClick}
-            className={`bg-white rounded-xl p-3.5 shadow-sm border ${active ? 'border-[#1F5C99] ring-2 ring-[#1F5C99]/20' : 'border-gray-100 hover:border-gray-200'} flex flex-col gap-2 transition-all cursor-pointer select-none`}
-        >
-            <div className="flex items-center justify-between">
-                <div className={`p-2 rounded-lg ${iconBg}`}>
-                    <Icon size={16} className={iconColor} />
+        return (
+            <div
+                onClick={onClick}
+                className={`group cursor-pointer p-5 bg-white rounded-2xl border ${colorClasses} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none`}
+            >
+                <div className={`w-16 h-16 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}>
+                    <FolderIcon size={32} className={iconColor} fill="currentColor" fillOpacity={0.2} />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{value}</span>
+                <div>
+                    <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">{name}</h3>
+                </div>
             </div>
-            <div>
-                <p className="text-xs font-semibold text-gray-500">{label}</p>
-                <p className={`text-[10px] ${subColor || 'text-gray-400'}`}>{sub}</p>
+        );
+    };
+
+    const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) => {
+        let inactiveBgClass = '';
+        let activeClass = '';
+
+        if (iconColor.includes('blue')) {
+            inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0F7FF] border-blue-100 text-slate-750 hover:border-blue-300';
+            activeClass = 'active-card-blue ring-4 ring-blue-500/5 shadow-lg shadow-blue-500/5 scale-[1.02]';
+        } else if (iconColor.includes('amber') || iconColor.includes('yellow')) {
+            inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFFBEB] border-amber-100 text-slate-750 hover:border-amber-300';
+            activeClass = 'active-card-amber ring-4 ring-amber-500/5 shadow-lg shadow-amber-500/5 scale-[1.02]';
+        } else if (iconColor.includes('green') || iconColor.includes('emerald')) {
+            inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0FDF4] border-emerald-100 text-slate-750 hover:border-emerald-300';
+            activeClass = 'active-card-emerald ring-4 ring-emerald-500/5 shadow-lg shadow-emerald-500/5 scale-[1.02]';
+        } else if (iconColor.includes('red') || iconColor.includes('rose')) {
+            inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFF5F5] border-red-100 text-slate-750 hover:border-red-300';
+            activeClass = 'active-card-rose ring-4 ring-red-500/5 shadow-lg shadow-red-500/5 scale-[1.02]';
+        } else {
+            inactiveBgClass = 'bg-gradient-to-br from-white to-[#F8FAFC] border-slate-200 text-slate-750 hover:border-slate-400';
+            activeClass = 'active-card-slate ring-4 ring-slate-500/5 shadow-lg shadow-slate-500/5 scale-[1.02]';
+        }
+
+        return (
+            <div 
+                onClick={onClick}
+                className={`rounded-2xl p-4.5 transition-all duration-300 flex flex-col gap-3.5 cursor-pointer select-none border
+                    ${active 
+                        ? `${activeClass} -translate-y-0.5` 
+                        : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
+            >
+                <div className="flex items-center justify-between">
+                    <div className={`p-2 rounded-xl transition-colors ${iconBg}`}>
+                        <Icon size={18} className={iconColor} />
+                    </div>
+                    <span className="text-3xl font-bold text-slate-900 tracking-tight">{value}</span>
+                </div>
+                <div>
+                    <p className="text-xs font-semibold text-slate-900">{label}</p>
+                    <p className={`text-[10px] font-medium mt-0.5 ${subColor || 'text-slate-600'}`}>{sub}</p>
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const SheetSmallCard = ({ task }) => (
         <Tooltip content={`${task.form_name || 'Unnamed Sheet'} — ${task.client?.name || 'No Client'}`}>
             <div 
                 onClick={() => navigate(`/ca/tasks/${task.id}`)}
-                className="group cursor-pointer bg-white rounded-xl p-3 border border-gray-100 hover:border-[#1F5C99] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none w-full"
+                className="group cursor-pointer bg-white rounded-xl p-3 border border-slate-200 hover:border-[#1F5C99] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none w-full"
             >
                 <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">
                     <FileText size={18} />
@@ -894,7 +936,7 @@ export default function TasksPage() {
                     <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors">
                         {task.form_name || 'Unnamed Sheet'}
                     </h4>
-                    <p className="text-[10px] text-gray-400 truncate">
+                    <p className="text-[10px] text-slate-500 font-semibold truncate">
                         {task.client?.name || '—'}
                     </p>
                 </div>
@@ -971,15 +1013,15 @@ export default function TasksPage() {
                             </button>
                         )}
                         {currentFolder && <span className="text-gray-300 text-sm font-medium mr-2">/</span>}
-                        <h1 className="text-3xl font-bold text-gray-900">Sheets Management</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Sheets Management</h1>
                         {currentFolder && (
-                            <div className="flex items-center text-gray-400 text-lg font-medium">
+                            <div className="flex items-center text-gray-405 text-lg font-medium">
                                 <span className="mx-1">/</span>
                                 <span className="text-[#1F5C99]">{currentFolder === 'all' ? 'All Sheets' : workTypes.find(w => w.id == currentFolder)?.name}</span>
                             </div>
                         )}
                     </div>
-                    <p className="text-sm text-gray-400">Monitor, assign, and manage all office work entries.</p>
+                    <p className="text-sm font-medium text-slate-500 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <input
@@ -992,13 +1034,13 @@ export default function TasksPage() {
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={saving}
-                        className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 disabled:opacity-50"
                     >
                         Import Data
                     </button>
                     <button onClick={() => navigate('/ca/tasks/builder', { state: { workTypeId: currentFolder && currentFolder !== 'all' ? currentFolder : '' } })}
-                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto">
-                        <Plus size={16} /> Create New Sheet
+                        className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 w-full sm:w-auto">
+                        <Plus size={15} /> Create New Sheet
                     </button>
                 </div>
             </div>
@@ -1019,8 +1061,8 @@ export default function TasksPage() {
                     {/* Small Sheet Cards Grid */}
                     {tasks && tasks.length > 0 && (
                         <div className="my-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
-                            <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                <FileText size={14} className="text-[#1F5C99]" />
+                            <h3 className="text-sm font-extrabold text-slate-800 tracking-wide mb-3 flex items-center gap-2">
+                                <FileText size={16} className="text-[#1F5C99]" />
                                 Sheets Quick Overview
                             </h3>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
@@ -1239,27 +1281,41 @@ export default function TasksPage() {
                                         onChange={e => { setSearch(e.target.value); setPage(1) }}
                                         className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                                 </div>
-                                <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar w-full lg:w-auto">
-                                    <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px]">
-                                        {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                    </select>
-                                    <select value={clientId} onChange={e => { setClientId(e.target.value); setPage(1) }}
-                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                                        <option value="">All Clients</option>
-                                        {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                    <select value={staffId} onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                                        className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[120px] lg:max-w-[150px]">
-                                        <option value="">All Staff</option>
-                                        {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                <div className="flex flex-wrap items-center gap-2 pb-1 lg:pb-0 w-full lg:w-auto">
+                                    <CustomSelect
+                                        value={status}
+                                        onChange={e => { setStatus(e.target.value); setPage(1) }}
+                                        options={statuses}
+                                        widthClass="min-w-[125px] shrink-0"
+                                    />
+                                    <CustomSelect
+                                        value={clientId}
+                                        onChange={e => { setClientId(e.target.value); setPage(1) }}
+                                        options={[
+                                            { value: '', label: 'All Clients' },
+                                            ...(clients || []).map(c => ({ value: c.id, label: c.name }))
+                                        ]}
+                                        widthClass="min-w-[125px] lg:max-w-[150px] shrink-0"
+                                    />
+                                    <CustomSelect
+                                        value={staffId}
+                                        onChange={e => { setStaffId(e.target.value); setPage(1) }}
+                                        options={[
+                                            { value: '', label: 'All Staff' },
+                                            ...(staff || []).map(s => ({ value: s.id, label: s.name }))
+                                        ]}
+                                        widthClass="min-w-[125px] lg:max-w-[150px] shrink-0"
+                                    />
                                     {currentFolder === 'all' && (
-                                        <select value={workTypeId} onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
-                                            className="whitespace-nowrap py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition min-w-[140px] lg:max-w-[150px]">
-                                            <option value="">All Work Types</option>
-                                            {workTypes?.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                        </select>
+                                        <CustomSelect
+                                            value={workTypeId}
+                                            onChange={e => { setWorkTypeId(e.target.value); setPage(1) }}
+                                            options={[
+                                                { value: '', label: 'All Work Types' },
+                                                ...(workTypes || []).map(w => ({ value: w.id, label: w.name }))
+                                            ]}
+                                            widthClass="min-w-[145px] lg:max-w-[150px] shrink-0"
+                                        />
                                     )}
                                     {allFields.length > 0 && (
                                         <button
@@ -1284,8 +1340,8 @@ export default function TasksPage() {
                             {showColumnFilters && allFields.length > 0 && (
                                 <div className="bg-slate-50 border-b border-gray-100 px-4 sm:px-6 py-4 flex flex-col gap-3">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                            <Sliders size={13} className="text-[#1F5C99]" />
+                                        <h4 className="text-sm font-extrabold text-slate-800 tracking-wide flex items-center gap-2">
+                                            <Sliders size={15} className="text-[#1F5C99]" />
                                             Scrollable Column Filters ({currentFolder === 'all' ? 'All Folders' : workTypes.find(wt => wt.id === currentFolder)?.name})
                                         </h4>
                                         {Object.values(dynamicFilters).filter(Boolean).length > 0 && (
@@ -1338,8 +1394,8 @@ export default function TasksPage() {
                                 {loading ? <Spinner /> : (
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                                <th className="px-4 py-3 text-left whitespace-nowrap">#</th>
+                                            <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                                <th className="px-4 py-3.5 text-left whitespace-nowrap">#</th>
                                                 {activeColumns.map((col, index) => {
                                                     const handleColumnDrop = (targetIndex) => {
                                                         if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) return;
@@ -1370,33 +1426,33 @@ export default function TasksPage() {
                                                                 setDragOverColumnIndex(null);
                                                             }}
                                                             onDrop={() => handleColumnDrop(index)}
-                                                            className={`px-4 py-3 text-left whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th border-b border-gray-100 ${
-                                                                isDragging ? 'opacity-40 bg-slate-100 scale-95 border-dashed border-2 border-slate-300' : ''
+                                                            className={`px-4 py-3 text-left whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th border-b border-[#154673] text-white font-bold ${
+                                                                isDragging ? 'opacity-40 bg-slate-100/20 scale-95 border-dashed border-2 border-slate-300' : ''
                                                             } ${
-                                                                isDragOver && !isDragging ? 'bg-indigo-50 border-l-2 border-indigo-500 scale-102 shadow-sm' : ''
+                                                                isDragOver && !isDragging ? 'bg-[#154673] border-l-2 border-blue-400 scale-102 shadow-sm' : ''
                                                             }`}
                                                             title="Drag to rearrange column order"
                                                         >
                                                             <div className="flex items-center gap-1.5 justify-between">
                                                                 <div className="flex items-center gap-1.5 min-w-0">
-                                                                    <GripVertical size={13} className="text-gray-300 shrink-0 cursor-grab group-hover/th:text-[#1F5C99] transition" />
+                                                                    <GripVertical size={13} className="text-blue-200 shrink-0 cursor-grab group-hover/th:text-white transition" />
                                                                     <div
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
                                                                             handleSort(col.id);
                                                                         }}
-                                                                        className="flex items-center gap-1 cursor-pointer hover:text-[#1F5C99] transition min-w-0 select-none"
+                                                                        className="flex items-center gap-1 cursor-pointer hover:text-white transition min-w-0 select-none"
                                                                         title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
                                                                     >
-                                                                        <span className={`font-semibold transition truncate ${sortField === col.id ? 'text-[#1F5C99] font-bold' : 'text-gray-700'}`}>{col.label}</span>
+                                                                        <span className={`font-bold transition truncate ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
                                                                         {sortField === col.id ? (
                                                                             sortDirection === 'asc' ? (
-                                                                                <ArrowUp size={13} className="text-[#1F5C99] shrink-0" />
+                                                                                <ArrowUp size={13} className="text-white shrink-0" />
                                                                             ) : (
-                                                                                <ArrowDown size={13} className="text-[#1F5C99] shrink-0" />
+                                                                                <ArrowDown size={13} className="text-white shrink-0" />
                                                                             )
                                                                         ) : (
-                                                                            <ArrowUpDown size={13} className="text-gray-300 group-hover/th:text-gray-400 shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
+                                                                            <ArrowUpDown size={13} className="text-blue-200 group-hover/th:text-white shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -1404,7 +1460,7 @@ export default function TasksPage() {
                                                         </th>
                                                     );
                                                 })}
-                                                <th className="px-4 py-3 text-left whitespace-nowrap sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-gray-100">Actions</th>
+                                                <th className="px-4 py-3.5 text-left whitespace-nowrap sticky right-0 bg-[#1F5C99] z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white font-bold">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">

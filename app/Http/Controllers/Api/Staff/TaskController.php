@@ -23,8 +23,9 @@ class TaskController extends Controller
             ->where(function ($query) use ($user) {
                 $query->whereDoesntHave('permissions')
                     ->orWhereHas('permissions', function ($pq) use ($user) {
-                        if ($user->role_id) {
-                            $pq->where('role_id', $user->role_id)
+                        $roleIds = $user->roles()->pluck('roles.id')->toArray();
+                        if (!empty($roleIds)) {
+                            $pq->whereIn('role_id', $roleIds)
                                ->where('can_read', true);
                         } else {
                             $pq->whereRaw('1 = 0');
@@ -71,8 +72,9 @@ class TaskController extends Controller
         // Check read permission
         $user = $request->user();
         if ($task->permissions()->exists()) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
             $hasReadAccess = $task->permissions()
-                ->where('role_id', $user->role_id)
+                ->whereIn('role_id', $roleIds)
                 ->where('can_read', true)
                 ->exists();
             if (!$hasReadAccess) {
@@ -95,8 +97,9 @@ class TaskController extends Controller
         // Check write permission
         $user = $request->user();
         if ($task->permissions()->exists()) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
             $hasWriteAccess = $task->permissions()
-                ->where('role_id', $user->role_id)
+                ->whereIn('role_id', $roleIds)
                 ->where('can_write', true)
                 ->exists();
             if (!$hasWriteAccess) {
