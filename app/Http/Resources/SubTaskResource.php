@@ -32,6 +32,7 @@ class SubTaskResource extends JsonResource
                 'client' => $this->task->client?->name,
                 'work_type' => $this->task->workType?->name,
                 'allow_attachments' => (bool)$this->task->allow_attachments,
+                'dynamic_fields' => $this->task->dynamic_fields,
             ],
             'user_permissions' => $this->task ? (new TaskResource($this->task))->getUserPermissions($request->user()) : [
                 'can_read' => true,

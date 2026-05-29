@@ -14,6 +14,28 @@ import Spinner from '../../components/ui/Spinner'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import { formatDate } from '../../utils/dateHelper'
 
+const DEFAULT_SUB_STATUSES = [
+    'Documentation pending',
+    'Awaiting approval',
+    'Completed'
+];
+
+const getSubStatusOptions = (task) => {
+    if (!task || !task.dynamic_fields) return DEFAULT_SUB_STATUSES;
+    let fields = task.dynamic_fields;
+    if (typeof fields === 'string') {
+        try { fields = JSON.parse(fields); } catch(e) {}
+    }
+    const schema = fields?.schema;
+    if (Array.isArray(schema)) {
+        const subStatusField = schema.find(f => f.id === 'static_sub_status');
+        if (subStatusField && Array.isArray(subStatusField.options) && subStatusField.options.length > 0) {
+            return subStatusField.options;
+        }
+    }
+    return DEFAULT_SUB_STATUSES;
+};
+
 const statuses = [
     { value: '', label: 'All Status' },
     { value: 'complete', label: 'Complete' },
@@ -444,6 +466,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                             <SubStatusPicker
                                                                                                 value={st.sub_status}
                                                                                                 onChange={(newVal) => handleUpdateSubTask(sheet.id, st.id, { sub_status: newVal })}
+                                                                                                options={getSubStatusOptions(sheet)}
                                                                                             />
                                                                                         </td>
                                                                                     </tr>
@@ -864,6 +887,7 @@ function CalendarView() {
                                                                                     <SubStatusPicker
                                                                                         value={st.sub_status}
                                                                                         onChange={(newVal) => handleUpdateSubTask(t.id, st.id, { sub_status: newVal })}
+                                                                                        options={getSubStatusOptions(t)}
                                                                                     />
                                                                                 </td>
                                                                             </tr>

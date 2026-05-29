@@ -14,11 +14,11 @@ class UpdateTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id' => ['sometimes', 'exists:clients,id'],
-            'work_type_id' => ['sometimes', 'exists:work_types,id'],
+            'client_id' => ['sometimes', 'nullable', 'exists:clients,id'],
+            'work_type_id' => ['sometimes', 'nullable', 'exists:work_types,id'],
             'form_name' => ['sometimes', 'string'],
             'date_inward' => ['sometimes', 'date'],
-            'allocated_to' => ['sometimes', 'exists:users,id'],
+            'allocated_to' => ['sometimes', 'nullable', 'exists:users,id'],
             'date_allocated' => ['sometimes', 'date'],
             'date_completed' => ['nullable', 'date'],
             'status' => ['sometimes', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\TaskStatus::class)],

@@ -14,6 +14,7 @@ import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
+import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import '../../styles/task-builder.css';
 
 const toast = toast_pkg;
@@ -364,14 +365,15 @@ export default function TaskBuilderPage() {
     },
     {
       id: 'static_sub_status',
-      type: 'longtext',
-      icon: 'AlignLeft',
+      type: 'dropdown',
+      icon: 'ChevronDown',
       color: '#6366f1',
       label: 'Sub status',
-      placeholder: 'e.g. Documentation pending',
+      placeholder: 'Select sub status...',
       value: '',
       required: false,
       static: true,
+      options: ['Documentation pending', 'Awaiting approval', 'Completed'],
       section: 2
     },
     {
@@ -443,6 +445,7 @@ export default function TaskBuilderPage() {
   const [saving, setSaving] = useState(false);
 
   const isDuplicating = !!location.state?.duplicateData;
+  const hasInitializedRef = useRef(false);
 
   // Client Modal States
   const EMPTY_CLIENT_FORM = {
@@ -725,13 +728,6 @@ export default function TaskBuilderPage() {
   };
 
   const submitForm = async () => {
-    if (viewMode === 'builder') {
-      setFormSchema(prev => prev.map(f => ({ ...f, error: '' })));
-      setViewMode('live');
-      showToast('Form created! You can now enter data.');
-      return;
-    }
-
     let allValid = true;
     const validatedSchema = formSchema.map(f => {
       const isValid = validateField(f);
@@ -745,23 +741,33 @@ export default function TaskBuilderPage() {
       return;
     }
 
-    const staticFields = {
-      form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
-      client_id: formSchema.find(f => f.id === 'static_client_name')?.value || null,
-      work_type_id: formSchema.find(f => f.id === 'static_work_type')?.value,
-      allocated_to: formSchema.find(f => f.id === 'static_assignee')?.value || null,
-      date_inward: formSchema.find(f => f.id === 'static_created_date')?.value,
-      date_allocated: formSchema.find(f => f.id === 'static_created_date')?.value,
-      due_date: formSchema.find(f => f.id === 'static_due_date')?.value || null,
-      status: formSchema.find(f => f.id === 'static_sheet_status')?.value,
-      remarks: formSchema.find(f => f.id === 'static_remarks')?.value,
-      task_particular: formSchema.find(f => f.id === 'static_task_particular')?.value || null,
-      sub_status: formSchema.find(f => f.id === 'static_sub_status')?.value || null,
-      feedback: formSchema.find(f => f.id === 'static_feedback')?.value || null,
-      entry_date: formSchema.find(f => f.id === 'static_entry_date')?.value || null
+    const normalizeValue = (val) => {
+      if (val === undefined || val === null || val === '') return null;
+      return val;
     };
 
+    const staticFields = {
+      form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
+      client_id: normalizeValue(formSchema.find(f => f.id === 'static_client_name')?.value),
+      work_type_id: normalizeValue(formSchema.find(f => f.id === 'static_work_type')?.value),
+      allocated_to: normalizeValue(formSchema.find(f => f.id === 'static_assignee')?.value),
+      date_inward: normalizeValue(formSchema.find(f => f.id === 'static_created_date')?.value),
+      date_allocated: normalizeValue(formSchema.find(f => f.id === 'static_created_date')?.value),
+      due_date: normalizeValue(formSchema.find(f => f.id === 'static_due_date')?.value),
+      status: formSchema.find(f => f.id === 'static_sheet_status')?.value || 'pending',
+      remarks: normalizeValue(formSchema.find(f => f.id === 'static_remarks')?.value),
+      task_particular: normalizeValue(formSchema.find(f => f.id === 'static_task_particular')?.value),
+      sub_status: normalizeValue(formSchema.find(f => f.id === 'static_sub_status')?.value),
+      feedback: normalizeValue(formSchema.find(f => f.id === 'static_feedback')?.value),
+      entry_date: normalizeValue(formSchema.find(f => f.id === 'static_entry_date')?.value)
+    };
+
+    const isEditing = !!location.state?.isEditing;
+    const taskId = location.state?.taskId;
+    const originalDynamicFields = location.state?.duplicateData?.dynamic_fields || {};
+
     const dynamicFields = {
+      ...originalDynamicFields,
       schema: formSchema.map(f => ({
         id: f.id,
         type: f.type,
@@ -790,22 +796,44 @@ export default function TaskBuilderPage() {
 
     setSaving(true);
     try {
-      const response = await api.post('/ca/tasks', {
-        ...staticFields,
-        dynamic_fields: dynamicFields,
-        remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
-        permissions: sheetPermissions,
-        allow_attachments: allowAttachments,
-      });
+      const formattedPermissions = (sheetPermissions || []).map(p => ({
+        role_id: Number(p.role_id),
+        can_read: !!p.can_read,
+        can_write: !!p.can_write,
+        can_delete: !!p.can_delete
+      }));
 
-      showToast('Sheet created successfully!');
-      // Optionally redirect or reset form
+      if (isEditing) {
+        await api.patch(`/ca/tasks/${taskId}`, {
+          ...staticFields,
+          dynamic_fields: dynamicFields,
+          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Updated via Task Builder',
+          permissions: formattedPermissions,
+          allow_attachments: !!allowAttachments,
+        });
+        showToast('Sheet layout updated successfully!');
+      } else {
+        await api.post('/ca/tasks', {
+          ...staticFields,
+          dynamic_fields: dynamicFields,
+          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
+          permissions: formattedPermissions,
+          allow_attachments: !!allowAttachments,
+        });
+        showToast('Sheet created successfully!');
+      }
+
+      // Redirect back to sheets or detail
       setTimeout(() => {
-        window.location.href = '/ca/tasks';
+        if (isEditing) {
+          window.location.href = `/ca/tasks/${taskId}`;
+        } else {
+          window.location.href = '/ca/tasks';
+        }
       }, 1500);
     } catch (err) {
       console.error(err);
-      showToast('Failed to create Sheet. ' + (err.response?.data?.message || ''));
+      showToast(`Failed to save Sheet. ${err.response?.data?.message || ''}`);
     } finally {
       setSaving(false);
     }
@@ -973,47 +1001,83 @@ export default function TaskBuilderPage() {
     fetchOptions();
   }, []);
 
-  // Handle Duplication Data
+  // Handle Duplication and Editing Data
   useEffect(() => {
-    if (location.state?.duplicateData) {
+    if (location.state?.duplicateData && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
       const data = location.state.duplicateData;
       setFormSchema(prev => {
-        // First, reset to static fields only to avoid duplicates if this effect runs twice
+        // If the task has a structured schema, reconstruct from it directly
+        if (data.dynamic_fields && Array.isArray(data.dynamic_fields.schema)) {
+          return data.dynamic_fields.schema.map(f => {
+            const existing = prev.find(p => p.id === f.id);
+            let value = f.value || '';
+            
+            // Map the primary static values from data
+            if (f.id === 'static_form_name') value = data.form_name || '';
+            else if (f.id === 'static_client_name') value = data.client_id || '';
+            else if (f.id === 'static_work_type') value = data.work_type_id || '';
+            else if (f.id === 'static_assignee') value = data.allocated_to || '';
+            else if (f.id === 'static_remarks') value = data.remarks || '';
+            else if (f.id === 'static_subtasks') value = data.subtasks || [];
+            else if (f.id === 'static_sheet_status') value = data.status || 'pending';
+            else if (f.id === 'static_created_date') value = data.created_at ? data.created_at.substring(0, 10) : new Date().toISOString().split('T')[0];
+
+            return {
+              id: f.id,
+              type: f.type,
+              icon: f.icon || existing?.icon || 'Type',
+              color: f.color || existing?.color || '#64748b',
+              label: f.label,
+              placeholder: f.placeholder || '',
+              value: value,
+              required: !!f.required,
+              options: f.options || [],
+              checkType: f.checkType,
+              static: !!f.static,
+              section: f.section || existing?.section || 2
+            };
+          });
+        }
+
+        // Fallback for older legacy tasks without standard schema
         const staticOnly = prev.filter(f => f.static);
 
         let updated = staticOnly.map(field => {
-          if (field.id === 'static_form_name') return { ...field, value: data.form_name };
-          if (field.id === 'static_client_name') return { ...field, value: data.client_id };
-          if (field.id === 'static_work_type') return { ...field, value: data.work_type_id };
-          if (field.id === 'static_remarks') return { ...field, value: data.remarks };
+          if (field.id === 'static_form_name') return { ...field, value: data.form_name || '' };
+          if (field.id === 'static_client_name') return { ...field, value: data.client_id || '' };
+          if (field.id === 'static_work_type') return { ...field, value: data.work_type_id || '' };
+          if (field.id === 'static_assignee') return { ...field, value: data.allocated_to || '' };
+          if (field.id === 'static_remarks') return { ...field, value: data.remarks || '' };
           if (field.id === 'static_subtasks') return { ...field, value: data.subtasks || [] };
           return field;
         });
 
         // Add dynamic fields if any
         if (data.dynamic_fields && Object.keys(data.dynamic_fields).length > 0) {
-          const dynamicFields = Object.entries(data.dynamic_fields).map(([label, val]) => {
-            // Determine type (very basic guessing)
-            let type = 'text';
-            let icon = 'Type';
-            let color = '#64748b';
+          const dynamicFields = Object.entries(data.dynamic_fields)
+            .filter(([k]) => !['schema', 'multi_rows', 'field_names', 'field_types', 'CA Feedback', 'CA Rating'].includes(k))
+            .map(([label, val]) => {
+              let type = 'text';
+              let icon = 'Type';
+              let color = '#64748b';
 
-            if (typeof val === 'boolean') { type = 'checkbox'; icon = 'CheckSquare'; }
-            else if (val && val.toString().includes('\n')) { type = 'longtext'; icon = 'AlignLeft'; }
+              if (typeof val === 'boolean') { type = 'checkbox'; icon = 'CheckSquare'; }
+              else if (val && val.toString().includes('\n')) { type = 'longtext'; icon = 'AlignLeft'; }
 
-            return {
-              id: 'f_' + Math.random().toString(36).substr(2, 9),
-              type,
-              icon,
-              color,
-              label,
-              placeholder: `Enter ${label}...`,
-              value: val,
-              required: false,
-              labelTouched: true,
-              placeholderTouched: true
-            };
-          });
+              return {
+                id: 'f_' + Math.random().toString(36).substr(2, 9),
+                type,
+                icon,
+                color,
+                label,
+                placeholder: `Enter ${label}...`,
+                value: val,
+                required: false,
+                labelTouched: true,
+                placeholderTouched: true
+              };
+            });
           updated = [...updated, ...dynamicFields];
         }
         return updated;
@@ -1023,7 +1087,7 @@ export default function TaskBuilderPage() {
         setAllowAttachments(!!data.allow_attachments);
       }
 
-      showToast('Task data loaded. You can now edit and save.');
+      showToast(location.state?.isEditing ? 'Form layout loaded for editing.' : 'Sheet data loaded for duplication.');
     }
   }, [location.state]);
 
@@ -1322,8 +1386,12 @@ export default function TaskBuilderPage() {
 
               {formSchema.length > 0 && (
                 <div className="mt-3 flex justify-start">
-                  <button onClick={submitForm} disabled={saving} className="create-btn disabled:opacity-50">
-                    {viewMode === 'builder' ? 'Create Form' : (saving ? 'Publishing...' : 'Submit Form')}
+                  <button 
+                    onClick={submitForm} 
+                    disabled={saving} 
+                    className="px-6 py-3.5 text-sm font-black bg-[#1F5C99] text-white rounded-2xl hover:bg-[#154675] disabled:opacity-60 transition-all flex items-center justify-center min-w-[160px] shadow-xl shadow-blue-900/10 active:scale-95 duration-200"
+                  >
+                    {saving ? 'Saving...' : (location.state?.isEditing ? 'Update Sheet Layout' : 'Save Sheet')}
                   </button>
                 </div>
               )}
@@ -1973,7 +2041,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         )}
       </div>
 
-      {isActive && !field.static && (field.type === 'dropdown' || field.type === 'labels' || field.type === 'checkbox') && (
+      {isActive && (!field.static || field.id === 'static_sub_status') && (field.type === 'dropdown' || field.type === 'labels' || field.type === 'checkbox') && (
         <FieldSettings field={field} onUpdate={onUpdate} />
       )}
     </div>
@@ -2327,6 +2395,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
       assigned_to: '',
       priority: 'medium',
       status: 'assigned',
+      sub_status: '',
       due_date: new Date().toISOString().split('T')[0],
       remarks: ''
     }]);

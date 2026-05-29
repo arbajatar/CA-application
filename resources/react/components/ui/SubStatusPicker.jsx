@@ -1,28 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, PlusCircle, Search } from 'lucide-react';
-import api from '../../api/axios';
 
-export default function SubStatusPicker({ value, onChange, placeholder = 'Set Sub Status...', size = 'sm' }) {
+const DEFAULT_SUB_STATUSES = [
+    'Documentation pending',
+    'Awaiting approval',
+    'Completed'
+];
+
+export default function SubStatusPicker({ 
+    value, 
+    onChange, 
+    placeholder = 'Set Sub Status...', 
+    size = 'sm', 
+    options: customOptions
+}) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [options, setOptions] = useState([]);
+    const [calculatedDirection, setCalculatedDirection] = useState('down');
     const containerRef = useRef(null);
 
-    // Fetch existing sub-statuses from the API on mount or when opened
-    const fetchOptions = async () => {
-        try {
-            const res = await api.get('/sub-task-sub-statuses');
-            if (res.data && res.data.data) {
-                setOptions(res.data.data);
-            }
-        } catch (e) {
-            console.error('Failed to load sub-statuses', e);
-        }
-    };
-
     useEffect(() => {
-        fetchOptions();
-    }, []);
+        if (Array.isArray(customOptions) && customOptions.length > 0) {
+            setOptions(customOptions);
+        } else {
+            setOptions(DEFAULT_SUB_STATUSES);
+        }
+    }, [customOptions]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -34,47 +38,97 @@ export default function SubStatusPicker({ value, onChange, placeholder = 'Set Su
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const handleToggle = () => {
+        if (!isOpen && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            
+            // Smart layout detection: if space below is too small and there is more space above, open upwards!
+            if (spaceBelow < 230 && spaceAbove > spaceBelow) {
+                setCalculatedDirection('up');
+            } else {
+                setCalculatedDirection('down');
+            }
+        }
+        setIsOpen(!isOpen);
+        setSearch('');
+    };
+
     const handleSelect = (val) => {
-        const trimmed = val.trim();
+        const trimmed = typeof val === 'string' ? val.trim() : String(val);
         onChange(trimmed);
         setIsOpen(false);
         setSearch('');
-        setTimeout(fetchOptions, 500);
     };
 
-    const filteredOptions = options.filter(opt =>
-        opt?.toLowerCase().includes(search.toLowerCase())
-    );
+    // Helper functions to safely extract label and value
+    const getOptionLabel = (opt) => {
+        if (!opt) return '';
+        if (typeof opt === 'object') {
+            return opt.label || opt.name || opt.value || '';
+        }
+        return String(opt);
+    };
 
-    const showAddNew = search && !options.some(opt => opt?.toLowerCase() === search.toLowerCase());
+    const getOptionValue = (opt) => {
+        if (!opt) return '';
+        if (typeof opt === 'object') {
+            return opt.value !== undefined ? opt.value : (opt.id || opt.label || '');
+        }
+        return String(opt);
+    };
+
+    const filteredOptions = options.filter(opt => {
+        const labelText = getOptionLabel(opt);
+        return labelText.toLowerCase().includes(search.toLowerCase());
+    });
+
+    const showAddNew = search && !options.some(opt => {
+        const labelText = getOptionLabel(opt);
+        return labelText.toLowerCase() === search.toLowerCase();
+    });
+
+    const selectedOption = options.find(opt => String(getOptionValue(opt)) === String(value));
+    const displayLabel = selectedOption ? getOptionLabel(selectedOption) : (value || placeholder);
+
+    const dropdownClass = calculatedDirection === 'up' 
+        ? "bottom-full mb-2 origin-bottom slide-in-from-bottom-2"
+        : "top-full mt-2 origin-top slide-in-from-top-2";
 
     return (
-        <div className="relative inline-block w-full min-w-[150px]" ref={containerRef}>
+        <div className="relative inline-block w-full min-w-[155px]" ref={containerRef}>
+            {/* Trigger Button */}
             <div
-                onClick={() => {
-                    setIsOpen(!isOpen);
-                    setSearch('');
-                }}
-                className={`bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 flex items-center justify-between cursor-pointer hover:border-gray-300 transition shadow-sm ${
-                    size === 'xs' ? 'text-[11px] py-1 px-2' : 'text-xs'
+                onClick={handleToggle}
+                className={`bg-white border rounded-xl px-3 py-1.8 flex items-center justify-between cursor-pointer transition-all duration-300 select-none shadow-sm hover:shadow-md ${
+                    isOpen 
+                        ? 'border-blue-500 ring-2 ring-blue-500/10' 
+                        : 'border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/30'
+                } ${
+                    size === 'xs' ? 'text-[11px] py-1 px-2.5' : 'text-xs'
                 }`}
             >
-                <span className={value ? 'text-gray-700 font-semibold' : 'text-gray-400 font-medium'}>
-                    {value || placeholder}
+                <span className={`truncate mr-2 ${value ? 'text-slate-850 font-bold' : 'text-slate-400 font-semibold'}`}>
+                    {displayLabel}
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 ml-1.5 shrink-0" />
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-300 ${
+                    isOpen ? 'transform rotate-180 text-blue-500' : 'text-slate-400'
+                }`} />
             </div>
 
+            {/* Dropdown Card */}
             {isOpen && (
-                <div className="absolute z-[200] mt-1 w-full min-w-[200px] right-0 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-                    {/* Search Input */}
-                    <div className="p-2 border-b border-gray-50 bg-gray-50/50">
+                <div className={`absolute z-[250] w-full min-w-[210px] right-0 bg-white border border-slate-200/90 rounded-2xl shadow-[0_15px_45px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.04)] overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95 ${dropdownClass}`}>
+                    
+                    {/* Search Panel */}
+                    <div className="p-2.5 border-b border-slate-100 bg-slate-50/40">
                         <div className="relative flex items-center">
-                            <Search className="absolute left-2.5 w-3.5 h-3.5 text-gray-400" />
+                            <Search className="absolute left-3 w-3.5 h-3.5 text-slate-400" />
                             <input
                                 type="text"
                                 autoFocus
-                                placeholder="Search..."
+                                placeholder="Search statuses..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={(e) => {
@@ -83,41 +137,50 @@ export default function SubStatusPicker({ value, onChange, placeholder = 'Set Su
                                         handleSelect(search);
                                     }
                                 }}
-                                className="w-full pl-8 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-gray-700"
+                                className="w-full pl-9 pr-3 py-1.8 bg-white border border-slate-200/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-medium text-slate-700 transition-all duration-200 placeholder:text-slate-400"
                             />
                         </div>
                     </div>
 
-                    {/* Options list */}
-                    <div className="max-h-48 overflow-y-auto py-1 text-xs">
+                    {/* Options List */}
+                    <div className="max-h-48 overflow-y-auto py-1.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                         {filteredOptions.length > 0 ? (
-                            filteredOptions.map((opt) => (
-                                <div
-                                    key={opt}
-                                    onClick={() => handleSelect(opt)}
-                                    className={`px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between transition ${
-                                        value === opt ? 'bg-blue-50/50 font-bold text-blue-600' : 'text-gray-600 font-medium'
-                                    }`}
-                                >
-                                    <span>{opt}</span>
-                                    {value === opt && <Check className="w-3 h-3 text-blue-600 shrink-0" />}
-                                </div>
-                            ))
+                            filteredOptions.map((opt, idx) => {
+                                const optLabel = getOptionLabel(opt);
+                                const optValue = getOptionValue(opt);
+                                const isSelected = String(optValue) === String(value);
+                                return (
+                                    <div
+                                        key={typeof opt === 'object' ? (opt.id || opt.value || idx) : opt}
+                                        onClick={() => handleSelect(optValue)}
+                                        className={`px-3.5 py-2 hover:bg-slate-50 cursor-pointer flex items-center justify-between transition-all duration-150 mx-1 rounded-lg ${
+                                            isSelected 
+                                                ? 'bg-blue-50/60 font-black text-blue-600' 
+                                                : 'text-slate-650 font-semibold hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <span className="truncate text-xs">{optLabel}</span>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0 ml-2" />}
+                                    </div>
+                                );
+                            })
                         ) : (
                             !showAddNew && (
-                                <div className="px-3 py-2 text-center text-gray-400 italic">No matches found.</div>
+                                <div className="px-4 py-3 text-center text-slate-400 text-xs italic">
+                                    No statuses found.
+                                </div>
                             )
                         )}
 
-                        {/* Add New Custom option */}
+                        {/* Add Custom Button */}
                         {showAddNew && (
-                            <div
-                                onClick={() => handleSelect(search)}
-                                className="p-1 border-t border-gray-50 bg-gray-50/50"
-                            >
-                                <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-blue-600 hover:text-blue-700 bg-white border border-blue-100 rounded-lg shadow-sm cursor-pointer transition active:scale-95">
-                                    <PlusCircle className="w-4 h-4 text-blue-600" />
-                                    Add <span className="font-normal text-gray-500">"{search}"</span> as new
+                            <div className="p-1 border-t border-slate-50 bg-slate-50/20 mt-1">
+                                <div
+                                    onClick={() => handleSelect(search)}
+                                    className="flex items-center gap-2 px-3 py-2 text-xs font-black text-blue-600 hover:text-blue-700 bg-white border border-blue-100 hover:border-blue-200 rounded-xl shadow-sm cursor-pointer transition active:scale-98"
+                                >
+                                    <PlusCircle className="w-4 h-4 text-blue-500" />
+                                    <span>Add <span className="font-normal text-slate-500">"{search}"</span></span>
                                 </div>
                             </div>
                         )}

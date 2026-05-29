@@ -801,10 +801,16 @@ export default function TasksPage() {
                 client_id: withData ? fullTask.client.id : '',
                 work_type_id: withData ? fullTask.work_type.id : '',
                 remarks: withData ? fullTask.remarks : '',
-                // If without data, we still keep the custom field structure but clear their values
-                dynamic_fields: withData ? fullTask.dynamic_fields : Object.fromEntries(
-                    Object.keys(fullTask.dynamic_fields || {}).map(k => [k, ''])
-                ),
+                // If without data, we still keep the custom field structure (schema) but clear their values
+                dynamic_fields: withData ? fullTask.dynamic_fields : {
+                    ...(fullTask.dynamic_fields || {}),
+                    multi_rows: [],
+                    ...Object.fromEntries(
+                        Object.keys(fullTask.dynamic_fields || {})
+                            .filter(k => !['schema', 'multi_rows', 'field_names', 'field_types', 'CA Feedback', 'CA Rating'].includes(k))
+                            .map(k => [k, ''])
+                    )
+                },
                 subtasks: (fullTask.sub_tasks || []).map(st => ({
                     title: st.title,
                     assigned_to: withData ? st.assigned_to?.id : null,

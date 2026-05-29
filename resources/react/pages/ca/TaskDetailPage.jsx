@@ -16,6 +16,37 @@ import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
 
+const DEFAULT_SUB_STATUSES = [
+    'Documentation pending',
+    'Awaiting approval',
+    'Completed'
+];
+
+const getSubStatusOptions = (task, schemaList) => {
+    // 1. Try local schema state if available
+    if (Array.isArray(schemaList)) {
+        const subStatusField = schemaList.find(f => f.id === 'static_sub_status');
+        if (subStatusField && Array.isArray(subStatusField.options) && subStatusField.options.length > 0) {
+            return subStatusField.options;
+        }
+    }
+    // 2. Fallback to task dynamic fields
+    if (task && task.dynamic_fields) {
+        let fields = task.dynamic_fields;
+        if (typeof fields === 'string') {
+            try { fields = JSON.parse(fields); } catch(e) {}
+        }
+        const schema = fields?.schema;
+        if (Array.isArray(schema)) {
+            const subStatusField = schema.find(f => f.id === 'static_sub_status');
+            if (subStatusField && Array.isArray(subStatusField.options) && subStatusField.options.length > 0) {
+                return subStatusField.options;
+            }
+        }
+    }
+    return DEFAULT_SUB_STATUSES;
+};
+
 const IconMap = {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
@@ -131,6 +162,9 @@ export default function TaskDetailPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
+    const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
+    const [selectedSubStatusFilter, setSelectedSubStatusFilter] = useState(null);
+    const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
 
     const handleCopy = (text) => {
         if (!text) {
@@ -153,6 +187,7 @@ export default function TaskDetailPage() {
     const [caRating, setCaRating] = useState('');
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
+    const [selectedTaskIds, setSelectedTaskIds] = useState([]);
 
     // Roles & Permissions state
     const [availableRoles, setAvailableRoles] = useState([]);
@@ -417,6 +452,7 @@ export default function TaskDetailPage() {
                 allow_attachments: allowAttachments
             }));
             toast.success('Global controls updated successfully');
+            setIsGlobalModalOpen(false);
         } catch (e) {
             toast.error('Failed to update sheet controls');
         } finally {
@@ -448,6 +484,35 @@ export default function TaskDetailPage() {
             toast.success(`${key} updated successfully`);
         } catch (e) {
             toast.error(`Failed to update ${key}`);
+        }
+    };
+    const handleUpdateTaskFields = async (updates) => {
+        try {
+            const payload = {
+                client_id: updates.client_id !== undefined ? updates.client_id : (task.client?.id || null),
+                work_type_id: updates.work_type_id !== undefined ? updates.work_type_id : (task.work_type?.id || null),
+                allocated_to: updates.allocated_to !== undefined ? updates.allocated_to : (task.allocated_to?.id || null),
+                date_allocated: updates.date_allocated !== undefined ? updates.date_allocated : task.date_allocated,
+                form_name: updates.form_name !== undefined ? updates.form_name : task.form_name,
+                status: updates.status !== undefined ? updates.status : task.status,
+                dynamic_fields: updates.dynamic_fields !== undefined ? updates.dynamic_fields : task.dynamic_fields
+            };
+
+            const res = await api.patch(`/ca/tasks/${id}`, payload);
+            const nextData = res.data.data;
+            setTask(nextData);
+            setFormName(nextData.form_name || 'Untitled Form');
+            setGlobalStatus(nextData.status || 'assigned');
+            setGlobalRemarks(nextData.remarks || '');
+            if (nextData.dynamic_fields?.['CA Rating']) setCaRating(nextData.dynamic_fields['CA Rating']);
+            if (nextData.dynamic_fields?.['CA Feedback']) {
+                setCaFeedback(nextData.dynamic_fields['CA Feedback']);
+                setInlineFeedbackValue(nextData.dynamic_fields['CA Feedback']);
+            }
+            toast.success('Submission details saved successfully');
+        } catch (e) {
+            console.error(e);
+            toast.error(e.response?.data?.message || 'Failed to save changes');
         }
     };
     const handleAddSubTask = async () => {
@@ -483,9 +548,26 @@ export default function TaskDetailPage() {
                 ...prev,
                 sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
             }));
+            setSelectedTaskIds(prev => prev.filter(tid => tid !== subTaskId));
             toast.success('Subtask deleted');
         } catch (e) {
             toast.error('Failed to delete subtask');
+        }
+    };
+
+    const handleDeleteMultipleSubTasks = async () => {
+        if (!confirm(`Are you sure you want to delete the ${selectedTaskIds.length} selected tasks?`)) return;
+        try {
+            await Promise.all(selectedTaskIds.map(subTaskId => api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`)));
+            setTask(prev => ({
+                ...prev,
+                sub_tasks: prev.sub_tasks.filter(st => !selectedTaskIds.includes(st.id))
+            }));
+            setSelectedTaskIds([]);
+            toast.success('Selected tasks deleted successfully');
+        } catch (e) {
+            console.error(e);
+            toast.error('Failed to delete some selected tasks');
         }
     };
 
@@ -585,9 +667,39 @@ export default function TaskDetailPage() {
     };
 
     if (loading) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;
-    if (!task) return null;
-
     const selectedField = schema.find(f => f.id === activeFieldId);
+
+    const subStatusOptions = getSubStatusOptions(task, schema);
+
+    const getSubStatusCount = (subStatus) => {
+        if (!task || !task.sub_tasks) return 0;
+        return task.sub_tasks.filter(st => {
+            if (subStatus === 'Unassigned') {
+                return !st.sub_status;
+            }
+            return st.sub_status === subStatus;
+        }).length;
+    };
+
+    const statusFilterMap = {
+        'Pending': 'pending',
+        'Work In Progress': 'work_in_progress',
+        'Complete': 'complete',
+        'Not To Be Done': 'not_to_be_done',
+        'Other': 'other'
+    };
+
+    const filteredSubTasks = (task.sub_tasks || []).filter(st => {
+        if (selectedStatusFilter && st.status !== selectedStatusFilter) return false;
+        if (selectedSubStatusFilter) {
+            if (selectedSubStatusFilter === 'Unassigned') {
+                if (st.sub_status) return false;
+            } else {
+                if (st.sub_status !== selectedSubStatusFilter) return false;
+            }
+        }
+        return true;
+    });
 
     return (
         <div className="space-y-6 max-w-[100vw] overflow-x-hidden pb-12 relative">
@@ -631,301 +743,491 @@ export default function TaskDetailPage() {
                         </h1>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button onClick={handleExport} className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-emerald-700 transition shadow-xl shadow-emerald-100">
-                        <FileDown size={18} /> Export Excel
+                <div className="flex items-center gap-2 select-none">
+                    <button 
+                        onClick={handleExport} 
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-md shadow-emerald-100 h-[38px]"
+                    >
+                        <FileDown size={14} /> 
+                        <span>Export Excel</span>
                     </button>
-                    <button onClick={() => navigate('/ca/tasks/builder')} className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 hover:border-slate-300 transition shadow-sm">
-                        Open Form Builder
+                    <button 
+                        onClick={() => setIsGlobalModalOpen(true)}
+                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm h-[38px]"
+                    >
+                        <Sliders size={14} className="text-slate-500" />
+                        <span>Global Settings</span>
                     </button>
-                    <button onClick={handleAddSubTask} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-sm font-black hover:bg-indigo-700 transition shadow-xl shadow-indigo-200">
-                        <Plus size={18} /> New Subtask
+                    <button 
+                        onClick={() => {
+                            if (!task) return;
+                            const duplicateData = {
+                                form_name: task.form_name,
+                                client_id: task.client?.id,
+                                work_type_id: task.work_type?.id,
+                                remarks: task.remarks,
+                                dynamic_fields: task.dynamic_fields,
+                                created_at: task.created_at,
+                                status: task.status,
+                                allow_attachments: task.allow_attachments,
+                                subtasks: (task.sub_tasks || []).map(st => ({
+                                    title: st.title,
+                                    assigned_to: st.assigned_to?.id,
+                                    priority: st.priority,
+                                    status: st.status,
+                                    due_date: st.due_date,
+                                    remarks: st.remarks
+                                }))
+                            };
+                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                        }}
+                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm h-[38px]"
+                    >
+                        <Edit2 size={14} className="text-slate-500" /> 
+                        <span>Edit Form Layout</span>
+                    </button>
+                    <button 
+                        onClick={handleAddSubTask} 
+                        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-black transition shadow-md shadow-indigo-100 h-[38px]"
+                    >
+                        <Plus size={14} /> 
+                        <span>New Task</span>
                     </button>
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-8 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
-                    <div className="flex items-center gap-2 text-slate-500">
-                        <Sliders size={14} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Global Control Panel</span>
-                    </div>
-                    <button
-                        onClick={handleUpdateGlobal}
-                        disabled={saving}
-                        className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-1.5 rounded-xl text-xs font-bold hover:bg-indigo-700 transition disabled:opacity-50"
-                    >
-                        <Save size={14} />
-                        {saving ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
-                <div className="p-8 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                        {/* Global Status */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-slate-400">
-                                <Circle size={14} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Global Status</span>
+            {/* Global Settings Modal */}
+            {isGlobalModalOpen && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-fade-in">
+                    <div 
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+                        onClick={() => setIsGlobalModalOpen(false)} 
+                    />
+                    
+                    <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col border border-slate-100">
+                        <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+                            <div className="flex items-center gap-2 text-slate-800">
+                                <Sliders size={18} className="text-indigo-600" />
+                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
+                                    Global Control Panel Settings
+                                </h3>
                             </div>
-                            <select
-                                value={globalStatus}
-                                onChange={e => setGlobalStatus(e.target.value)}
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 capitalize"
+                            <button 
+                                onClick={() => setIsGlobalModalOpen(false)} 
+                                className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400 hover:text-slate-600"
                             >
-                                <option value="complete">Complete</option>
-                                <option value="work_in_progress">Work In Progress</option>
-                                <option value="pending">Pending</option>
-                                <option value="not_to_be_done">Not To Be Done</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-
-                        {/* Allow Attachments Toggle */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-slate-400">
-                                <Zap size={14} className="text-indigo-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Attachment Option</span>
-                            </div>
-                            <div className="flex items-center justify-between bg-slate-50 px-4 py-2 rounded-xl h-[42px] cursor-pointer" onClick={() => setAllowAttachments(!allowAttachments)}>
-                                <span className="text-xs font-bold text-slate-700 select-none">
-                                    Allow uploads
-                                </span>
-                                <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
-                                    <input
-                                        type="checkbox"
-                                        checked={allowAttachments}
-                                        onChange={(e) => setAllowAttachments(e.target.checked)}
-                                    />
-                                    <span className="slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* Global Remarks */}
-                        <div className="space-y-3 md:col-span-2 lg:col-span-2">
-                            <div className="flex items-center gap-2 text-slate-400">
-                                <AlignLeft size={14} />
-                                <span className="text-[10px] font-black uppercase tracking-widest">Global Remarks</span>
-                            </div>
-                            <textarea
-                                value={globalRemarks}
-                                onChange={e => setGlobalRemarks(e.target.value)}
-                                placeholder="Add global notes..."
-                                rows="1"
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Roles & Permissions Section */}
-                    <div className="pt-8 border-t border-slate-100 space-y-4">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
-                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
-                        </div>
-                        <p className="text-xs text-slate-400 font-semibold mb-4">
-                            Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
-                        </p>
-
-                        <div className="flex items-center gap-3 mb-6 max-w-md">
-                            <div className="flex-1">
-                                <SearchableSelect
-                                    value={selectedRoleId}
-                                    options={availableRoles
-                                        .filter(role => !sheetPermissions.some(p => Number(p.role_id) === role.id))
-                                        .map(role => ({ value: role.id, label: role.name }))
-                                    }
-                                    placeholder="Select Role"
-                                    onChange={(val) => setSelectedRoleId(val)}
-                                    direction="up"
-                                    size="sm"
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleAddRolePermission}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg shadow-indigo-100/50 h-[38px] shrink-0"
-                            >
-                                <Plus size={14} />
-                                <span>Add Role</span>
+                                <X size={20} />
                             </button>
                         </div>
 
-                        {sheetPermissions.length > 0 ? (
-                            <div className="overflow-x-auto border border-slate-100 rounded-2xl max-w-4xl">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-100">
-                                            <th className="px-6 py-4">Role</th>
-                                            <th className="px-6 py-4 text-center">Read</th>
-                                            <th className="px-6 py-4 text-center">Write</th>
-                                            <th className="px-6 py-4 text-center">Delete</th>
-                                            <th className="px-6 py-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 text-slate-700 text-xs">
-                                        {sheetPermissions.map((perm, index) => {
-                                            const role = availableRoles.find(r => r.id === Number(perm.role_id));
-                                            return (
-                                                <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
-                                                    <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={perm.can_read}
-                                                            onChange={(e) => handleTogglePermission(index, 'can_read', e.target.checked)}
-                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                                                        />
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={perm.can_write}
-                                                            onChange={(e) => handleTogglePermission(index, 'can_write', e.target.checked)}
-                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                                                        />
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={perm.can_delete}
-                                                            onChange={(e) => handleTogglePermission(index, 'can_delete', e.target.checked)}
-                                                            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                                                        />
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <Tooltip content="Remove Permission" position="left">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleRemoveRolePermission(perm.role_id)}
-                                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        </Tooltip>
-                                                    </td>
+                        <div className="p-8 overflow-y-auto space-y-8 flex-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Global Status */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <Circle size={14} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Global Status</span>
+                                    </div>
+                                    <select
+                                        value={globalStatus}
+                                        onChange={e => setGlobalStatus(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 capitalize focus:outline-none"
+                                    >
+                                        <option value="complete">Complete</option>
+                                        <option value="work_in_progress">Work In Progress</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="not_to_be_done">Not To Be Done</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+
+                                {/* Allow Attachments Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <Zap size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Attachment Option</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setAllowAttachments(!allowAttachments)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Allow uploads
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={allowAttachments}
+                                                onChange={(e) => setAllowAttachments(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Global Remarks */}
+                                <div className="space-y-3 md:col-span-2">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <AlignLeft size={14} />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Global Remarks</span>
+                                    </div>
+                                    <textarea
+                                        value={globalRemarks}
+                                        onChange={e => setGlobalRemarks(e.target.value)}
+                                        placeholder="Add global notes..."
+                                        rows="2"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-650 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Roles & Permissions Section */}
+                            <div className="pt-8 border-t border-slate-100 space-y-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
+                                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
+                                </div>
+                                <p className="text-xs text-slate-400 font-semibold mb-4">
+                                    Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
+                                </p>
+
+                                <div className="flex items-center gap-3 mb-6 max-w-md">
+                                    <div className="flex-1">
+                                        <SearchableSelect
+                                            value={selectedRoleId}
+                                            options={availableRoles
+                                                .filter(role => !sheetPermissions.some(p => Number(p.role_id) === role.id))
+                                                .map(role => ({ value: role.id, label: role.name }))
+                                            }
+                                            placeholder="Select Role"
+                                            onChange={(val) => setSelectedRoleId(val)}
+                                            direction="down"
+                                            size="sm"
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddRolePermission}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg h-[38px] shrink-0"
+                                    >
+                                        <Plus size={14} />
+                                        <span>Add Role</span>
+                                    </button>
+                                </div>
+
+                                {sheetPermissions.length > 0 ? (
+                                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                                                    <th className="px-6 py-4">Role</th>
+                                                    <th className="px-6 py-4 text-center">Read</th>
+                                                    <th className="px-6 py-4 text-center">Write</th>
+                                                    <th className="px-6 py-4 text-center">Delete</th>
+                                                    <th className="px-6 py-4 text-right">Actions</th>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 text-slate-700 text-xs">
+                                                {sheetPermissions.map((perm, index) => {
+                                                    const role = availableRoles.find(r => r.id === Number(perm.role_id));
+                                                    return (
+                                                        <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
+                                                            <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={perm.can_read}
+                                                                    onChange={(e) => handleTogglePermission(index, 'can_read', e.target.checked)}
+                                                                    className="w-4 h-4 text-indigo-600 border-slate-350 rounded focus:ring-indigo-500"
+                                                                />
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={perm.can_write}
+                                                                    onChange={(e) => handleTogglePermission(index, 'can_write', e.target.checked)}
+                                                                    className="w-4 h-4 text-indigo-600 border-slate-355 rounded focus:ring-indigo-500"
+                                                                />
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={perm.can_delete}
+                                                                    onChange={(e) => handleTogglePermission(index, 'can_delete', e.target.checked)}
+                                                                    className="w-4 h-4 text-indigo-600 border-slate-360 rounded focus:ring-indigo-500"
+                                                                />
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right">
+                                                                <Tooltip content="Remove Permission" position="left">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveRolePermission(perm.role_id)}
+                                                                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </Tooltip>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                        <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
+                                    </div>
+                                )}
                             </div>
-                        ) : (
-                            <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 max-w-4xl">
-                                <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
-                            </div>
-                        )}
+                        </div>
+
+                        <div className="px-8 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/40">
+                            <button
+                                type="button"
+                                onClick={() => setIsGlobalModalOpen(false)}
+                                className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-xs font-bold transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleUpdateGlobal}
+                                disabled={saving}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-750 text-white px-5 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
+                            >
+                                <Save size={14} />
+                                {saving ? 'Saving...' : 'Save Settings'}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Subtask Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 animate-fade-in">
                 {[
-                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, color: 'text-blue-600', bg: 'bg-blue-50' },
-                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, color: 'text-rose-600', bg: 'bg-rose-50' },
-                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, color: 'text-slate-600', bg: 'bg-slate-50' },
-                    { label: 'Total Subtasks', count: task.sub_tasks?.length || 0, color: 'text-indigo-600', bg: 'bg-indigo-50' }
-                ].map((card, i) => (
-                    <div key={i} className={`${card.bg} rounded-3xl p-6 border border-white shadow-sm transition-all hover:shadow-md`}>
-                        <p className={`text-[10px] font-black uppercase tracking-widest ${card.color} opacity-70 mb-1`}>{card.label}</p>
-                        <p className={`text-3xl font-black ${card.color}`}>{card.count}</p>
-                    </div>
-                ))}
+                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, color: 'text-amber-600 hover:text-amber-700', activeBg: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-250/50', inactiveBg: 'bg-white hover:bg-amber-50/20 border-slate-100 hover:border-amber-200 text-amber-600 shadow-sm hover:shadow-md' },
+                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, color: 'text-blue-600 hover:text-blue-700', activeBg: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-250/50', inactiveBg: 'bg-white hover:bg-blue-50/20 border-slate-100 hover:border-blue-200 text-blue-600 shadow-sm hover:shadow-md' },
+                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, color: 'text-emerald-600 hover:text-emerald-700', activeBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-250/50', inactiveBg: 'bg-white hover:bg-emerald-50/20 border-slate-100 hover:border-emerald-200 text-emerald-600 shadow-sm hover:shadow-md' },
+                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, color: 'text-rose-600 hover:text-rose-700', activeBg: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-250/50', inactiveBg: 'bg-white hover:bg-rose-50/20 border-slate-100 hover:border-rose-200 text-rose-600 shadow-sm hover:shadow-md' },
+                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, color: 'text-slate-600 hover:text-slate-700', activeBg: 'bg-gradient-to-br from-slate-550 to-slate-700 text-white shadow-lg shadow-slate-250/50', inactiveBg: 'bg-white hover:bg-slate-50/30 border-slate-100 hover:border-slate-300 text-slate-600 shadow-sm hover:shadow-md' },
+                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, color: 'text-indigo-600 hover:text-indigo-700', activeBg: 'bg-gradient-to-br from-indigo-500 to-indigo-650 text-white shadow-lg shadow-indigo-250/50', inactiveBg: 'bg-white hover:bg-indigo-50/20 border-slate-100 hover:border-indigo-200 text-indigo-600 shadow-sm hover:shadow-md' }
+                ].map((card, i) => {
+                    const isActive = (card.label === 'Total Tasks' && !selectedStatusFilter) || (selectedStatusFilter === statusFilterMap[card.label]);
+                    return (
+                        <div 
+                            key={i} 
+                            onClick={() => {
+                                const filterVal = statusFilterMap[card.label];
+                                if (!filterVal) {
+                                    setSelectedStatusFilter(null);
+                                } else {
+                                    setSelectedStatusFilter(prev => prev === filterVal ? null : filterVal);
+                                }
+                            }}
+                            className={`rounded-[2rem] p-6 border cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 select-none ${
+                                isActive ? card.activeBg : card.inactiveBg
+                            }`}
+                        >
+                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>{card.label}</p>
+                            <p className="text-3xl font-black">{card.count}</p>
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* Detailed Task Information (Static & Dynamic) */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10">
-                <div className="flex items-center gap-3 mb-8">
+            {/* Sub-status Filter Cards */}
+            <div className="space-y-4 animate-fade-in mt-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Filter by Sub Status</span>
+                        {(selectedStatusFilter || selectedSubStatusFilter) && (
+                            <button 
+                                onClick={() => {
+                                    setSelectedStatusFilter(null);
+                                    setSelectedSubStatusFilter(null);
+                                }}
+                                className="text-[10px] font-extrabold text-indigo-650 hover:text-indigo-850 transition"
+                            >
+                                • Clear all filters
+                            </button>
+                        )}
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                    {[
+                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null },
+                        { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned' },
+                        ...subStatusOptions.map(opt => ({
+                            label: opt,
+                            count: getSubStatusCount(opt),
+                            value: opt
+                        }))
+                    ].map((card, i) => {
+                        const isActive = (card.value === null && !selectedSubStatusFilter) || (selectedSubStatusFilter === card.value);
+                        return (
+                            <div 
+                                key={i} 
+                                onClick={() => {
+                                    setSelectedSubStatusFilter(prev => prev === card.value ? null : card.value);
+                                }}
+                                className={`rounded-[2rem] p-6 border cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 select-none ${
+                                    isActive
+                                        ? 'bg-gradient-to-br from-indigo-500 to-indigo-650 text-white border-transparent shadow-lg shadow-indigo-250/50'
+                                        : 'bg-white hover:bg-slate-50/50 border-slate-100 hover:border-slate-200 text-slate-700 shadow-sm hover:shadow-md'
+                                }`}
+                            >
+                                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 truncate ${isActive ? 'text-white/80' : 'text-slate-400'}`} title={card.label}>
+                                    {card.label}
+                                </p>
+                                <p className={`text-3xl font-black ${isActive ? 'text-white' : 'text-indigo-600'}`}>{card.count}</p>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+            {/* Form Submission Details Table (Excel/Spreadsheet style row) */}
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 space-y-6 animate-fade-in mt-6">
+                <div className="flex items-center gap-3">
                     <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
-                    <h2 className="text-xl font-black text-slate-900">Form Submission Details</h2>
+                    <h2 className="text-lg font-black text-slate-900">Form Submission Details</h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
-                    {/* Static Fields */}
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</label>
-                        <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{task.client?.name || 'N/A'}</p>
-                            <button onClick={() => handleCopy(task.client?.name || 'N/A')} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
-                        </div>
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Work Type</label>
-                        <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{task.work_type?.name || 'N/A'}</p>
-                            <button onClick={() => handleCopy(task.work_type?.name || 'N/A')} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
-                        </div>
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocated Date</label>
-                        <div className="flex items-center group">
-                            <p className="text-sm font-bold text-slate-700">{formatDate(task.date_allocated)}</p>
-                            <button onClick={() => handleCopy(task.date_allocated)} className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
-                        </div>
-                    </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                                <th className="px-6 py-4 text-center border-r border-slate-200 w-16">#</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[200px]">Sheet Name</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[220px]">Client</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[180px]">Work Type</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[220px]">Assigned To</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[150px]">Create Date</th>
+                                <th className="px-6 py-4 border-r border-slate-200 min-w-[180px]">Sheet Status</th>
+                                {/* Dynamic Field Headers */}
+                                {schema.map(f => (
+                                    <th key={f.id} className="px-6 py-4 border-r border-slate-200 min-w-[200px]">{f.label}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150 text-slate-700 text-xs">
+                            <tr key={task.id + '-' + (task.form_name || '') + '-' + (task.date_allocated || '') + '-' + JSON.stringify(task.dynamic_fields || {})} className="hover:bg-slate-50/30 transition group">
+                                {/* # column */}
+                                <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40">
+                                    01
+                                </td>
 
-                    {/* Dynamic Fields */}
-                    {(() => {
-                        const fieldsToRender = [];
-                        const seenLabels = new Set(['schema', 'multi_rows', 'field_names', 'field_types']);
+                                {/* Sheet Name column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={task.form_name || ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setTask(prev => ({ ...prev, form_name: val }));
+                                            }}
+                                            onBlur={(e) => {
+                                                if (e.target.value !== task.form_name) {
+                                                    handleUpdateTaskFields({ form_name: e.target.value });
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.target.blur();
+                                                }
+                                            }}
+                                            placeholder="Sheet Name..."
+                                            className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition"
+                                        />
+                                    </div>
+                                </td>
 
-                        // 1. First add fields defined in the schema
-                        if (schema && schema.length > 0) {
-                            schema.forEach(field => {
-                                const label = field.label;
-                                if (label && !seenLabels.has(label)) {
-                                    fieldsToRender.push({
-                                        label,
-                                        value: task.dynamic_fields?.[label] ?? ''
-                                    });
-                                    seenLabels.add(label);
-                                }
-                            });
-                        }
+                                {/* Client column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <select
+                                        value={task.client?.id || ''}
+                                        onChange={(e) => {
+                                            handleUpdateTaskFields({ client_id: e.target.value || null });
+                                        }}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
+                                    >
+                                        <option value="">— Select Client —</option>
+                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </td>
 
-                        // 2. Add CA Rating & CA Feedback next, permanently guaranteeing they are visible
-                        if (!seenLabels.has('CA Rating')) {
-                            fieldsToRender.push({
-                                label: 'CA Rating',
-                                value: task.dynamic_fields?.['CA Rating'] ?? '0'
-                            });
-                            seenLabels.add('CA Rating');
-                        }
-                        if (!seenLabels.has('CA Feedback')) {
-                            fieldsToRender.push({
-                                label: 'CA Feedback',
-                                value: task.dynamic_fields?.['CA Feedback'] ?? ''
-                            });
-                            seenLabels.add('CA Feedback');
-                        }
+                                {/* Work Type column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <select
+                                        value={task.work_type?.id || ''}
+                                        onChange={(e) => {
+                                            handleUpdateTaskFields({ work_type_id: e.target.value || null });
+                                        }}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
+                                    >
+                                        <option value="">— Select Work Type —</option>
+                                        {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                    </select>
+                                </td>
 
-                        // 3. Fallback to add any remaining keys in dynamic_fields not covered yet
-                        if (task.dynamic_fields) {
-                            Object.entries(task.dynamic_fields).forEach(([label, value]) => {
-                                if (!seenLabels.has(label)) {
-                                    fieldsToRender.push({
-                                        label,
-                                        value: value ?? ''
-                                    });
-                                    seenLabels.add(label);
-                                }
-                            });
-                        }
+                                {/* Assigned To column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <select
+                                        value={task.allocated_to?.id || ''}
+                                        onChange={(e) => {
+                                            handleUpdateTaskFields({ allocated_to: e.target.value || null });
+                                        }}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
+                                    >
+                                        <option value="">— Select Assigned To —</option>
+                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </td>
 
-                        return fieldsToRender.map(({ label, value }) => {
-                            const isLink = typeof value === 'string' && (value.trim().startsWith('http://') || value.trim().startsWith('https://') || value.trim().startsWith('www.'));
-                            const hrefVal = isLink && value.trim().startsWith('www.') ? 'https://' + value.trim() : value;
-                            const isRating = label === 'CA Rating';
-                            const isFeedback = label === 'CA Feedback';
+                                {/* Create Date column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <input
+                                        type="date"
+                                        value={task.date_allocated || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTask(prev => ({ ...prev, date_allocated: val }));
+                                        }}
+                                        onBlur={(e) => {
+                                            if (e.target.value !== task.date_allocated) {
+                                                handleUpdateTaskFields({ date_allocated: e.target.value });
+                                            }
+                                        }}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
+                                    />
+                                </td>
 
-                            return (
-                                <div key={label} className="space-y-1 group">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                                    <div className="flex items-center">
-                                        <div className="text-sm font-bold text-slate-700">
+                                {/* Sheet Status column */}
+                                <td className="px-6 py-4 border-r border-slate-200">
+                                    <select
+                                        value={task.status || ''}
+                                        onChange={(e) => {
+                                            handleUpdateTaskFields({ status: e.target.value });
+                                        }}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full"
+                                    >
+                                        <option value="complete">Complete</option>
+                                        <option value="work_in_progress">Work In Progress</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="not_to_be_done">Not To Be Done</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </td>
+
+                                {/* Dynamic Columns */}
+                                {schema.map(field => {
+                                    const value = task.dynamic_fields?.[field.label] ?? '';
+                                    const isDropdown = field.type === 'dropdown';
+                                    const isCheckbox = field.type === 'checkbox';
+                                    const isDate = field.type === 'date';
+                                    const isRating = field.label === 'CA Rating';
+                                    const isFeedback = field.label === 'CA Feedback';
+
+                                    return (
+                                        <td key={field.id} className="px-6 py-4 border-r border-slate-200">
                                             {isRating ? (
                                                 <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
                                                     {Array.from({ length: 5 }).map((_, i) => {
@@ -935,7 +1237,13 @@ export default function TaskDetailPage() {
                                                             <button 
                                                                 key={i} 
                                                                 type="button"
-                                                                onClick={() => handleUpdateSingleDynamicField('CA Rating', String(starNum))}
+                                                                onClick={() => {
+                                                                    const nextDynamicFields = {
+                                                                        ...(task.dynamic_fields || {}),
+                                                                        'CA Rating': String(starNum)
+                                                                    };
+                                                                    handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                                }}
                                                                 className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
                                                                 title={`Rate ${starNum} Stars`}
                                                             >
@@ -948,19 +1256,27 @@ export default function TaskDetailPage() {
                                             ) : isFeedback ? (
                                                 <div className="flex items-center gap-2 group/edit-inline w-full">
                                                     {isEditingFeedbackInline ? (
-                                                        <div className="flex items-center gap-2 w-full max-w-[300px]">
+                                                        <div className="flex items-center gap-2 w-full min-w-[200px]">
                                                             <input 
                                                                 type="text" 
                                                                 value={inlineFeedbackValue} 
                                                                 onChange={e => setInlineFeedbackValue(e.target.value)}
                                                                 onBlur={() => {
                                                                     setIsEditingFeedbackInline(false);
-                                                                    handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
+                                                                    const nextDynamicFields = {
+                                                                        ...(task.dynamic_fields || {}),
+                                                                        'CA Feedback': inlineFeedbackValue
+                                                                    };
+                                                                    handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
                                                                 }}
                                                                 onKeyDown={e => {
                                                                     if (e.key === 'Enter') {
                                                                         setIsEditingFeedbackInline(false);
-                                                                        handleUpdateSingleDynamicField('CA Feedback', inlineFeedbackValue);
+                                                                        const nextDynamicFields = {
+                                                                            ...(task.dynamic_fields || {}),
+                                                                            'CA Feedback': inlineFeedbackValue
+                                                                        };
+                                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
                                                                     }
                                                                 }}
                                                                 autoFocus
@@ -973,7 +1289,7 @@ export default function TaskDetailPage() {
                                                                 setInlineFeedbackValue(value || '');
                                                                 setIsEditingFeedbackInline(true);
                                                             }}
-                                                            className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group"
+                                                            className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group min-w-[150px]"
                                                             title="Click to Edit Feedback"
                                                         >
                                                             <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
@@ -981,42 +1297,131 @@ export default function TaskDetailPage() {
                                                         </div>
                                                     )}
                                                 </div>
-                                            ) : isLink ? (
-                                                <a 
-                                                    href={hrefVal} 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer" 
-                                                    className="text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1.5 font-bold"
+                                            ) : isDropdown ? (
+                                                <select
+                                                    value={value || ''}
+                                                    onChange={(e) => {
+                                                        const nextDynamicFields = {
+                                                            ...(task.dynamic_fields || {}),
+                                                            [field.label]: e.target.value
+                                                        };
+                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                    }}
+                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[150px]"
                                                 >
-                                                    {value}
-                                                    <Globe size={12} className="shrink-0" />
-                                                </a>
+                                                    <option value="">Select Option</option>
+                                                    {(field.options || []).map((opt, i) => {
+                                                         const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                         const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                         return (
+                                                             <option key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt} value={optVal}>
+                                                                 {optLbl}
+                                                             </option>
+                                                         );
+                                                     })}
+                                                </select>
+                                            ) : isCheckbox ? (
+                                                <div className="flex flex-wrap gap-2.5 min-w-[160px]">
+                                                    {(field.options || []).map(opt => {
+                                                        const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+                                                        const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                         const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                         const isChecked = selectedValues.includes(optVal);
+                                                        return (
+                                                            <label key={typeof opt === 'object' ? (opt.value || opt.label || idx) : opt} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-650">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={(e) => {
+                                                                        let nextVals;
+                                                                        if (e.target.checked) {
+                                                                            nextVals = [...selectedValues, optVal];
+                                                                        } else {
+                                                                            nextVals = selectedValues.filter(v => v !== optVal);
+                                                                        }
+                                                                        const nextDynamicFields = {
+                                                                            ...(task.dynamic_fields || {}),
+                                                                            [field.label]: nextVals
+                                                                        };
+                                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                                    }}
+                                                                    className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
+                                                                />
+                                                                <span>{optLbl}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : isDate ? (
+                                                <input
+                                                    type="date"
+                                                    value={value || ''}
+                                                    onChange={(e) => {
+                                                        const nextDynamicFields = {
+                                                            ...(task.dynamic_fields || {}),
+                                                            [field.label]: e.target.value
+                                                        };
+                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                    }}
+                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                />
                                             ) : (
-                                                Array.isArray(value) ? value.join(', ') : (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : (value || 'N/A'))
+                                                <div className="flex items-center justify-between group/cell w-full">
+                                                    <input
+                                                        type="text"
+                                                        value={value || ''}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setTask(prev => ({
+                                                                ...prev,
+                                                                dynamic_fields: {
+                                                                    ...(prev.dynamic_fields || {}),
+                                                                    [field.label]: val
+                                                                }
+                                                            }));
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            if (e.target.value !== value) {
+                                                                const nextDynamicFields = {
+                                                                    ...(task.dynamic_fields || {}),
+                                                                    [field.label]: e.target.value
+                                                                };
+                                                                handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.target.blur();
+                                                            }
+                                                        }}
+                                                        placeholder={field.placeholder || `Enter ${field.label}...`}
+                                                        className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[160px] outline-none transition"
+                                                    />
+                                                    {value && (
+                                                        <button
+                                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                                            className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
+                                                            title="Copy"
+                                                        >
+                                                            <Copy size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
-                                        </div>
-                                        {!isFeedback && value && typeof value !== 'boolean' && (
-                                            <button
-                                                onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
-                                                className="ml-2 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shadow-sm"
-                                                title="Copy"
-                                            >
-                                                <Copy size={12} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        });
-                    })()}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* Subtasks Section */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+            {/* Tasks Section */}
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mt-6 animate-fade-in">
                 <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-black text-slate-900">Subtasks</h2>
+                        <h2 className="text-xl font-black text-slate-900">Tasks</h2>
                         <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full">
                             <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                                 <div
@@ -1024,18 +1429,44 @@ export default function TaskDetailPage() {
                                     style={{ width: `${(task.sub_tasks?.filter(st => st.status === 'complete').length / (task.sub_tasks?.length || 1)) * 100}%` }}
                                 ></div>
                             </div>
-                            <span className="text-[10px] font-black text-slate-400">
-                                {task.sub_tasks?.filter(st => st.status === 'complete').length}/{task.sub_tasks?.length || 0}
+                            <span className="text-[10px] font-black text-slate-450">
+                                {task.sub_tasks?.filter(st => st.status === 'complete').length}/{task.sub_tasks?.length || 0} Complete
                             </span>
                         </div>
                     </div>
+                    {selectedTaskIds.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={handleDeleteMultipleSubTasks}
+                            className="flex items-center gap-2 bg-rose-550 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md shadow-rose-100 hover:shadow-lg transition-all"
+                        >
+                            <Trash2 size={14} />
+                            Delete Selected ({selectedTaskIds.length})
+                        </button>
+                    )}
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead>
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                                <th className="px-10 py-4 text-left min-w-[300px]">Name</th>
+                                <th className="px-6 py-4 text-center w-12">
+                                    <input
+                                        type="checkbox"
+                                        checked={filteredSubTasks.length > 0 && filteredSubTasks.every(st => selectedTaskIds.includes(st.id))}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                const newSelected = [...new Set([...selectedTaskIds, ...filteredSubTasks.map(st => st.id)])];
+                                                setSelectedTaskIds(newSelected);
+                                            } else {
+                                                const filteredIds = filteredSubTasks.map(st => st.id);
+                                                setSelectedTaskIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                                            }
+                                        }}
+                                        className="w-4 h-4 text-indigo-650 border-slate-300 rounded focus:ring-indigo-500/20 cursor-pointer"
+                                    />
+                                </th>
+                                <th className="px-6 py-4 text-left min-w-[300px]">Name</th>
                                 <th className="px-6 py-4 text-left">Assignee</th>
                                 <th className="px-6 py-4 text-left">Priority</th>
                                 <th className="px-6 py-4 text-left">Status</th>
@@ -1047,9 +1478,24 @@ export default function TaskDetailPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {task.sub_tasks?.map((st) => (
-                                <tr key={st.id} className="group hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-10 py-5 min-w-[300px]">
+                            {filteredSubTasks.length > 0 ? (
+                                filteredSubTasks.map((st) => (
+                                <tr key={st.id} className={`group hover:bg-slate-50/40 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-slate-50/30' : ''}`}>
+                                    <td className="px-6 py-5 text-center w-12">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedTaskIds.includes(st.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedTaskIds(prev => [...prev, st.id]);
+                                                } else {
+                                                    setSelectedTaskIds(prev => prev.filter(id => id !== st.id));
+                                                }
+                                            }}
+                                            className="w-4 h-4 text-indigo-655 border-slate-300 rounded focus:ring-indigo-500/20 cursor-pointer"
+                                        />
+                                    </td>
+                                    <td className="px-6 py-5 min-w-[300px]">
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
@@ -1071,7 +1517,7 @@ export default function TaskDetailPage() {
                                         <select
                                             value={st.assigned_to?.id || ''}
                                             onChange={e => handleUpdateSubTask(st.id, { assigned_to: e.target.value })}
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[150px]"
                                         >
                                             <option value="">Unassigned</option>
                                             {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1081,7 +1527,7 @@ export default function TaskDetailPage() {
                                         <select
                                             value={st.priority}
                                             onChange={e => handleUpdateSubTask(st.id, { priority: e.target.value })}
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[120px]"
                                         >
                                             <option value="low">Low</option>
                                             <option value="medium">Medium</option>
@@ -1093,7 +1539,7 @@ export default function TaskDetailPage() {
                                         <select
                                             value={st.status}
                                             onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer capitalize"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full max-w-[140px]"
                                         >
                                             <option value="complete">Complete</option>
                                             <option value="work_in_progress">Work In Progress</option>
@@ -1102,10 +1548,11 @@ export default function TaskDetailPage() {
                                             <option value="other">Other</option>
                                         </select>
                                     </td>
-                                    <td className="px-6 py-5 min-w-[150px]">
+                                    <td className="px-6 py-5 min-w-[160px]">
                                         <SubStatusPicker
                                             value={st.sub_status}
                                             onChange={(newVal) => handleUpdateSubTask(st.id, { sub_status: newVal })}
+                                            options={getSubStatusOptions(task, schema)}
                                         />
                                     </td>
                                     <td className="px-6 py-5">
@@ -1113,7 +1560,7 @@ export default function TaskDetailPage() {
                                             type="date"
                                             defaultValue={st.due_date}
                                             onBlur={e => handleUpdateSubTask(st.id, { due_date: e.target.value })}
-                                            className="bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-500 cursor-pointer"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[130px]"
                                         />
                                     </td>
                                     <td className="px-6 py-5 min-w-[240px]">
@@ -1123,7 +1570,7 @@ export default function TaskDetailPage() {
                                                 onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
                                                 placeholder="Remarks..."
                                                 rows="1"
-                                                className="bg-transparent hover:bg-slate-50 border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition-all leading-relaxed"
+                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-650 w-full resize-y min-h-[34px] outline-none transition focus:ring-2 focus:ring-indigo-500/20 focus:border-slate-300 leading-relaxed"
                                             />
                                             {st.remarks && (
                                                 <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
@@ -1149,14 +1596,21 @@ export default function TaskDetailPage() {
                                         </button>
                                     </td>
                                 </tr>
-                            ))}
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={10} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
+                                    No tasks match the selected filters. Click "Clear all filters" or select another card to see all items.
+                                </td>
+                            </tr>
+                        )}
                             <tr className="hover:bg-slate-50/50 transition-colors">
-                                <td colSpan={6} className="px-10 py-4">
+                                <td colSpan={10} className="px-10 py-4">
                                     <button
                                         onClick={handleAddSubTask}
                                         className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"
                                     >
-                                        <Plus size={16} /> Add Subtask
+                                        <Plus size={16} /> Add Task
                                     </button>
                                 </td>
                             </tr>

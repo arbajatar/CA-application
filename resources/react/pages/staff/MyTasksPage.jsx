@@ -7,6 +7,28 @@ import Modal from '../../components/ui/Modal'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import { formatDate } from '../../utils/dateHelper'
 
+const DEFAULT_SUB_STATUSES = [
+    'Documentation pending',
+    'Awaiting approval',
+    'Completed'
+];
+
+const getSubStatusOptions = (task) => {
+    if (!task || !task.dynamic_fields) return DEFAULT_SUB_STATUSES;
+    let fields = task.dynamic_fields;
+    if (typeof fields === 'string') {
+        try { fields = JSON.parse(fields); } catch(e) {}
+    }
+    const schema = fields?.schema;
+    if (Array.isArray(schema)) {
+        const subStatusField = schema.find(f => f.id === 'static_sub_status');
+        if (subStatusField && Array.isArray(subStatusField.options) && subStatusField.options.length > 0) {
+            return subStatusField.options;
+        }
+    }
+    return DEFAULT_SUB_STATUSES;
+};
+
 const statusFilters = [
     { value: '', label: 'All Status' },
     { value: 'complete', label: 'Complete' },
@@ -424,6 +446,7 @@ export default function MyTasksPage() {
                                 <SubStatusPicker
                                     value={subStatus}
                                     onChange={(val) => setSubStatus(val)}
+                                    options={selected.task ? getSubStatusOptions(selected.task) : []}
                                 />
                             </div>
                         )}

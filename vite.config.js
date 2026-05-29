@@ -12,6 +12,14 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
+    server: {
+        watch: {
+            usePolling: true,
+        },
+        hmr: {
+            host: 'localhost',
+        },
+    },
     build: {
         chunkSizeWarningLimit: 1000,
         rollupOptions: {
