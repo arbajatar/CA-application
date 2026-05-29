@@ -295,7 +295,7 @@ export default function TeamReportPage() {
     const [saving, setSaving] = useState(false)
     const [search, setSearch] = useState('')
     const [filterStaff, setFilterStaff] = useState('')
-    const [selectedStaffId, setSelectedStaffId] = useState(null)
+    const [selectedStaffId, setSelectedStaffId] = useState('all')
     const [editingRowId, setEditingRowId] = useState(null)
     const [inlineForm, setInlineForm] = useState(null)
     const [inlineNewRows, setInlineNewRows] = useState([])
@@ -1233,114 +1233,17 @@ export default function TeamReportPage() {
     const notToBeDoneCount = reports.filter(r => r.status === 'not_to_be_done').length
     const otherCount = reports.filter(r => r.status === 'other').length
 
-    if (isCA && selectedStaffId === null) {
-        return (
-            <div className="space-y-4 pb-8 transition-all">
-                {/* Header section */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Work Reports</h1>
-                        <p className="text-sm font-medium text-slate-500 mt-1">
-                            Select an employee folder below to overview their progress, logged hours, and review their activities.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Folders grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-                    {/* All Employees Card */}
-                    <div 
-                        onClick={() => {
-                            setSelectedStaffId("all");
-                            setFilterStaff("");
-                        }}
-                        className="group cursor-pointer p-5 bg-white rounded-2xl border border-slate-250 hover:border-[#1F5C99] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none"
-                    >
-                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm">
-                            <Folder size={32} className="text-slate-600" fill="currentColor" fillOpacity={0.2} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">All Team Members</h3>
-                            <p className="text-[10px] text-[#1F5C99] font-bold uppercase tracking-wider mt-1.5">Unified View</p>
-                        </div>
-                    </div>
-
-                    {/* Staff Folders */}
-                    {staff.map((member, idx) => {
-                        const colors = [
-                            { bg: 'bg-blue-50', text: 'text-blue-500' },
-                            { bg: 'bg-orange-50', text: 'text-orange-500' },
-                            { bg: 'bg-emerald-50', text: 'text-emerald-500' },
-                            { bg: 'bg-sky-50', text: 'text-sky-500' },
-                            { bg: 'bg-teal-50', text: 'text-teal-500' },
-                            { bg: 'bg-red-50', text: 'text-red-500' },
-                            { bg: 'bg-indigo-50', text: 'text-indigo-500' },
-                            { bg: 'bg-purple-50', text: 'text-purple-500' },
-                            { bg: 'bg-pink-50', text: 'text-pink-500' },
-                        ];
-                        const color = colors[idx % colors.length];
-
-                        const borderClasses = {
-                            'text-slate-500': 'border-slate-200 hover:border-slate-500',
-                            'text-blue-500': 'border-blue-200 hover:border-blue-500',
-                            'text-orange-500': 'border-orange-200 hover:border-orange-500',
-                            'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
-                            'text-sky-500': 'border-sky-200 hover:border-sky-500',
-                            'text-teal-500': 'border-teal-200 hover:border-teal-500',
-                            'text-red-500': 'border-red-200 hover:border-red-500',
-                            'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
-                            'text-purple-500': 'border-purple-200 hover:border-purple-500',
-                            'text-pink-500': 'border-pink-200 hover:border-pink-500',
-                        };
-                        const colorClasses = borderClasses[color.text] || 'border-slate-200 hover:border-[#1F5C99]';
-
-                        return (
-                            <div 
-                                key={member.id}
-                                onClick={() => {
-                                    setSelectedStaffId(member.id);
-                                    setFilterStaff(member.id);
-                                }}
-                                className={`group cursor-pointer p-5 bg-white rounded-2xl border ${colorClasses} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none`}
-                            >
-                                <div className={`w-16 h-16 rounded-2xl ${color.bg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}>
-                                    <Folder size={32} className={color.text} fill="currentColor" fillOpacity={0.2} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors line-clamp-1" title={member.name}>
-                                        {member.name}
-                                    </h3>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">
-                                        {member.role === 'ca' ? 'CA Admin' : 'Staff'}
-                                    </p>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-8 pb-12 transition-all">
-            {isCA && selectedStaffId !== null && (
-                <button 
-                    onClick={() => {
-                        setSelectedStaffId(null);
-                        setFilterStaff("");
-                    }}
-                    className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-[#1F5C99] transition cursor-pointer"
-                >
-                    <ArrowLeft size={16} /> Back to Staff Folders
-                </button>
-            )}
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Daily Work Progress Report</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Team Work Reports</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
+                        Select an employee folder below to overview their progress, logged hours, and review their activities.
+                    </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                     <button 
                         onClick={handleDownloadPDF}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm cursor-pointer"
@@ -1364,6 +1267,101 @@ export default function TeamReportPage() {
                     </button>
                 </div>
             </div>
+
+            {isCA && (
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2.5 animate-fade-in">
+                    <h3 className="text-xs font-bold text-gray-855 uppercase tracking-wider flex items-center gap-1.5">
+                        <Users size={14} className="text-[#1F5C99]" />
+                        Team Members
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 select-none">
+                        {/* All Team Members Card */}
+                        <div 
+                            onClick={() => {
+                                setSelectedStaffId("all");
+                                setFilterStaff("");
+                            }}
+                            className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${
+                                selectedStaffId === 'all' 
+                                    ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm' 
+                                    : 'bg-white border-slate-200 hover:border-[#1F5C99] hover:shadow-md'
+                            }`}
+                        >
+                            <div className="p-1.5 rounded-lg bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0 shadow-sm">
+                                <Folder size={16} className="text-slate-650" fill="currentColor" fillOpacity={0.2} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h4 className={`text-xs truncate transition-colors ${selectedStaffId === 'all' ? 'text-[#1F5C99] font-extrabold' : 'text-gray-800 font-semibold group-hover:text-[#1F5C99]'}`}>
+                                    All Team Members
+                                </h4>
+                                <p className="text-[9px] text-[#1F5C99] font-bold uppercase tracking-wider mt-0.5">
+                                    Unified View
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Staff Cards */}
+                        {staff.map((member, idx) => {
+                            const colors = [
+                                { bg: 'bg-blue-50', text: 'text-blue-500' },
+                                { bg: 'bg-orange-50', text: 'text-orange-500' },
+                                { bg: 'bg-emerald-50', text: 'text-emerald-500' },
+                                { bg: 'bg-sky-50', text: 'text-sky-500' },
+                                { bg: 'bg-teal-50', text: 'text-teal-500' },
+                                { bg: 'bg-red-50', text: 'text-red-500' },
+                                { bg: 'bg-indigo-50', text: 'text-indigo-500' },
+                                { bg: 'bg-purple-50', text: 'text-purple-500' },
+                                { bg: 'bg-pink-50', text: 'text-pink-500' },
+                            ];
+                            const color = colors[idx % colors.length];
+
+                            const borderClasses = {
+                                'text-slate-500': 'border-slate-200 hover:border-slate-500',
+                                'text-blue-500': 'border-blue-200 hover:border-blue-500',
+                                'text-orange-500': 'border-orange-200 hover:border-orange-500',
+                                'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
+                                'text-sky-500': 'border-sky-200 hover:border-sky-500',
+                                'text-teal-500': 'border-teal-200 hover:border-teal-500',
+                                'text-red-500': 'border-red-200 hover:border-red-500',
+                                'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
+                                'text-purple-500': 'border-purple-200 hover:border-purple-500',
+                                'text-pink-500': 'border-pink-200 hover:border-pink-500',
+                            };
+                            const colorClasses = borderClasses[color.text] || 'border-slate-200 hover:border-[#1F5C99]';
+                            const isActive = selectedStaffId === member.id;
+
+                            return (
+                                <div 
+                                    key={member.id}
+                                    onClick={() => {
+                                        setSelectedStaffId(member.id);
+                                        setFilterStaff(member.id);
+                                    }}
+                                    className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${
+                                        isActive 
+                                            ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm' 
+                                            : `bg-white ${colorClasses} hover:shadow-md`
+                                    }`}
+                                >
+                                    <div className={`p-1.5 rounded-lg ${color.bg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0 shadow-sm`}>
+                                        <Folder size={16} className={color.text} fill="currentColor" fillOpacity={0.2} />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className={`text-xs truncate transition-colors ${isActive ? 'text-[#1F5C99] font-extrabold' : 'text-gray-800 font-semibold group-hover:text-[#1F5C99]'}`} title={member.name}>
+                                            {member.name}
+                                        </h4>
+                                        <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5 truncate" title={member.custom_roles && member.custom_roles.length > 0 ? member.custom_roles.map(r => r.name).join(', ') : (member.role_label || (member.role === 'ca' ? 'CA Admin' : 'Staff'))}>
+                                            {member.custom_roles && member.custom_roles.length > 0 
+                                                ? member.custom_roles.map(r => r.name).join(', ') 
+                                                : member.role_label || (member.role === 'ca' ? 'CA Admin' : 'Staff')}
+                                        </p>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Premium Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
