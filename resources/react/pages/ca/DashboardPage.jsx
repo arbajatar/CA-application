@@ -688,6 +688,7 @@ function CalendarView() {
     const [loading, setLoading] = useState(false)
     const [rangeStart, setRangeStart] = useState(null)
     const [rangeEnd, setRangeEnd] = useState(null)
+    const [quickFilter, setQuickFilter] = useState('')
 
     const fetchTasks = useCallback(async () => {
         setLoading(true)
@@ -706,12 +707,14 @@ function CalendarView() {
 
     useEffect(() => {
         fetchTasks()
-        setRangeStart(null)
-        setRangeEnd(null)
     }, [fetchTasks])
 
-    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
-    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    const nextMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+    }
+    const prevMonth = () => {
+        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    }
 
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
@@ -768,6 +771,7 @@ function CalendarView() {
 
     const handleDateClick = (date) => {
         if (!date) return
+        setQuickFilter('')
 
         if (!rangeStart || (rangeStart && rangeEnd)) {
             setRangeStart(date)
@@ -955,9 +959,50 @@ function CalendarView() {
                             <p className="text-xs text-slate-500 font-bold mt-0.5">Select a date range to filter and manage due tasks</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+                    <div className="flex flex-wrap items-center gap-3 self-stretch sm:self-auto justify-end">
+                        <select
+                            value={quickFilter}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setQuickFilter(val);
+                                if (!val) {
+                                    setRangeStart(null);
+                                    setRangeEnd(null);
+                                    return;
+                                }
+                                const today = new Date();
+                                let start = new Date();
+                                if (val === '7') {
+                                    start.setDate(today.getDate() - 6);
+                                    setRangeStart(start);
+                                    setRangeEnd(today);
+                                    setCurrentDate(today);
+                                } else if (val === '15') {
+                                    start.setDate(today.getDate() - 14);
+                                    setRangeStart(start);
+                                    setRangeEnd(today);
+                                    setCurrentDate(today);
+                                } else if (val === 'month') {
+                                    start.setMonth(today.getMonth() - 1);
+                                    setRangeStart(start);
+                                    setRangeEnd(today);
+                                    setCurrentDate(today);
+                                }
+                            }}
+                            className="px-3.5 py-2 text-xs font-bold bg-white border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition cursor-pointer shadow-sm"
+                        >
+                            <option value="">Quick Range...</option>
+                            <option value="7">Last 7 Days</option>
+                            <option value="15">Last 15 Days</option>
+                            <option value="month">Last 1 Month</option>
+                        </select>
                         <button
-                            onClick={() => setCurrentDate(new Date())}
+                            onClick={() => {
+                                setRangeStart(null)
+                                setRangeEnd(null)
+                                setQuickFilter('')
+                                setCurrentDate(new Date())
+                            }}
                             className="px-4 py-2 text-xs font-extrabold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] active:scale-95 rounded-xl transition-all duration-200 shadow-sm shadow-blue-900/10 cursor-pointer"
                         >
                             Today
