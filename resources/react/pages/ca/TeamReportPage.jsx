@@ -1869,32 +1869,32 @@ export default function TeamReportPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-center whitespace-nowrap sticky right-0 bg-blue-50/90 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-                                                        <div className="flex items-center gap-2 justify-center">
-                                                            <button 
-                                                                type="button"
-                                                                onClick={() => handleSaveInlineEdit(report.id)} 
-                                                                disabled={saving}
-                                                                className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition cursor-pointer"
-                                                                title="Save"
-                                                            >
-                                                                <CheckCircle2 size={16} />
-                                                            </button>
-                                                            <button 
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setEditingRowId(null);
-                                                                    setInlineForm(null);
-                                                                    if (String(report.id).startsWith('new-')) {
-                                                                        setInlineNewRows(prev => prev.filter(r => r.id !== report.id));
-                                                                    }
-                                                                }} 
-                                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                                                                title="Cancel"
-                                                            >
-                                                                <X size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
+                                                         <div className="flex items-center gap-2 justify-center">
+                                                             <button 
+                                                                 type="button"
+                                                                 onClick={() => handleSaveInlineEdit(report.id)} 
+                                                                 disabled={saving}
+                                                                 className="p-1.5 text-emerald-600 bg-emerald-50 border border-emerald-250/50 hover:bg-emerald-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
+                                                                 title="Save"
+                                                             >
+                                                                 <CheckCircle2 size={16} />
+                                                             </button>
+                                                             <button 
+                                                                 type="button"
+                                                                 onClick={() => {
+                                                                     setEditingRowId(null);
+                                                                     setInlineForm(null);
+                                                                     if (String(report.id).startsWith('new-')) {
+                                                                         setInlineNewRows(prev => prev.filter(r => r.id !== report.id));
+                                                                     }
+                                                                 }} 
+                                                                 className="p-1.5 text-rose-650 bg-rose-50 border border-rose-250/50 hover:bg-rose-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
+                                                                 title="Cancel"
+                                                             >
+                                                                 <X size={16} />
+                                                             </button>
+                                                         </div>
+                                                     </td>
                                                 </tr>
                                             );
                                         }
@@ -2007,43 +2007,43 @@ export default function TeamReportPage() {
                                                         : 'bg-white group-hover:bg-slate-100'
                                                 }`}>
                                                     <div className="flex items-center gap-2 justify-center">
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => handleStartInlineEdit(report)}
-                                                            className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-gray-700 font-bold text-xs transition cursor-pointer"
-                                                            title="Edit Inline"
-                                                        >
-                                                            Inline Edit
-                                                        </button>
-                                                        {isCA && (
-                                                            <button 
-                                                                type="button"
-                                                                onClick={() => openReviewModal(report)}
-                                                                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition cursor-pointer"
-                                                                title="Write Review & Comments"
-                                                            >
-                                                                Review
-                                                            </button>
-                                                        )}
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => openEditModal(report)}
-                                                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition cursor-pointer"
-                                                            title="Edit Daily Work Log"
-                                                        >
-                                                            <Edit3 size={15} />
-                                                        </button>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedReport(report)
-                                                                setDeleteModalOpen(true)
-                                                            }}
-                                                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
-                                                            title="Delete Daily Work Log"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
+                                                         <button 
+                                                             type="button"
+                                                             onClick={() => handleStartInlineEdit(report)}
+                                                             className="px-2 py-1 rounded bg-indigo-50 border border-indigo-150/50 hover:bg-indigo-100 text-indigo-750 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
+                                                             title="Edit Inline"
+                                                         >
+                                                             Inline Edit
+                                                         </button>
+                                                         {isCA && (
+                                                             <button 
+                                                                 type="button"
+                                                                 onClick={() => openReviewModal(report)}
+                                                                 className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-150/50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
+                                                                 title="Write Review & Comments"
+                                                             >
+                                                                 Review
+                                                             </button>
+                                                         )}
+                                                         <button 
+                                                             type="button"
+                                                             onClick={() => openEditModal(report)}
+                                                             className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                             title="Edit Daily Work Log"
+                                                         >
+                                                             <Edit3 size={15} />
+                                                         </button>
+                                                         <button 
+                                                             type="button"
+                                                             onClick={() => {
+                                                                 setSelectedReport(report)
+                                                                 setDeleteModalOpen(true)
+                                                             }}
+                                                             className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                             title="Delete Daily Work Log"
+                                                         >
+                                                             <Trash2 size={15} />
+                                                         </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2120,13 +2120,13 @@ export default function TeamReportPage() {
                                     </button>
                                 )}
                                 <button 
-                                    type="button"
-                                    onClick={() => handleDeleteNote(note.id)}
-                                    className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition cursor-pointer flex items-center justify-center"
-                                    title="Delete Note"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                                     type="button"
+                                     onClick={() => handleDeleteNote(note.id)}
+                                     className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
+                                     title="Delete Note"
+                                 >
+                                     <Trash2 size={14} />
+                                 </button>
                             </div>
                         </div>
                     ))}

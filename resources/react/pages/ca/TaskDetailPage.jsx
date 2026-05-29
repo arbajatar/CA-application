@@ -1843,7 +1843,7 @@ export default function TaskDetailPage() {
                                         </td>
                                     )}
                                     <td className="px-6 py-5 text-right w-10 min-w-[40px]">
-                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 transition-all rounded-lg">
                                             <Trash2 size={14} />
                                         </button>
                                     </td>

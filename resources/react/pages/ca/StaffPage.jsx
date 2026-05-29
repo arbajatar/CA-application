@@ -337,21 +337,21 @@ export default function StaffPage() {
                                              <div className="flex items-center gap-2">
                                                  <Tooltip content="Edit Member">
                                                      <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_ids: s.role_ids || [], password: '', employee_code: s.employee_code || '', address: s.address || '', email: s.email || '', mobile: s.mobile || '' }); setErrors({}); setEditOpen(true) }}
-                                                         className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                         className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-805 hover:scale-110 active:scale-95 transition-all"><Pencil size={15} /></button>
                                                  </Tooltip>
                                                  <Tooltip content="Reset Password">
                                                      <button onClick={() => { setSelected(s); setResetPass({ password: '', password_confirmation: '' }); setErrors({}); setResetOpen(true) }}
-                                                         className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><KeyRound size={15} /></button>
+                                                         className="p-1.5 rounded-lg bg-amber-50/70 border border-amber-100/40 text-amber-600 hover:bg-amber-100 hover:text-amber-800 hover:scale-110 active:scale-95 transition-all"><KeyRound size={15} /></button>
                                                  </Tooltip>
                                                  {s.is_active ? (
                                                      <Tooltip content="Deactivate Member">
                                                          <button onClick={() => { setSelected(s); setDeactivateOpen(true) }}
-                                                             className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><UserMinus size={15} /></button>
+                                                             className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"><UserMinus size={15} /></button>
                                                      </Tooltip>
                                                  ) : (
                                                      <Tooltip content="Activate Member">
                                                          <button onClick={() => { setSelected(s); setActivateOpen(true) }}
-                                                             className="p-1.5 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition"><UserCheck size={15} /></button>
+                                                             className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all"><UserCheck size={15} /></button>
                                                      </Tooltip>
                                                  )}
                                              </div>
@@ -545,7 +545,7 @@ export default function StaffPage() {
                                                     <button 
                                                         type="button" 
                                                         onClick={() => { setEditingRole(r); setRoleNameInput(r.name); setRoleErrors({}) }}
-                                                        className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"
+                                                        className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all"
                                                     >
                                                         <Pencil size={14} />
                                                     </button>
@@ -554,7 +554,7 @@ export default function StaffPage() {
                                                     <button 
                                                         type="button" 
                                                         onClick={() => handleDeleteRoleClick(r)}
-                                                        className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                                                        className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"
                                                     >
                                                         <Trash2 size={14} />
                                                     </button>

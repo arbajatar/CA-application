@@ -553,7 +553,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                     e.stopPropagation()
                                                                     navigate(`/ca/tasks/${sheet.id}`)
                                                                 }}
-                                                                className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
+                                                                className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
                                                                 title="View Details"
                                                             >
                                                                 <Eye size={15} />
@@ -1162,15 +1162,15 @@ function CalendarView() {
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-medium">{t.form_name || '—'}</span>
                                                         <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                navigate(`/ca/tasks/${t.id}`)
-                                                            }}
-                                                            className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
-                                                            title="View Details"
-                                                        >
-                                                            <Eye size={15} />
-                                                        </button>
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation()
+                                                                 navigate(`/ca/tasks/${t.id}`)
+                                                             }}
+                                                             className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
+                                                             title="View Details"
+                                                         >
+                                                             <Eye size={15} />
+                                                         </button>
                                                         {sheetDue && (
                                                             <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold border border-red-100 uppercase tracking-wider shrink-0">
                                                                 Sheet Due

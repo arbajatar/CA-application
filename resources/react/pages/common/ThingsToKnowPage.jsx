@@ -486,7 +486,7 @@ export default function ThingsToKnowPage() {
                                                                             e.stopPropagation();
                                                                             setEditingGroup({ type: 'videos', name: group, value: group });
                                                                         }}
-                                                                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-slate-50 rounded-lg transition opacity-0 group-hover:opacity-100 shrink-0 ml-1"
+                                                                        className="p-1.5 text-blue-650 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 shrink-0 ml-1"
                                                                         title="Rename Category"
                                                                     >
                                                                         <Pencil size={13} />
@@ -546,7 +546,7 @@ export default function ThingsToKnowPage() {
                                                             <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight flex-1">{video.title}</h3>
                                                             {isAdmin && (
                                                                 <button onClick={() => handleDeleteVideo(video)}
-                                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Video">
+                                                                    className="p-1.5 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Video">
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             )}
@@ -687,7 +687,7 @@ export default function ThingsToKnowPage() {
                                                                             e.stopPropagation();
                                                                             setEditingGroup({ type: 'brochures', name: group, value: group });
                                                                         }}
-                                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition opacity-0 group-hover:opacity-100 shrink-0 ml-1"
+                                                                        className="p-1.5 text-blue-650 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 shrink-0 ml-1"
                                                                         title="Rename Category"
                                                                     >
                                                                         <Pencil size={13} />
@@ -753,7 +753,7 @@ export default function ThingsToKnowPage() {
                                                     </div>
                                                     {isAdmin && (
                                                         <button onClick={() => handleDeleteBrochure(brochure)}
-                                                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Remove Brochure">
+                                                            className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Brochure">
                                                             <Trash2 size={16} />
                                                         </button>
                                                     )}

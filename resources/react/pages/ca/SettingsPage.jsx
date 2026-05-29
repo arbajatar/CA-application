@@ -108,13 +108,13 @@ export default function SettingsPage() {
                                     <div className="flex items-center gap-2">
                                         <Tooltip content="Edit Work Type">
                                             <button onClick={() => { setEditWt(wt); setWtName(wt.name); setWtError(''); setWtModal(true) }}
-                                                className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition">
+                                                className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all">
                                                 <Pencil size={14} />
                                             </button>
                                         </Tooltip>
                                         <Tooltip content={wt.is_active ? 'Deactivate' : 'Activate'}>
                                             <button onClick={() => handleToggle(wt)} 
-                                                className="text-gray-400 hover:text-gray-600 transition">
+                                                className="text-gray-400 hover:text-gray-600 hover:scale-110 active:scale-95 transition-all">
                                                 {wt.is_active
                                                     ? <ToggleRight size={22} className="text-green-500" />
                                                     : <ToggleLeft size={22} />}

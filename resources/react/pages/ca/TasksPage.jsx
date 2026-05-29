@@ -1613,23 +1613,23 @@ export default function TasksPage() {
                                                     <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover/row:bg-gray-100 transition shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
                                                         <div className="flex items-center gap-2">
                                                             <Tooltip content="View Sheet">
-                                                                <button onClick={() => openView(t)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition disabled:opacity-50">
+                                                                <button onClick={() => openView(t)} className="p-1.5 rounded-lg bg-indigo-50/70 border border-indigo-100/40 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 hover:scale-110 active:scale-95 transition-all disabled:opacity-50">
                                                                     <Eye size={15} />
                                                                 </button>
                                                             </Tooltip>
                                                             <Tooltip content="Edit Sheet">
-                                                                <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition"><Pencil size={15} /></button>
+                                                                <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all"><Pencil size={15} /></button>
                                                             </Tooltip>
                                                             <Tooltip content="Duplicate Sheet">
-                                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition">
+                                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all">
                                                                     <Copy size={15} />
                                                                 </button>
                                                             </Tooltip>
                                                             <Tooltip content="Reassign Staff">
-                                                                <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-400 hover:text-orange-500 transition"><UserRoundCog size={15} /></button>
+                                                                <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg bg-violet-50/70 border border-violet-100/40 text-violet-600 hover:bg-violet-100 hover:text-violet-800 hover:scale-110 active:scale-95 transition-all"><UserRoundCog size={15} /></button>
                                                             </Tooltip>
                                                             <Tooltip content="Delete Sheet" position="left">
-                                                                <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
+                                                                <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-650 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"><Trash2 size={15} /></button>
                                                             </Tooltip>
                                                         </div>
                                                     </td>

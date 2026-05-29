@@ -156,12 +156,12 @@ export default function PortalListPage() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Tooltip content="Edit Portal">
-                                                        <button onClick={() => openEdit(p)} className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition shadow-sm bg-white border border-gray-100">
+                                                        <button onClick={() => openEdit(p)} className="p-2 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all shadow-sm">
                                                             <Pencil size={14} />
                                                         </button>
                                                     </Tooltip>
                                                     <Tooltip content="Delete Portal">
-                                                        <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition shadow-sm bg-white border border-gray-100">
+                                                        <button onClick={() => { setSelected(p); setDeleteOpen(true) }} className="p-2 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all shadow-sm">
                                                             <Trash2 size={14} />
                                                         </button>
                                                     </Tooltip>

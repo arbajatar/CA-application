@@ -86,27 +86,27 @@ export default function ClientsPage() {
     const fetchClients = useCallback(async () => {
         setLoading(true)
         try {
-            const res = await api.get('/ca/clients', { 
-                params: { 
-                    search, 
-                    status, 
-                    page, 
-                    per_page: 15 
-                } 
+            const res = await api.get('/ca/clients', {
+                params: {
+                    search,
+                    status,
+                    page,
+                    per_page: 15
+                }
             })
             setClients(res.data.data)
             setMeta(res.data.meta)
-        } finally { 
-            setLoading(false) 
+        } finally {
+            setLoading(false)
         }
     }, [search, status, page])
 
-    useEffect(() => { 
+    useEffect(() => {
         fetchLookups()
     }, [])
 
-    useEffect(() => { 
-        fetchClients() 
+    useEffect(() => {
+        fetchClients()
     }, [fetchClients])
 
     // Generate AIS & TIS password dynamically in real-time
@@ -134,7 +134,7 @@ export default function ClientsPage() {
     const getPanValidation = () => {
         const pan = form.pan_no.toUpperCase()
         if (!pan) return null
-        
+
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
         if (!panRegex.test(pan)) {
             return { valid: false, msg: 'Invalid general PAN format (e.g. ABCDE1234F).' }
@@ -145,9 +145,9 @@ export default function ClientsPage() {
             const expectedChar = typeOption.pan_char.toUpperCase()
             const fourthChar = pan.charAt(3)
             if (fourthChar !== expectedChar) {
-                return { 
-                    valid: false, 
-                    msg: `4th character of PAN must be "${expectedChar}" for type "${form.type}".` 
+                return {
+                    valid: false,
+                    msg: `4th character of PAN must be "${expectedChar}" for type "${form.type}".`
                 }
             }
         }
@@ -161,7 +161,7 @@ export default function ClientsPage() {
     const getGstValidation = () => {
         const gst = (form.gst_number || '').trim().toUpperCase()
         if (!gst) return null
-        
+
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
         if (!gstRegex.test(gst)) {
             return { valid: false, msg: 'Invalid GST format (e.g. 22AAAAA0000A1Z5).' }
@@ -219,11 +219,11 @@ export default function ClientsPage() {
             setAddOpen(false)
             setEditOpen(false)
             fetchClients()
-        } catch (e) { 
+        } catch (e) {
             setErrors(e.response?.data?.errors ?? {})
             toast.error('Please fix validation errors')
-        } finally { 
-            setSaving(false) 
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -243,13 +243,13 @@ export default function ClientsPage() {
 
     const openEdit = (c) => {
         setSelected(c)
-        setForm({ 
-            name: c.name, 
+        setForm({
+            name: c.name,
             name_as_per_pan: c.name_as_per_pan ?? '',
             pan_no: c.pan_no ?? '',
             type: c.type ?? '',
             group: c.group ?? '',
-            contact: c.contact ?? '', 
+            contact: c.contact ?? '',
             alternative_contact: c.alternative_contact ?? '',
             email: c.email ?? '',
             reference_no: c.reference_no ?? '',
@@ -257,7 +257,7 @@ export default function ClientsPage() {
             city: c.city ?? '',
             pin_code: c.pin_code ?? '',
             state: c.state ?? '',
-            gst_number: c.gst_number ?? '', 
+            gst_number: c.gst_number ?? '',
             status: c.status,
             credentials: c.credentials || { efiling_password: '', ais_tis_password: '' }
         })
@@ -462,7 +462,7 @@ export default function ClientsPage() {
 
                     // Match headers fuzzymatched
                     const headers = json[0].map(h => String(h || '').trim().toLowerCase())
-                    
+
                     const idxName = headers.findIndex(h => h.includes('name') && !h.includes('pan'))
                     const idxNameAsPan = headers.findIndex(h => h.includes('name as per pan') || h.includes('as per pan'))
                     const idxPan = headers.findIndex(h => h.includes('pan') && !h.includes('name') && !h.includes('as per'))
@@ -763,12 +763,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={form.name} 
-                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))} 
-                        placeholder="Enter Client Name" 
-                        className={inputCls} 
+                    <input
+                        type="text"
+                        value={form.name}
+                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="Enter Client Name"
+                        className={inputCls}
                     />
                     {errors.name && <p className="text-[10px] text-red-500 mt-1">{errors.name[0]}</p>}
                 </div>
@@ -776,15 +776,15 @@ export default function ClientsPage() {
                 {/* Client Type */}
                 <div>
                     <label className={labelCls}>Type *</label>
-                    <select 
-                        value={form.type} 
+                    <select
+                        value={form.type}
                         onChange={e => {
                             if (e.target.value === 'ADD_NEW') {
                                 setAddTypeOpen(true)
                             } else {
                                 setForm(f => ({ ...f, type: e.target.value }))
                             }
-                        }} 
+                        }}
                         className={inputCls}
                     >
                         <option value="">Select Type...</option>
@@ -810,12 +810,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={form.name_as_per_pan} 
-                        onChange={e => setForm(f => ({ ...f, name_as_per_pan: e.target.value }))} 
-                        placeholder="Enter Name exactly as printed on PAN" 
-                        className={inputCls} 
+                    <input
+                        type="text"
+                        value={form.name_as_per_pan}
+                        onChange={e => setForm(f => ({ ...f, name_as_per_pan: e.target.value }))}
+                        placeholder="Enter Name exactly as printed on PAN"
+                        className={inputCls}
                     />
                     {errors.name_as_per_pan && <p className="text-[10px] text-red-500 mt-1">{errors.name_as_per_pan[0]}</p>}
                 </div>
@@ -835,13 +835,13 @@ export default function ClientsPage() {
                         )}
                     </div>
                     <div className="relative">
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             maxLength={10}
-                            value={form.pan_no} 
-                            onChange={e => setForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} 
-                            placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)" 
-                            className={`${inputCls} uppercase pr-8`} 
+                            value={form.pan_no}
+                            onChange={e => setForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                            placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)"
+                            className={`${inputCls} uppercase pr-8`}
                         />
                         {panStatus && (
                             <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -864,15 +864,15 @@ export default function ClientsPage() {
                 {/* Group */}
                 <div>
                     <label className={labelCls}>Group *</label>
-                    <select 
-                        value={form.group} 
+                    <select
+                        value={form.group}
                         onChange={e => {
                             if (e.target.value === 'ADD_NEW') {
                                 setAddGroupOpen(true)
                             } else {
                                 setForm(f => ({ ...f, group: e.target.value }))
                             }
-                        }} 
+                        }}
                         className={inputCls}
                     >
                         <option value="">Select Group...</option>
@@ -898,13 +898,13 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         maxLength={10}
-                        value={form.contact} 
-                        onChange={e => setForm(f => ({ ...f, contact: e.target.value.replace(/\D/g, '') }))} 
-                        placeholder="10-digit mobile number" 
-                        className={inputCls} 
+                        value={form.contact}
+                        onChange={e => setForm(f => ({ ...f, contact: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="10-digit mobile number"
+                        className={inputCls}
                     />
                     {errors.contact && <p className="text-[10px] text-red-500 mt-1">{errors.contact[0]}</p>}
                 </div>
@@ -923,13 +923,13 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         maxLength={10}
-                        value={form.alternative_contact} 
-                        onChange={e => setForm(f => ({ ...f, alternative_contact: e.target.value.replace(/\D/g, '') }))} 
-                        placeholder="Alternative 10-digit number" 
-                        className={inputCls} 
+                        value={form.alternative_contact}
+                        onChange={e => setForm(f => ({ ...f, alternative_contact: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="Alternative 10-digit number"
+                        className={inputCls}
                     />
                     {errors.alternative_contact && <p className="text-[10px] text-red-500 mt-1">{errors.alternative_contact[0]}</p>}
                 </div>
@@ -948,12 +948,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="email" 
-                        value={form.email} 
-                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))} 
-                        placeholder="client@example.com" 
-                        className={inputCls} 
+                    <input
+                        type="email"
+                        value={form.email}
+                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                        placeholder="client@example.com"
+                        className={inputCls}
                     />
                     {errors.email && <p className="text-[10px] text-red-500 mt-1">{errors.email[0]}</p>}
                 </div>
@@ -972,12 +972,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={form.reference_no} 
-                        onChange={e => setForm(f => ({ ...f, reference_no: e.target.value }))} 
-                        placeholder="Enter reference details" 
-                        className={inputCls} 
+                    <input
+                        type="text"
+                        value={form.reference_no}
+                        onChange={e => setForm(f => ({ ...f, reference_no: e.target.value }))}
+                        placeholder="Enter reference details"
+                        className={inputCls}
                     />
                     {errors.reference_no && <p className="text-[10px] text-red-500 mt-1">{errors.reference_no[0]}</p>}
                 </div>
@@ -996,12 +996,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={form.city} 
-                        onChange={e => setForm(f => ({ ...f, city: e.target.value }))} 
-                        placeholder="Enter City" 
-                        className={inputCls} 
+                    <input
+                        type="text"
+                        value={form.city}
+                        onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                        placeholder="Enter City"
+                        className={inputCls}
                     />
                     {errors.city && <p className="text-[10px] text-red-500 mt-1">{errors.city[0]}</p>}
                 </div>
@@ -1020,13 +1020,13 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         maxLength={6}
-                        value={form.pin_code} 
-                        onChange={e => setForm(f => ({ ...f, pin_code: e.target.value.replace(/\D/g, '') }))} 
-                        placeholder="6-digit postal code" 
-                        className={inputCls} 
+                        value={form.pin_code}
+                        onChange={e => setForm(f => ({ ...f, pin_code: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="6-digit postal code"
+                        className={inputCls}
                     />
                     {errors.pin_code && <p className="text-[10px] text-red-500 mt-1">{errors.pin_code[0]}</p>}
                 </div>
@@ -1045,12 +1045,12 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="text" 
-                        value={form.state} 
-                        onChange={e => setForm(f => ({ ...f, state: e.target.value }))} 
-                        placeholder="Enter State" 
-                        className={inputCls} 
+                    <input
+                        type="text"
+                        value={form.state}
+                        onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+                        placeholder="Enter State"
+                        className={inputCls}
                     />
                     {errors.state && <p className="text-[10px] text-red-500 mt-1">{errors.state[0]}</p>}
                 </div>
@@ -1074,11 +1074,11 @@ export default function ClientsPage() {
                             </button>
                         )}
                     </div>
-                    <input 
-                        type="date" 
-                        value={form.dob || ''} 
-                        onChange={e => setForm(f => ({ ...f, dob: e.target.value }))} 
-                        className={inputCls} 
+                    <input
+                        type="date"
+                        value={form.dob || ''}
+                        onChange={e => setForm(f => ({ ...f, dob: e.target.value }))}
+                        className={inputCls}
                     />
                     {errors.dob && <p className="text-[10px] text-red-500 mt-1">{errors.dob[0]}</p>}
                 </div>
@@ -1098,12 +1098,12 @@ export default function ClientsPage() {
                         )}
                     </div>
                     <div className="relative">
-                        <input 
-                            type="text" 
-                            value={form.gst_number || ''} 
-                            onChange={e => setForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
-                            placeholder="GST Identification Number" 
-                            className={`${inputCls} pr-8`} 
+                        <input
+                            type="text"
+                            value={form.gst_number || ''}
+                            onChange={e => setForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))}
+                            placeholder="GST Identification Number"
+                            className={`${inputCls} pr-8`}
                             autoComplete="off"
                         />
                         {gstStatus && (
@@ -1141,7 +1141,7 @@ export default function ClientsPage() {
                         <Key className="text-indigo-500 w-4 h-4" />
                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Portal Credentials (Passwords)</h4>
                     </div>
-                    <button 
+                    <button
                         type="button"
                         onClick={() => setShowPasswords(!showPasswords)}
                         className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
@@ -1167,10 +1167,10 @@ export default function ClientsPage() {
                                 <td className="px-4 py-3 font-semibold text-slate-600">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                         <Globe size={13} className="text-slate-400" />
-                                        <a 
-                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
-                                            target="_blank" 
-                                            rel="noopener noreferrer" 
+                                        <a
+                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
                                         >
                                             WWW.EFILING INCOME TAX <ExternalLink size={12} />
@@ -1207,8 +1207,8 @@ export default function ClientsPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="relative flex items-center">
-                                        <input 
-                                            type={showPasswords ? "text" : "password"} 
+                                        <input
+                                            type={showPasswords ? "text" : "password"}
                                             value={form.credentials.efiling_password}
                                             onChange={e => setForm(f => ({
                                                 ...f,
@@ -1240,10 +1240,10 @@ export default function ClientsPage() {
                                 <td className="px-4 py-3 font-semibold text-slate-600">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                         <Globe size={13} className="text-slate-400" />
-                                        <a 
-                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
-                                            target="_blank" 
-                                            rel="noopener noreferrer" 
+                                        <a
+                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
                                         >
                                             WWW.EFILING INCOME TAX <ExternalLink size={12} />
@@ -1281,8 +1281,8 @@ export default function ClientsPage() {
                                 <td className="px-4 py-3">
                                     <div className="flex flex-col">
                                         <div className="relative flex items-center">
-                                            <input 
-                                                type={showPasswords ? "text" : "password"} 
+                                            <input
+                                                type={showPasswords ? "text" : "password"}
                                                 value={form.credentials.ais_tis_password}
                                                 disabled
                                                 className="w-full pl-2 pr-8 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
@@ -1312,15 +1312,15 @@ export default function ClientsPage() {
 
             {/* Form Footer Action Buttons */}
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                    onClick={() => { setAddOpen(false); setEditOpen(false) }} 
+                <button
+                    onClick={() => { setAddOpen(false); setEditOpen(false) }}
                     className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
                 >
                     Cancel
                 </button>
-                <button 
-                    onClick={handleSave} 
-                    disabled={saving} 
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
                     className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
                 >
                     {saving ? 'Saving...' : (editOpen ? 'Update Client' : 'Register Client')}
@@ -1337,19 +1337,19 @@ export default function ClientsPage() {
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Client Registry</h1>
                     <p className="text-sm font-medium text-slate-500 mt-1">Comprehensive register of business clients with secure validation checks.</p>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     {/* Invisible File Input for Import */}
-                    <input 
-                        type="file" 
-                        id="excel-import-file" 
-                        accept=".xlsx, .xls" 
-                        className="hidden" 
+                    <input
+                        type="file"
+                        id="excel-import-file"
+                        accept=".xlsx, .xls"
+                        className="hidden"
                         onChange={handleImportFile}
                     />
 
                     {/* Import Button */}
-                    <button 
+                    <button
                         onClick={() => document.getElementById('excel-import-file').click()}
                         className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                         title="Import clients from Excel sheet"
@@ -1358,7 +1358,7 @@ export default function ClientsPage() {
                     </button>
 
                     {/* Export Button */}
-                    <button 
+                    <button
                         onClick={handleExportExcel}
                         className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                         title="Export clients to formatted Excel"
@@ -1367,7 +1367,7 @@ export default function ClientsPage() {
                     </button>
 
                     {/* Add Client Button */}
-                    <button 
+                    <button
                         onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
                         className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                     >
@@ -1382,12 +1382,12 @@ export default function ClientsPage() {
                 <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-slate-50/80 bg-slate-50/50">
                     <div className="relative flex-1 sm:flex-none">
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input 
-                            type="text" 
-                            placeholder="Search client name, contact, PAN..." 
+                        <input
+                            type="text"
+                            placeholder="Search client name, contact, PAN..."
                             value={search}
                             onChange={e => { setSearch(e.target.value); setPage(1) }}
-                            className="pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-64 transition font-semibold text-slate-700" 
+                            className="pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-64 transition font-semibold text-slate-700"
                         />
                     </div>
 
@@ -1481,7 +1481,6 @@ export default function ClientsPage() {
                                                 <span className="text-[10px] text-slate-400 font-semibold">{c.email || ''}</span>
                                             </div>
                                         </td>
-
                                         {/* Status */}
                                         <td className="px-6 py-4 text-center">
                                             <StatusBadge status={c.status} />
@@ -1491,17 +1490,17 @@ export default function ClientsPage() {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center justify-center gap-2">
                                                 <Tooltip content="Edit Client">
-                                                    <button 
-                                                        onClick={() => openEdit(c)} 
-                                                        className="p-2 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-[#1F5C99] transition border border-transparent hover:border-slate-100"
+                                                    <button
+                                                        onClick={() => openEdit(c)}
+                                                        className="p-2 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all"
                                                     >
                                                         <Pencil size={14} />
                                                     </button>
                                                 </Tooltip>
                                                 <Tooltip content="Archive Client">
-                                                    <button 
-                                                        onClick={() => { setSelected(c); setDeleteOpen(true) }} 
-                                                        className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition border border-transparent hover:border-red-100"
+                                                    <button
+                                                        onClick={() => { setSelected(c); setDeleteOpen(true) }}
+                                                        className="p-2 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"
                                                     >
                                                         <Trash2 size={14} />
                                                     </button>
@@ -1519,16 +1518,16 @@ export default function ClientsPage() {
                     <div className="flex items-center justify-between px-6 py-4 border-t border-slate-50 bg-slate-50/30">
                         <p className="text-xs font-semibold text-slate-400">Showing {meta.from}–{meta.to} of {meta.total} registered clients</p>
                         <div className="flex gap-2">
-                            <button 
-                                disabled={page === 1} 
-                                onClick={() => setPage(p => p - 1)} 
+                            <button
+                                disabled={page === 1}
+                                onClick={() => setPage(p => p - 1)}
                                 className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition"
                             >
                                 Previous
                             </button>
-                            <button 
-                                disabled={page === meta.last_page} 
-                                onClick={() => setPage(p => p + 1)} 
+                            <button
+                                disabled={page === meta.last_page}
+                                onClick={() => setPage(p => p + 1)}
                                 className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition"
                             >
                                 Next
@@ -1538,14 +1537,14 @@ export default function ClientsPage() {
                 )}
             </div>
 
-            <Modal 
-                open={addOpen || editOpen} 
-                onClose={() => { 
-                    setAddOpen(false); 
-                    setEditOpen(false); 
-                    setForm(EMPTY_FORM); 
-                    setErrors({}); 
-                }} 
+            <Modal
+                open={addOpen || editOpen}
+                onClose={() => {
+                    setAddOpen(false);
+                    setEditOpen(false);
+                    setForm(EMPTY_FORM);
+                    setErrors({});
+                }}
                 title={editOpen ? 'Update Registered Client Details' : 'Register New CA Business Client'}
                 width="max-w-4xl" // Large layout for form elements
             >
@@ -1553,15 +1552,15 @@ export default function ClientsPage() {
             </Modal>
 
             {/* Archive Confirm Dialog */}
-            <ConfirmDialog 
-                open={deleteOpen} 
-                onClose={() => setDeleteOpen(false)} 
-                onConfirm={handleDelete} 
-                danger 
+            <ConfirmDialog
+                open={deleteOpen}
+                onClose={() => setDeleteOpen(false)}
+                onConfirm={handleDelete}
+                danger
                 loading={saving}
-                title="Archive Registered Client" 
-                message={`Are you sure you want to archive "${selected?.name}"? All future sheet logs will reference archived state.`} 
-                confirmLabel="Archive Client" 
+                title="Archive Registered Client"
+                message={`Are you sure you want to archive "${selected?.name}"? All future sheet logs will reference archived state.`}
+                confirmLabel="Archive Client"
             />
 
             {/* Dropdown Lookups: ADD NEW TYPE Sub-modal */}
@@ -1569,7 +1568,7 @@ export default function ClientsPage() {
                 <div className="space-y-4">
                     <div>
                         <label className={labelCls}>Type Name *</label>
-                        <input 
+                        <input
                             type="text"
                             placeholder="e.g. Sole Proprietorship"
                             value={newTypeName}
@@ -1579,7 +1578,7 @@ export default function ClientsPage() {
                     </div>
                     <div>
                         <label className={labelCls}>Indian PAN 4th Character (Optional)</label>
-                        <input 
+                        <input
                             type="text"
                             maxLength={1}
                             placeholder="e.g. F"
@@ -1605,7 +1604,7 @@ export default function ClientsPage() {
                 <div className="space-y-4">
                     <div>
                         <label className={labelCls}>Group Name *</label>
-                        <input 
+                        <input
                             type="text"
                             placeholder="e.g. Salary-2027"
                             value={newGroupName}
@@ -1623,9 +1622,9 @@ export default function ClientsPage() {
             </Modal>
 
             {/* Excel Import Preview Modal */}
-            <Modal 
-                open={importOpen} 
-                onClose={() => setImportOpen(false)} 
+            <Modal
+                open={importOpen}
+                onClose={() => setImportOpen(false)}
                 title="Excel Import Registry Preview"
                 width="max-w-7xl"
             >
@@ -1685,8 +1684,8 @@ export default function ClientsPage() {
                                 {previewRows.map((row, idx) => {
                                     const hasErr = row.isDuplicate || row.validationError
                                     return (
-                                        <tr 
-                                            key={idx} 
+                                        <tr
+                                            key={idx}
                                             className={`transition ${hasErr ? 'bg-rose-50/50 hover:bg-rose-50' : 'hover:bg-slate-50/30'}`}
                                         >
                                             {/* Status Badge */}
@@ -1715,9 +1714,9 @@ export default function ClientsPage() {
 
                                             {/* Name */}
                                             <td className="px-4 py-3 min-w-[180px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.name || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.name || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'name', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-bold text-slate-800"
                                                 />
@@ -1725,9 +1724,9 @@ export default function ClientsPage() {
 
                                             {/* Name as per PAN */}
                                             <td className="px-4 py-3 min-w-[180px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.name_as_per_pan || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.name_as_per_pan || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'name_as_per_pan', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-700"
                                                 />
@@ -1735,10 +1734,10 @@ export default function ClientsPage() {
 
                                             {/* PAN */}
                                             <td className="px-4 py-3 min-w-[130px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     maxLength={10}
-                                                    value={row.pan_no || ''} 
+                                                    value={row.pan_no || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'pan_no', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-mono font-bold text-slate-700 uppercase"
                                                 />
@@ -1746,8 +1745,8 @@ export default function ClientsPage() {
 
                                             {/* Type */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <select 
-                                                    value={row.type || ''} 
+                                                <select
+                                                    value={row.type || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'type', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 >
@@ -1760,8 +1759,8 @@ export default function ClientsPage() {
 
                                             {/* Group */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <select 
-                                                    value={row.group || ''} 
+                                                <select
+                                                    value={row.group || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'group', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 >
@@ -1774,10 +1773,10 @@ export default function ClientsPage() {
 
                                             {/* Contact */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     maxLength={10}
-                                                    value={row.contact || ''} 
+                                                    value={row.contact || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'contact', e.target.value.replace(/\D/g, ''))}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1785,10 +1784,10 @@ export default function ClientsPage() {
 
                                             {/* Alternative Contact */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     maxLength={10}
-                                                    value={row.alternative_contact || ''} 
+                                                    value={row.alternative_contact || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'alternative_contact', e.target.value.replace(/\D/g, ''))}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1796,9 +1795,9 @@ export default function ClientsPage() {
 
                                             {/* Email */}
                                             <td className="px-4 py-3 min-w-[180px]">
-                                                <input 
-                                                    type="email" 
-                                                    value={row.email || ''} 
+                                                <input
+                                                    type="email"
+                                                    value={row.email || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'email', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1806,9 +1805,9 @@ export default function ClientsPage() {
 
                                             {/* Reference No */}
                                             <td className="px-4 py-3 min-w-[120px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.reference_no || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.reference_no || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'reference_no', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1816,9 +1815,9 @@ export default function ClientsPage() {
 
                                             {/* DOB */}
                                             <td className="px-4 py-3 min-w-[130px]">
-                                                <input 
-                                                    type="date" 
-                                                    value={row.dob || ''} 
+                                                <input
+                                                    type="date"
+                                                    value={row.dob || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'dob', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1826,9 +1825,9 @@ export default function ClientsPage() {
 
                                             {/* City */}
                                             <td className="px-4 py-3 min-w-[120px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.city || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.city || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'city', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1836,10 +1835,10 @@ export default function ClientsPage() {
 
                                             {/* Pin Code */}
                                             <td className="px-4 py-3 min-w-[120px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     maxLength={6}
-                                                    value={row.pin_code || ''} 
+                                                    value={row.pin_code || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'pin_code', e.target.value.replace(/\D/g, ''))}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1847,9 +1846,9 @@ export default function ClientsPage() {
 
                                             {/* State */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.state || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.state || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'state', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1857,10 +1856,10 @@ export default function ClientsPage() {
 
                                             {/* GST No */}
                                             <td className="px-4 py-3 min-w-[140px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     maxLength={15}
-                                                    value={row.gst_number || ''} 
+                                                    value={row.gst_number || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'gst_number', e.target.value.toUpperCase())}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600 uppercase"
                                                 />
@@ -1868,9 +1867,9 @@ export default function ClientsPage() {
 
                                             {/* E-Filing Password */}
                                             <td className="px-4 py-3 min-w-[130px]">
-                                                <input 
-                                                    type="text" 
-                                                    value={row.credentials?.efiling_password || ''} 
+                                                <input
+                                                    type="text"
+                                                    value={row.credentials?.efiling_password || ''}
                                                     onChange={e => handleUpdatePreviewRow(idx, 'credentials.efiling_password', e.target.value)}
                                                     className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] font-semibold text-slate-600"
                                                 />
@@ -1878,10 +1877,10 @@ export default function ClientsPage() {
 
                                             {/* AIS/TIS Password */}
                                             <td className="px-4 py-3 min-w-[130px]">
-                                                <input 
-                                                    type="text" 
+                                                <input
+                                                    type="text"
                                                     disabled
-                                                    value={row.credentials?.ais_tis_password || ''} 
+                                                    value={row.credentials?.ais_tis_password || ''}
                                                     className="w-full px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-400 font-mono font-semibold"
                                                 />
                                             </td>
@@ -1894,15 +1893,15 @@ export default function ClientsPage() {
 
                     {/* Preview Actions */}
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                        <button 
-                            onClick={() => setImportOpen(false)} 
+                        <button
+                            onClick={() => setImportOpen(false)}
                             className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
                         >
                             Cancel
                         </button>
-                        <button 
-                            onClick={handleConfirmImport} 
-                            disabled={saving || previewRows.filter(r => !r.isDuplicate && !r.validationError).length === 0} 
+                        <button
+                            onClick={handleConfirmImport}
+                            disabled={saving || previewRows.filter(r => !r.isDuplicate && !r.validationError).length === 0}
                             className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
                         >
                             {saving ? 'Importing...' : 'Confirm & Save Valid Clients'}
