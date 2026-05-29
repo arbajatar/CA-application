@@ -4,9 +4,10 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye, ArrowLeft, ExternalLink
+  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye, ArrowLeft, ExternalLink,
+  Layout, FileText, SlidersHorizontal, Sparkles
 } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
@@ -228,7 +229,279 @@ export default function TaskBuilderPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${fieldName} copied!`);
   };
-  const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
+  const [viewMode, setViewMode] = useState(
+    (location.state?.isEditing || location.state?.duplicateData) ? 'builder' : 'initial'
+  ); // initial, builder, live
+
+  // Pre-configured custom fields for GST Filing
+  const gstFields = [
+    {
+      id: 'f_gstin',
+      type: 'text',
+      icon: 'Type',
+      color: '#3b82f6',
+      label: 'GSTIN No',
+      placeholder: 'Enter 15-digit GSTIN (e.g. 22AAAAA0000A1Z5)',
+      value: '',
+      required: true,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_gstr1_status',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#10b981',
+      label: 'GSTR-1 Status',
+      placeholder: 'Tick when GSTR-1 is filed',
+      value: [],
+      options: ['GSTR-1 Filed'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_gstr3b_status',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#10b981',
+      label: 'GSTR-3B Status',
+      placeholder: 'Tick when GSTR-3B is filed',
+      value: [],
+      options: ['GSTR-3B Filed'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_tax_liability',
+      type: 'number',
+      icon: 'Hash',
+      color: '#ec4899',
+      label: 'Tax Liability GSTR-1',
+      placeholder: 'Enter tax liability amount...',
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_itc_availed',
+      type: 'number',
+      icon: 'Hash',
+      color: '#ec4899',
+      label: 'ITC Availed GSTR-3B',
+      placeholder: 'Enter ITC availed amount...',
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_filing_date',
+      type: 'date',
+      icon: 'Calendar',
+      color: '#f59e0b',
+      label: 'Filing Date',
+      placeholder: 'Select actual filing date...',
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    }
+  ];
+
+  // Pre-configured custom fields for ITR Filing
+  const itrFields = [
+    {
+      id: 'f_assessment_year',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'Assessment Year',
+      placeholder: 'Select assessment year...',
+      options: ['2026-27', '2025-26', '2024-25'],
+      value: '2026-27',
+      required: true,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_itr_type',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'ITR Type',
+      placeholder: 'Select ITR form type...',
+      options: ['ITR-1', 'ITR-2', 'ITR-3', 'ITR-4', 'ITR-5', 'ITR-6'],
+      value: '',
+      required: true,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_challan_payment',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#06b6d4',
+      label: 'Challan Payment Status',
+      placeholder: 'Tick if tax paid',
+      value: [],
+      options: ['Paid'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_challan_no',
+      type: 'text',
+      icon: 'Type',
+      color: '#3b82f6',
+      label: 'BSR Code & Challan No',
+      placeholder: 'Enter BSR and Challan No...',
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_itr_ack',
+      type: 'number',
+      icon: 'Hash',
+      color: '#ec4899',
+      label: 'ITR Acknowledgement No',
+      placeholder: 'Enter acknowledgment number...',
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_verification_status',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'Verification Status',
+      placeholder: 'Select e-verification status...',
+      options: ['Pending E-verification', 'E-verified', 'ITR-V Signed & Sent'],
+      value: '',
+      required: false,
+      static: false,
+      section: 2
+    }
+  ];
+
+  // Pre-configured custom fields for Statutory & Tax Audit
+  const auditFields = [
+    {
+      id: 'f_financial_year',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'Financial Year',
+      placeholder: 'Select financial year...',
+      options: ['2025-26', '2024-25', '2023-24'],
+      value: '2025-26',
+      required: true,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_audit_status',
+      type: 'dropdown',
+      icon: 'ChevronDown',
+      color: '#10b981',
+      label: 'Audit Report Status',
+      placeholder: 'Select audit report status...',
+      options: ['Draft Issued', 'Under Review', 'Signed Report Issued'],
+      value: '',
+      required: true,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_caro',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#06b6d4',
+      label: 'CARO Applicability',
+      placeholder: 'Tick if CARO is applicable',
+      value: [],
+      options: ['Applicable'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_draft_financials',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#06b6d4',
+      label: 'Draft Financials Received',
+      placeholder: 'Tick if draft financials received',
+      value: [],
+      options: ['Received'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_mrl_status',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#06b6d4',
+      label: 'Management Representation Letter',
+      placeholder: 'Tick if MRL is signed & received',
+      value: [],
+      options: ['Received'],
+      required: false,
+      static: false,
+      section: 2
+    },
+    {
+      id: 'f_audit_progress',
+      type: 'progress_manual',
+      icon: 'Sliders',
+      color: '#2dd4bf',
+      label: 'Audit Progress',
+      placeholder: 'Slide to adjust audit completion',
+      value: 30,
+      required: false,
+      static: false,
+      section: 2
+    }
+  ];
+
+  const handleSelectTemplate = (templateType) => {
+    let customFields = [];
+    let defaultFormName = 'Untitled Custom Sheet';
+
+    if (templateType === 'gst') {
+      customFields = gstFields;
+      defaultFormName = 'GST Return Filing';
+    } else if (templateType === 'itr') {
+      customFields = itrFields;
+      defaultFormName = 'Income Tax Return Filing';
+    } else if (templateType === 'audit') {
+      customFields = auditFields;
+      defaultFormName = 'Statutory & Tax Audit';
+    }
+
+    setFormSchema(prev => {
+      const staticOnly = prev.filter(f => f.static);
+      const updatedStatic = staticOnly.map(f => {
+        if (f.id === 'static_form_name') {
+          return { ...f, value: defaultFormName };
+        }
+        return f;
+      });
+      return [...updatedStatic, ...customFields];
+    });
+
+    setViewMode('builder');
+    toast.success(`${defaultFormName} template loaded!`);
+  };
+
   const [formSchema, setFormSchema] = useState([
     // SECTION 1: Sheet Meta Information
     {
@@ -1180,54 +1453,65 @@ export default function TaskBuilderPage() {
     <div className="w-full flex-1 flex flex-col">
       {/* Workspace View */}
       {viewMode !== 'initial' && (
-        <div className="w-full flex-1 flex flex-col">
+        <div className="w-full flex-1 flex flex-col animate-in fade-in duration-300">
           <div className="main-grid">
             {/* Form Area */}
             <div className="form-container">
-              <div className="sticky top-[65px] lg:relative lg:top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-md lg:backdrop-blur-none py-3 mb-3 flex justify-between items-center -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-slate-200 lg:border-none">
-                <div className="flex-1 min-w-0 flex items-center gap-2">
+              {/* Premium Breadcrumbs & Gradient Header Workspace Toolbar */}
+              <div className="bg-white rounded-[2rem] border border-slate-100/80 py-4.5 px-6.5 shadow-sm mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4.5 relative overflow-hidden animate-fade-in">
+                {/* Decorative background gradients */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+
+                <div className="flex-1 min-w-0 flex items-center gap-3 relative z-10">
                   <button
                     onClick={() => navigate('/ca/tasks')}
-                    className="p-2 mr-1 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition shadow-sm cursor-pointer z-10"
+                    className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-650 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
                     title="Back to Tasks"
                   >
-                    <ArrowLeft size={16} />
+                    <ChevronLeft size={18} />
                   </button>
-                  <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
-                      {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-[#1F5C99] text-white shadow-md shadow-indigo-500/10 shrink-0">
+                    <Layout size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <nav className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                      <Link to="/ca/tasks" className="hover:text-indigo-650 transition">Sheets</Link>
+                      <ChevronRight size={8} className="text-slate-350" />
+                      <span className="text-slate-800 font-extrabold">Sheet Creator</span>
+                    </nav>
+                    <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase truncate">
+                      {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Layout Builder'}
                     </h2>
-                    <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
-                      {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
-                    </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center flex-wrap gap-2.5 relative z-10 select-none">
                   {viewMode === 'live' ? (
                     <button
                       onClick={() => setViewMode('builder')}
-                      className="whitespace-nowrap px-4 py-2 bg-slate-500 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition shadow-lg shadow-slate-200"
+                      className="px-4.5 py-2.5 bg-slate-900 text-white font-black rounded-xl text-xs hover:bg-slate-950 transition-all shadow-md hover:shadow-lg active:scale-95 duration-200 cursor-pointer"
                     >
                       Edit Layout
                     </button>
                   ) : (
                     <button
                       onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                      className={`flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all duration-300 border shadow-sm ${isSidebarOpen
+                      className={`flex items-center gap-2 px-4.5 py-2.5 rounded-xl transition-all duration-300 border shadow-sm cursor-pointer ${isSidebarOpen
                         ? 'bg-slate-900 border-slate-900 text-white shadow-slate-200'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                     >
-                      <Sliders className={`w-4 h-4 ${isSidebarOpen ? 'text-slate-300' : 'text-slate-500'}`} />
-                      <span className="text-[13px] font-bold tracking-tight whitespace-nowrap">
-                        {isSidebarOpen ? 'Hide Panel' : 'Fields'}
+                      <Sliders className={`w-3.5 h-3.5 ${isSidebarOpen ? 'text-slate-350' : 'text-slate-500'}`} />
+                      <span className="text-xs font-black uppercase tracking-wider whitespace-nowrap">
+                        {isSidebarOpen ? 'Hide Panel' : 'Add Fields'}
                       </span>
                     </button>
                   )}
                   {isDuplicating && selectedFields.length > 0 && (
                     <button
                       onClick={removeSelectedFields}
-                      className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600 transition shadow-lg shadow-rose-200"
+                      className="flex items-center gap-1.5 px-4.5 py-2.5 bg-rose-500 text-white rounded-xl text-xs font-black hover:bg-rose-600 transition shadow-md shadow-rose-250 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Delete ({selectedFields.length})</span>
@@ -1236,7 +1520,7 @@ export default function TaskBuilderPage() {
                 </div>
               </div>
 
-                        <div className="space-y-8">
+              <div className="space-y-8">
                 {/* SECTION 1 */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
@@ -1313,10 +1597,10 @@ export default function TaskBuilderPage() {
                     Configure specialized functionality for this sheet.
                   </p>
 
-                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl">
+                  <div className="flex items-center justify-between p-4.5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800">Allow File Upload / Screenshots</h4>
-                      <p className="text-xs text-slate-400 font-semibold mt-0.5">Allow employees to upload screenshots and files when updating status of this sheet.</p>
+                      <h4 className="text-sm font-black text-slate-800">Allow File Uploads & Screenshots</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">Allow employees to upload screenshots and files when updating status of this sheet.</p>
                     </div>
                     <label className="toggle-switch">
                       <input
@@ -1356,7 +1640,7 @@ export default function TaskBuilderPage() {
                     <button
                       type="button"
                       onClick={handleAddRolePermission}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg shadow-indigo-100/50 h-[38px] shrink-0"
+                      className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow-md h-[38px] shrink-0 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add Role</span>
@@ -1364,10 +1648,10 @@ export default function TaskBuilderPage() {
                   </div>
 
                   {sheetPermissions.length > 0 ? (
-                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-sm">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-100">
+                          <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-150">
                             <th className="px-6 py-4">Role</th>
                             <th className="px-6 py-4 text-center">Read</th>
                             <th className="px-6 py-4 text-center">Write</th>
@@ -1375,12 +1659,12 @@ export default function TaskBuilderPage() {
                             <th className="px-6 py-4 text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50 text-slate-700 text-sm">
+                        <tbody className="divide-y divide-slate-100 text-slate-700 text-xs">
                           {sheetPermissions.map((perm, index) => {
                             const role = availableRoles.find(r => r.id === Number(perm.role_id));
                             return (
                               <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
-                                <td className="px-6 py-4 font-semibold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
+                                <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
                                 <td className="px-6 py-4 text-center">
                                   <input
                                     type="checkbox"
@@ -1423,7 +1707,7 @@ export default function TaskBuilderPage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="p-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
                       <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
                     </div>
                   )}
@@ -1431,12 +1715,14 @@ export default function TaskBuilderPage() {
               </div>
 
               {formSchema.length === 0 && (
-                <div className="p-12 text-center bg-white rounded-xl border border-dashed border-slate-200">
-                  <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <Plus className="w-6 h-6 text-slate-300" />
+                <div className="p-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 max-w-xl mx-auto shadow-sm space-y-4">
+                  <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <Plus className="w-8 h-8" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-800">Start Building</h3>
-                  <p className="text-xs text-slate-400 mt-1">Add fields from the panel to get started.</p>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">Start Building Your Sheet</h3>
+                    <p className="text-xs font-semibold text-slate-400 max-w-xs mx-auto leading-relaxed">Your canvas is empty. Select fields from the side panel or templates to begin crafting your layout.</p>
+                  </div>
                 </div>
               )}
 
@@ -1445,9 +1731,9 @@ export default function TaskBuilderPage() {
                   <button 
                     onClick={submitForm} 
                     disabled={saving} 
-                    className="px-6 py-3.5 text-sm font-black bg-[#1F5C99] text-white rounded-2xl hover:bg-[#154675] disabled:opacity-60 transition-all flex items-center justify-center min-w-[160px] shadow-xl shadow-blue-900/10 active:scale-95 duration-200"
+                    className="px-6 py-3.5 text-sm font-black bg-[#1F5C99] text-white rounded-2xl hover:bg-[#154675] disabled:opacity-60 transition-all flex items-center justify-center min-w-[160px] shadow-xl shadow-blue-900/10 active:scale-95 duration-200 cursor-pointer"
                   >
-                    {saving ? 'Saving...' : (location.state?.isEditing ? 'Update Sheet Layout' : 'Save Sheet')}
+                    {saving ? 'Saving...' : (location.state?.isEditing ? 'Update Sheet Layout' : 'Save Sheet Layout')}
                   </button>
                 </div>
               )}
@@ -1458,10 +1744,10 @@ export default function TaskBuilderPage() {
               <aside className={`flex flex-col sidebar-container transition-all duration-300 ${isSidebarOpen ? 'w-52 lg:w-64 fixed lg:relative top-[65px] lg:top-0 bottom-0 right-0 z-50 lg:z-0 bg-white/40 lg:bg-transparent backdrop-blur-xl lg:backdrop-blur-none shadow-2xl lg:shadow-none' : 'w-0 lg:w-16 overflow-hidden lg:overflow-visible'}`}>
                 <div className={`sidebar-card h-full transition-colors duration-300 ${!isSidebarOpen ? 'bg-slate-100 border-slate-200 shadow-none' : ''}`}>
                   {/* Sidebar Header with Toggle */}
-                  <div className={`flex items-center border-b border-slate-200/60 py-5 lg:py-2 px-5 lg:px-3 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+                  <div className={`flex items-center border-b border-slate-200/60 py-5 lg:py-2.5 px-5 lg:px-3 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
                     {isSidebarOpen && (
                       <div className="flex items-center justify-between w-full lg:w-auto gap-2">
-                        <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Fields</h3>
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Fields Panel</h3>
                         <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 transition">
                           <X className="w-5 h-5" />
                         </button>
@@ -1475,31 +1761,171 @@ export default function TaskBuilderPage() {
                       {isSidebarOpen ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                     </button>
                   </div>
+                  
                   {/* Field list */}
-                  <div ref={sidebarRef} id="fieldsList" className={`p-5 lg:p-3 ${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : 'space-y-2'}`}>
-                    {FIELD_TYPES.map(type => (
-                      <div
-                        key={type.id}
-                        className={`field-btn animate-slide-in ${!isSidebarOpen ? '!p-0 !m-0 !bg-transparent !border-none flex justify-center w-full shadow-none hover:shadow-none transition-transform hover:scale-110 active:scale-95' : ''}`}
-                        data-type={type.id}
-                        onClick={() => addField(type)}
-                        title={!isSidebarOpen ? type.name : ''}
-                      >
-                        <div className={`field-btn-icon ${!isSidebarOpen ? '!w-10 !h-10 bg-white shadow-md border border-slate-200/50 rounded-xl' : ''}`} style={{ color: type.color }}>
-                          {React.createElement(IconMap[type.icon], { size: !isSidebarOpen ? 20 : 14 })}
+                  <div ref={sidebarRef} id="fieldsList" className={`p-4 ${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : 'space-y-4'}`}>
+                    {isSidebarOpen ? (
+                      // Categorized rendering
+                      [
+                        {
+                          name: "Inputs & Text Fields",
+                          fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink']
+                        },
+                        {
+                          name: "Choices & Calendar",
+                          fields: ['dropdown', 'checkbox', 'labels', 'date', 'time']
+                        },
+                        {
+                          name: "Status & Progress",
+                          fields: ['progress_auto', 'progress_manual']
+                        }
+                      ].map((grp) => (
+                        <div key={grp.name} className="space-y-2">
+                          <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
+                            {grp.name}
+                          </div>
+                          {grp.fields.map(fieldId => {
+                            const type = FIELD_TYPES.find(f => f.id === fieldId);
+                            if (!type) return null;
+                            return (
+                              <div
+                                key={type.id}
+                                className="field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border border-slate-100 bg-slate-50/50 cursor-grab hover:bg-white hover:border-slate-200 hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left"
+                                data-type={type.id}
+                                onClick={() => addField(type)}
+                              >
+                                <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
+                                  {React.createElement(IconMap[type.icon], { size: 14 })}
+                                </div>
+                                <span className="text-xs font-black text-slate-700">{type.name}</span>
+                                <Plus className="w-3.5 h-3.5 text-slate-350 ml-auto shrink-0" />
+                              </div>
+                            );
+                          })}
                         </div>
-                        {isSidebarOpen && (
-                          <>
-                            <span className="field-btn-text">{type.name}</span>
-                            <Plus className="w-3 h-3 text-slate-300 ml-auto" />
-                          </>
-                        )}
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      // Collapsed icon list
+                      FIELD_TYPES.map(type => (
+                        <div
+                          key={type.id}
+                          className="animate-slide-in flex justify-center w-full transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                          data-type={type.id}
+                          onClick={() => addField(type)}
+                          title={type.name}
+                        >
+                          <div className="w-10 h-10 bg-white shadow-md border border-slate-100 rounded-xl flex items-center justify-center" style={{ color: type.color }}>
+                            {React.createElement(IconMap[type.icon], { size: 18 })}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </aside>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Initial Landing Screen */}
+      {viewMode === 'initial' && (
+        <div className="w-full flex-1 flex flex-col justify-center items-center py-10 px-4 md:px-8 relative overflow-hidden">
+          {/* Immersive background elements */}
+          <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-50/40 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-50/20 rounded-full blur-3xl pointer-events-none translate-x-1/2 translate-y-1/2"></div>
+
+          <div className="max-w-5xl w-full text-center space-y-12 relative z-10 animate-fade-in">
+            {/* Hero Header */}
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-black tracking-widest uppercase shadow-sm">
+                <Sparkles size={12} className="text-indigo-500 animate-pulse" />
+                Sheet Designer Workspace
+              </div>
+              <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-900 uppercase">
+                Task Sheet <span className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-[#1F5C99] bg-clip-text text-transparent">Architect</span>
+              </h1>
+              <p className="max-w-2xl mx-auto text-sm md:text-base font-semibold text-slate-500 leading-relaxed">
+                Design bespoke client sheet matrices, statutory audits, and routine GST returns. Build custom columns, configure dynamic staff roles, and dispatch workflows instantly.
+              </p>
+            </div>
+
+            {/* Template Selection Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  id: 'blank',
+                  title: 'Blank Canvas',
+                  desc: 'Start from absolute scratch. Create specialized dynamic parameters as needed.',
+                  icon: Layout,
+                  color: 'from-slate-700 to-slate-800',
+                  iconColor: 'text-slate-600',
+                  iconBg: 'bg-slate-100',
+                  badge: 'Standard'
+                },
+                {
+                  id: 'gst',
+                  title: 'GST Return Filing',
+                  desc: 'Manage GSTR-1 & GSTR-3B compliance checklists, GSTIN records, and ledger tracking.',
+                  icon: CheckSquare,
+                  color: 'from-[#1F5C99] to-[#154673]',
+                  iconColor: 'text-[#1F5C99]',
+                  iconBg: 'bg-blue-50',
+                  badge: 'Tax Compliance'
+                },
+                {
+                  id: 'itr',
+                  title: 'ITR Audit filing',
+                  desc: 'Preloaded for income tax filings, Assessment Years, acknowledgement receipts, and challans.',
+                  icon: FileText,
+                  color: 'from-amber-600 to-amber-700',
+                  iconColor: 'text-amber-600',
+                  iconBg: 'bg-amber-50',
+                  badge: 'Direct Tax'
+                },
+                {
+                  id: 'audit',
+                  title: 'Statutory Audit',
+                  desc: 'Structured checklist for company legal audits, CARO reviews, and representation logs.',
+                  icon: SlidersHorizontal,
+                  color: 'from-emerald-600 to-emerald-700',
+                  iconColor: 'text-emerald-600',
+                  iconBg: 'bg-emerald-50',
+                  badge: 'Audit Control'
+                }
+              ].map((tpl) => (
+                <div 
+                  key={tpl.id}
+                  onClick={() => handleSelectTemplate(tpl.id)}
+                  className="bg-white rounded-3xl border border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-xl p-6.5 text-left flex flex-col justify-between min-h-[300px] cursor-pointer transition-all duration-300 hover:-translate-y-1.5 group animate-in fade-in zoom-in-95"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-12 h-12 rounded-2xl ${tpl.iconBg} flex items-center justify-center`}>
+                        <tpl.icon size={22} className={tpl.iconColor} />
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-slate-50 border border-slate-100 text-slate-400 rounded-full">
+                        {tpl.badge}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-base font-black text-slate-800 uppercase tracking-tight group-hover:text-[#1F5C99] transition">
+                        {tpl.title}
+                      </h3>
+                      <p className="text-xs font-semibold text-slate-400 leading-relaxed">
+                        {tpl.desc}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t border-slate-50 mt-auto flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-widest text-[#1F5C99] group-hover:translate-x-1.5 transition-transform duration-300 flex items-center gap-1">
+                      Start Building <ChevronRight size={14} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -2212,76 +2638,82 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
 
   return (
     <div
-      className={`form-card animate-slide-in ${isActive ? 'active' : ''} ${
+      className={`relative rounded-3xl border p-5 transition-all duration-300 animate-slide-in flex flex-col gap-3 group/card select-none cursor-pointer ${
+        isActive 
+          ? 'bg-white border-indigo-500/60 shadow-lg shadow-indigo-500/5 ring-4 ring-indigo-500/5 -translate-y-0.5' 
+          : 'bg-slate-50/40 hover:bg-white border-slate-100 hover:border-slate-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5'
+      } ${
         field.type === 'subtasks_list' ? 'md:col-span-2' : ''
       }`}
       onClick={onActive}
     >
-      <div className={`flex items-center gap-2 ${!isLive ? 'pr-6' : ''}`}>
+      <div className={`flex items-center justify-between gap-2 ${!isLive ? 'pr-2' : ''}`}>
         {/* Drag handle */}
-        {!isLive && (
-          <div className="flex items-center gap-2 shrink-0">
-            {isDuplicating && (
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
-                className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-              />
-            )}
-            <div className="drag-handle">
-              <GripVertical className="w-4 h-4 text-slate-300" />
-            </div>
-          </div>
-        )}
-
-        {/* Label + placeholder */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 w-fit max-w-full">
-            {isLive || field.static ? (
-              <span className={`text-sm font-semibold whitespace-nowrap ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
-                {field.label}
-              </span>
-            ) : (
-              <input
-                type="text"
-                value={field.label}
-                onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
-                onChange={(e) => onUpdate('label', e.target.value)}
-                className="input-label !w-auto min-w-[50px]"
-                placeholder="Field Label"
-                size={Math.max(field.label.length || 0, 10)}
-              />
-            )}
-            {field.required && <span className="required-star shrink-0" title="Required">*</span>}
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
           {!isLive && (
-            field.static ? (
-              <span className="text-[11px] text-slate-400 italic">{field.placeholder} (System Field)</span>
-            ) : (
-              <input
-                type="text"
-                value={field.placeholder}
-                onFocus={() => { if (!field.placeholderTouched) { onUpdate('placeholder', ''); onUpdate('placeholderTouched', true); } }}
-                onChange={(e) => onUpdate('placeholder', e.target.value)}
-                className="input-placeholder"
-                placeholder="Custom Placeholder..."
-              />
-            )
+            <>
+              {isDuplicating && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => { e.stopPropagation(); onToggleSelect(); }}
+                  className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+              )}
+              <div className="drag-handle p-1 text-slate-300 hover:text-indigo-650 rounded hover:bg-slate-100/60 transition cursor-grab">
+                <GripVertical className="w-4 h-4" />
+              </div>
+            </>
           )}
-          {field.error && (
-            <p className="text-[11px] text-rose-500 font-bold mt-1 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> {field.error}
-            </p>
-          )}
+
+          {/* Label + placeholder */}
+          <div className="min-w-0 flex flex-col">
+            <div className="flex items-center gap-1">
+              {isLive || field.static ? (
+                <span className={`text-[10px] font-black uppercase tracking-wider ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
+                  {field.label}
+                </span>
+              ) : (
+                <input
+                  type="text"
+                  value={field.label}
+                  onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
+                  onChange={(e) => onUpdate('label', e.target.value)}
+                  className="text-[10px] font-black uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500/60 outline-none text-slate-800 focus:bg-white px-1.5 py-0.5 rounded transition w-full"
+                  placeholder="Field Label"
+                  size={Math.max(field.label.length || 0, 10)}
+                />
+              )}
+              {field.required && <span className="text-rose-500 font-bold shrink-0" title="Required">*</span>}
+            </div>
+            {!isLive && (
+              field.static ? (
+                <span className="text-[9px] font-bold text-slate-400 italic mt-0.5">{field.placeholder} (System)</span>
+              ) : (
+                <input
+                  type="text"
+                  value={field.placeholder}
+                  onFocus={() => { if (!field.placeholderTouched) { onUpdate('placeholder', ''); onUpdate('placeholderTouched', true); } }}
+                  onChange={(e) => onUpdate('placeholder', e.target.value)}
+                  className="text-[9px] font-medium text-slate-400 italic bg-transparent border-b border-transparent focus:border-indigo-500/40 outline-none focus:bg-white px-1.5 py-0.5 rounded transition w-full mt-0.5"
+                  placeholder="Custom Placeholder..."
+                />
+              )
+            )}
+            {field.error && (
+              <p className="text-[10px] text-rose-500 font-bold mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> {field.error}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Actions */}
         {!isLive ? (
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-full" onClick={(e) => e.stopPropagation()}>
-              <span className="text-[9px] font-bold text-slate-400 uppercase">Req</span>
-              <label className={`toggle-switch ${field.id === 'static_form_name' || field.id === 'static_work_type' ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <div className="flex items-center gap-1.5 bg-slate-100/60 px-2 py-0.5 rounded-full" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 scale-90">Required</span>
+              <label className={`toggle-switch scale-75 ${field.id === 'static_form_name' || field.id === 'static_work_type' ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <input
                   type="checkbox"
                   checked={field.required}
@@ -2291,15 +2723,21 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                 <span className="slider"></span>
               </label>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {!field.static && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onRemove(); }} 
+                className="p-1.5 text-slate-355 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                title="Delete field"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         ) : null}
       </div>
 
       {/* Field input */}
-      <div className="field-preview-area relative group/input">
+      <div className="field-preview-area relative group/input mt-1">
         <FieldInput
           field={field}
           onUpdate={onUpdate}
@@ -2310,10 +2748,10 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         {field.value && field.type !== 'dropdown' && field.type !== 'subtasks_list' && (
           <button
             onClick={handleCopy}
-            className="absolute right-3 top-3 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-650 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10 opacity-0 group-hover/input:opacity-100"
             title="Copy field content"
           >
-            <Copy size={14} />
+            <Copy size={13} />
           </button>
         )}
       </div>
