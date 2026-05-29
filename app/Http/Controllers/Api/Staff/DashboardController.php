@@ -96,6 +96,8 @@ class DashboardController extends Controller
                 });
             })
             ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->work_type_id, fn($q) => $q->where('work_type_id', $request->work_type_id))
+            ->when($request->allocated_to, fn($q) => $q->where('allocated_to', $request->allocated_to))
             ->latest()
             ->paginate($request->get('per_page', 10));
 

@@ -20,9 +20,13 @@ class DashboardController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $workTypeId = $request->query('work_type_id');
+        $allocatedTo = $request->query('allocated_to') ?: $request->query('staff_id');
         $query = Task::query();
         if ($workTypeId) {
             $query->where('work_type_id', $workTypeId);
+        }
+        if ($allocatedTo) {
+            $query->where('allocated_to', $allocatedTo);
         }
 
         return response()->json([
@@ -61,6 +65,8 @@ class DashboardController extends Controller
                     ->orWhereHas('workType', fn($wq) => $wq->where('name', 'like', "%{$request->search}%"));
             })
             ->when($request->status, fn($q) => $q->where('status', $request->status))
+            ->when($request->work_type_id, fn($q) => $q->where('work_type_id', $request->work_type_id))
+            ->when($request->allocated_to, fn($q) => $q->where('allocated_to', $request->allocated_to))
             ->latest()
             ->paginate($request->get('per_page', 10));
 

@@ -40,7 +40,7 @@ export default function TasksPage() {
 
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('')
-    const [staffId, setStaffId] = useState('')
+    const [staffId, setStaffId] = useState(() => new URLSearchParams(location.search).get('staff_id') || '')
     const [clientId, setClientId] = useState('')
     const [workTypeId, setWorkTypeId] = useState(() => new URLSearchParams(location.search).get('work_type_id') || '')
     const [page, setPage] = useState(1)
@@ -52,7 +52,10 @@ export default function TasksPage() {
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
     const [duplicateOpen, setDuplicateOpen] = useState(false)
-    const [currentFolder, setCurrentFolder] = useState(() => new URLSearchParams(location.search).get('work_type_id') || null)
+    const [currentFolder, setCurrentFolder] = useState(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get('work_type_id') || (params.get('staff_id') ? 'all' : null);
+    })
     const [dynamicFilters, setDynamicFilters] = useState({})
     const [showColumnFilters, setShowColumnFilters] = useState(true)
     const [customColumnOrder, setCustomColumnOrder] = useState(null)
@@ -180,7 +183,7 @@ export default function TasksPage() {
         setSummaryLoading(true)
         try {
             const res = await api.get('/ca/dashboard/summary', {
-                params: { work_type_id: workTypeId }
+                params: { work_type_id: workTypeId, allocated_to: staffId }
             })
             setSummary(res.data)
         } catch (e) {
@@ -188,24 +191,24 @@ export default function TasksPage() {
         } finally {
             setSummaryLoading(false)
         }
-    }, [workTypeId])
+    }, [workTypeId, staffId])
 
     useEffect(() => {
         if (currentFolder) {
             fetchSummary()
         }
-    }, [currentFolder, workTypeId, fetchSummary])
+    }, [currentFolder, workTypeId, staffId, fetchSummary])
 
     useEffect(() => {
         const params = new URLSearchParams(location.search)
         const sId = params.get('staff_id')
         const wId = params.get('work_type_id')
         
-        if (sId) setStaffId(sId)
+        setStaffId(sId || '')
         
         // Sync states if URL changes (e.g. clicking different quick links)
         setWorkTypeId(wId || '')
-        setCurrentFolder(wId || null)
+        setCurrentFolder(wId || (sId ? 'all' : null))
         setDynamicFilters({})
         
         // Reset sorting states to return to current view's default unsorted order

@@ -26,7 +26,7 @@ const getSubStatusOptions = (task) => {
     if (!task || !task.dynamic_fields) return DEFAULT_SUB_STATUSES;
     let fields = task.dynamic_fields;
     if (typeof fields === 'string') {
-        try { fields = JSON.parse(fields); } catch(e) {}
+        try { fields = JSON.parse(fields); } catch (e) { }
     }
     const schema = fields?.schema;
     if (Array.isArray(schema)) {
@@ -69,11 +69,11 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, subColo
     }
 
     return (
-        <div 
+        <div
             onClick={onClick}
             className={`rounded-2xl p-4.5 transition-all duration-300 flex flex-col gap-3.5 cursor-pointer select-none border
-                ${active 
-                    ? `${activeClass} -translate-y-0.5` 
+                ${active
+                    ? `${activeClass} -translate-y-0.5`
                     : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
         >
             <div className="flex items-center justify-between gap-2">
@@ -153,12 +153,11 @@ function SheetSubtaskPills({ subTasks = [], expandedFilter, onPillClick }) {
 
 function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
     const navigate = useNavigate()
-    const [selectedWorkType, setSelectedWorkType] = useState('')
+    const [allSheets, setAllSheets] = useState([])
+    const [selectedSheetId, setSelectedSheetId] = useState('')
     const [sheets, setSheets] = useState([])
-    const [sheetsMeta, setSheetsMeta] = useState(null)
     const [globalSummary, setGlobalSummary] = useState(null)
     const [loading, setLoading] = useState(false)
-    const [page, setPage] = useState(1)
     const [editingSubTaskId, setEditingSubTaskId] = useState(null)
 
     // Filters and states
@@ -166,39 +165,180 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
     const [expandedTaskId, setExpandedTaskId] = useState(null)
     const [expandedFilter, setExpandedFilter] = useState('') // 'all' | 'completed' | 'in_progress' | 'remaining'
 
-    const fetchSheets = useCallback(async () => {
-        if (!selectedWorkType) return
+    useEffect(() => {
+        const fetchAllSheetsList = async () => {
+            try {
+                const res = await api.get('/ca/tasks', { params: { per_page: 'all' } })
+                setAllSheets(res.data.data || [])
+            } catch (e) {
+                console.error('Failed to fetch all sheets', e)
+            }
+        }
+        fetchAllSheetsList()
+    }, [])
+
+    const fetchSingleSheetDetails = useCallback(async (sheetId) => {
+        if (!sheetId) {
+            setSheets([])
+            setGlobalSummary(null)
+            setExpandedTaskId(null)
+            setExpandedFilter('')
+            return
+        }
         setLoading(true)
         try {
-            const res = await api.get('/ca/dashboard/work-type-subtasks', {
-                params: { work_type_id: selectedWorkType, page, per_page: 10 }
+            const res = await api.get(`/ca/tasks/${sheetId}`)
+            const task = res.data.data
+            setSheets([task])
+            
+            // Auto expand the loaded sheet
+            setExpandedTaskId(task.id)
+            setExpandedFilter('all')
+
+            // Calculate global task summary from tasks (subtasks)
+            const subTasks = task.sub_tasks || []
+            setGlobalSummary({
+                total: subTasks.length,
+                pending: subTasks.filter(st => st.status === 'pending').length,
+                work_in_progress: subTasks.filter(st => st.status === 'work_in_progress').length,
+                complete: subTasks.filter(st => st.status === 'complete').length,
+                not_to_be_done: subTasks.filter(st => st.status === 'not_to_be_done').length,
+                other: subTasks.filter(st => st.status === 'other').length,
             })
-            setSheets(res.data.data || [])
-            setSheetsMeta(res.data.meta || null)
-            if (res.data.summary) {
-                setGlobalSummary(res.data.summary)
-            }
+        } catch (e) {
+            toast.error('Failed to fetch sheet details')
         } finally {
             setLoading(false)
         }
-    }, [selectedWorkType, page])
+    }, [])
 
-    useEffect(() => {
-        setPage(1)
-        setExpandedTaskId(null)
-        setExpandedFilter('')
-        setGlobalFilter('')
-        setGlobalSummary(null)
-    }, [selectedWorkType])
+    const exportSummarySheet = async () => {
+        try {
+            const ExcelJS = await import('exceljs')
+            if (sheets.length === 0) {
+                toast.error('No sheet details to export')
+                return
+            }
+            const sheet = sheets[0]
 
-    useEffect(() => {
-        fetchSheets()
-    }, [fetchSheets])
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('Sheet Tasks')
+
+            worksheet.mergeCells('A1:F1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = `Sheet Tasks Report: ${sheet.client?.name || '—'} - ${sheet.form_name || '—'}`
+            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells('A2:F2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            worksheet.addRow([])
+            worksheet.addRow(['Client Name:', sheet.client?.name || '—', 'Form Name:', sheet.form_name || '—'])
+            worksheet.addRow(['Allocated To:', sheet.allocated_to?.name || 'Unassigned', 'Due Date:', formatDate(sheet.due_date)])
+            
+            const styleMetaCell = (cell) => {
+                cell.font = { bold: true, size: 10, color: { argb: 'FF333333' } }
+            }
+            styleMetaCell(worksheet.getCell('A4'))
+            styleMetaCell(worksheet.getCell('C4'))
+            styleMetaCell(worksheet.getCell('A5'))
+            styleMetaCell(worksheet.getCell('C5'))
+
+            worksheet.addRow([])
+
+            const headers = ['Task Title', 'Assigned To', 'Priority', 'Due Date', 'Status', 'Sub Status']
+            worksheet.getRow(7).values = headers
+            const headerRow = worksheet.getRow(7)
+            headerRow.height = 25
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' }
+                }
+                cell.alignment = { vertical: 'middle', horizontal: 'center' }
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            })
+
+            const subTasks = sheet.sub_tasks || []
+            subTasks.forEach((st) => {
+                worksheet.addRow([
+                    st.title,
+                    st.assigned_to?.name || 'Unassigned',
+                    st.priority_label || st.priority,
+                    formatDate(st.due_date),
+                    st.status,
+                    st.sub_status || '—'
+                ])
+            })
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 7) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        }
+                        cell.alignment = { vertical: 'middle' }
+                    })
+                }
+            })
+
+            worksheet.columns.forEach(column => {
+                let maxLength = 0
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 10
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength
+                    }
+                })
+                column.width = maxLength < 12 ? 12 : maxLength + 2
+            })
+
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `sheet_${sheet.id}_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.click()
+            window.URL.revokeObjectURL(url)
+            toast.success('Sheet details exported successfully')
+        } catch (err) {
+            console.error('Export Error:', err)
+            toast.error('Failed to export sheet details')
+        }
+    }
 
     const handleGlobalFilterClick = (filterType) => {
         setGlobalFilter(prev => prev === filterType ? '' : filterType)
-        setExpandedTaskId(null)
-        setExpandedFilter('')
+        setExpandedTaskId(sheets[0]?.id || null)
+        setExpandedFilter(sheets[0]?.id ? (filterType === '' ? 'all' : filterType) : '')
     }
 
     const handlePillClick = (taskId, filterType) => {
@@ -215,7 +355,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
         try {
             const res = await api.patch(`/ca/tasks/${taskId}/sub-tasks/${subTaskId}`, updatedData)
             const updatedSubTask = res.data.data
-            
+
             // Find old subtask for count adjustment before state change
             const targetSheet = sheets.find(s => s.id === taskId)
             const oldSubTask = targetSheet?.sub_tasks?.find(st => st.id === subTaskId)
@@ -223,12 +363,12 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
             // 1. Update subtasks locally in state
             setSheets(prevSheets => prevSheets.map(sheet => {
                 if (sheet.id !== taskId) return sheet
-                
+
                 const updatedSubTasks = sheet.sub_tasks?.map(st => {
                     if (st.id !== subTaskId) return st
                     return { ...st, ...updatedSubTask }
                 }) || []
-                
+
                 return {
                     ...sheet,
                     sub_tasks: updatedSubTasks
@@ -239,32 +379,30 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
             if (globalSummary && oldSubTask && updatedData.status && oldSubTask.status !== updatedData.status) {
                 const oldStatus = oldSubTask.status
                 const newStatus = updatedData.status
-                
+
                 setGlobalSummary(prev => {
                     if (!prev) return prev
                     const next = { ...prev }
-                    
+
                     // Decrement old status count
                     if (oldStatus in next) {
                         next[oldStatus] = Math.max(0, next[oldStatus] - 1)
                     }
-                    
+
                     // Increment new status count
                     if (newStatus in next) {
                         next[newStatus] = (next[newStatus] || 0) + 1
                     }
-                    
+
                     return next
                 })
             }
 
-            toast.success('Subtask updated successfully')
+            toast.success('Task updated successfully')
         } catch (e) {
-            toast.error('Failed to update subtask')
+            toast.error('Failed to update task')
         }
     }
-
-    if (!workTypes.length) return null
 
     // Filter sheets below based on the selected top global card filter
     const displayedSheets = sheets.filter(sheet => {
@@ -275,74 +413,97 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
     return (
         <div className="space-y-6">
-            {/* Title / Work Type Dropdown */}
+            {/* Title / Sheet Dropdown */}
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white shadow-lg">
                     <Activity size={20} />
                 </div>
                 <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-800">Sheet-wise Subtask Summary</h2>
-                        <p className="text-sm text-gray-400">View tasks and click on subtask counts to view detailed subtask sheets</p>
+                        <h2 className="text-xl font-bold text-gray-800">Sheet-wise Task Summary</h2>
+                        <p className="text-sm text-gray-400">View tasks and click on task counts to view detailed task sheets</p>
                     </div>
                     <CustomSelect
-                        value={selectedWorkType}
-                        onChange={e => { setSelectedWorkType(e.target.value); setSheets([]); }}
+                        value={selectedSheetId}
+                        onChange={e => {
+                            const val = e.target.value
+                            setSelectedSheetId(val)
+                            fetchSingleSheetDetails(val)
+                        }}
                         options={[
-                            { value: '', label: 'Select Work Type' },
-                            ...workTypes.map(wt => ({ value: wt.id, label: wt.name }))
+                            { value: '', label: 'Select Sheet' },
+                            ...allSheets.map(sheet => ({
+                                value: sheet.id,
+                                label: `${sheet.client?.name || '—'} - ${sheet.form_name || `Sheet #${sheet.id}`}`
+                            }))
                         ]}
-                        widthClass="w-full sm:w-64"
+                        widthClass="w-full sm:w-80"
                         className="animate-fade-in"
                     />
                 </div>
             </div>
 
+            {/* Placeholder if no sheet selected */}
+            {!selectedSheetId && (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm animate-fade-in">
+                    <p className="text-gray-400 font-medium">Please select a sheet from the dropdown to view its task summary.</p>
+                </div>
+            )}
+
             {/* Global Summary Cards (Previous Feature - Now acts as filter) */}
-            {selectedWorkType && globalSummary && (
+            {selectedSheetId && globalSummary && (
                 <div className="grid grid-cols-6 gap-4 mb-8 animate-fade-in">
-                    <SummaryCard 
-                        icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500" 
-                        label="Global Subtasks" value={globalSummary.total} 
-                        sub="All subtasks of this type"
-                        active={globalFilter === ''} onClick={() => handleGlobalFilterClick('')} 
+                    <SummaryCard
+                        icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500"
+                        label="Global Tasks" value={globalSummary.total}
+                        sub="All tasks of this sheet"
+                        active={globalFilter === ''} onClick={() => handleGlobalFilterClick('')}
                     />
-                    <SummaryCard 
-                        icon={CircleDashed} iconBg="bg-yellow-50" iconColor="text-yellow-500" 
-                        label="Pending" value={globalSummary.pending} 
+                    <SummaryCard
+                        icon={CircleDashed} iconBg="bg-yellow-50" iconColor="text-yellow-500"
+                        label="Pending" value={globalSummary.pending}
                         sub="Waiting to start"
-                        active={globalFilter === 'pending'} onClick={() => handleGlobalFilterClick('pending')} 
+                        active={globalFilter === 'pending'} onClick={() => handleGlobalFilterClick('pending')}
                     />
-                    <SummaryCard 
-                        icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500" 
-                        label="In Progress" value={globalSummary.work_in_progress} 
+                    <SummaryCard
+                        icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500"
+                        label="In Progress" value={globalSummary.work_in_progress}
                         sub="Currently active"
-                        active={globalFilter === 'work_in_progress'} onClick={() => handleGlobalFilterClick('work_in_progress')} 
+                        active={globalFilter === 'work_in_progress'} onClick={() => handleGlobalFilterClick('work_in_progress')}
                     />
-                    <SummaryCard 
-                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500" 
-                        label="Complete" value={globalSummary.complete} 
+                    <SummaryCard
+                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500"
+                        label="Complete" value={globalSummary.complete}
                         sub="Finalized tasks"
-                        active={globalFilter === 'complete'} onClick={() => handleGlobalFilterClick('complete')} 
+                        active={globalFilter === 'complete'} onClick={() => handleGlobalFilterClick('complete')}
                     />
-                    <SummaryCard 
-                        icon={Circle} iconBg="bg-red-50" iconColor="text-red-500" 
-                        label="Not To Be Done" value={globalSummary.not_to_be_done} 
+                    <SummaryCard
+                        icon={Circle} iconBg="bg-red-50" iconColor="text-red-500"
+                        label="Not To Be Done" value={globalSummary.not_to_be_done}
                         sub="Excluded tasks"
-                        active={globalFilter === 'not_to_be_done'} onClick={() => handleGlobalFilterClick('not_to_be_done')} 
+                        active={globalFilter === 'not_to_be_done'} onClick={() => handleGlobalFilterClick('not_to_be_done')}
                     />
-                    <SummaryCard 
-                        icon={SlidersHorizontal} iconBg="bg-slate-50" iconColor="text-slate-500" 
-                        label="Other" value={globalSummary.other} 
+                    <SummaryCard
+                        icon={SlidersHorizontal} iconBg="bg-slate-50" iconColor="text-slate-500"
+                        label="Other" value={globalSummary.other}
                         sub="Other status"
-                        active={globalFilter === 'other'} onClick={() => handleGlobalFilterClick('other')} 
+                        active={globalFilter === 'other'} onClick={() => handleGlobalFilterClick('other')}
                     />
                 </div>
             )}
 
             {/* Sheet-wise detailed list (Current Feature - combined) */}
-            {selectedWorkType && (
+            {selectedSheetId && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in">
+                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+                        <h3 className="text-sm font-bold text-gray-800">Sheet Details</h3>
+                        <button
+                            onClick={exportSummarySheet}
+                            className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
+                        >
+                            <Download size={15} /> Export Sheet
+                        </button>
+                    </div>
                     <div className="overflow-x-auto">
                         {loading ? <Spinner /> : (
                             <table className="w-full text-sm">
@@ -353,7 +514,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                         <th className="px-6 py-3.5 text-left">Sheet/Task Form</th>
                                         <th className="px-6 py-3.5 text-left">Allocated To</th>
                                         <th className="px-6 py-3.5 text-left">Due Date</th>
-                                        <th className="px-6 py-3.5 text-left">Subtasks Summary (Click to expand)</th>
+                                        <th className="px-6 py-3.5 text-left">Tasks Summary (Click to expand)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -371,13 +532,13 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                             if (expandedFilter === 'other') return st.status === 'other'
                                             return false
                                         })
- 
+
                                         return (
                                             <>
                                                 <tr key={sheet.id} className={`hover:bg-gray-50/80 transition ${isExpanded ? 'bg-blue-50/10' : ''}`}>
                                                     <td className="px-6 py-4 text-center">
-                                                        <button 
-                                                            onClick={() => handlePillClick(sheet.id, isExpanded ? expandedFilter : 'all')} 
+                                                        <button
+                                                            onClick={() => handlePillClick(sheet.id, isExpanded ? expandedFilter : 'all')}
                                                             className="text-gray-400 hover:text-blue-500 transition"
                                                         >
                                                             {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -387,29 +548,29 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                     <td className="px-6 py-4 text-gray-700 font-medium">
                                                         <div className="flex items-center gap-2">
                                                             <span>{sheet.form_name || '—'}</span>
-                                                            <button 
+                                                            <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation()
                                                                     navigate(`/ca/tasks/${sheet.id}`)
                                                                 }}
                                                                 className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
                                                                 title="View Details"
-                                                                >
+                                                            >
                                                                 <Eye size={15} />
                                                             </button>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-600">{sheet.allocated_to?.name ?? 'Unassigned'}</td>
-                                                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sheet.due_date)}</td>
+                                                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sheet.due_date)}</td>
                                                     <td className="px-6 py-4">
-                                                        <SheetSubtaskPills 
-                                                            subTasks={sheetSubtasks} 
+                                                        <SheetSubtaskPills
+                                                            subTasks={sheetSubtasks}
                                                             expandedFilter={isExpanded ? expandedFilter : null}
                                                             onPillClick={(filter) => handlePillClick(sheet.id, filter)}
                                                         />
                                                     </td>
                                                 </tr>
- 
+
                                                 {/* Expanded Subtask Details */}
                                                 {isExpanded && (
                                                     <tr className="bg-gray-50/50">
@@ -417,28 +578,28 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                             <div className="px-8 py-5 space-y-4">
                                                                 <div className="flex items-center justify-between">
                                                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                                                        Detailed Subtasks ({expandedFilter} status):
+                                                                        Detailed Tasks ({expandedFilter} status):
                                                                     </h4>
                                                                     <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">
-                                                                        {filteredSubtasks.length} subtasks
+                                                                        {filteredSubtasks.length} tasks
                                                                     </span>
                                                                 </div>
- 
+
                                                                 {filteredSubtasks.length === 0 ? (
                                                                     <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-gray-100">
-                                                                        No subtasks match this status filter.
+                                                                        No tasks match this status filter.
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="overflow-hidden bg-white border border-gray-100 rounded-xl shadow-sm">
+                                                                    <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-visible">
                                                                         <table className="w-full text-xs">
                                                                             <thead>
                                                                                 <tr className="bg-[#1F5C99] text-white font-bold uppercase text-[10px] tracking-wider border-b border-[#154673]">
-                                                                                    <th className="px-4 py-2.5 text-left min-w-[200px]">Subtask Title</th>
+                                                                                    <th className="px-4 py-2.5 text-left min-w-[200px] rounded-tl-xl">Task Title</th>
                                                                                     <th className="px-4 py-2.5 text-left">Assigned To</th>
                                                                                     <th className="px-4 py-2.5 text-left">Priority</th>
                                                                                     <th className="px-4 py-2.5 text-left">Due Date</th>
                                                                                     <th className="px-4 py-2.5 text-left">Status</th>
-                                                                                    <th className="px-4 py-2.5 text-left">Sub Status</th>
+                                                                                    <th className="px-4 py-2.5 text-left rounded-tr-xl">Sub Status</th>
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody className="divide-y divide-gray-50 bg-white">
@@ -451,9 +612,9 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                         {/* Read-only Priority Badge */}
                                                                                         <td className="px-4 py-3">
                                                                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border
-                                                                                                ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' : 
-                                                                                                  st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' : 
-                                                                                                  'bg-green-50 text-green-700 border-green-100'}
+                                                                                                ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                                                                    st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                                                                                                        'bg-green-50 text-green-700 border-green-100'}
                                                                                             `}>
                                                                                                 {st.priority_label}
                                                                                             </span>
@@ -481,7 +642,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                                     <option value="other">Other</option>
                                                                                                 </select>
                                                                                             ) : (
-                                                                                                <div 
+                                                                                                <div
                                                                                                     onClick={() => setEditingSubTaskId(st.id)}
                                                                                                     className="cursor-pointer hover:opacity-80 transition inline-block animate-fade-in"
                                                                                                 >
@@ -513,27 +674,6 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                             </table>
                         )}
                     </div>
-
-                    {/* Pagination */}
-                    {sheetsMeta && sheetsMeta.last_page > 1 && (
-                        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white">
-                            <p className="text-xs text-gray-400">
-                                Showing {sheetsMeta.from}–{sheetsMeta.to} of {sheetsMeta.total} sheets
-                            </p>
-                            <div className="flex gap-2">
-                                <button
-                                    disabled={page === 1}
-                                    onClick={() => setPage(p => p - 1)}
-                                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                                >Previous</button>
-                                <button
-                                    disabled={page === sheetsMeta.last_page}
-                                    onClick={() => setPage(p => p + 1)}
-                                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
-                                >Next</button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
         </div>
@@ -604,22 +744,22 @@ function CalendarView() {
             const url = isStaff ? `/staff/sub-tasks/${subTaskId}/status` : `/ca/tasks/${taskId}/sub-tasks/${subTaskId}`
             const res = await api.patch(url, updatedData)
             const updatedSubTask = res.data.data
-            
+
             // Update the subtask locally inside calendar tasks state
             setTasks(prevTasks => prevTasks.map(t => {
                 if (t.id !== taskId) return t
-                
+
                 const updatedSubTasks = t.sub_tasks?.map(st => {
                     if (st.id !== subTaskId) return st
                     return { ...st, ...updatedSubTask }
                 }) || []
-                
+
                 return {
                     ...t,
                     sub_tasks: updatedSubTasks
                 }
             }))
-            
+
             toast.success('Subtask updated successfully')
         } catch (e) {
             toast.error('Failed to update subtask')
@@ -628,14 +768,14 @@ function CalendarView() {
 
     const handleDateClick = (date) => {
         if (!date) return
-        
+
         if (!rangeStart || (rangeStart && rangeEnd)) {
             setRangeStart(date)
             setRangeEnd(null)
         } else {
             const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
             const clickedTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
-            
+
             if (clickedTime < startTime) {
                 setRangeStart(date)
                 setRangeEnd(null)
@@ -648,19 +788,19 @@ function CalendarView() {
     const getTasksForDate = (date) => {
         if (!date) return []
         const dateStr = getLocalDateString(date)
-        return tasks.filter(t => 
-            (t.due_date === dateStr && t.status !== 'complete') || 
+        return tasks.filter(t =>
+            (t.due_date === dateStr && t.status !== 'complete') ||
             t.sub_tasks?.some(st => st.due_date === dateStr && st.status !== 'complete')
         )
     }
 
     const getTasksForDateRange = (start, end) => {
         if (!start) return []
-        
+
         if (!end) {
             const startStr = getLocalDateString(start)
-            return tasks.filter(t => 
-                (t.due_date === startStr && t.status !== 'complete') || 
+            return tasks.filter(t =>
+                (t.due_date === startStr && t.status !== 'complete') ||
                 t.sub_tasks?.some(st => st.due_date === startStr && st.status !== 'complete')
             )
         }
@@ -671,7 +811,7 @@ function CalendarView() {
         return tasks.filter(t => {
             const tDate = parseLocalDate(t.due_date)
             const tTime = tDate ? tDate.getTime() : null
-            
+
             const hasDueSheetInRange = tTime && tTime >= startTime && tTime <= endTime && t.status !== 'complete'
             const hasDueSubTaskInRange = t.sub_tasks?.some(st => {
                 const stDate = parseLocalDate(st.due_date)
@@ -685,42 +825,173 @@ function CalendarView() {
 
     const selectedTasks = rangeStart ? getTasksForDateRange(rangeStart, rangeEnd) : []
 
+    const exportCalendarTasks = async () => {
+        try {
+            const ExcelJS = await import('exceljs')
+            if (selectedTasks.length === 0) {
+                toast.error('No tasks found to export')
+                return
+            }
+
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('Calendar Tasks')
+
+            worksheet.mergeCells('A1:G1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = rangeEnd 
+                ? `Due Tasks (${formatDate(rangeStart)} to ${formatDate(rangeEnd)})`
+                : `Due Tasks (${formatDate(rangeStart)})`
+            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells('A2:G2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            const headers = ['Client', 'Sheet/Task Form', 'Work Type', 'Allocated To', 'Due Date', 'Status', 'Tasks Summary / Details']
+            worksheet.getRow(4).values = headers
+            const headerRow = worksheet.getRow(4)
+            headerRow.height = 25
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' }
+                }
+                cell.alignment = { vertical: 'middle', horizontal: 'center' }
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            })
+
+            selectedTasks.forEach((t) => {
+                const subtasksSummaryText = t.sub_tasks && t.sub_tasks.length > 0
+                    ? t.sub_tasks.map(st => `• [${st.status}] ${st.title} (${st.assigned_to?.name || 'Unassigned'})`).join('\n')
+                    : 'No Subtasks'
+
+                worksheet.addRow([
+                    t.client?.name || '—',
+                    t.form_name || '—',
+                    t.work_type?.name || '—',
+                    t.allocated_to?.name ?? 'Unassigned',
+                    formatDate(t.due_date),
+                    t.status_label || t.status,
+                    subtasksSummaryText
+                ])
+            })
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 4) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        }
+                        cell.alignment = { vertical: 'middle', wrapText: true }
+                    })
+                }
+            })
+
+            worksheet.columns.forEach(column => {
+                let maxLength = 0
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 10
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength
+                    }
+                })
+                column.width = maxLength < 10 ? 10 : (maxLength > 60 ? 60 : maxLength + 2)
+            })
+
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `calendar_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.click()
+            window.URL.revokeObjectURL(url)
+            toast.success('Calendar tasks exported successfully')
+        } catch (err) {
+            console.error('Export Error:', err)
+            toast.error('Failed to export tasks')
+        }
+    }
+
     return (
         <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold text-gray-800">
-                        {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </h2>
-                    <div className="flex gap-2">
-                        <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-xl transition">
-                            <ChevronLeft size={20} className="text-gray-600" />
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-150 p-6 animate-fade-in">
+                {/* Header section with Month navigation */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 bg-gradient-to-r from-slate-55 via-slate-50/60 to-indigo-50/20 p-5 rounded-3xl border border-slate-200/80 shadow-sm">
+                    <div className="flex items-center gap-3.5">
+                        <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1F5C99] to-[#154673] text-white shadow-md shadow-blue-500/20 border border-[#154673]">
+                            <CalendarDays size={22} />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                                {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                            </h2>
+                            <p className="text-xs text-slate-500 font-bold mt-0.5">Select a date range to filter and manage due tasks</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 self-stretch sm:self-auto justify-end">
+                        <button
+                            onClick={() => setCurrentDate(new Date())}
+                            className="px-4 py-2 text-xs font-extrabold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] active:scale-95 rounded-xl transition-all duration-200 shadow-sm shadow-blue-900/10 cursor-pointer"
+                        >
+                            Today
                         </button>
-                        <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-xl transition">
-                            <ChevronRight size={20} className="text-gray-600" />
-                        </button>
+                        <div className="flex gap-1 bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+                            <button onClick={prevMonth} className="p-1.5 hover:bg-slate-50 active:bg-slate-100 rounded-lg text-slate-700 transition-colors cursor-pointer">
+                                <ChevronLeft size={16} />
+                            </button>
+                            <button onClick={nextMonth} className="p-1.5 hover:bg-slate-50 active:bg-slate-100 rounded-lg text-slate-700 transition-colors cursor-pointer">
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {loading ? <Spinner /> : (
-                    <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden border border-gray-200">
+                    <div className="grid grid-cols-7 gap-1.5 bg-slate-50 p-2 rounded-2xl border border-slate-200">
                         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                            <div key={day} className="bg-gray-50 py-2 text-center text-xs font-semibold text-gray-500">
+                            <div key={day} className="py-2 text-center text-[10px] font-extrabold uppercase tracking-wider text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] border border-[#154673] rounded-lg shadow-sm">
                                 {day}
                             </div>
                         ))}
                         {days.map((date, i) => {
                             const dateTasks = getTasksForDate(date)
                             const isToday = date && date.toDateString() === new Date().toDateString()
-                            
+
                             let isStart = false
                             let isEnd = false
                             let isInRange = false
-                            
+
                             if (date && rangeStart) {
                                 const dateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
                                 const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
-                                
+
                                 if (rangeEnd) {
                                     const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
                                     isStart = dateTime === startTime
@@ -731,29 +1002,71 @@ function CalendarView() {
                                 }
                             }
 
+                            // Compute visual borders and colors for a professional planner look
+                            let cellBgClass = 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm hover:-translate-y-0.5'
+                            let stripeClass = 'border-t-2 border-t-slate-200'
+                            const isSelected = isStart || isEnd || isInRange
+
+                            if (!date) {
+                                cellBgClass = 'bg-transparent border-transparent opacity-10 cursor-default pointer-events-none'
+                                stripeClass = 'border-t-0'
+                            } else if (isStart || isEnd) {
+                                cellBgClass = 'bg-gradient-to-br from-[#3b82f6] to-[#1d4ed8] text-white border-[#1d4ed8] shadow-md shadow-blue-900/10 z-10'
+                                stripeClass = 'border-t-2 border-t-[#93c5fd]'
+                            } else if (isInRange) {
+                                cellBgClass = 'bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] text-[#1d4ed8] border-[#bfdbfe] shadow-sm'
+                                stripeClass = 'border-t-2 border-t-[#60a5fa]/80'
+                            } else if (isToday) {
+                                cellBgClass = 'bg-emerald-50/50 border-2 border-emerald-400 text-emerald-800 shadow-sm shadow-emerald-100'
+                                stripeClass = 'border-t-2 border-t-emerald-500'
+                            } else if (dateTasks.length > 0) {
+                                cellBgClass = 'bg-white border-slate-200 hover:border-slate-350 hover:shadow-sm hover:-translate-y-0.5 shadow-sm'
+                                stripeClass = 'border-t-2 border-t-rose-450'
+                            }
+
                             return (
-                                <div 
-                                    key={i} 
+                                <div
+                                    key={i}
                                     onClick={() => date && handleDateClick(date)}
-                                    className={`min-h-[100px] p-2 transition-all relative cursor-pointer border-b border-r border-gray-100
-                                        ${!date ? 'bg-gray-50/30 opacity-40' : 
-                                          isStart || isEnd ? 'bg-blue-50 ring-2 ring-blue-500 z-10 font-bold' : 
-                                          isInRange ? 'bg-blue-50/60 hover:bg-blue-100/50' : 'bg-white hover:bg-blue-50/40'}
+                                    className={`min-h-[72px] p-2 transition-all duration-200 relative cursor-pointer rounded-xl flex flex-col justify-between border select-none
+                                        ${cellBgClass} ${stripeClass}
                                     `}
                                 >
                                     {date && (
                                         <>
-                                            <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full transition-all
-                                                ${isStart || isEnd ? 'bg-blue-600 text-white shadow' : 
-                                                  isToday ? 'bg-gray-200 text-gray-800' : 'text-gray-700'}
-                                            `}>
-                                                {date.getDate()}
-                                            </span>
-                                            {dateTasks.length > 0 && (
-                                                <div className="mt-2 flex flex-wrap gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                    <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 rounded-md">
-                                                        {dateTasks.length} Due
+                                            <div className="flex items-center justify-between">
+                                                <span className={`text-[11px] font-bold w-6 h-6 flex items-center justify-center rounded-lg transition-all duration-200
+                                                    ${isStart || isEnd ? 'bg-white text-[#1d4ed8] border-2 border-[#1d4ed8] shadow shadow-blue-950/20' :
+                                                        isToday ? 'bg-emerald-600 text-white border-2 border-emerald-500 shadow shadow-emerald-200' :
+                                                            isInRange ? 'bg-white text-[#1d4ed8] border-2 border-[#bfdbfe] font-bold shadow-sm' : 'text-slate-750 bg-slate-50 border-2 border-slate-200/90'}
+                                                `}>
+                                                    {date.getDate()}
+                                                </span>
+                                                {isToday && (
+                                                    <span className="text-[8px] font-extrabold text-emerald-700 uppercase tracking-wider bg-emerald-100 px-1 py-0.5 rounded border border-emerald-300/40">
+                                                        Today
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {dateTasks.length > 0 ? (
+                                                <div className="mt-1 pt-1 flex items-center justify-between">
+                                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border shadow-sm font-extrabold
+                                                        ${isSelected
+                                                            ? (isStart || isEnd ? 'bg-white border-white text-[#1d4ed8]' : 'bg-[#1d4ed8] border-[#1d4ed8] text-white')
+                                                            : 'bg-rose-50 border-rose-200 text-rose-700'}`}
+                                                    >
+                                                        <span className={`w-1 h-1 rounded-full animate-pulse ${isSelected && !(isStart || isEnd) ? 'bg-white' : 'bg-rose-500'}`}></span>
+                                                        <span className="text-[9px] tracking-tight">
+                                                            {dateTasks.length} {dateTasks.length === 1 ? 'Task' : 'Tasks'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-1 pt-1 flex items-center">
+                                                    <span className={`text-[8px] font-bold uppercase tracking-wider
+                                                        ${isSelected ? (isStart || isEnd ? 'text-[#dbeafe]' : 'text-[#1d4ed8]') : 'text-slate-350'}`}
+                                                    >
+                                                        No Tasks
                                                     </span>
                                                 </div>
                                             )}
@@ -789,9 +1102,17 @@ function CalendarView() {
                                 </button>
                             )}
                         </div>
-                        <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
-                            {selectedTasks.length} Tasks
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
+                                {selectedTasks.length} Tasks
+                            </span>
+                            <button
+                                onClick={exportCalendarTasks}
+                                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
+                            >
+                                <Download size={15} /> Export
+                            </button>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -840,10 +1161,10 @@ function CalendarView() {
                                                 <td className="px-6 py-4 text-gray-700">
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-medium">{t.form_name || '—'}</span>
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    navigate(`/ca/tasks/${t.id}`)
+                                                                e.stopPropagation()
+                                                                navigate(`/ca/tasks/${t.id}`)
                                                             }}
                                                             className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
                                                             title="View Details"
@@ -859,7 +1180,7 @@ function CalendarView() {
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
-                                                 <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.due_date)}</td>
+                                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.due_date)}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <StatusBadge status={t.status} />
@@ -899,9 +1220,9 @@ function CalendarView() {
                                                                                 <td className="px-4 py-2 text-gray-600">{st.assigned_to?.name || 'Unassigned'}</td>
                                                                                 <td className="px-4 py-2">
                                                                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border
-                                                                                        ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' : 
-                                                                                          st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' : 
-                                                                                          'bg-green-50 text-green-700 border-green-100'}
+                                                                                        ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                                                            st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                                                                                                'bg-green-50 text-green-700 border-green-100'}
                                                                                     `}>
                                                                                         {st.priority_label}
                                                                                     </span>
@@ -964,6 +1285,8 @@ export default function DashboardPage() {
 
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('')
+    const [filterWorkTypeId, setFilterWorkTypeId] = useState('')
+    const [filterAllocatedTo, setFilterAllocatedTo] = useState('')
     const [page, setPage] = useState(1)
 
     const fetchSummary = async () => {
@@ -989,66 +1312,303 @@ export default function DashboardPage() {
         const prefix = isStaff ? '/staff' : '/ca'
         try {
             const res = await api.get(`${prefix}/dashboard/tasks`, {
-                params: { search, status, page, per_page: 10 }
+                params: {
+                    search,
+                    status,
+                    work_type_id: filterWorkTypeId,
+                    allocated_to: filterAllocatedTo,
+                    page,
+                    per_page: 10
+                }
             })
             setTasks(res.data.data)
             setTasksMeta(res.data.meta)
         } finally {
             setTaskLoading(false)
         }
-    }, [search, status, page, isStaff])
+    }, [search, status, filterWorkTypeId, filterAllocatedTo, page, isStaff])
+
+    const exportAllTasks = async () => {
+        try {
+            const ExcelJS = await import('exceljs')
+            const prefix = isStaff ? '/staff' : '/ca'
+            const res = await api.get(`${prefix}/dashboard/tasks`, {
+                params: {
+                    search,
+                    status,
+                    work_type_id: filterWorkTypeId,
+                    allocated_to: filterAllocatedTo,
+                    per_page: 10000
+                }
+            })
+            const allTasks = res.data.data || []
+            if (allTasks.length === 0) {
+                toast.error('No tasks found to export')
+                return
+            }
+
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('All Tasks')
+
+            worksheet.mergeCells('A1:H1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = 'All Tasks Report'
+            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells('A2:H2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            const headers = ['SR NO', 'Client', 'Work Type', 'Allocated To', 'Inward Date', 'Allocated Date', 'Completed Date', 'Status']
+            worksheet.getRow(4).values = headers
+            const headerRow = worksheet.getRow(4)
+            headerRow.height = 25
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' }
+                }
+                cell.alignment = { vertical: 'middle', horizontal: 'center' }
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            })
+
+            allTasks.forEach((t, i) => {
+                const rowData = [
+                    String(i + 1).padStart(2, '0'),
+                    t.client?.name || '—',
+                    t.work_type?.name || '—',
+                    t.allocated_to?.name ?? 'Unassigned',
+                    formatDate(t.date_inward),
+                    formatDate(t.date_allocated),
+                    formatDate(t.date_completed),
+                    t.status_label || t.status
+                ]
+                worksheet.addRow(rowData)
+            })
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 4) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        }
+                        cell.alignment = { vertical: 'middle', wrapText: true }
+                    })
+                }
+            })
+
+            worksheet.columns.forEach(column => {
+                let maxLength = 0
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 10
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength
+                    }
+                })
+                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2)
+            })
+
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `all_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.click()
+            window.URL.revokeObjectURL(url)
+            toast.success('Tasks exported successfully')
+        } catch (err) {
+            console.error('Export Error:', err)
+            toast.close()
+            toast.error('Failed to export tasks')
+        }
+    }
+
+    const exportStaffSummary = async () => {
+        try {
+            const ExcelJS = await import('exceljs')
+            if (staffData.length === 0) {
+                toast.error('No staff summary to export')
+                return
+            }
+
+            const workbook = new ExcelJS.Workbook()
+            const worksheet = workbook.addWorksheet('Staff Summary')
+
+            worksheet.mergeCells('A1:G1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = 'Staff-wise Task Summary'
+            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells('A2:G2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            const headers = ['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total']
+            worksheet.getRow(4).values = headers
+            const headerRow = worksheet.getRow(4)
+            headerRow.height = 25
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' }
+                }
+                cell.alignment = { vertical: 'middle', horizontal: 'center' }
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            })
+
+            staffData.forEach((s) => {
+                worksheet.addRow([
+                    s.name,
+                    s.pending || 0,
+                    s.work_in_progress || 0,
+                    s.complete || 0,
+                    s.not_to_be_done || 0,
+                    s.other || 0,
+                    s.total || 0
+                ])
+            })
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 4) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' },
+                            left: { style: 'thin' },
+                            bottom: { style: 'thin' },
+                            right: { style: 'thin' }
+                        }
+                        cell.alignment = { vertical: 'middle' }
+                    })
+                }
+            })
+
+            worksheet.columns.forEach(column => {
+                let maxLength = 0
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    const columnLength = cell.value ? cell.value.toString().length : 10
+                    if (columnLength > maxLength) {
+                        maxLength = columnLength
+                    }
+                })
+                column.width = maxLength < 12 ? 12 : maxLength + 2
+            })
+
+            const buffer = await workbook.xlsx.writeBuffer()
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `staff_summary_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.click()
+            window.URL.revokeObjectURL(url)
+            toast.success('Staff summary exported successfully')
+        } catch (err) {
+            console.error('Export Error:', err)
+            toast.error('Failed to export staff summary')
+        }
+    }
 
     useEffect(() => {
         fetchSummary().finally(() => setLoading(false))
     }, [])
 
-    useEffect(() => { 
+    useEffect(() => {
         if (activeTab === 'overview') {
-            fetchTasks() 
+            fetchTasks()
         }
     }, [fetchTasks, activeTab])
 
     if (loading) return <Spinner />
 
     const cards = [
-        { 
-            icon: FileText, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', 
-            label: 'Total Tasks', value: summary?.total_tasks ?? 0, 
+        {
+            icon: FileText, iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
+            label: 'Total Tasks', value: summary?.total_tasks ?? 0,
             sub: 'All time records',
             active: status === '',
             onClick: () => { setStatus(''); setPage(1); }
         },
-        { 
-            icon: CircleDashed, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', 
-            label: 'Pending', value: summary?.pending_tasks ?? 0, 
+        {
+            icon: CircleDashed, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500',
+            label: 'Pending', value: summary?.pending_tasks ?? 0,
             sub: 'Waiting to start',
             active: status === 'pending',
             onClick: () => { setStatus('pending'); setPage(1); }
         },
-        { 
-            icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', 
-            label: 'Work In Progress', value: summary?.work_in_progress_tasks ?? 0, 
+        {
+            icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500',
+            label: 'Work In Progress', value: summary?.work_in_progress_tasks ?? 0,
             sub: 'Currently active',
             active: status === 'work_in_progress',
             onClick: () => { setStatus('work_in_progress'); setPage(1); }
         },
-        { 
-            icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', 
-            label: 'Completed', value: summary?.completed_tasks ?? 0, 
+        {
+            icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500',
+            label: 'Completed', value: summary?.completed_tasks ?? 0,
             sub: 'Finalized tasks',
             active: status === 'complete',
             onClick: () => { setStatus('complete'); setPage(1); }
         },
-        { 
-            icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', 
-            label: 'Not To Be Done', value: summary?.not_to_be_done_tasks ?? 0, 
+        {
+            icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500',
+            label: 'Not To Be Done', value: summary?.not_to_be_done_tasks ?? 0,
             sub: 'Excluded tasks',
             active: status === 'not_to_be_done',
             onClick: () => { setStatus('not_to_be_done'); setPage(1); }
         },
-        { 
-            icon: SlidersHorizontal, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', 
-            label: 'Other', value: summary?.other_tasks ?? 0, 
+        {
+            icon: SlidersHorizontal, iconBg: 'bg-slate-50', iconColor: 'text-slate-500',
+            label: 'Other', value: summary?.other_tasks ?? 0,
             sub: 'Other status',
             active: status === 'other',
             onClick: () => { setStatus('other'); setPage(1); }
@@ -1059,37 +1619,34 @@ export default function DashboardPage() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h1 className="text-2xl font-bold text-gray-900 tracking-tight animate-fade-in">Dashboard</h1>
-                
+
                 {/* Tabs */}
                 <div className="flex p-1.5 bg-slate-50 border border-[#1F5C99]/30 rounded-2xl w-full md:w-auto shadow-sm shadow-[#1F5C99]/5 gap-1 animate-fade-in">
                     <button
                         onClick={() => setActiveTab('overview')}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                            activeTab === 'overview' 
-                            ? 'bg-[#1F5C99] text-white shadow-sm' 
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === 'overview'
+                            ? 'bg-[#1F5C99] text-white shadow-sm'
                             : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
-                        }`}
+                            }`}
                     >
                         <LayoutDashboard size={15} /> Overview
                     </button>
                     <button
                         onClick={() => setActiveTab('calendar')}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                            activeTab === 'calendar' 
-                            ? 'bg-[#1F5C99] text-white shadow-sm' 
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === 'calendar'
+                            ? 'bg-[#1F5C99] text-white shadow-sm'
                             : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
-                        }`}
+                            }`}
                     >
                         <CalendarDays size={15} /> Calendar View
                     </button>
                     {!isStaff && (
                         <button
                             onClick={() => setActiveTab('summary')}
-                            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                                activeTab === 'summary' 
-                                ? 'bg-[#1F5C99] text-white shadow-sm' 
+                            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === 'summary'
+                                ? 'bg-[#1F5C99] text-white shadow-sm'
                                 : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
-                            }`}
+                                }`}
                         >
                             <Activity size={15} /> Summary
                         </button>
@@ -1104,11 +1661,29 @@ export default function DashboardPage() {
                         {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
                     </div>
 
+                    {/* View Task Summary Banner */}
+                    {!isStaff && (
+                        <button
+                            onClick={() => setActiveTab('summary')}
+                            className="group w-full flex items-center gap-4 cursor-pointer select-none"
+                        >
+                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
+                            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1F5C99]/25 bg-gradient-to-r from-[#EEF5FF] to-[#E8F1FC] group-hover:from-[#dceeff] group-hover:to-[#d0e6ff] group-hover:border-[#1F5C99]/50 group-hover:shadow-sm group-hover:shadow-blue-100 transition-all duration-200 shrink-0">
+                                <Activity size={12} className="text-[#1F5C99]" />
+                                <span className="text-xs font-bold text-[#1F5C99] tracking-wide whitespace-nowrap">View Task Summary</span>
+                                <span className="text-[#1F5C99]/60 text-sm font-bold leading-none group-hover:translate-x-0.5 transition-transform duration-200">→</span>
+                            </div>
+                            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
+                        </button>
+                    )}
+
                     {/* All Tasks */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-lg font-semibold text-gray-800 whitespace-nowrap">All Tasks</h2>
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-semibold text-gray-800 whitespace-nowrap">All Tasks</h2>
+                            </div>
+                            <div className="flex flex-wrap lg:flex-nowrap items-center gap-2">
                                 {/* Search */}
                                 <div className="relative flex-1 sm:flex-none">
                                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1117,17 +1692,48 @@ export default function DashboardPage() {
                                         placeholder="Search tasks..."
                                         value={search}
                                         onChange={e => { setSearch(e.target.value); setPage(1) }}
-                                        className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-56 transition"
+                                        className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full sm:w-44 transition"
                                     />
                                 </div>
+                                {/* Work Type Filter */}
+                                <CustomSelect
+                                    value={filterWorkTypeId}
+                                    onChange={e => { setFilterWorkTypeId(e.target.value); setPage(1) }}
+                                    options={[
+                                        { value: '', label: 'All Work Types' },
+                                        ...workTypes.map(wt => ({ value: wt.id, label: wt.name }))
+                                    ]}
+                                    widthClass="w-full sm:w-44"
+                                    className="flex-1 sm:flex-none"
+                                />
+                                {/* Staff Filter (Allocated To) */}
+                                {!isStaff && (
+                                    <CustomSelect
+                                        value={filterAllocatedTo}
+                                        onChange={e => { setFilterAllocatedTo(e.target.value); setPage(1) }}
+                                        options={[
+                                            { value: '', label: 'All Staff' },
+                                            ...staffData.map(s => ({ value: s.id, label: s.name }))
+                                        ]}
+                                        widthClass="w-full sm:w-36"
+                                        className="flex-1 sm:flex-none"
+                                    />
+                                )}
                                 {/* Status filter */}
                                 <CustomSelect
                                     value={status}
                                     onChange={e => { setStatus(e.target.value); setPage(1) }}
                                     options={statuses}
-                                    widthClass="w-full sm:w-auto min-w-[125px]"
+                                    widthClass="w-full sm:w-32"
                                     className="flex-1 sm:flex-none"
                                 />
+                                {/* Export Button */}
+                                <button
+                                    onClick={exportAllTasks}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer shrink-0"
+                                >
+                                    <Download size={15} /> Export
+                                </button>
                             </div>
                         </div>
 
@@ -1136,7 +1742,7 @@ export default function DashboardPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                            {['#', 'Client', 'Nature', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
+                                            {['#', 'Client', 'Work Type', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
                                                 <th key={h} className="px-6 py-3.5 text-left">{h}</th>
                                             ))}
                                         </tr>
@@ -1249,9 +1855,16 @@ export default function DashboardPage() {
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                                 <h2 className="text-lg font-semibold text-gray-800">Staff-wise Summary</h2>
-                                <SlidersHorizontal size={18} className="text-gray-400" />
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={exportStaffSummary}
+                                        className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
+                                    >
+                                        <Download size={15} /> Export
+                                    </button>
+                                </div>
                             </div>
-                             <div className="overflow-x-auto">
+                            <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
@@ -1272,7 +1885,7 @@ export default function DashboardPage() {
                                                         <Avatar name={s.name} />
                                                         <div>
                                                             <p className="font-semibold text-gray-800">{s.name}</p>
-                                                            <p className="text-xs text-slate-500 font-semibold">Staff Member</p>
+                                                            <p className="text-xs text-slate-500 font-semibold">{s.role_label || 'Staff Member'}</p>
                                                         </div>
                                                     </div>
                                                 </td>
