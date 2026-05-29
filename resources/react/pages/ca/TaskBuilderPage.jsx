@@ -295,7 +295,7 @@ export default function TaskBuilderPage() {
       label: 'Remarks',
       placeholder: 'Enter meta remarks...',
       value: '',
-      required: true,
+      required: false,
       static: true,
       section: 1
     },

@@ -5,7 +5,7 @@ import {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
     Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe,
-    PlusCircle, Check
+    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal
 } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
@@ -13,6 +13,7 @@ import Spinner from '../../components/ui/Spinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import Tooltip from '../../components/ui/Tooltip';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
 
@@ -21,6 +22,21 @@ const DEFAULT_SUB_STATUSES = [
     'Awaiting approval',
     'Completed'
 ];
+
+const getFileType = (url) => {
+    if (!url) return 'unknown';
+    const cleanUrl = url.split('?')[0].split('#')[0];
+    const ext = cleanUrl.split('.').pop().toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) return 'image';
+    if (ext === 'pdf') return 'pdf';
+    return ext;
+};
+
+const getFileName = (url) => {
+    if (!url) return 'attachment';
+    const cleanUrl = url.split('?')[0].split('#')[0];
+    return cleanUrl.split('/').pop() || 'attachment';
+};
 
 const getSubStatusOptions = (task, schemaList) => {
     // 1. Try local schema state if available
@@ -45,6 +61,49 @@ const getSubStatusOptions = (task, schemaList) => {
         }
     }
     return DEFAULT_SUB_STATUSES;
+};
+
+const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) => {
+    let inactiveBgClass = '';
+    let activeClass = '';
+
+    if (iconColor.includes('blue') || iconColor.includes('indigo')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0F7FF] border-blue-100 text-slate-750 hover:border-blue-300';
+        activeClass = 'active-card-blue ring-4 ring-blue-500/5 shadow-lg shadow-blue-500/5 scale-[1.02]';
+    } else if (iconColor.includes('amber') || iconColor.includes('yellow')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFFBEB] border-amber-100 text-slate-750 hover:border-amber-300';
+        activeClass = 'active-card-amber ring-4 ring-amber-500/5 shadow-lg shadow-amber-500/5 scale-[1.02]';
+    } else if (iconColor.includes('green') || iconColor.includes('emerald')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0FDF4] border-emerald-100 text-slate-750 hover:border-emerald-300';
+        activeClass = 'active-card-emerald ring-4 ring-emerald-500/5 shadow-lg shadow-emerald-500/5 scale-[1.02]';
+    } else if (iconColor.includes('red') || iconColor.includes('rose')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFF5F5] border-red-100 text-slate-750 hover:border-red-300';
+        activeClass = 'active-card-rose ring-4 ring-red-500/5 shadow-lg shadow-rose-500/5 scale-[1.02]';
+    } else {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F8FAFC] border-slate-200 text-slate-750 hover:border-slate-400';
+        activeClass = 'active-card-slate ring-4 ring-slate-500/5 shadow-lg shadow-slate-500/5 scale-[1.02]';
+    }
+
+    return (
+        <div 
+            onClick={onClick}
+            className={`rounded-xl p-3 transition-all duration-300 flex flex-col gap-2.5 cursor-pointer select-none border
+                ${active 
+                    ? `${activeClass} -translate-y-0.5` 
+                    : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
+        >
+            <div className="flex items-center justify-between gap-2">
+                <div className={`p-1.5 rounded-lg transition-colors ${iconBg}`}>
+                    <Icon size={16} className={iconColor} />
+                </div>
+                <span className="text-2xl font-black text-slate-900 tracking-tight">{String(value || 0).padStart(2, '0')}</span>
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider truncate text-slate-900 animate-fade-in" title={label}>{label}</p>
+                <p className={`text-[9px] font-extrabold mt-0.5 truncate ${subColor || 'text-slate-405'}`} title={sub}>{sub}</p>
+            </div>
+        </div>
+    );
 };
 
 const IconMap = {
@@ -189,6 +248,17 @@ export default function TaskDetailPage() {
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
     const [focusedValue, setFocusedValue] = useState('');
+
+    // Custom Confirm Dialog State
+    const [confirmState, setConfirmState] = useState({
+        open: false,
+        title: '',
+        message: '',
+        confirmLabel: '',
+        onConfirm: null,
+        danger: true,
+        loading: false
+    });
 
     // Roles & Permissions state
     const [availableRoles, setAvailableRoles] = useState([]);
@@ -541,35 +611,114 @@ export default function TaskDetailPage() {
         }
     };
 
-    const handleDeleteSubTask = async (subTaskId) => {
-        if (!confirm('Are you sure you want to delete this subtask?')) return;
+    const handleDeleteSubTask = (subTaskId) => {
+        setConfirmState({
+            open: true,
+            title: 'Delete Task',
+            message: 'Are you sure you want to delete this subtask? This action cannot be undone.',
+            confirmLabel: 'Delete Task',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    await api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`);
+                    setTask(prev => ({
+                        ...prev,
+                        sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
+                    }));
+                    setSelectedTaskIds(prev => prev.filter(tid => tid !== subTaskId));
+                    toast.success('Subtask deleted');
+                } catch (e) {
+                    toast.error('Failed to delete subtask');
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const handleDeleteMultipleSubTasks = () => {
+        setConfirmState({
+            open: true,
+            title: 'Delete Selected Tasks',
+            message: `Are you sure you want to delete the ${selectedTaskIds.length} selected tasks? This action cannot be undone.`,
+            confirmLabel: 'Delete Selected',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    await Promise.all(selectedTaskIds.map(subTaskId => api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`)));
+                    setTask(prev => ({
+                        ...prev,
+                        sub_tasks: prev.sub_tasks.filter(st => !selectedTaskIds.includes(st.id))
+                    }));
+                    setSelectedTaskIds([]);
+                    toast.success('Selected tasks deleted successfully');
+                } catch (e) {
+                    console.error(e);
+                    toast.error('Failed to delete some selected tasks');
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const handleUploadSubTaskAttachment = async (subTaskId, file) => {
+        if (!file) return;
+
+        // Max size 5MB (5 * 1024 * 1024 bytes)
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("File size must be under 5MB.");
+            return;
+        }
+
+        const loadingToast = toast.loading("Uploading attachment...");
         try {
-            await api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`);
+            const formData = new FormData();
+            formData.append('screenshot', file);
+            formData.append('_method', 'PATCH');
+
+            const res = await api.post(`/ca/tasks/${id}/sub-tasks/${subTaskId}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
             setTask(prev => ({
                 ...prev,
-                sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
+                sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
             }));
-            setSelectedTaskIds(prev => prev.filter(tid => tid !== subTaskId));
-            toast.success('Subtask deleted');
+            toast.success("Attachment uploaded successfully!", { id: loadingToast });
         } catch (e) {
-            toast.error('Failed to delete subtask');
+            console.error(e);
+            toast.error(e.response?.data?.message || "Failed to upload attachment", { id: loadingToast });
         }
     };
 
-    const handleDeleteMultipleSubTasks = async () => {
-        if (!confirm(`Are you sure you want to delete the ${selectedTaskIds.length} selected tasks?`)) return;
-        try {
-            await Promise.all(selectedTaskIds.map(subTaskId => api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`)));
-            setTask(prev => ({
-                ...prev,
-                sub_tasks: prev.sub_tasks.filter(st => !selectedTaskIds.includes(st.id))
-            }));
-            setSelectedTaskIds([]);
-            toast.success('Selected tasks deleted successfully');
-        } catch (e) {
-            console.error(e);
-            toast.error('Failed to delete some selected tasks');
-        }
+    const handleDeleteSubTaskAttachment = (subTaskId) => {
+        setConfirmState({
+            open: true,
+            title: 'Delete Attachment',
+            message: 'Are you sure you want to delete this attachment? This action cannot be undone.',
+            confirmLabel: 'Delete Attachment',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                const loadingToast = toast.loading("Deleting attachment...");
+                try {
+                    const res = await api.patch(`/ca/tasks/${id}/sub-tasks/${subTaskId}`, { screenshot: null });
+                    setTask(prev => ({
+                        ...prev,
+                        sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
+                    }));
+                    toast.success("Attachment deleted successfully!", { id: loadingToast });
+                } catch (e) {
+                    console.error(e);
+                    toast.error("Failed to delete attachment", { id: loadingToast });
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
     };
 
     const handleExport = async () => {
@@ -703,97 +852,124 @@ export default function TaskDetailPage() {
     });
 
     return (
-        <div className="space-y-6 max-w-[100vw] overflow-x-hidden pb-12 relative">
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                <Link to="/ca/tasks" className="hover:text-indigo-600 transition">Sheets</Link>
-                <ChevronRight size={10} className="text-slate-300" />
-                {task.work_type && (
-                    <>
-                        <Link to={`/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-600 transition">
-                            {task.work_type.name}
-                        </Link>
-                        <ChevronRight size={10} className="text-slate-300" />
-                    </>
-                )}
-                <span className="text-slate-900">{task.form_name || 'View Sheet'}</span>
-            </nav>
+        <div className="space-y-6 max-w-[100vw] pb-12 relative -m-4 md:-m-8 p-2">
+            {/* Redesigned Premium Header Block */}
+            <div className="bg-white rounded-[2rem] border border-slate-100/80 py-3.5 px-6 md:py-4.5 md:px-8 shadow-sm space-y-3 animate-fade-in relative overflow-hidden">
+                {/* Decorative background gradients for premium SaaS feel */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/20 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
-            {/* Header */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/ca/tasks')} className="p-2.5 hover:bg-white shadow-sm border border-slate-200 rounded-2xl transition group bg-white/50">
-                        <ChevronLeft size={20} className="text-slate-400 group-hover:text-indigo-600" />
-                    </button>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <Layout size={14} className="text-indigo-500" />
-                            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">Form Workspace</span>
-                        </div>
-                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
-                            {isEditing ? (
-                                <input
-                                    value={formName}
-                                    onChange={e => setFormName(e.target.value)}
-                                    className="bg-transparent border-b-2 border-[#1F5C99] outline-none focus:border-[#1F5C99] transition min-w-[300px]"
-                                    placeholder="Form Name"
-                                />
-                            ) : (
-                                formName
-                            )}
-                        </h1>
+                {/* Top Row: Breadcrumbs and Info Badge */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                    <nav className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <Link to="/ca/tasks" className="hover:text-indigo-650 transition flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                            Sheets
+                        </Link>
+                        <ChevronRight size={10} className="text-slate-350" />
+                        {task.work_type && (
+                            <>
+                                <Link to={`/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
+                                    {task.work_type.name}
+                                </Link>
+                                <ChevronRight size={10} className="text-slate-350" />
+                            </>
+                        )}
+                        <span className="text-slate-800 font-extrabold max-w-[200px] truncate">{task.form_name || 'View Sheet'}</span>
+                    </nav>
+
+                    {/* Small Pulsing Glass Status Badge */}
+                    <div className="self-start sm:self-auto bg-indigo-50/50 border border-indigo-100/60 text-indigo-650 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1.5 shadow-sm">
+                        <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+                        </span>
+                        Form Workspace
                     </div>
                 </div>
-                <div className="flex items-center gap-2 select-none">
-                    <button 
-                        onClick={handleExport} 
-                        className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-md shadow-emerald-100 h-[38px]"
-                    >
-                        <FileDown size={14} /> 
-                        <span>Export Excel</span>
-                    </button>
-                    <button 
-                        onClick={() => setIsGlobalModalOpen(true)}
-                        className="flex items-center justify-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-sm h-[38px]"
-                    >
-                        <Sliders size={14} className="text-slate-500" />
-                        <span>Global Settings</span>
-                    </button>
-                    <button 
-                        onClick={() => {
-                            if (!task) return;
-                            const duplicateData = {
-                                form_name: task.form_name,
-                                client_id: task.client?.id,
-                                work_type_id: task.work_type?.id,
-                                remarks: task.remarks,
-                                dynamic_fields: task.dynamic_fields,
-                                created_at: task.created_at,
-                                status: task.status,
-                                allow_attachments: task.allow_attachments,
-                                subtasks: (task.sub_tasks || []).map(st => ({
-                                    title: st.title,
-                                    assigned_to: st.assigned_to?.id,
-                                    priority: st.priority,
-                                    status: st.status,
-                                    due_date: st.due_date,
-                                    remarks: st.remarks
-                                }))
-                            };
-                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                        }}
-                        className="flex items-center justify-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-sm h-[38px]"
-                    >
-                        <Edit2 size={14} className="text-slate-500" /> 
-                        <span>Edit Form Layout</span>
-                    </button>
-                    <button 
-                        onClick={handleAddSubTask} 
-                        className="flex items-center justify-center gap-1.5 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-md shadow-indigo-100 h-[38px]"
-                    >
-                        <Plus size={14} /> 
-                        <span>New Task</span>
-                    </button>
+
+                {/* Main Row: Back Button, Title, and Action Toolbar */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pt-2 border-t border-slate-50 relative z-10">
+                    {/* Left: Sleek Back + App Icon + Title */}
+                    <div className="flex items-center gap-4 min-w-0">
+                        <button 
+                            onClick={() => navigate('/ca/tasks')} 
+                            className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
+                            title="Back to Sheets"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                            <Layout size={18} />
+                        </div>
+
+                        <div className="min-w-0">
+                            <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight flex items-center gap-2">
+                                {isEditing ? (
+                                    <input
+                                        value={formName}
+                                        onChange={e => setFormName(e.target.value)}
+                                        className="bg-transparent border-b-2 border-indigo-600 outline-none focus:border-indigo-700 transition min-w-[280px]"
+                                        placeholder="Form Name"
+                                    />
+                                ) : (
+                                    formName
+                                )}
+                            </h1>
+                        </div>
+                    </div>
+
+                    {/* Right: Elegant action buttons bar */}
+                    <div className="flex flex-wrap items-center gap-2.5 select-none">
+                        {/* Secondary Actions Group (Colors always visible) */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button 
+                                onClick={handleExport} 
+                                className="flex items-center gap-1.5 text-emerald-750 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                            >
+                                <FileDown size={14} className="text-emerald-600" /> 
+                                <span>Export Excel</span>
+                            </button>
+                            <button 
+                                onClick={() => setIsGlobalModalOpen(true)}
+                                className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                            >
+                                <Sliders size={14} className="text-indigo-500" />
+                                <span>Global Settings</span>
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (!task) return;
+                                    const duplicateData = {
+                                        form_name: task.form_name,
+                                        client_id: task.client?.id,
+                                        work_type_id: task.work_type?.id,
+                                        remarks: task.remarks,
+                                        dynamic_fields: task.dynamic_fields,
+                                        created_at: task.created_at,
+                                        status: task.status,
+                                        allow_attachments: task.allow_attachments,
+                                        subtasks: (task.sub_tasks || []).map(st => ({
+                                            title: st.title,
+                                            assigned_to: st.assigned_to?.id,
+                                            priority: st.priority,
+                                            status: st.status,
+                                            due_date: st.due_date,
+                                            remarks: st.remarks
+                                        }))
+                                    };
+                                    navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                }}
+                                className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                            >
+                                <Edit2 size={14} className="text-violet-600" /> 
+                                <span>Layout Builder</span>
+                            </button>
+                        </div>
+
+                        {/* Primary action removed as requested */}
+                    </div>
                 </div>
             </div>
 
@@ -1002,36 +1178,34 @@ export default function TaskDetailPage() {
             )}
 
             {/* Subtask Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 animate-fade-in">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3 animate-fade-in">
                 {[
-                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, color: 'text-amber-600 hover:text-amber-700', activeBg: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-250/50', inactiveBg: 'bg-white hover:bg-amber-50/20 border-slate-100 hover:border-amber-200 text-amber-600 shadow-sm hover:shadow-md' },
-                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, color: 'text-blue-600 hover:text-blue-700', activeBg: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-250/50', inactiveBg: 'bg-white hover:bg-blue-50/20 border-slate-100 hover:border-blue-200 text-blue-600 shadow-sm hover:shadow-md' },
-                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, color: 'text-emerald-600 hover:text-emerald-700', activeBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-250/50', inactiveBg: 'bg-white hover:bg-emerald-50/20 border-slate-100 hover:border-emerald-200 text-emerald-600 shadow-sm hover:shadow-md' },
-                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, color: 'text-rose-600 hover:text-rose-700', activeBg: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-250/50', inactiveBg: 'bg-white hover:bg-rose-50/20 border-slate-100 hover:border-rose-200 text-rose-600 shadow-sm hover:shadow-md' },
-                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, color: 'text-slate-600 hover:text-slate-700', activeBg: 'bg-gradient-to-br from-slate-550 to-slate-700 text-white shadow-lg shadow-slate-250/50', inactiveBg: 'bg-white hover:bg-slate-50/30 border-slate-100 hover:border-slate-300 text-slate-600 shadow-sm hover:shadow-md' },
-                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, color: 'text-indigo-600 hover:text-indigo-700', activeBg: 'bg-gradient-to-br from-indigo-500 to-indigo-650 text-white shadow-lg shadow-indigo-250/50', inactiveBg: 'bg-white hover:bg-indigo-50/20 border-slate-100 hover:border-indigo-200 text-indigo-600 shadow-sm hover:shadow-md' }
-                ].map((card, i) => {
-                    const isActive = (card.label === 'Total Tasks' && !selectedStatusFilter) || (selectedStatusFilter === statusFilterMap[card.label]);
-                    return (
-                        <div 
-                            key={i} 
-                            onClick={() => {
-                                const filterVal = statusFilterMap[card.label];
-                                if (!filterVal) {
-                                    setSelectedStatusFilter(null);
-                                } else {
-                                    setSelectedStatusFilter(prev => prev === filterVal ? null : filterVal);
-                                }
-                            }}
-                            className={`rounded-[2rem] p-6 border cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 select-none ${
-                                isActive ? card.activeBg : card.inactiveBg
-                            }`}
-                        >
-                            <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>{card.label}</p>
-                            <p className="text-3xl font-black">{card.count}</p>
-                        </div>
-                    );
-                })}
+                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
+                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
+                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
+                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
+                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
+                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All subtasks of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
+                ].map((card, i) => (
+                    <SummaryCard 
+                        key={i} 
+                        icon={card.icon}
+                        iconBg={card.iconBg}
+                        iconColor={card.iconColor}
+                        label={card.label}
+                        value={card.count}
+                        sub={card.sub}
+                        subColor={card.subColor}
+                        active={card.active}
+                        onClick={() => {
+                            if (card.filterVal === null) {
+                                setSelectedStatusFilter(null);
+                            } else {
+                                setSelectedStatusFilter(prev => prev === card.filterVal ? null : card.filterVal);
+                            }
+                        }}
+                    />
+                ))}
             </div>
 
             {/* Sub-status Filter Cards */}
@@ -1052,59 +1226,98 @@ export default function TaskDetailPage() {
                         )}
                     </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3">
                     {[
-                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null },
-                        { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned' },
-                        ...subStatusOptions.map(opt => ({
-                            label: opt,
-                            count: getSubStatusCount(opt),
-                            value: opt
-                        }))
+                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all subtasks', subColor: 'text-indigo-500 font-semibold' },
+                        { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
+                        ...subStatusOptions.map(opt => {
+                            const lowerOpt = opt.toLowerCase();
+                            let icon = SlidersHorizontal;
+                            let iconBg = 'bg-indigo-50';
+                            let iconColor = 'text-indigo-500';
+                            let sub = 'Custom workflow status';
+                            let subColor = 'text-indigo-500 font-semibold';
+                            
+                            if (lowerOpt.includes('complete') || lowerOpt.includes('done')) {
+                                icon = CheckCircle2;
+                                iconBg = 'bg-green-50';
+                                iconColor = 'text-green-500';
+                                sub = 'Completed workflow';
+                                subColor = 'text-green-500 font-semibold';
+                            } else if (lowerOpt.includes('approv') || lowerOpt.includes('verify') || lowerOpt.includes('check')) {
+                                icon = Clock;
+                                iconBg = 'bg-amber-50';
+                                iconColor = 'text-amber-500';
+                                sub = 'Awaiting verification';
+                                subColor = 'text-amber-500 font-semibold';
+                            } else if (lowerOpt.includes('document') || lowerOpt.includes('pending') || lowerOpt.includes('paper')) {
+                                icon = FileText;
+                                iconBg = 'bg-blue-50';
+                                iconColor = 'text-blue-500';
+                                sub = 'Needs documents';
+                                subColor = 'text-blue-500 font-semibold';
+                            }
+                            
+                            return {
+                                label: opt,
+                                count: getSubStatusCount(opt),
+                                value: opt,
+                                icon,
+                                iconBg,
+                                iconColor,
+                                sub,
+                                subColor
+                            };
+                        })
                     ].map((card, i) => {
                         const isActive = (card.value === null && !selectedSubStatusFilter) || (selectedSubStatusFilter === card.value);
                         return (
-                            <div 
-                                key={i} 
+                            <SummaryCard 
+                                key={i}
+                                icon={card.icon}
+                                iconBg={card.iconBg}
+                                iconColor={card.iconColor}
+                                label={card.label}
+                                value={card.count}
+                                sub={card.sub}
+                                subColor={card.subColor}
+                                active={isActive}
                                 onClick={() => {
                                     setSelectedSubStatusFilter(prev => prev === card.value ? null : card.value);
                                 }}
-                                className={`rounded-[2rem] p-6 border cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 select-none ${
-                                    isActive
-                                        ? 'bg-gradient-to-br from-indigo-500 to-indigo-650 text-white border-transparent shadow-lg shadow-indigo-250/50'
-                                        : 'bg-white hover:bg-slate-50/50 border-slate-100 hover:border-slate-200 text-slate-700 shadow-sm hover:shadow-md'
-                                }`}
-                            >
-                                <p className={`text-[10px] font-black uppercase tracking-widest mb-1 truncate ${isActive ? 'text-white/80' : 'text-slate-400'}`} title={card.label}>
-                                    {card.label}
-                                </p>
-                                <p className={`text-3xl font-black ${isActive ? 'text-white' : 'text-indigo-600'}`}>{card.count}</p>
-                            </div>
+                            />
                         );
                     })}
                 </div>
             </div>
-            {/* Form Submission Details Table (Excel/Spreadsheet style row) */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 space-y-6 animate-fade-in mt-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
-                    <h2 className="text-lg font-black text-slate-900">Form Submission Details</h2>
+            {/* Sheet Information Table (Excel/Spreadsheet style row) */}
+            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-6 md:p-8 space-y-6 animate-fade-in mt-6">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                            <FileText size={16} />
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Sheet Information</h2>
+                            <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Spreadsheet metadata & custom variables</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                                <th className="px-6 py-4 text-center border-r border-slate-200 w-16">#</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[200px]">Sheet Name</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[220px]">Client</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[180px]">Work Type</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[220px]">Assigned To</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[150px]">Create Date</th>
-                                <th className="px-6 py-4 border-r border-slate-200 min-w-[180px]">Sheet Status</th>
+                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
+                                <th className="px-6 py-4 text-center border-r border-[#154673] w-16 text-white bg-[#1F5C99]">#</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[200px] text-white">Sheet Name</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[220px] text-white">Client</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[180px] text-white">Work Type</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[220px] text-white">Assigned To</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[150px] text-white">Create Date</th>
+                                <th className="px-6 py-4 border-r border-[#154673] min-w-[180px] text-white">Sheet Status</th>
                                 {/* Dynamic Field Headers */}
-                                {schema.map(f => (
-                                    <th key={f.id} className="px-6 py-4 border-r border-slate-200 min-w-[200px]">{f.label}</th>
+                                {schema.filter(f => !['static_form_name', 'static_client_name', 'static_work_type', 'static_assignee', 'static_created_date', 'static_sheet_status', 'static_entry_date', 'static_task_particular', 'static_due_date', 'static_task_status', 'static_sub_status', 'static_feedback'].includes(f.id)).map(f => (
+                                    <th key={f.id} className="px-6 py-4 border-r border-[#154673] min-w-[200px] text-white">{f.label}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -1221,7 +1434,7 @@ export default function TaskDetailPage() {
                                 </td>
 
                                 {/* Dynamic Columns */}
-                                {schema.map(field => {
+                                {schema.filter(f => !['static_form_name', 'static_client_name', 'static_work_type', 'static_assignee', 'static_created_date', 'static_sheet_status', 'static_entry_date', 'static_task_particular', 'static_due_date', 'static_task_status', 'static_sub_status', 'static_feedback'].includes(f.id)).map(field => {
                                     const value = task.dynamic_fields?.[field.label] ?? '';
                                     const isDropdown = field.type === 'dropdown';
                                     const isCheckbox = field.type === 'checkbox';
@@ -1423,38 +1636,45 @@ export default function TaskDetailPage() {
 
             {/* Tasks Section */}
             <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mt-6 animate-fade-in">
-                <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-black text-slate-900">Tasks</h2>
-                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full">
-                            <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-indigo-500 transition-all duration-500"
-                                    style={{ width: `${(task.sub_tasks?.filter(st => st.status === 'complete').length / (task.sub_tasks?.length || 1)) * 100}%` }}
-                                ></div>
+                <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                            <CheckSquare size={16} />
+                        </div>
+                        <div>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Tasks Checklist</h2>
+                                <div className="flex items-center gap-1.5 bg-indigo-50/50 border border-indigo-100/60 px-2 py-0.5 rounded-full">
+                                    <div className="w-12 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-indigo-500 transition-all duration-500"
+                                            style={{ width: `${(task.sub_tasks?.filter(st => st.status === 'complete').length / (task.sub_tasks?.length || 1)) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                    <span className="text-[9px] font-extrabold text-indigo-655 uppercase tracking-wider">
+                                        {task.sub_tasks?.filter(st => st.status === 'complete').length}/{task.sub_tasks?.length || 0} Complete
+                                    </span>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-black text-slate-450">
-                                {task.sub_tasks?.filter(st => st.status === 'complete').length}/{task.sub_tasks?.length || 0} Complete
-                            </span>
+                            <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Manage checklist tasks and progress tracking</p>
                         </div>
                     </div>
                     {selectedTaskIds.length > 0 && (
                         <button
                             type="button"
                             onClick={handleDeleteMultipleSubTasks}
-                            className="flex items-center gap-2 bg-rose-550 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md shadow-rose-100 hover:shadow-lg transition-all"
+                            className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-md shadow-rose-100/50 hover:shadow-lg transition-all active:scale-95 duration-200 cursor-pointer shrink-0"
                         >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                             Delete Selected ({selectedTaskIds.length})
                         </button>
                     )}
                 </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="overflow-x-auto min-h-[300px]">
+                    <table className="w-full border-collapse">
                         <thead>
-                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                                <th className="px-6 py-4 text-center w-12">
+                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
+                                <th className="px-6 py-4 text-center w-12 min-w-[48px] text-white bg-[#1F5C99]">
                                     <input
                                         type="checkbox"
                                         checked={filteredSubTasks.length > 0 && filteredSubTasks.every(st => selectedTaskIds.includes(st.id))}
@@ -1467,25 +1687,27 @@ export default function TaskDetailPage() {
                                                 setSelectedTaskIds(prev => prev.filter(id => !filteredIds.includes(id)));
                                             }
                                         }}
-                                        className="w-4 h-4 text-indigo-650 border-slate-300 rounded focus:ring-indigo-500/20 cursor-pointer"
+                                        className="w-4 h-4 text-indigo-655 border-slate-350 rounded focus:ring-indigo-500/20 cursor-pointer"
                                     />
                                 </th>
-                                <th className="px-6 py-4 text-left min-w-[300px]">Name</th>
-                                <th className="px-6 py-4 text-left">Assignee</th>
-                                <th className="px-6 py-4 text-left">Priority</th>
-                                <th className="px-6 py-4 text-left">Status</th>
-                                <th className="px-6 py-4 text-left">Sub Status</th>
-                                <th className="px-6 py-4 text-left">Due date</th>
-                                <th className="px-6 py-4 text-left min-w-[240px]">Remarks</th>
-                                <th className="px-6 py-4 text-center">Attachment</th>
-                                <th className="px-6 py-4 text-right"></th>
+                                <th className="px-6 py-4 text-left min-w-[280px] whitespace-nowrap text-white">Name</th>
+                                <th className="px-6 py-4 text-left min-w-[180px] whitespace-nowrap text-white">Assignee</th>
+                                <th className="px-6 py-4 text-left min-w-[130px] whitespace-nowrap text-white">Priority</th>
+                                <th className="px-6 py-4 text-left min-w-[180px] whitespace-nowrap text-white">Status</th>
+                                <th className="px-6 py-4 text-left min-w-[220px] whitespace-nowrap text-white">Sub Status</th>
+                                <th className="px-6 py-4 text-left min-w-[145px] whitespace-nowrap text-white">Due date</th>
+                                <th className="px-6 py-4 text-left min-w-[260px] whitespace-nowrap text-white">Remarks</th>
+                                {allowAttachments && (
+                                    <th className="px-6 py-4 text-center min-w-[120px] whitespace-nowrap text-white">Attachment</th>
+                                )}
+                                <th className="px-6 py-4 text-right w-10 min-w-[40px] text-white"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {filteredSubTasks.length > 0 ? (
                                 filteredSubTasks.map((st) => (
                                 <tr key={st.id} className={`group hover:bg-slate-50/40 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-slate-50/30' : ''}`}>
-                                    <td className="px-6 py-5 text-center w-12">
+                                    <td className="px-6 py-5 text-center w-12 min-w-[48px]">
                                         <input
                                             type="checkbox"
                                             checked={selectedTaskIds.includes(st.id)}
@@ -1499,39 +1721,39 @@ export default function TaskDetailPage() {
                                             className="w-4 h-4 text-indigo-655 border-slate-300 rounded focus:ring-indigo-500/20 cursor-pointer"
                                         />
                                     </td>
-                                    <td className="px-6 py-5 min-w-[300px]">
+                                    <td className="px-6 py-5 min-w-[280px]">
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
-                                                className={`transition-colors ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                                className={`transition-colors shrink-0 ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
                                             >
                                                 {st.status === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                                             </button>
-                                            <div className="flex-1 flex items-center group/title">
+                                            <div className="flex-1 flex items-center group/title min-w-0">
                                                 <input
                                                     defaultValue={st.title}
                                                     onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full ${st.status === 'complete' ? 'line-through text-slate-300' : ''}`}
+                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full truncate ${st.status === 'complete' ? 'line-through text-slate-300' : ''}`}
                                                 />
-                                                <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm" title="Copy"><Copy size={12} /></button>
+                                                <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-5 min-w-[180px]">
                                         <select
                                             value={st.assigned_to?.id || ''}
                                             onChange={e => handleUpdateSubTask(st.id, { assigned_to: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[150px]"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
                                         >
                                             <option value="">Unassigned</option>
                                             {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-5 min-w-[130px]">
                                         <select
                                             value={st.priority}
                                             onChange={e => handleUpdateSubTask(st.id, { priority: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[120px]"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
                                         >
                                             <option value="low">Low</option>
                                             <option value="medium">Medium</option>
@@ -1539,11 +1761,11 @@ export default function TaskDetailPage() {
                                             <option value="urgent">Urgent</option>
                                         </select>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-5 min-w-[180px]">
                                         <select
                                             value={st.status}
                                             onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full max-w-[140px]"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer capitalize w-full"
                                         >
                                             <option value="complete">Complete</option>
                                             <option value="work_in_progress">Work In Progress</option>
@@ -1552,49 +1774,75 @@ export default function TaskDetailPage() {
                                             <option value="other">Other</option>
                                         </select>
                                     </td>
-                                    <td className="px-6 py-5 min-w-[160px]">
-                                        <SubStatusPicker
-                                            value={st.sub_status}
-                                            onChange={(newVal) => handleUpdateSubTask(st.id, { sub_status: newVal })}
-                                            options={getSubStatusOptions(task, schema)}
-                                        />
+                                    <td className="px-6 py-5 min-w-[220px]">
+                                        <select
+                                            value={st.sub_status || ''}
+                                            onChange={e => handleUpdateSubTask(st.id, { sub_status: e.target.value || null })}
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
+                                        >
+                                            <option value="">— Set Sub Status —</option>
+                                            {getSubStatusOptions(task, schema).map((opt, i) => (
+                                                <option key={i} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-5 min-w-[145px]">
                                         <input
                                             type="date"
                                             defaultValue={st.due_date}
                                             onBlur={e => handleUpdateSubTask(st.id, { due_date: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full max-w-[130px]"
+                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
                                         />
                                     </td>
-                                    <td className="px-6 py-5 min-w-[240px]">
+                                    <td className="px-6 py-5 min-w-[260px]">
                                         <div className="flex items-center group/rem w-full">
                                             <textarea
                                                 defaultValue={st.remarks}
                                                 onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
                                                 placeholder="Remarks..."
                                                 rows="1"
-                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-650 w-full resize-y min-h-[34px] outline-none transition focus:ring-2 focus:ring-indigo-500/20 focus:border-slate-300 leading-relaxed"
+                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.8 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition focus:ring-4 focus:ring-indigo-500/10 leading-relaxed"
                                             />
                                             {st.remarks && (
                                                 <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5 text-center">
-                                        {st.screenshot_url ? (
-                                            <button
-                                                onClick={() => setPreviewImage(st.screenshot_url)}
-                                                className="inline-flex items-center gap-1.5 p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition shadow-sm"
-                                                title="View Attachment"
-                                            >
-                                                <Eye size={14} />
-                                            </button>
-                                        ) : (
-                                            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-tighter">None</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-5 text-right">
+                                    {allowAttachments && (
+                                        <td className="px-6 py-5 text-center min-w-[120px]">
+                                            {st.screenshot_url ? (
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        onClick={() => setPreviewImage(st.screenshot_url)}
+                                                        className="inline-flex items-center justify-center p-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-655 border border-indigo-100/50 rounded-xl transition shadow-sm cursor-pointer"
+                                                        title="View Attachment"
+                                                    >
+                                                        <Eye size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteSubTaskAttachment(st.id)}
+                                                        className="inline-flex items-center justify-center p-2 bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100/50 rounded-xl transition shadow-sm cursor-pointer"
+                                                        title="Delete Attachment"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-center">
+                                                    <label className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-650 transition cursor-pointer select-none">
+                                                        <Plus size={10} />
+                                                        <span>Attach</span>
+                                                        <input
+                                                            type="file"
+                                                            onChange={(e) => handleUploadSubTaskAttachment(st.id, e.target.files[0])}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
+                                                </div>
+                                            )}
+                                        </td>
+                                    )}
+                                    <td className="px-6 py-5 text-right w-10 min-w-[40px]">
                                         <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-slate-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
                                             <Trash2 size={14} />
                                         </button>
@@ -1603,13 +1851,13 @@ export default function TaskDetailPage() {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={10} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
+                                <td colSpan={allowAttachments ? 10 : 9} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
                                     No tasks match the selected filters. Click "Clear all filters" or select another card to see all items.
                                 </td>
                             </tr>
                         )}
                             <tr className="hover:bg-slate-50/50 transition-colors">
-                                <td colSpan={10} className="px-10 py-4">
+                                <td colSpan={allowAttachments ? 10 : 9} className="px-10 py-4">
                                     <button
                                         onClick={handleAddSubTask}
                                         className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"
@@ -1807,29 +2055,79 @@ export default function TaskDetailPage() {
                 </div>
             )}
 
-            {/* Image Preview Modal */}
+            {/* Premium Document/Image Preview Modal */}
             {previewImage && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="relative max-w-4xl w-full h-full flex flex-col items-center justify-center">
+                    <div className="relative max-w-4xl w-full flex flex-col items-center justify-center gap-4">
                         <button
                             onClick={() => setPreviewImage(null)}
-                            className="absolute top-0 right-0 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:scale-110 mb-4"
+                            className="absolute top-0 right-0 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:scale-110 shrink-0"
                             title="Close / Back"
                         >
                             <X size={24} />
                         </button>
-                        <div className="bg-white p-2 rounded-3xl shadow-2xl overflow-hidden max-h-[85vh]">
-                            <img src={previewImage} alt="Screenshot Preview" className="max-w-full max-h-full object-contain rounded-2xl" />
+
+                        <div className="bg-white p-4 rounded-[2rem] shadow-2xl overflow-hidden max-h-[80vh] w-full flex flex-col justify-center border border-slate-100/50">
+                            <div className="p-3 border-b border-slate-100 flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <FileText size={16} className="text-indigo-500" />
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wider truncate max-w-md">{getFileName(previewImage)}</span>
+                                </div>
+                                <span className="text-[9px] font-black uppercase text-indigo-650 bg-indigo-50/50 px-2.5 py-1 rounded-full">{getFileType(previewImage)} File</span>
+                            </div>
+
+                            <div className="overflow-auto max-h-[60vh] p-2 flex items-center justify-center bg-slate-50/50 rounded-2xl border border-slate-100">
+                                {getFileType(previewImage) === 'image' ? (
+                                    <img src={previewImage} alt="Preview" className="max-w-full max-h-[55vh] object-contain rounded-xl shadow-sm" />
+                                ) : getFileType(previewImage) === 'pdf' ? (
+                                    <iframe src={previewImage} className="w-[80vw] h-[55vh] rounded-xl border border-slate-200 bg-white" title="PDF Preview"></iframe>
+                                ) : (
+                                    <div className="py-12 px-6 flex flex-col items-center justify-center gap-4 text-center">
+                                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+                                            <FileText size={32} />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-black text-slate-800 truncate max-w-sm">{getFileName(previewImage)}</h4>
+                                            <p className="text-[10px] text-slate-400 font-extrabold uppercase mt-1">Preview not supported for this file format</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-5 pt-4 border-t border-slate-150 flex items-center justify-end gap-3">
+                                <button
+                                    onClick={() => setPreviewImage(null)}
+                                    className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer"
+                                >
+                                    Close Preview
+                                </button>
+                                <a
+                                    href={previewImage}
+                                    download={getFileName(previewImage)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-md shadow-emerald-100 hover:shadow-lg active:scale-95 cursor-pointer border border-emerald-600"
+                                >
+                                    <FileDown size={14} /> 
+                                    <span>Download File</span>
+                                </a>
+                            </div>
                         </div>
-                        <button
-                            onClick={() => setPreviewImage(null)}
-                            className="mt-8 px-8 py-3 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition shadow-xl"
-                        >
-                            Back to Sheet
-                        </button>
                     </div>
                 </div>
             )}
+
+            {/* Custom Confirm Modal */}
+            <ConfirmDialog
+                open={confirmState.open}
+                onClose={() => setConfirmState(prev => ({ ...prev, open: false }))}
+                onConfirm={confirmState.onConfirm}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmLabel={confirmState.confirmLabel}
+                danger={confirmState.danger}
+                loading={confirmState.loading}
+            />
         </div>
     );
 }

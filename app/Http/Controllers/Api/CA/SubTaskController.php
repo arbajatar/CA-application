@@ -52,10 +52,18 @@ class SubTaskController extends Controller
             'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'sub_status' => ['nullable', 'string', 'max:255'],
+            'screenshot' => ['nullable', 'file', 'max:5120'],
         ]);
 
         if (isset($validated['status']) && $validated['status'] === TaskStatus::Complete->value && $subTask->status !== TaskStatus::Complete) {
             $validated['completed_at'] = now();
+        }
+
+        if ($request->hasFile('screenshot')) {
+            if (!$task->allow_attachments) {
+                return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
+            }
+            $validated['screenshot'] = \App\Helpers\UploadHelper::upload($request->file('screenshot'), 'task_screenshots');
         }
 
         $subTask->update($validated);
