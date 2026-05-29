@@ -648,26 +648,16 @@ export default function TasksPage() {
             const exportedColumns = [
                 { header: 'SR NO', key: 'sr_no' },
                 { header: 'Sheet ID', key: 'sheet_id' },
-                ...activeColumns.map(col => {
-                    if (col.id === 'form_name') return { header: 'Sheet Name', key: 'form_name' };
-                    if (col.id === 'client') return { header: 'Client Name', key: 'client_name' };
-                    if (col.id === 'mobile') return { header: 'Mobile No', key: 'mobile' };
-                    if (col.id === 'work_type') return { header: 'Work Type', key: 'work_type' };
-                    if (col.id === 'assigned_to') return { header: 'Assigned To', key: 'assigned_to' };
-                    if (col.id === 'date_inward') return { header: 'Create Date', key: 'date_allocated' };
-                    if (col.id === 'status') return { header: 'Sheet Status', key: 'status' };
-                    if (col.id === 'task_particular') return { header: 'Task / Particular', key: 'task_particular' };
-                    if (col.id === 'remarks') return { header: 'Remarks', key: 'remarks' };
-                    if (col.isDynamic) return { header: col.label, key: `dyn_${col.fieldName}` };
-                    return null;
-                }).filter(Boolean),
-                { header: 'Subtask ID', key: 'subtask_id' },
-                { header: 'Subtask Name', key: 'st_name' },
-                { header: 'Assignee', key: 'st_assignee' },
-                { header: 'Priority', key: 'st_priority' },
-                { header: 'Subtask Status', key: 'st_status' },
-                { header: 'Due Date', key: 'st_due_date' },
-                { header: 'Subtask Remarks', key: 'st_remarks' },
+                { header: 'Sheet Name', key: 'form_name' },
+                { header: 'Work Type', key: 'work_type' },
+                { header: 'Assigned To', key: 'assigned_to' },
+                { header: 'Create Date', key: 'date_allocated' },
+                { header: 'Client Name', key: 'client_name' },
+                { header: 'Phone Number', key: 'mobile' },
+                { header: 'Sheet Status', key: 'status' },
+                { header: 'Remark', key: 'remarks' },
+                { header: 'CA Feedback', key: 'ca_feedback' },
+                { header: 'CA Remark', key: 'ca_remark' }
             ];
 
             worksheet.columns = exportedColumns;
@@ -709,41 +699,15 @@ export default function TasksPage() {
                     date_allocated: formatDate(task.date_inward || task.date_allocated),
                     assigned_to: task.allocated_to?.name || '',
                     status: task.status_label || task.status,
-                    task_particular: task.task_particular || '',
                     remarks: task.remarks || '',
+                    ca_feedback: formatVal(task.dynamic_fields?.['CA Feedback']),
+                    ca_remark: formatVal(task.dynamic_fields?.['CA Rating'] || task.dynamic_fields?.['CA Remark'] || '')
                 };
 
-                dynamicHeaders.forEach(h => {
-                    baseData[`dyn_${h}`] = formatVal(task.dynamic_fields?.[h]);
+                worksheet.addRow({
+                    sr_no: srNo++,
+                    ...baseData
                 });
-
-                if (task.sub_tasks && task.sub_tasks.length > 0) {
-                    task.sub_tasks.forEach(st => {
-                        worksheet.addRow({
-                            sr_no: srNo++,
-                            ...baseData,
-                            subtask_id: st.id || '',
-                            st_name: st.title,
-                            st_assignee: st.assigned_to?.name || 'Unassigned',
-                            st_priority: st.priority_label || st.priority,
-                            st_status: st.status_label || st.status,
-                            st_due_date: formatDate(st.due_date),
-                            st_remarks: st.remarks || ''
-                        });
-                    });
-                } else {
-                    worksheet.addRow({
-                        sr_no: srNo++,
-                        ...baseData,
-                        subtask_id: '',
-                        st_name: 'No Subtasks',
-                        st_assignee: 'N/A',
-                        st_priority: 'N/A',
-                        st_status: 'N/A',
-                        st_due_date: 'N/A',
-                        st_remarks: 'N/A'
-                    });
-                }
             });
 
             // 5. Style data rows and Auto-size columns
@@ -1132,47 +1096,18 @@ export default function TasksPage() {
                         </div>
                     </div>
                 ) : (() => {
-                    const dynamicHeadersSet = new Set();
-                    // Permanently guarantee CA Feedback and CA Rating columns are visible
-                    dynamicHeadersSet.add('CA Feedback');
-                    dynamicHeadersSet.add('CA Rating');
-                    tasks?.forEach(t => {
-                        // 1. Scan schema for defined fields first
-                        if (t.dynamic_fields?.schema && Array.isArray(t.dynamic_fields.schema)) {
-                            t.dynamic_fields.schema.forEach(field => {
-                                if (field && field.label) {
-                                    const isSystemStatic = [
-                                        'Client', 'Work Type', 'Assigned To', 'Create Date', 
-                                        'Sheet Status', 'Remarks', 'Task / Particular', 
-                                        'Sub Status', 'Feedback', 'Entry Date', 'Sheet Name',
-                                        'Client Name', 'Mobile', 'Work Type Name'
-                                    ].includes(field.label);
-                                    if (!isSystemStatic) {
-                                        dynamicHeadersSet.add(field.label);
-                                    }
-                                }
-                            });
-                        }
-                        // 2. Scan direct keys of dynamic_fields (for backwards compatibility)
-                        Object.keys(t.dynamic_fields || {}).forEach(k => {
-                            if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
-                                dynamicHeadersSet.add(k);
-                            }
-                        });
-                    });
-                    const dynamicHeaders = Array.from(dynamicHeadersSet);
-
+                    // Fixed columns — show only the specified sheet management fields
                     const baseColumns = [
                         { id: 'form_name', label: 'Sheet Name' },
-                        { id: 'client', label: 'Client' },
-                        { id: 'mobile', label: 'Mobile' },
                         { id: 'work_type', label: 'Work Type' },
                         { id: 'assigned_to', label: 'Assigned To' },
                         { id: 'date_inward', label: 'Create Date' },
+                        { id: 'client', label: 'Client Name' },
+                        { id: 'mobile', label: 'Phone Number' },
                         { id: 'status', label: 'Sheet Status' },
-                        { id: 'task_particular', label: 'Task / Particular' },
-                        ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
-                        { id: 'remarks', label: 'Remarks' }
+                        { id: 'remarks', label: 'Remark' },
+                        { id: 'ca_feedback', label: 'CA Feedback', isDynamic: true, fieldName: 'CA Feedback' },
+                        { id: 'ca_rating', label: 'CA Rating', isDynamic: true, fieldName: 'CA Rating' },
                     ];
 
                     let activeColumns = [];
@@ -1186,17 +1121,19 @@ export default function TasksPage() {
                         activeColumns = baseColumns;
                     }
 
-                    const allFields = [
-                        { key: 'form_name', label: 'Sheet Name', isStatic: true },
-                        { key: 'client_name', label: 'Client Name', isStatic: true },
-                        { key: 'client_contact', label: 'Mobile', isStatic: true },
-                        { key: 'assigned_to', label: 'Assigned To', isStatic: true },
-                        { key: 'date_inward', label: 'Create Date', isStatic: true },
-                        { key: 'status', label: 'Sheet Status', isStatic: true },
-                        { key: 'task_particular', label: 'Task / Particular', isStatic: true },
-                        ...dynamicHeaders.map(h => ({ key: h, label: h, isStatic: false })),
-                        { key: 'remarks', label: 'Remarks', isStatic: true }
-                    ];
+                    const allFields = activeColumns.map(col => {
+                        if (col.id === 'form_name') return { key: 'form_name', label: 'Sheet Name', isStatic: true };
+                        if (col.id === 'client') return { key: 'client_name', label: 'Client Name', isStatic: true };
+                        if (col.id === 'mobile') return { key: 'client_contact', label: 'Phone Number', isStatic: true };
+                        if (col.id === 'work_type') return { key: 'work_type', label: 'Work Type', isStatic: true };
+                        if (col.id === 'assigned_to') return { key: 'assigned_to', label: 'Assigned To', isStatic: true };
+                        if (col.id === 'date_inward') return { key: 'date_inward', label: 'Create Date', isStatic: true };
+                        if (col.id === 'status') return { key: 'status', label: 'Sheet Status', isStatic: true };
+                        if (col.id === 'remarks') return { key: 'remarks', label: 'Remark', isStatic: true };
+                        if (col.id === 'ca_feedback') return { key: 'CA Feedback', label: 'CA Feedback', isStatic: false };
+                        if (col.id === 'ca_rating') return { key: 'CA Rating', label: 'CA Rating', isStatic: false };
+                        return null;
+                    }).filter(Boolean);
 
                     const filteredTasks = tasks?.filter(t => {
                         return allFields.every(field => {
@@ -1208,6 +1145,7 @@ export default function TasksPage() {
                                 if (field.key === 'form_name') value = t.form_name;
                                 else if (field.key === 'client_name') value = t.client?.name;
                                 else if (field.key === 'client_contact') value = t.client?.contact;
+                                else if (field.key === 'work_type') value = t.work_type?.name;
                                 else if (field.key === 'assigned_to') value = t.allocated_to?.name;
                                 else if (field.key === 'date_inward') value = t.date_inward;
                                 else if (field.key === 'status') value = t.status;
@@ -1637,6 +1575,18 @@ export default function TasksPage() {
 
                                                                 const displayVal = Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || ''));
                                                                 if (col.fieldName === 'CA Feedback') {
+                                                                    return (
+                                                                        <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                            <textarea 
+                                                                                value={displayVal}
+                                                                                onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
+                                                                                rows={2}
+                                                                                className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
+                                                                            />
+                                                                        </td>
+                                                                    );
+                                                                }
+                                                                if (col.fieldName === 'CA Remark') {
                                                                     return (
                                                                         <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
                                                                             <textarea 

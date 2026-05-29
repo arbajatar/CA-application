@@ -568,6 +568,7 @@ export default function TaskBuilderPage() {
   const [savingWorkType, setSavingWorkType] = useState(false);
 
   const fieldsContainerRef = useRef(null);
+  const fieldsContainer2Ref = useRef(null);
   const sidebarRef = useRef(null);
 
   const handleAddRolePermission = () => {
@@ -1097,6 +1098,29 @@ export default function TaskBuilderPage() {
     }
   }, [location.state]);
 
+  // Store reorderSection in a ref so Sortable callbacks always call the latest version
+  const reorderSectionRef = useRef(null);
+
+  // Helper: reorder fields within a given section
+  const reorderSection = (section, oldDomIdx, newDomIdx) => {
+    setFormSchema(prev => {
+      const sectionIndices = prev
+        .map((f, i) => (section === 1 ? f.section === 1 : f.section !== 1) ? i : null)
+        .filter(i => i !== null);
+
+      if (oldDomIdx < 0 || oldDomIdx >= sectionIndices.length) return prev;
+      if (newDomIdx < 0 || newDomIdx >= sectionIndices.length) return prev;
+
+      const updated = [...prev];
+      const fromIdx = sectionIndices[oldDomIdx];
+      const toIdx   = sectionIndices[newDomIdx];
+      const [moved] = updated.splice(fromIdx, 1);
+      updated.splice(toIdx, 0, moved);
+      return updated;
+    });
+  };
+  reorderSectionRef.current = reorderSection;
+
   useEffect(() => {
     if (viewMode === 'builder' && fieldsContainerRef.current) {
       const sidebarSortable = new Sortable(sidebarRef.current, {
@@ -1105,7 +1129,7 @@ export default function TaskBuilderPage() {
         animation: 150
       });
 
-      const canvasSortable = new Sortable(fieldsContainerRef.current, {
+      const canvasSortable1 = new Sortable(fieldsContainerRef.current, {
         group: 'fields',
         animation: 150,
         handle: '.drag-handle',
@@ -1119,18 +1143,35 @@ export default function TaskBuilderPage() {
           addField(fieldType, newIndex);
         },
         onUpdate: (evt) => {
-          setFormSchema(prev => {
-            const updated = [...prev];
-            const [moved] = updated.splice(evt.oldIndex, 1);
-            updated.splice(evt.newIndex, 0, moved);
-            return updated;
-          });
+          reorderSectionRef.current(1, evt.oldIndex, evt.newIndex);
         }
       });
 
+      let canvasSortable2 = null;
+      if (fieldsContainer2Ref.current) {
+        canvasSortable2 = new Sortable(fieldsContainer2Ref.current, {
+          group: 'fields',
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          onAdd: (evt) => {
+            const typeId = evt.item.getAttribute('data-type');
+            const newIndex = evt.newIndex;
+            evt.item.remove();
+            const fieldType = FIELD_TYPES.find(f => f.id === typeId);
+            addField(fieldType, newIndex);
+          },
+          onUpdate: (evt) => {
+            reorderSectionRef.current(2, evt.oldIndex, evt.newIndex);
+          }
+        });
+      }
+
       return () => {
         sidebarSortable.destroy();
-        canvasSortable.destroy();
+        canvasSortable1.destroy();
+        if (canvasSortable2) canvasSortable2.destroy();
       };
     }
   }, [viewMode]);
@@ -1235,7 +1276,7 @@ export default function TaskBuilderPage() {
                     <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
                     <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Task Assignment Section</h3>
                   </div>
-                  <div id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div ref={fieldsContainer2Ref} id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formSchema.filter(f => f.section !== 1).map((field) => (
                       <FormCard
                         key={field.id}

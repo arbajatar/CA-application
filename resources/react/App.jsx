@@ -63,7 +63,7 @@ function CALayout({ children }) {
           </button>
         </header>
 
-        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 flex flex-col`}>
+        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-2 flex flex-col`}>
           {children}
         </main>
       </div>
@@ -109,7 +109,7 @@ function StaffLayout({ children }) {
           </button>
         </header>
 
-        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-4 md:p-8 flex flex-col`}>
+        <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'} p-2 flex flex-col`}>
           {children}
         </main>
       </div>
