@@ -571,7 +571,10 @@ export default function TaskDetailPage() {
 
             const res = await api.patch(`/ca/tasks/${id}`, payload);
             const nextData = res.data.data;
-            setTask(nextData);
+            setTask(prev => ({
+                ...nextData,
+                sub_tasks: nextData.sub_tasks !== undefined ? nextData.sub_tasks : (prev?.sub_tasks || [])
+            }));
             setFormName(nextData.form_name || 'Untitled Form');
             setGlobalStatus(nextData.status || 'assigned');
             setGlobalRemarks(nextData.remarks || '');
@@ -853,6 +856,36 @@ export default function TaskDetailPage() {
 
     return (
         <div className="space-y-6 max-w-[100vw] pb-12 relative">
+            <style dangerouslySetInnerHTML={{__html: `
+                input[type="range"]::-webkit-slider-thumb {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background: #0f172a;
+                    cursor: pointer;
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 1px 3px rgba(15,23,42,0.25);
+                    transition: transform 0.1s ease;
+                }
+                input[type="range"]::-webkit-slider-thumb:hover {
+                    transform: scale(1.15);
+                }
+                input[type="range"]::-moz-range-thumb {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background: #0f172a;
+                    cursor: pointer;
+                    border: 2px solid #ffffff;
+                    box-shadow: 0 1px 3px rgba(15,23,42,0.25);
+                    transition: transform 0.1s ease;
+                }
+                input[type="range"]::-moz-range-thumb:hover {
+                    transform: scale(1.15);
+                }
+            `}} />
             {/* Redesigned Premium Header Block */}
             <div className="bg-white rounded-[2rem] border border-slate-100/80 py-3.5 px-6 md:py-4.5 md:px-8 shadow-sm space-y-3 animate-fade-in relative overflow-hidden">
                 {/* Decorative background gradients for premium SaaS feel */}
@@ -1441,6 +1474,9 @@ export default function TaskDetailPage() {
                                     const isDate = field.type === 'date';
                                     const isRating = field.label === 'CA Rating';
                                     const isFeedback = field.label === 'CA Feedback';
+                                    const isProgressAuto = field.type === 'progress_auto';
+                                    const isProgressManual = field.type === 'progress_manual';
+                                    const isTime = field.type === 'time';
 
                                     return (
                                         <td key={field.id} className="px-6 py-4 border-r border-slate-200">
@@ -1513,6 +1549,174 @@ export default function TaskDetailPage() {
                                                         </div>
                                                     )}
                                                 </div>
+                                            ) : isProgressAuto ? (
+                                                <div className="flex flex-col gap-1.5 w-full min-w-[220px] select-none p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                                                    {(() => {
+                                                        const totalSub = task.sub_tasks?.length || 0;
+                                                        const completeSub = task.sub_tasks?.filter(st => st.status === 'complete').length || 0;
+                                                        const pct = totalSub > 0 ? Math.round((completeSub / totalSub) * 100) : 0;
+
+                                                        let gradient = 'from-rose-500 to-amber-500';
+                                                        let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                        if (pct >= 40 && pct < 90) {
+                                                            gradient = 'from-blue-500 to-indigo-600';
+                                                            badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-650';
+                                                        } else if (pct >= 90) {
+                                                            gradient = 'from-emerald-500 to-teal-500';
+                                                            badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                        }
+
+                                                        const timeText = (() => {
+                                                            if (!task.created_at) return 'Sync: Just now';
+                                                            const diffMs = new Date() - new Date(task.created_at);
+                                                            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                                                            const diffDays = Math.floor(diffHrs / 24);
+                                                            if (diffHrs < 1) return 'Sync: Just now';
+                                                            if (diffHrs < 24) return `Active ${diffHrs}h ago`;
+                                                            return `Active ${diffDays}d ago`;
+                                                        })();
+
+                                                        return (
+                                                            <>
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                        AUTO CALCULATED
+                                                                    </span>
+                                                                    <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
+                                                                        {pct}%
+                                                                    </span>
+                                                                </div>
+                                                                
+                                                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden relative shadow-inner border border-slate-200/20">
+                                                                    <div 
+                                                                        className={`h-full rounded-full bg-gradient-to-r ${gradient} transition-all duration-700 ease-out shadow-sm relative`}
+                                                                        style={{ width: `${pct}%` }}
+                                                                    >
+                                                                        {pct > 0 && pct < 100 && (
+                                                                            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.25)_50%,transparent_100%)] animate-[shimmer_1.8s_infinite] w-full h-full" />
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-0.5 select-none">
+                                                                    <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
+                                                                        <Clock size={9} className="text-slate-350" />
+                                                                        {timeText}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-extrabold text-indigo-650 bg-indigo-50 border border-indigo-100/30 px-1.5 py-0.5 rounded-md">
+                                                                        {completeSub}/{totalSub} Completed
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            ) : isProgressManual ? (
+                                                <div className="flex flex-col gap-1.5 w-full min-w-[220px] p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                                                    {(() => {
+                                                        const parsedVal = Math.min(100, Math.max(0, parseInt(value) || 0));
+
+                                                        let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                        if (parsedVal >= 40 && parsedVal < 90) {
+                                                            badgeBg = 'bg-teal-50 border-teal-100 text-teal-700';
+                                                        } else if (parsedVal >= 90) {
+                                                            badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                        }
+
+                                                        const handleManualSave = (val) => {
+                                                            const nextDynamicFields = {
+                                                                ...(task.dynamic_fields || {}),
+                                                                [field.label]: String(val)
+                                                            };
+                                                            handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                        };
+
+                                                        return (
+                                                            <>
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                        PROGRESS
+                                                                    </span>
+                                                                    <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
+                                                                        {parsedVal}%
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="relative flex items-center group/slider mt-1">
+                                                                    <input 
+                                                                        type="range" 
+                                                                        min="0" 
+                                                                        max="100" 
+                                                                        value={parsedVal}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            setTask(prev => ({
+                                                                                ...prev,
+                                                                                dynamic_fields: {
+                                                                                    ...(prev.dynamic_fields || {}),
+                                                                                    [field.label]: String(val)
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        onMouseUp={(e) => handleManualSave(e.target.value)}
+                                                                        onTouchEnd={(e) => handleManualSave(e.target.value)}
+                                                                        className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20"
+                                                                        style={{
+                                                                            background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
+                                                                        }}
+                                                                    />
+                                                                </div>
+
+                                                                {/* Quick adjust pills */}
+                                                                <div className="flex gap-1 mt-1 justify-between select-none">
+                                                                    {[-10, 10, 50, 100].map(adjust => {
+                                                                        let pillLabel = adjust > 0 ? `+${adjust}%` : `${adjust}%`;
+                                                                        if (adjust === 50) pillLabel = "50%";
+                                                                        if (adjust === 100) pillLabel = "100%";
+                                                                        
+                                                                        return (
+                                                                            <button
+                                                                                key={adjust}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    let nextVal = parsedVal;
+                                                                                    if (adjust === -10 || adjust === 10) {
+                                                                                        nextVal = Math.min(100, Math.max(0, parsedVal + adjust));
+                                                                                    } else {
+                                                                                        nextVal = adjust;
+                                                                                    }
+                                                                                    
+                                                                                    setTask(prev => ({
+                                                                                        ...prev,
+                                                                                        dynamic_fields: {
+                                                                                            ...(prev.dynamic_fields || {}),
+                                                                                            [field.label]: String(nextVal)
+                                                                                        }
+                                                                                    }));
+                                                                                    
+                                                                                    handleManualSave(nextVal);
+                                                                                }}
+                                                                                className="text-[8px] font-black tracking-widest uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200/50 hover:border-slate-350 text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded-md transition duration-150 active:scale-90"
+                                                                            >
+                                                                                {pillLabel}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+
+                                                                <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-1 select-none">
+                                                                    <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
+                                                                        <Clock size={9} className="text-slate-350" />
+                                                                        Updated: Just now
+                                                                    </span>
+                                                                    <span className="text-[8px] font-black uppercase text-indigo-500/80 tracking-wider">
+                                                                        Adjustable
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                             ) : isDropdown ? (
                                                 <select
                                                     value={value || ''}
@@ -1571,6 +1775,19 @@ export default function TaskDetailPage() {
                                             ) : isDate ? (
                                                 <input
                                                     type="date"
+                                                    value={value || ''}
+                                                    onChange={(e) => {
+                                                        const nextDynamicFields = {
+                                                            ...(task.dynamic_fields || {}),
+                                                            [field.label]: e.target.value
+                                                        };
+                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                    }}
+                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                />
+                                            ) : isTime ? (
+                                                <input
+                                                    type="time"
                                                     value={value || ''}
                                                     onChange={(e) => {
                                                         const nextDynamicFields = {

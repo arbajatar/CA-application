@@ -1292,6 +1292,9 @@ export default function TaskBuilderPage() {
           return data.dynamic_fields.schema.map(f => {
             const existing = prev.find(p => p.id === f.id);
             let value = f.value || '';
+            if (!f.static && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
+              value = data.dynamic_fields[f.label];
+            }
             
             // Map the primary static values from data
             if (f.id === 'static_form_name') value = data.form_name || '';
@@ -1524,8 +1527,8 @@ export default function TaskBuilderPage() {
                 {/* SECTION 1 */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Meta Information</h3>
+                    <div className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-[#1F5C99] rounded-full shadow-sm"></div>
+                    <h3 className="text-sm font-black bg-gradient-to-r from-blue-700 to-[#1F5C99] bg-clip-text text-transparent uppercase tracking-widest">Sheet Meta Information</h3>
                   </div>
                   <div ref={fieldsContainerRef} id="fieldsContainer1" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formSchema.filter(f => f.section === 1).map((field) => (
@@ -1557,8 +1560,8 @@ export default function TaskBuilderPage() {
                 {/* SECTION 2 */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Task Assignment Section</h3>
+                    <div className="w-1.5 h-6 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full shadow-sm"></div>
+                    <h3 className="text-sm font-black bg-gradient-to-r from-amber-700 to-amber-600 bg-clip-text text-transparent uppercase tracking-widest">Task Assignment Section</h3>
                   </div>
                   <div ref={fieldsContainer2Ref} id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {formSchema.filter(f => f.section !== 1).map((field) => (
@@ -1590,8 +1593,8 @@ export default function TaskBuilderPage() {
                 {/* SECTION: Sheet Options */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Sheet Options</h3>
+                    <div className="w-1.5 h-6 bg-gradient-to-b from-emerald-400 to-emerald-600 rounded-full shadow-sm"></div>
+                    <h3 className="text-sm font-black bg-gradient-to-r from-emerald-700 to-emerald-600 bg-clip-text text-transparent uppercase tracking-widest">Sheet Options</h3>
                   </div>
                   <p className="text-xs text-slate-500 mb-2 font-semibold">
                     Configure specialized functionality for this sheet.
@@ -1616,8 +1619,8 @@ export default function TaskBuilderPage() {
                 {/* SECTION 3: Roles & Permissions */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-[#1F5C99] rounded-full"></div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Roles & Permissions</h3>
+                    <div className="w-1.5 h-6 bg-gradient-to-b from-violet-500 to-fuchsia-600 rounded-full shadow-sm"></div>
+                    <h3 className="text-sm font-black bg-gradient-to-r from-violet-700 to-fuchsia-600 bg-clip-text text-transparent uppercase tracking-widest">Roles & Permissions</h3>
                   </div>
                   <p className="text-xs text-slate-500 mb-2 font-semibold">
                     Configure which roles can access this sheet. If no roles are added, all staff members will have full access.
@@ -1779,31 +1782,43 @@ export default function TaskBuilderPage() {
                           name: "Status & Progress",
                           fields: ['progress_auto', 'progress_manual']
                         }
-                      ].map((grp) => (
-                        <div key={grp.name} className="space-y-2">
-                          <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
-                            {grp.name}
-                          </div>
-                          {grp.fields.map(fieldId => {
-                            const type = FIELD_TYPES.find(f => f.id === fieldId);
-                            if (!type) return null;
-                            return (
-                              <div
-                                key={type.id}
-                                className="field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border border-slate-100 bg-slate-50/50 cursor-grab hover:bg-white hover:border-slate-200 hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left"
-                                data-type={type.id}
-                                onClick={() => addField(type)}
-                              >
-                                <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
-                                  {React.createElement(IconMap[type.icon], { size: 14 })}
+                      ].map((grp) => {
+                        let btnBgClass = '';
+                        
+                        if (grp.name === "Inputs & Text Fields") {
+                          btnBgClass = 'bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/60 hover:border-blue-200 text-blue-700 hover:shadow-blue-500/5';
+                        } else if (grp.name === "Choices & Calendar") {
+                          btnBgClass = 'bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/60 hover:border-amber-200 text-amber-700 hover:shadow-amber-500/5';
+                        } else {
+                          btnBgClass = 'bg-emerald-50/20 border-emerald-100/50 hover:bg-emerald-50/60 hover:border-emerald-200 text-emerald-700 hover:shadow-emerald-500/5';
+                        }
+
+                        return (
+                          <div key={grp.name} className="space-y-2">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
+                              {grp.name}
+                            </div>
+                            {grp.fields.map(fieldId => {
+                              const type = FIELD_TYPES.find(f => f.id === fieldId);
+                              if (!type) return null;
+                              return (
+                                <div
+                                  key={type.id}
+                                  className={`field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border cursor-grab hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left ${btnBgClass}`}
+                                  data-type={type.id}
+                                  onClick={() => addField(type)}
+                                >
+                                  <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
+                                    {React.createElement(IconMap[type.icon], { size: 14 })}
+                                  </div>
+                                  <span className="text-xs font-black text-slate-700">{type.name}</span>
+                                  <Plus className="w-3.5 h-3.5 text-slate-350 ml-auto shrink-0" />
                                 </div>
-                                <span className="text-xs font-black text-slate-700">{type.name}</span>
-                                <Plus className="w-3.5 h-3.5 text-slate-350 ml-auto shrink-0" />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ))
+                              );
+                            })}
+                          </div>
+                        );
+                      })
                     ) : (
                       // Collapsed icon list
                       FIELD_TYPES.map(type => (
@@ -1830,23 +1845,24 @@ export default function TaskBuilderPage() {
 
       {/* Initial Landing Screen */}
       {viewMode === 'initial' && (
-        <div className="w-full flex-1 flex flex-col justify-center items-center py-10 px-4 md:px-8 relative overflow-hidden">
-          {/* Immersive background elements */}
-          <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-50/40 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-50/20 rounded-full blur-3xl pointer-events-none translate-x-1/2 translate-y-1/2"></div>
+        <div className="w-full flex-1 flex flex-col justify-center items-center py-12 px-4 md:px-8 relative overflow-hidden bg-slate-50/30">
+          {/* Immersive glowing mesh background gradients */}
+          <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl pointer-events-none animate-pulse duration-[8000ms]"></div>
+          <div className="absolute bottom-10 right-10 w-96 h-96 bg-emerald-200/10 rounded-full blur-3xl pointer-events-none animate-pulse duration-[10000ms]"></div>
+          <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-violet-200/10 rounded-full blur-3xl pointer-events-none"></div>
 
-          <div className="max-w-5xl w-full text-center space-y-12 relative z-10 animate-fade-in">
+          <div className="max-w-6xl w-full text-center space-y-12 relative z-10 animate-fade-in">
             {/* Hero Header */}
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-black tracking-widest uppercase shadow-sm">
-                <Sparkles size={12} className="text-indigo-500 animate-pulse" />
-                Sheet Designer Workspace
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 text-indigo-700 text-[10px] font-black tracking-widest uppercase shadow-sm">
+                <Sparkles size={12} className="text-indigo-500 animate-spin duration-3000" />
+                Enterprise Workspace Architect
               </div>
-              <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-900 uppercase">
-                Task Sheet <span className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-[#1F5C99] bg-clip-text text-transparent">Architect</span>
+              <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-900 leading-tight">
+                CREATE CUSTOM <span className="bg-gradient-to-r from-[#1F5C99] via-indigo-650 to-violet-650 bg-clip-text text-transparent">TASK SHEETS</span>
               </h1>
-              <p className="max-w-2xl mx-auto text-sm md:text-base font-semibold text-slate-500 leading-relaxed">
-                Design bespoke client sheet matrices, statutory audits, and routine GST returns. Build custom columns, configure dynamic staff roles, and dispatch workflows instantly.
+              <p className="max-w-2xl mx-auto text-sm md:text-base font-semibold text-slate-400 leading-relaxed">
+                Design bespoke compliance trackers, corporate client sheets, and routine auditing checklists. Choose a premium pre-built CA template below to get a running start, or start fresh.
               </p>
             </div>
 
@@ -1856,75 +1872,123 @@ export default function TaskBuilderPage() {
                 {
                   id: 'blank',
                   title: 'Blank Canvas',
-                  desc: 'Start from absolute scratch. Create specialized dynamic parameters as needed.',
+                  desc: 'Start from scratch. Create completely custom column parameters, client grids, and dynamic staff rules.',
                   icon: Layout,
-                  color: 'from-slate-700 to-slate-800',
-                  iconColor: 'text-slate-600',
-                  iconBg: 'bg-slate-100',
-                  badge: 'Standard'
+                  iconColor: 'text-slate-800',
+                  iconBg: 'bg-slate-100 border-slate-200/60',
+                  badge: 'Standard',
+                  badgeBg: 'bg-slate-50 border-slate-150 text-slate-500',
+                  borderColor: 'hover:border-slate-300 hover:shadow-slate-200/50',
+                  pills: ['Static Name', 'Work Type', 'Created Date', 'Remarks', 'Assignee'],
+                  colorTheme: 'slate'
                 },
                 {
                   id: 'gst',
-                  title: 'GST Return Filing',
-                  desc: 'Manage GSTR-1 & GSTR-3B compliance checklists, GSTIN records, and ledger tracking.',
+                  title: 'GST Compliance Matrix',
+                  desc: 'Manage GSTR-1 & GSTR-3B filings, client GSTIN structures, tax liability calculations, and ledgers.',
                   icon: CheckSquare,
-                  color: 'from-[#1F5C99] to-[#154673]',
                   iconColor: 'text-[#1F5C99]',
-                  iconBg: 'bg-blue-50',
-                  badge: 'Tax Compliance'
+                  iconBg: 'bg-blue-50 border-blue-100/60',
+                  badge: 'GST Matrix',
+                  badgeBg: 'bg-blue-50/60 border-blue-100/40 text-[#1F5C99]',
+                  borderColor: 'hover:border-blue-300 hover:shadow-blue-200/40',
+                  pills: ['GSTIN No', 'GSTR-1 status', 'GSTR-3B status', 'Tax Liability', 'Filing Date'],
+                  colorTheme: 'blue'
                 },
                 {
                   id: 'itr',
-                  title: 'ITR Audit filing',
-                  desc: 'Preloaded for income tax filings, Assessment Years, acknowledgement receipts, and challans.',
+                  title: 'ITR Filing Workspace',
+                  desc: 'Pre-loaded fields for Direct Tax returns, Assessment Years, ITR Acknowledgement numbers, and verification status.',
                   icon: FileText,
-                  color: 'from-amber-600 to-amber-700',
                   iconColor: 'text-amber-600',
-                  iconBg: 'bg-amber-50',
-                  badge: 'Direct Tax'
+                  iconBg: 'bg-amber-50 border-amber-100/60',
+                  badge: 'Direct Tax',
+                  badgeBg: 'bg-amber-50/60 border-amber-100/40 text-amber-600',
+                  borderColor: 'hover:border-amber-300 hover:shadow-amber-200/40',
+                  pills: ['Assess. Year', 'ITR Form Type', 'Challan Status', 'BSR Code', 'Ack Number'],
+                  colorTheme: 'amber'
                 },
                 {
                   id: 'audit',
-                  title: 'Statutory Audit',
-                  desc: 'Structured checklist for company legal audits, CARO reviews, and representation logs.',
+                  title: 'Statutory Audit Log',
+                  desc: 'Structured Checklist for company audits, CARO applicability compliance, draft report signs, and progress tracks.',
                   icon: SlidersHorizontal,
-                  color: 'from-emerald-600 to-emerald-700',
                   iconColor: 'text-emerald-600',
-                  iconBg: 'bg-emerald-50',
-                  badge: 'Audit Control'
+                  iconBg: 'bg-emerald-50 border-emerald-100/60',
+                  badge: 'Audit Checklist',
+                  badgeBg: 'bg-emerald-50/60 border-emerald-100/40 text-emerald-600',
+                  borderColor: 'hover:border-emerald-300 hover:shadow-emerald-200/40',
+                  pills: ['Financial Year', 'Audit Status', 'CARO applicability', 'MRL Status', 'Manual Slider'],
+                  colorTheme: 'emerald'
                 }
-              ].map((tpl) => (
-                <div 
-                  key={tpl.id}
-                  onClick={() => handleSelectTemplate(tpl.id)}
-                  className="bg-white rounded-3xl border border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-xl p-6.5 text-left flex flex-col justify-between min-h-[300px] cursor-pointer transition-all duration-300 hover:-translate-y-1.5 group animate-in fade-in zoom-in-95"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className={`w-12 h-12 rounded-2xl ${tpl.iconBg} flex items-center justify-center`}>
-                        <tpl.icon size={22} className={tpl.iconColor} />
+              ].map((tpl) => {
+                let borderHoverClass = '';
+                let titleHoverClass = '';
+                
+                if (tpl.colorTheme === 'blue') {
+                  borderHoverClass = 'hover:border-blue-400 hover:shadow-blue-500/5 hover:-translate-y-2';
+                  titleHoverClass = 'group-hover:text-[#1F5C99]';
+                } else if (tpl.colorTheme === 'amber') {
+                  borderHoverClass = 'hover:border-amber-400 hover:shadow-amber-500/5 hover:-translate-y-2';
+                  titleHoverClass = 'group-hover:text-amber-600';
+                } else if (tpl.colorTheme === 'emerald') {
+                  borderHoverClass = 'hover:border-emerald-400 hover:shadow-emerald-500/5 hover:-translate-y-2';
+                  titleHoverClass = 'group-hover:text-emerald-600';
+                } else {
+                  borderHoverClass = 'hover:border-slate-400 hover:shadow-slate-500/5 hover:-translate-y-2';
+                  titleHoverClass = 'group-hover:text-slate-800';
+                }
+
+                return (
+                  <div 
+                    key={tpl.id}
+                    onClick={() => handleSelectTemplate(tpl.id)}
+                    className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm p-7 text-left flex flex-col justify-between min-h-[360px] cursor-pointer transition-all duration-300 group ${borderHoverClass}`}
+                  >
+                    <div className="space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div className={`w-12 h-12 rounded-2xl ${tpl.iconBg} border flex items-center justify-center`}>
+                          <tpl.icon size={22} className={tpl.iconColor} />
+                        </div>
+                        <span className={`text-[8.5px] font-black uppercase tracking-wider px-2.5 py-1 border rounded-full ${tpl.badgeBg}`}>
+                          {tpl.badge}
+                        </span>
                       </div>
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-slate-50 border border-slate-100 text-slate-400 rounded-full">
-                        {tpl.badge}
+                      
+                      <div className="space-y-2">
+                        <h3 className={`text-base font-black text-slate-800 uppercase tracking-tight transition ${titleHoverClass}`}>
+                          {tpl.title}
+                        </h3>
+                        <p className="text-[11.5px] font-semibold text-slate-400 leading-relaxed">
+                          {tpl.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Preloaded fields pills view */}
+                    <div className="mt-5 space-y-2 relative z-10">
+                      <div className="text-[8px] font-black uppercase tracking-widest text-slate-400">Pre-built Fields Included</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tpl.pills.map((pill, idx) => (
+                          <span 
+                            key={idx} 
+                            className="text-[8px] font-bold px-2 py-0.5 bg-slate-50 border border-slate-100 text-slate-500 rounded-md truncate max-w-[120px]"
+                            title={pill}
+                          >
+                            {pill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-slate-50 mt-auto flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-widest text-[#1F5C99] group-hover:translate-x-1.5 transition-transform duration-300 flex items-center gap-1.5">
+                        Initialize Sheet <ChevronRight size={14} />
                       </span>
                     </div>
-                    <div className="space-y-2">
-                      <h3 className="text-base font-black text-slate-800 uppercase tracking-tight group-hover:text-[#1F5C99] transition">
-                        {tpl.title}
-                      </h3>
-                      <p className="text-xs font-semibold text-slate-400 leading-relaxed">
-                        {tpl.desc}
-                      </p>
-                    </div>
                   </div>
-
-                  <div className="pt-6 border-t border-slate-50 mt-auto flex items-center justify-between">
-                    <span className="text-xs font-black uppercase tracking-widest text-[#1F5C99] group-hover:translate-x-1.5 transition-transform duration-300 flex items-center gap-1">
-                      Start Building <ChevronRight size={14} />
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -2636,13 +2700,35 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
     toast.success('Copied to clipboard!');
   };
 
+  let cardClass = '';
+  if (isLive) {
+    cardClass = 'bg-white border-slate-100 p-4';
+  } else if (field.static) {
+    cardClass = isActive
+      ? 'bg-slate-50/80 border-slate-400/80 shadow-md ring-4 ring-slate-400/5 -translate-y-0.5 border-l-4 border-l-slate-600'
+      : 'bg-slate-50/40 hover:bg-slate-50/80 border-slate-150 shadow-sm hover:shadow border-l-4 border-l-slate-400';
+  } else {
+    const isText = ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink'].includes(field.type);
+    const isChoice = ['dropdown', 'checkbox', 'labels', 'date', 'time'].includes(field.type);
+    
+    if (isText) {
+      cardClass = isActive
+        ? 'bg-white border-blue-400/80 shadow-lg shadow-blue-500/5 ring-4 ring-blue-500/5 -translate-y-0.5 border-l-4 border-l-blue-600'
+        : 'bg-white hover:bg-blue-50/10 border-slate-150 hover:border-blue-200/80 shadow-sm hover:shadow border-l-4 border-l-blue-400';
+    } else if (isChoice) {
+      cardClass = isActive
+        ? 'bg-white border-amber-400/80 shadow-lg shadow-amber-500/5 ring-4 ring-amber-500/5 -translate-y-0.5 border-l-4 border-l-amber-600'
+        : 'bg-white hover:bg-amber-50/10 border-slate-150 hover:border-amber-200/80 shadow-sm hover:shadow border-l-4 border-l-amber-400';
+    } else {
+      cardClass = isActive
+        ? 'bg-white border-emerald-400/80 shadow-lg shadow-emerald-500/5 ring-4 ring-emerald-500/5 -translate-y-0.5 border-l-4 border-l-emerald-600'
+        : 'bg-white hover:bg-emerald-50/10 border-slate-150 hover:border-emerald-200/80 shadow-sm hover:shadow border-l-4 border-l-emerald-400';
+    }
+  }
+
   return (
     <div
-      className={`relative rounded-3xl border p-5 transition-all duration-300 animate-slide-in flex flex-col gap-3 group/card select-none cursor-pointer ${
-        isActive 
-          ? 'bg-white border-indigo-500/60 shadow-lg shadow-indigo-500/5 ring-4 ring-indigo-500/5 -translate-y-0.5' 
-          : 'bg-slate-50/40 hover:bg-white border-slate-100 hover:border-slate-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5'
-      } ${
+      className={`relative rounded-3xl border p-5 transition-all duration-300 animate-slide-in flex flex-col gap-3 group/card select-none cursor-pointer ${cardClass} ${
         field.type === 'subtasks_list' ? 'md:col-span-2' : ''
       }`}
       onClick={onActive}

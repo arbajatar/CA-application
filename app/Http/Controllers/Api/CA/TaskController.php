@@ -161,7 +161,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task updated successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'subTasks.assignedTo', 'permissions.role'])),
         ]);
     }
 
@@ -184,7 +184,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task reassigned successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'subTasks.assignedTo', 'permissions.role'])),
         ]);
     }
 
