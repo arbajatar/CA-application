@@ -115,9 +115,9 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
           </div>
           <div className="max-h-60 overflow-y-auto">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
+              filteredOptions.map((opt, i) => (
                 <div
-                  key={getValue(opt)}
+                  key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt}
                   className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${
                     size === 'sm' ? 'text-xs' : 'text-sm'
                   } ${value !== undefined && value !== null && String(value) === String(getValue(opt)) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
@@ -188,6 +188,7 @@ export default function TaskDetailPage() {
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+    const [focusedValue, setFocusedValue] = useState('');
 
     // Roles & Permissions state
     const [availableRoles, setAvailableRoles] = useState([]);
@@ -666,7 +667,7 @@ export default function TaskDetailPage() {
         toast.success('Comprehensive Excel export started');
     };
 
-    if (loading) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;
+    if (loading || !task) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;
     const selectedField = schema.find(f => f.id === activeFieldId);
 
     const subStatusOptions = getSubStatusOptions(task, schema);
@@ -1110,7 +1111,7 @@ export default function TaskDetailPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-slate-700 text-xs">
-                            <tr key={task.id + '-' + (task.form_name || '') + '-' + (task.date_allocated || '') + '-' + JSON.stringify(task.dynamic_fields || {})} className="hover:bg-slate-50/30 transition group">
+                            <tr key={task.id} className="hover:bg-slate-50/30 transition group">
                                 {/* # column */}
                                 <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40">
                                     01
@@ -1126,8 +1127,9 @@ export default function TaskDetailPage() {
                                                 const val = e.target.value;
                                                 setTask(prev => ({ ...prev, form_name: val }));
                                             }}
+                                            onFocus={(e) => setFocusedValue(e.target.value)}
                                             onBlur={(e) => {
-                                                if (e.target.value !== task.form_name) {
+                                                if (e.target.value !== focusedValue) {
                                                     handleUpdateTaskFields({ form_name: e.target.value });
                                                 }
                                             }}
@@ -1193,8 +1195,9 @@ export default function TaskDetailPage() {
                                             const val = e.target.value;
                                             setTask(prev => ({ ...prev, date_allocated: val }));
                                         }}
+                                        onFocus={(e) => setFocusedValue(e.target.value)}
                                         onBlur={(e) => {
-                                            if (e.target.value !== task.date_allocated) {
+                                            if (e.target.value !== focusedValue) {
                                                 handleUpdateTaskFields({ date_allocated: e.target.value });
                                             }
                                         }}
@@ -1370,27 +1373,28 @@ export default function TaskDetailPage() {
                                             ) : (
                                                 <div className="flex items-center justify-between group/cell w-full">
                                                     <input
-                                                        type="text"
-                                                        value={value || ''}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            setTask(prev => ({
-                                                                ...prev,
-                                                                dynamic_fields: {
-                                                                    ...(prev.dynamic_fields || {}),
-                                                                    [field.label]: val
-                                                                }
-                                                            }));
-                                                        }}
-                                                        onBlur={(e) => {
-                                                            if (e.target.value !== value) {
-                                                                const nextDynamicFields = {
-                                                                    ...(task.dynamic_fields || {}),
-                                                                    [field.label]: e.target.value
-                                                                };
-                                                                handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                            }
-                                                        }}
+                                                         type="text"
+                                                         value={value || ''}
+                                                         onChange={(e) => {
+                                                             const val = e.target.value;
+                                                             setTask(prev => ({
+                                                                 ...prev,
+                                                                 dynamic_fields: {
+                                                                     ...(prev.dynamic_fields || {}),
+                                                                     [field.label]: val
+                                                                 }
+                                                             }));
+                                                         }}
+                                                         onFocus={(e) => setFocusedValue(e.target.value)}
+                                                         onBlur={(e) => {
+                                                             if (e.target.value !== focusedValue) {
+                                                                 const nextDynamicFields = {
+                                                                     ...(task.dynamic_fields || {}),
+                                                                     [field.label]: e.target.value
+                                                                 };
+                                                                 handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                             }
+                                                         }}
                                                         onKeyDown={(e) => {
                                                             if (e.key === 'Enter') {
                                                                 e.target.blur();

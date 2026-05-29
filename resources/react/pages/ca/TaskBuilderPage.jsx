@@ -87,9 +87,9 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
           </div>
           <div className="max-h-60 overflow-y-auto">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
+              filteredOptions.map((opt, i) => (
                 <div
-                  key={getValue(opt)}
+                  key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt}
                   className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${
                     size === 'sm' ? 'text-xs' : 'text-sm'
                   } ${value !== undefined && value !== null && String(value) === String(getValue(opt)) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-600'}`}
