@@ -852,7 +852,7 @@ export default function TaskDetailPage() {
     });
 
     return (
-        <div className="space-y-6 max-w-[100vw] pb-12 relative -m-4 md:-m-8 p-2">
+        <div className="space-y-6 max-w-[100vw] pb-12 relative">
             {/* Redesigned Premium Header Block */}
             <div className="bg-white rounded-[2rem] border border-slate-100/80 py-3.5 px-6 md:py-4.5 md:px-8 shadow-sm space-y-3 animate-fade-in relative overflow-hidden">
                 {/* Decorative background gradients for premium SaaS feel */}
