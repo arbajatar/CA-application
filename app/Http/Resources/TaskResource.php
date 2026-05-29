@@ -86,17 +86,22 @@ class TaskResource extends JsonResource
             ];
         }
 
-        // Find permission matching the user's role
-        $rolePermission = $permissions->firstWhere('role_id', $user->role_id);
-        if ($rolePermission) {
+        // Find permissions matching any of the user's roles
+        $roleIds = $user->relationLoaded('roles') 
+            ? $user->roles->pluck('id')->toArray() 
+            : $user->roles()->pluck('roles.id')->toArray();
+
+        $userRolePermissions = $permissions->whereIn('role_id', $roleIds);
+
+        if ($userRolePermissions->isNotEmpty()) {
             return [
-                'can_read' => (bool)$rolePermission->can_read,
-                'can_write' => (bool)$rolePermission->can_write,
-                'can_delete' => (bool)$rolePermission->can_delete,
+                'can_read' => $userRolePermissions->contains('can_read', true),
+                'can_write' => $userRolePermissions->contains('can_write', true),
+                'can_delete' => $userRolePermissions->contains('can_delete', true),
             ];
         }
 
-        // If sheet has permissions, but none configured for user's role, access is denied
+        // If sheet has permissions, but none configured for any of user's roles, access is denied
         return [
             'can_read' => false,
             'can_write' => false,

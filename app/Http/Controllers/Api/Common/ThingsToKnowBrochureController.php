@@ -23,7 +23,7 @@ class ThingsToKnowBrochureController extends Controller
     {
         $request->validate([
             'title' => 'required|string|max:255',
-            'file' => 'required|file|mimes:pdf|max:10240', // Max 10MB
+            'file' => 'required|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,zip,csv,txt,rtf,rar|max:10240', // Max 10MB
             'group_name' => 'nullable|string|max:255',
         ]);
 
@@ -50,6 +50,25 @@ class ThingsToKnowBrochureController extends Controller
 
         return response()->json([
             'message' => 'Brochure removed successfully'
+        ]);
+    }
+
+    public function updateGroup(Request $request): JsonResponse
+    {
+        $request->validate([
+            'old_group_name' => 'required|string|max:255',
+            'new_group_name' => 'required|string|max:255',
+        ]);
+
+        $oldName = $request->old_group_name;
+        $newName = $request->new_group_name;
+
+        ThingsToKnowBrochure::where('group_name', $oldName)->update([
+            'group_name' => $newName
+        ]);
+
+        return response()->json([
+            'message' => 'Document category renamed successfully'
         ]);
     }
 }

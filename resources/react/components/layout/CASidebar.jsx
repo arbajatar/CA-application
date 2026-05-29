@@ -39,7 +39,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
     }
 
     const sidebarClasses = `
-        fixed top-0 left-0 h-screen bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm transition-all duration-300
+        fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
         ${isOpen ? 'w-64' : 'w-20'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
     `
@@ -47,7 +47,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
     return (
         <aside className={sidebarClasses}>
             {/* Logo */}
-            <div className={`px-4 py-6 border-b border-gray-100 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
+            <div className={`px-4 py-3.5 border-b border-slate-200 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
                 {(isOpen || isMobileOpen) && (
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
@@ -93,7 +93,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                                     }}
                                     className={`flex items-center justify-between w-full py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${hasActiveChild
                                         ? 'bg-[#EEF4FB] text-[#1F5C99]'
-                                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                        : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -113,9 +113,9 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                                                 to={child.to}
                                                 onClick={() => setIsMobileOpen?.(false)}
                                                 className={({ isActive }) =>
-                                                    `flex items-center gap-2.5 py-2 px-4 rounded-lg text-xs font-semibold transition-all ${isActive
-                                                        ? 'text-[#1F5C99] font-bold bg-slate-50'
-                                                        : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                                                    `flex items-center gap-2.5 py-2 px-4 rounded-xl text-xs font-bold transition-all ${isActive
+                                                        ? 'text-[#1F5C99] bg-[#EEF4FB]'
+                                                        : 'text-slate-650 hover:bg-slate-55 hover:text-slate-900'
                                                     }`
                                                 }
                                             >
@@ -138,7 +138,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                             className={({ isActive }) =>
                                 `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
                                     ? 'bg-[#EEF4FB] text-[#1F5C99]'
-                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                    : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
                                 }`
                             }
                             title={!isOpen ? item.label : undefined}
@@ -151,7 +151,8 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
             </nav>
 
             {/* Logout */}
-            <div className={`px-4 py-6 border-t border-gray-100 flex ${isOpen ? '' : 'justify-center'}`}>
+            <div className={`px-4 py-3 flex flex-col ${isOpen ? '' : 'items-center justify-center'}`}>
+                <div className={`h-[1px] bg-slate-200 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
                 <button
                     onClick={() => setLogoutConfirmOpen(true)}
                     className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}

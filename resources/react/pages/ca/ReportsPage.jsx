@@ -375,11 +375,11 @@ export default function ReportsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        <BarChart3 className="text-indigo-600 w-8 h-8" /> 
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                        <BarChart3 className="text-[#1F5C99] w-7 h-7" /> 
                         {isTaskReport ? 'Task Report' : 'TimeSheet Report'}
                     </h1>
-                    <p className="text-sm font-semibold text-slate-400 mt-1">
+                    <p className="text-sm font-medium text-slate-500 mt-1">
                         {isTaskReport 
                             ? 'Complete register of all work tasks, work types, subtasks status, and staff allocation.'
                             : 'Track timesheets, completion rates, and operations speed for sheets and subtasks.'}
@@ -387,7 +387,7 @@ export default function ReportsPage() {
                 </div>
                 <button
                     onClick={handleExportExcel}
-                    className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-6 py-3.5 rounded-2xl text-sm font-bold shadow-xl shadow-indigo-100 transition duration-200 active:scale-95 whitespace-nowrap self-start md:self-auto"
+                    className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 whitespace-nowrap self-start md:self-auto cursor-pointer"
                 >
                     <FileDown size={16} />
                     <span>Export Excel Report</span>

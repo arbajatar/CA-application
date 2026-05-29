@@ -18,8 +18,12 @@ class User extends Authenticatable
         'username',
         'password',
         'role',
-        'role_id',
         'is_active',
+        'employee_code',
+        'address',
+        'email',
+        'mobile',
+        'profile_photo',
     ];
 
     protected $hidden = [
@@ -27,20 +31,26 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = ['profile_photo_url'];
+
+    public function getProfilePhotoUrlAttribute()
+    {
+        return $this->profile_photo ? asset('storage/' . $this->profile_photo) : null;
+    }
+
     protected function casts(): array
     {
         return [
             'password' => 'hashed',
             'role' => UserRole::class,
-            'role_id' => 'integer',
             'is_active' => 'boolean',
         ];
     }
 
     // ── Relationships ──────────────────────────────────────────────
-    public function customRole()
+    public function roles()
     {
-        return $this->belongsTo(Role::class, 'role_id');
+        return $this->belongsToMany(Role::class);
     }
 
     public function assignedTasks()

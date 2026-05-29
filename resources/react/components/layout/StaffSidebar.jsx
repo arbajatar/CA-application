@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ClipboardList, User, LogOut, ShieldCheck, Menu, Info, Globe, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, User, LogOut, ShieldCheck, Menu, Info, Globe, BarChart3 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
+    { to: '/staff/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/staff/tasks', icon: ClipboardList, label: 'My Sheets' },
     { to: '/staff/reports/team', icon: BarChart3, label: 'Team Report' },
     { to: '/staff/portals', icon: Globe, label: 'Portal List' },
@@ -25,7 +26,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
     }
 
     const sidebarClasses = `
-        fixed top-0 left-0 h-screen bg-white border-r border-gray-100 flex flex-col z-40 shadow-sm transition-all duration-300
+        fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
         ${isOpen ? 'w-64' : 'w-20'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
     `
@@ -33,7 +34,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
     return (
         <aside className={sidebarClasses}>
             {/* Logo */}
-            <div className={`px-4 py-6 border-b border-gray-100 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
+            <div className={`px-4 py-3.5 border-b border-slate-200 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
                 {(isOpen || isMobileOpen) && (
                     <div className="flex items-center gap-3">
                         <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
@@ -87,7 +88,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
                         className={({ isActive }) =>
                             `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
                                 ? 'bg-[#0f1c2e] text-white'
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
                             }`
                         }
                         title={!isOpen ? label : undefined}
@@ -99,7 +100,8 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
             </nav>
 
             {/* Logout */}
-            <div className={`px-4 py-6 border-t border-gray-100 flex ${isOpen ? '' : 'justify-center'}`}>
+            <div className={`px-4 py-3 flex flex-col ${isOpen ? '' : 'items-center justify-center'}`}>
+                <div className={`h-[1px] bg-slate-200 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
                 <button
                     onClick={() => setLogoutConfirmOpen(true)}
                     className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}

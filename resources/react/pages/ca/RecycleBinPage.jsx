@@ -137,11 +137,11 @@ export default function RecycleBinPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                         <Trash2 className="text-[#1F5C99] w-6 h-6" />
                         <span>Recycle Bin</span>
                     </h1>
-                    <p className="text-xs font-semibold text-slate-400 mt-1">
+                    <p className="text-sm font-medium text-slate-500 mt-1">
                         View, recover, or permanently purge soft-deleted clients and sheets/tasks.
                     </p>
                 </div>

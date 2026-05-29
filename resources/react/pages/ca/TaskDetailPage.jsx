@@ -729,12 +729,12 @@ export default function TaskDetailPage() {
                             <Layout size={14} className="text-indigo-500" />
                             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">Form Workspace</span>
                         </div>
-                        <h1 className="text-2xl font-black text-slate-900 mt-1">
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight mt-1">
                             {isEditing ? (
                                 <input
                                     value={formName}
                                     onChange={e => setFormName(e.target.value)}
-                                    className="bg-transparent border-b-2 border-indigo-500 outline-none focus:border-indigo-600 transition min-w-[300px]"
+                                    className="bg-transparent border-b-2 border-[#1F5C99] outline-none focus:border-[#1F5C99] transition min-w-[300px]"
                                     placeholder="Form Name"
                                 />
                             ) : (
@@ -746,14 +746,14 @@ export default function TaskDetailPage() {
                 <div className="flex items-center gap-2 select-none">
                     <button 
                         onClick={handleExport} 
-                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-md shadow-emerald-100 h-[38px]"
+                        className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-md shadow-emerald-100 h-[38px]"
                     >
                         <FileDown size={14} /> 
                         <span>Export Excel</span>
                     </button>
                     <button 
                         onClick={() => setIsGlobalModalOpen(true)}
-                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm h-[38px]"
+                        className="flex items-center justify-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-sm h-[38px]"
                     >
                         <Sliders size={14} className="text-slate-500" />
                         <span>Global Settings</span>
@@ -781,17 +781,19 @@ export default function TaskDetailPage() {
                             };
                             navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
                         }}
-                        className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm h-[38px]"
+                        className="flex items-center justify-center gap-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-sm h-[38px]"
                     >
                         <Edit2 size={14} className="text-slate-500" /> 
                         <span>Edit Form Layout</span>
                     </button>
                     <button 
                         onClick={handleAddSubTask} 
-                        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-black transition shadow-md shadow-indigo-100 h-[38px]"
+                        className="flex items-center justify-center gap-1.5 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-4 py-2 rounded-xl text-xs font-bold transition duration-200 active:scale-95 cursor-pointer shadow-md shadow-indigo-100 h-[38px]"
                     >
                         <Plus size={14} /> 
                         <span>New Task</span>
+                    </button>
+                </div>
                     </button>
                 </div>
             </div>

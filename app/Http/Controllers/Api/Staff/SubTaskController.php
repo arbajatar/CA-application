@@ -22,8 +22,9 @@ class SubTaskController extends Controller
                 $tq->where(function ($query) use ($user) {
                     $query->whereDoesntHave('permissions')
                         ->orWhereHas('permissions', function ($pq) use ($user) {
-                            if ($user->role_id) {
-                                $pq->where('role_id', $user->role_id)
+                            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+                            if (!empty($roleIds)) {
+                                $pq->whereIn('role_id', $roleIds)
                                    ->where('can_read', true);
                             } else {
                                 $pq->whereRaw('1 = 0');
@@ -51,8 +52,9 @@ class SubTaskController extends Controller
         $user = $request->user();
         $task = $subTask->task;
         if ($task && $task->permissions()->exists()) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
             $hasWriteAccess = $task->permissions()
-                ->where('role_id', $user->role_id)
+                ->whereIn('role_id', $roleIds)
                 ->where('can_write', true)
                 ->exists();
             if (!$hasWriteAccess) {

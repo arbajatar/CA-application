@@ -8,10 +8,12 @@ import {
     Circle, Trash2, Eye
 } from 'lucide-react'
 import api from '../../api/axios'
+import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
+import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
 
 const DEFAULT_SUB_STATUSES = [
@@ -46,20 +48,43 @@ const statuses = [
 ]
 
 function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) {
+    let inactiveBgClass = '';
+    let activeClass = '';
+
+    if (iconColor.includes('blue')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0F7FF] border-blue-100 text-slate-750 hover:border-blue-300';
+        activeClass = 'active-card-blue ring-4 ring-blue-500/5 shadow-lg shadow-blue-500/5 scale-[1.02]';
+    } else if (iconColor.includes('amber') || iconColor.includes('yellow')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFFBEB] border-amber-100 text-slate-750 hover:border-amber-300';
+        activeClass = 'active-card-amber ring-4 ring-amber-500/5 shadow-lg shadow-amber-500/5 scale-[1.02]';
+    } else if (iconColor.includes('green') || iconColor.includes('emerald')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0FDF4] border-emerald-100 text-slate-750 hover:border-emerald-300';
+        activeClass = 'active-card-emerald ring-4 ring-emerald-500/5 shadow-lg shadow-emerald-500/5 scale-[1.02]';
+    } else if (iconColor.includes('red') || iconColor.includes('rose')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFF5F5] border-red-100 text-slate-750 hover:border-red-300';
+        activeClass = 'active-card-rose ring-4 ring-red-500/5 shadow-lg shadow-red-500/5 scale-[1.02]';
+    } else {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F8FAFC] border-slate-200 text-slate-750 hover:border-slate-400';
+        activeClass = 'active-card-slate ring-4 ring-slate-500/5 shadow-lg shadow-slate-500/5 scale-[1.02]';
+    }
+
     return (
         <div 
             onClick={onClick}
-            className={`bg-white rounded-xl p-3.5 shadow-sm border ${active ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-100 hover:border-gray-200'} flex flex-col gap-2 transition-all cursor-pointer select-none`}
+            className={`rounded-2xl p-4.5 transition-all duration-300 flex flex-col gap-3.5 cursor-pointer select-none border
+                ${active 
+                    ? `${activeClass} -translate-y-0.5` 
+                    : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
         >
             <div className="flex items-center justify-between gap-2">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${iconBg}`}>
+                <div className={`p-2 rounded-xl transition-colors ${iconBg}`}>
                     <Icon size={18} className={iconColor} />
                 </div>
-                <span className="text-2xl font-bold text-gray-800">{String(value || 0).padStart(2, '0')}</span>
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{String(value || 0).padStart(2, '0')}</span>
             </div>
             <div className="min-w-0">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider truncate" title={label}>{label}</p>
-                {sub && <p className={`text-[10px] font-medium mt-0.5 truncate ${subColor ?? 'text-gray-400'}`} title={sub}>{sub}</p>}
+                <p className="text-[10px] font-semibold uppercase tracking-wider truncate text-slate-900" title={label}>{label}</p>
+                {sub && <p className={`text-[10px] font-medium mt-0.5 truncate ${subColor ?? 'text-slate-600'}`} title={sub}>{sub}</p>}
             </div>
         </div>
     )
@@ -260,14 +285,16 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                         <h2 className="text-xl font-bold text-gray-800">Sheet-wise Subtask Summary</h2>
                         <p className="text-sm text-gray-400">View tasks and click on subtask counts to view detailed subtask sheets</p>
                     </div>
-                    <select
+                    <CustomSelect
                         value={selectedWorkType}
                         onChange={e => { setSelectedWorkType(e.target.value); setSheets([]); }}
-                        className="py-2.5 px-4 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition sm:w-64 animate-fade-in"
-                    >
-                        <option value="">Select Work Type</option>
-                        {workTypes.map(wt => <option key={wt.id} value={wt.id}>{wt.name}</option>)}
-                    </select>
+                        options={[
+                            { value: '', label: 'Select Work Type' },
+                            ...workTypes.map(wt => ({ value: wt.id, label: wt.name }))
+                        ]}
+                        widthClass="w-full sm:w-64"
+                        className="animate-fade-in"
+                    />
                 </div>
             </div>
 
@@ -320,13 +347,13 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                         {loading ? <Spinner /> : (
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
-                                        <th className="px-6 py-4 text-left w-12"></th>
-                                        <th className="px-6 py-4 text-left">Client</th>
-                                        <th className="px-6 py-4 text-left">Sheet/Task Form</th>
-                                        <th className="px-6 py-4 text-left">Allocated To</th>
-                                        <th className="px-6 py-4 text-left">Due Date</th>
-                                        <th className="px-6 py-4 text-left">Subtasks Summary (Click to expand)</th>
+                                    <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                        <th className="px-6 py-3.5 text-left w-12"></th>
+                                        <th className="px-6 py-3.5 text-left">Client</th>
+                                        <th className="px-6 py-3.5 text-left">Sheet/Task Form</th>
+                                        <th className="px-6 py-3.5 text-left">Allocated To</th>
+                                        <th className="px-6 py-3.5 text-left">Due Date</th>
+                                        <th className="px-6 py-3.5 text-left">Subtasks Summary (Click to expand)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -344,7 +371,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                             if (expandedFilter === 'other') return st.status === 'other'
                                             return false
                                         })
-
+ 
                                         return (
                                             <>
                                                 <tr key={sheet.id} className={`hover:bg-gray-50/80 transition ${isExpanded ? 'bg-blue-50/10' : ''}`}>
@@ -367,7 +394,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                 }}
                                                                 className="text-gray-450 hover:text-blue-600 transition p-1 hover:bg-blue-50 rounded"
                                                                 title="View Details"
-                                                            >
+                                                                >
                                                                 <Eye size={15} />
                                                             </button>
                                                         </div>
@@ -382,7 +409,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                         />
                                                     </td>
                                                 </tr>
-
+ 
                                                 {/* Expanded Subtask Details */}
                                                 {isExpanded && (
                                                     <tr className="bg-gray-50/50">
@@ -396,7 +423,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                         {filteredSubtasks.length} subtasks
                                                                     </span>
                                                                 </div>
-
+ 
                                                                 {filteredSubtasks.length === 0 ? (
                                                                     <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-gray-100">
                                                                         No subtasks match this status filter.
@@ -405,7 +432,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                     <div className="overflow-hidden bg-white border border-gray-100 rounded-xl shadow-sm">
                                                                         <table className="w-full text-xs">
                                                                             <thead>
-                                                                                <tr className="bg-gray-50 text-gray-400 font-semibold uppercase text-[10px] tracking-wider border-b border-gray-100">
+                                                                                <tr className="bg-[#1F5C99] text-white font-bold uppercase text-[10px] tracking-wider border-b border-[#154673]">
                                                                                     <th className="px-4 py-2.5 text-left min-w-[200px]">Subtask Title</th>
                                                                                     <th className="px-4 py-2.5 text-left">Assigned To</th>
                                                                                     <th className="px-4 py-2.5 text-left">Priority</th>
@@ -514,6 +541,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 }
 
 function CalendarView() {
+    const { user } = useAuth()
     const navigate = useNavigate()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [tasks, setTasks] = useState([])
@@ -526,14 +554,15 @@ function CalendarView() {
         try {
             const month = currentDate.getMonth() + 1
             const year = currentDate.getFullYear()
-            const res = await api.get('/ca/dashboard/calendar-tasks', {
+            const prefix = user?.role === 'staff' ? '/staff' : '/ca'
+            const res = await api.get(`${prefix}/dashboard/calendar-tasks`, {
                 params: { month, year }
             })
             setTasks(res.data.data || [])
         } finally {
             setLoading(false)
         }
-    }, [currentDate])
+    }, [currentDate, user])
 
     useEffect(() => {
         fetchTasks()
@@ -563,9 +592,17 @@ function CalendarView() {
         return `${year}-${month}-${day}`
     }
 
+    const parseLocalDate = (dateStr) => {
+        if (!dateStr) return null
+        const [year, month, day] = dateStr.split('-').map(Number)
+        return new Date(year, month - 1, day)
+    }
+
     const handleUpdateSubTask = async (taskId, subTaskId, updatedData) => {
         try {
-            const res = await api.patch(`/ca/tasks/${taskId}/sub-tasks/${subTaskId}`, updatedData)
+            const isStaff = user?.role === 'staff'
+            const url = isStaff ? `/staff/sub-tasks/${subTaskId}/status` : `/ca/tasks/${taskId}/sub-tasks/${subTaskId}`
+            const res = await api.patch(url, updatedData)
             const updatedSubTask = res.data.data
             
             // Update the subtask locally inside calendar tasks state
@@ -632,13 +669,13 @@ function CalendarView() {
         const endTime = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime()
 
         return tasks.filter(t => {
-            const tDate = t.due_date ? new Date(t.due_date) : null
-            const tTime = tDate ? new Date(tDate.getFullYear(), tDate.getMonth(), tDate.getDate()).getTime() : null
+            const tDate = parseLocalDate(t.due_date)
+            const tTime = tDate ? tDate.getTime() : null
             
             const hasDueSheetInRange = tTime && tTime >= startTime && tTime <= endTime && t.status !== 'complete'
             const hasDueSubTaskInRange = t.sub_tasks?.some(st => {
-                const stDate = st.due_date ? new Date(st.due_date) : null
-                const stTime = stDate ? new Date(stDate.getFullYear(), stDate.getMonth(), stDate.getDate()).getTime() : null
+                const stDate = parseLocalDate(st.due_date)
+                const stTime = stDate ? stDate.getTime() : null
                 return stTime && stTime >= startTime && stTime <= endTime && st.status !== 'complete'
             })
 
@@ -759,13 +796,13 @@ function CalendarView() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">
-                                    <th className="px-6 py-3 text-left">Client</th>
-                                    <th className="px-6 py-3 text-left">Sheet/Task Form</th>
-                                    <th className="px-6 py-3 text-left">Work Type</th>
-                                    <th className="px-6 py-3 text-left">Allocated To</th>
-                                    <th className="px-6 py-3 text-left">Due Date</th>
-                                    <th className="px-6 py-3 text-left">Status</th>
+                                <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                    <th className="px-6 py-3.5 text-left">Client</th>
+                                    <th className="px-6 py-3.5 text-left">Sheet/Task Form</th>
+                                    <th className="px-6 py-3.5 text-left">Work Type</th>
+                                    <th className="px-6 py-3.5 text-left">Allocated To</th>
+                                    <th className="px-6 py-3.5 text-left">Due Date</th>
+                                    <th className="px-6 py-3.5 text-left">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 bg-white">
@@ -774,8 +811,8 @@ function CalendarView() {
                                 ) : selectedTasks.map(t => {
                                     const sheetDue = (() => {
                                         if (!t.due_date || t.status === 'complete') return false
-                                        const tDate = new Date(t.due_date)
-                                        const tTime = new Date(tDate.getFullYear(), tDate.getMonth(), tDate.getDate()).getTime()
+                                        const tDate = parseLocalDate(t.due_date)
+                                        const tTime = tDate ? tDate.getTime() : null
                                         if (!rangeEnd) {
                                             return tTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
                                         }
@@ -786,8 +823,8 @@ function CalendarView() {
 
                                     const dueSubTasks = t.sub_tasks?.filter(st => {
                                         if (!st.due_date || st.status === 'complete') return false
-                                        const stDate = new Date(st.due_date)
-                                        const stTime = new Date(stDate.getFullYear(), stDate.getMonth(), stDate.getDate()).getTime()
+                                        const stDate = parseLocalDate(st.due_date)
+                                        const stTime = stDate ? stDate.getTime() : null
                                         if (!rangeEnd) {
                                             return stTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
                                         }
@@ -840,19 +877,19 @@ function CalendarView() {
                                                 <tr className="bg-gray-50/50">
                                                     <td colSpan={6} className="px-10 py-3 border-t border-b border-gray-100">
                                                         <div className="space-y-2">
-                                                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                                                 Due Subtasks:
                                                             </h4>
                                                             <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
                                                                 <table className="w-full text-xs">
                                                                     <thead>
-                                                                        <tr className="bg-gray-50 text-gray-400 font-semibold border-b border-gray-100">
-                                                                            <th className="px-4 py-2 text-left">Subtask</th>
-                                                                            <th className="px-4 py-2 text-left">Assignee</th>
-                                                                            <th className="px-4 py-2 text-left">Priority</th>
-                                                                            <th className="px-4 py-2 text-left">Due Date</th>
-                                                                            <th className="px-4 py-2 text-left">Status (Click to update)</th>
-                                                                            <th className="px-4 py-2 text-left">Sub Status</th>
+                                                                        <tr className="text-[10px] font-bold text-white uppercase tracking-wider bg-[#1F5C99] border-b border-[#154673]">
+                                                                            <th className="px-4 py-2.5 text-left">Subtask</th>
+                                                                            <th className="px-4 py-2.5 text-left">Assignee</th>
+                                                                            <th className="px-4 py-2.5 text-left">Priority</th>
+                                                                            <th className="px-4 py-2.5 text-left">Due Date</th>
+                                                                            <th className="px-4 py-2.5 text-left">Status (Click to update)</th>
+                                                                            <th className="px-4 py-2.5 text-left">Sub Status</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="divide-y divide-gray-50 bg-white">
@@ -912,6 +949,8 @@ function CalendarView() {
 }
 
 export default function DashboardPage() {
+    const { user } = useAuth()
+    const isStaff = user?.role === 'staff'
     const navigate = useNavigate()
     const [activeTab, setActiveTab] = useState('overview') // 'overview' | 'calendar'
 
@@ -928,20 +967,28 @@ export default function DashboardPage() {
     const [page, setPage] = useState(1)
 
     const fetchSummary = async () => {
-        const [s, st, wt] = await Promise.all([
-            api.get('/ca/dashboard/summary'),
-            api.get('/ca/dashboard/staff-summary'),
-            api.get('/ca/work-types'),
-        ])
-        setSummary(s.data)
-        setStaffData(st.data.data)
-        setWorkTypes(wt.data.data || [])
+        if (isStaff) {
+            const s = await api.get('/staff/dashboard/summary')
+            setSummary(s.data)
+            setStaffData([])
+            setWorkTypes(s.data.work_types || [])
+        } else {
+            const [s, st, wt] = await Promise.all([
+                api.get('/ca/dashboard/summary'),
+                api.get('/ca/dashboard/staff-summary'),
+                api.get('/ca/work-types'),
+            ])
+            setSummary(s.data)
+            setStaffData(st.data.data)
+            setWorkTypes(wt.data.data || [])
+        }
     }
 
     const fetchTasks = useCallback(async () => {
         setTaskLoading(true)
+        const prefix = isStaff ? '/staff' : '/ca'
         try {
-            const res = await api.get('/ca/dashboard/tasks', {
+            const res = await api.get(`${prefix}/dashboard/tasks`, {
                 params: { search, status, page, per_page: 10 }
             })
             setTasks(res.data.data)
@@ -949,7 +996,7 @@ export default function DashboardPage() {
         } finally {
             setTaskLoading(false)
         }
-    }, [search, status, page])
+    }, [search, status, page, isStaff])
 
     useEffect(() => {
         fetchSummary().finally(() => setLoading(false))
@@ -1011,40 +1058,42 @@ export default function DashboardPage() {
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h1 className="text-3xl font-bold text-gray-900 animate-fade-in">Dashboard</h1>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight animate-fade-in">Dashboard</h1>
                 
                 {/* Tabs */}
-                <div className="flex p-1 bg-gray-100 rounded-xl w-full md:w-auto">
+                <div className="flex p-1.5 bg-slate-50 border border-[#1F5C99]/30 rounded-2xl w-full md:w-auto shadow-sm shadow-[#1F5C99]/5 gap-1 animate-fade-in">
                     <button
                         onClick={() => setActiveTab('overview')}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                             activeTab === 'overview' 
-                            ? 'bg-white text-blue-600 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-[#1F5C99] text-white shadow-sm' 
+                            : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
                         }`}
                     >
-                        <LayoutDashboard size={16} /> Overview
+                        <LayoutDashboard size={15} /> Overview
                     </button>
                     <button
                         onClick={() => setActiveTab('calendar')}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                             activeTab === 'calendar' 
-                            ? 'bg-white text-blue-600 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-[#1F5C99] text-white shadow-sm' 
+                            : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
                         }`}
                     >
-                        <CalendarDays size={16} /> Calendar View
+                        <CalendarDays size={15} /> Calendar View
                     </button>
-                    <button
-                        onClick={() => setActiveTab('summary')}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                            activeTab === 'summary' 
-                            ? 'bg-white text-blue-600 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Activity size={16} /> Summary
-                    </button>
+                    {!isStaff && (
+                        <button
+                            onClick={() => setActiveTab('summary')}
+                            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                                activeTab === 'summary' 
+                                ? 'bg-[#1F5C99] text-white shadow-sm' 
+                                : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
+                            }`}
+                        >
+                            <Activity size={15} /> Summary
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1072,13 +1121,13 @@ export default function DashboardPage() {
                                     />
                                 </div>
                                 {/* Status filter */}
-                                <select
+                                <CustomSelect
                                     value={status}
                                     onChange={e => { setStatus(e.target.value); setPage(1) }}
-                                    className="py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition flex-1 sm:flex-none"
-                                >
-                                    {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                </select>
+                                    options={statuses}
+                                    widthClass="w-full sm:w-auto min-w-[125px]"
+                                    className="flex-1 sm:flex-none"
+                                />
                             </div>
                         </div>
 
@@ -1086,9 +1135,9 @@ export default function DashboardPage() {
                             {taskLoading ? <Spinner /> : (
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                        <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
                                             {['#', 'Client', 'Nature', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
-                                                <th key={h} className="px-6 py-3 text-left">{h}</th>
+                                                <th key={h} className="px-6 py-3.5 text-left">{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -1096,7 +1145,7 @@ export default function DashboardPage() {
                                         {tasks?.length === 0 ? (
                                             <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
-                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(`/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
                                                 <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
@@ -1115,7 +1164,7 @@ export default function DashboardPage() {
                         {/* Pagination */}
                         {tasksMeta && tasksMeta.last_page > 1 && (
                             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                                <p className="text-xs text-gray-400">
+                                <p className="text-xs text-slate-500 font-semibold">
                                     Showing {tasksMeta.from}–{tasksMeta.to} of {tasksMeta.total} tasks
                                 </p>
                                 <div className="flex gap-2">
@@ -1142,37 +1191,53 @@ export default function DashboardPage() {
                             </div>
                             <div>
                                 <h2 className="text-xl font-bold text-gray-800">Quick Links</h2>
-                                <p className="text-sm text-gray-400">Access all services at your fingertips</p>
+                                <p className="text-sm text-slate-500 font-semibold">Access all services at your fingertips</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
                             {workTypes.map((wt, i) => {
                                 const colors = [
-                                    { bg: 'bg-blue-500', icon: 'text-white' },
-                                    { bg: 'bg-orange-500', icon: 'text-white' },
-                                    { bg: 'bg-emerald-500', icon: 'text-white' },
-                                    { bg: 'bg-sky-500', icon: 'text-white' },
-                                    { bg: 'bg-teal-500', icon: 'text-white' },
-                                    { bg: 'bg-red-500', icon: 'text-white' },
-                                    { bg: 'bg-indigo-500', icon: 'text-white' },
-                                    { bg: 'bg-purple-500', icon: 'text-white' },
-                                    { bg: 'bg-pink-500', icon: 'text-white' },
+                                    { bg: 'bg-blue-50', text: 'text-blue-500' },
+                                    { bg: 'bg-orange-50', text: 'text-orange-500' },
+                                    { bg: 'bg-emerald-50', text: 'text-emerald-500' },
+                                    { bg: 'bg-sky-50', text: 'text-sky-500' },
+                                    { bg: 'bg-teal-50', text: 'text-teal-500' },
+                                    { bg: 'bg-red-50', text: 'text-red-500' },
+                                    { bg: 'bg-indigo-50', text: 'text-indigo-500' },
+                                    { bg: 'bg-purple-50', text: 'text-purple-500' },
+                                    { bg: 'bg-pink-50', text: 'text-pink-500' },
                                 ];
                                 const color = colors[i % colors.length];
+
+                                const borderClasses = {
+                                    'text-slate-500': 'border-slate-200 hover:border-slate-500',
+                                    'text-blue-500': 'border-blue-200 hover:border-blue-500',
+                                    'text-orange-500': 'border-orange-200 hover:border-orange-500',
+                                    'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
+                                    'text-sky-500': 'border-sky-200 hover:border-sky-500',
+                                    'text-teal-500': 'border-teal-200 hover:border-teal-500',
+                                    'text-red-500': 'border-red-200 hover:border-red-500',
+                                    'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
+                                    'text-purple-500': 'border-purple-200 hover:border-purple-500',
+                                    'text-pink-500': 'border-pink-200 hover:border-pink-500',
+                                };
+                                const colorClasses = borderClasses[color.text] || 'border-slate-200 hover:border-[#1F5C99]';
 
                                 return (
                                     <div
                                         key={wt.id}
-                                        onClick={() => navigate(`/ca/tasks?work_type_id=${wt.id}`)}
-                                        className="group cursor-pointer bg-white p-5 rounded-2xl border border-gray-100 hover:border-blue-500 hover:shadow-xl transition-all duration-300 flex flex-col items-center gap-4 text-center select-none"
+                                        onClick={() => navigate(isStaff ? `/staff/tasks?work_type_id=${wt.id}` : `/ca/tasks?work_type_id=${wt.id}`)}
+                                        className={`group cursor-pointer p-5 bg-white rounded-2xl border ${colorClasses} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none`}
                                     >
-                                        <div className={`w-14 h-14 rounded-2xl ${color.bg} ${color.icon} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md`}>
-                                            <Folder size={24} fill="currentColor" fillOpacity={0.2} />
+                                        <div className={`w-16 h-16 rounded-2xl ${color.bg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}>
+                                            <Folder size={32} className={color.text} fill="currentColor" fillOpacity={0.2} />
                                         </div>
-                                        <h3 className="font-bold text-gray-700 text-xs leading-tight group-hover:text-blue-600 transition-colors">
-                                            {wt.name}
-                                        </h3>
+                                        <div>
+                                            <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">
+                                                {wt.name}
+                                            </h3>
+                                        </div>
                                     </div>
                                 )
                             })}
@@ -1180,50 +1245,52 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Staff-wise Summary */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-lg font-semibold text-gray-800">Staff-wise Summary</h2>
-                            <SlidersHorizontal size={18} className="text-gray-400" />
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                                        {['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total'].map(h => (
-                                            <th key={h} className="px-6 py-3 text-left">{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {staffData.map(s => (
-                                        <tr
-                                            key={s.id}
-                                            onClick={() => navigate(`/ca/tasks?staff_id=${s.id}`)}
-                                            className="hover:bg-gray-100 cursor-pointer transition"
-                                        >
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar name={s.name} />
-                                                    <div>
-                                                        <p className="font-semibold text-gray-800">{s.name}</p>
-                                                        <p className="text-xs text-gray-400">Staff Member</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            {[s.pending, s.work_in_progress, s.complete, s.not_to_be_done, s.other].map((v, i) => (
-                                                <td key={i} className="px-6 py-4 text-gray-600 font-medium">
-                                                    {String(v ?? 0).padStart(2, '0')}
-                                                </td>
+                    {!isStaff && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                                <h2 className="text-lg font-semibold text-gray-800">Staff-wise Summary</h2>
+                                <SlidersHorizontal size={18} className="text-gray-400" />
+                            </div>
+                             <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                            {['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total'].map(h => (
+                                                <th key={h} className="px-6 py-3.5 text-left">{h}</th>
                                             ))}
-                                            <td className="px-6 py-4 font-bold text-gray-800">
-                                                {String(s.total).padStart(2, '0')}
-                                            </td>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {staffData.map(s => (
+                                            <tr
+                                                key={s.id}
+                                                onClick={() => navigate(`/ca/tasks?staff_id=${s.id}`)}
+                                                className="hover:bg-gray-100 cursor-pointer transition"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar name={s.name} />
+                                                        <div>
+                                                            <p className="font-semibold text-gray-800">{s.name}</p>
+                                                            <p className="text-xs text-slate-500 font-semibold">Staff Member</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                {[s.pending, s.work_in_progress, s.complete, s.not_to_be_done, s.other].map((v, i) => (
+                                                    <td key={i} className="px-6 py-4 text-gray-600 font-medium">
+                                                        {String(v ?? 0).padStart(2, '0')}
+                                                    </td>
+                                                ))}
+                                                <td className="px-6 py-4 font-bold text-gray-800">
+                                                    {String(s.total).padStart(2, '0')}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </>
             ) : activeTab === 'calendar' ? (
                 <CalendarView />

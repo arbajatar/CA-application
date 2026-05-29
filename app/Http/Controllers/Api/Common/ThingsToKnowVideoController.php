@@ -44,4 +44,23 @@ class ThingsToKnowVideoController extends Controller
             'message' => 'Video removed successfully'
         ]);
     }
+
+    public function updateGroup(Request $request): JsonResponse
+    {
+        $request->validate([
+            'old_group_name' => 'required|string|max:255',
+            'new_group_name' => 'required|string|max:255',
+        ]);
+
+        $oldName = $request->old_group_name;
+        $newName = $request->new_group_name;
+
+        ThingsToKnowVideo::where('group_name', $oldName)->update([
+            'group_name' => $newName
+        ]);
+
+        return response()->json([
+            'message' => 'Video category renamed successfully'
+        ]);
+    }
 }

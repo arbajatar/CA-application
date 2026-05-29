@@ -125,8 +125,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Things to Know Videos & Brochures
         Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
         Route::delete('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'destroy']);
+        Route::patch('/things-to-know/videos/group', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'updateGroup']);
         Route::post('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'store']);
         Route::delete('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'destroy']);
+        Route::patch('/things-to-know/brochures/group', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'updateGroup']);
     });
 
     // ── Common routes (any role) ─────────────────────────────────────────────
@@ -137,7 +139,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:staff')->prefix('staff')->name('staff.')->group(function () {
 
         // Dashboard
-        Route::get('/dashboard', [App\Http\Controllers\Api\Staff\DashboardController::class, 'summary']);
+        Route::get('/dashboard/summary', [App\Http\Controllers\Api\Staff\DashboardController::class, 'summary']);
+        Route::get('/dashboard/tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'tasks']);
+        Route::get('/dashboard/calendar-tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'calendarTasks']);
 
         // Tasks
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
@@ -150,7 +154,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Profile
         Route::get('/profile', [App\Http\Controllers\Api\Staff\ProfileController::class, 'show']);
+        Route::post('/profile', [App\Http\Controllers\Api\Staff\ProfileController::class, 'update']);
         Route::patch('/profile/change-password', [App\Http\Controllers\Api\Staff\ProfileController::class, 'changePassword']);
+
+        // Things to Know Videos & Brochures
+        Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
+        Route::delete('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'destroy']);
+        Route::patch('/things-to-know/videos/group', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'updateGroup']);
+        Route::post('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'store']);
+        Route::delete('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'destroy']);
+        Route::patch('/things-to-know/brochures/group', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'updateGroup']);
     });
 
 });

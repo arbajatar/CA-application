@@ -4,9 +4,9 @@ import {
   CheckSquare, Zap, Mail, Phone, Sliders, PlusCircle,
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
-  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye
+  Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye, ArrowLeft, ExternalLink
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
 import toast_pkg from 'react-hot-toast';
@@ -222,6 +222,12 @@ function MultiSearchableSelect({ value = [], options, placeholder, onChange }) {
 
 export default function TaskBuilderPage() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const handleCopy = (text, fieldName) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast.success(`${fieldName} copied!`);
+  };
   const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
   const [formSchema, setFormSchema] = useState([
     // SECTION 1: Sheet Meta Information
@@ -1138,13 +1144,22 @@ export default function TaskBuilderPage() {
             {/* Form Area */}
             <div className="form-container">
               <div className="sticky top-[65px] lg:relative lg:top-0 z-30 bg-[#F5F7FA]/90 backdrop-blur-md lg:backdrop-blur-none py-3 mb-3 flex justify-between items-center -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-slate-200 lg:border-none">
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
-                    {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
-                  </h2>
-                  <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
-                    {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
-                  </p>
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/ca/tasks')}
+                    className="p-2 mr-1 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl transition shadow-sm cursor-pointer z-10"
+                    title="Back to Tasks"
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight truncate">
+                      {viewMode === 'live' ? 'Active Sheet Form' : 'Sheet Builder'}
+                    </h2>
+                    <p className="hidden sm:block text-xs text-slate-400 mt-0.5 font-medium">
+                      {viewMode === 'live' ? 'Fill in the details below.' : 'Design your custom Sheet entry form below.'}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {viewMode === 'live' ? (
@@ -1479,7 +1494,18 @@ export default function TaskBuilderPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Client Name */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Client Name *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Client Name *</label>
+                {clientForm.name && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.name, 'Client Name')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 value={clientForm.name} 
@@ -1515,7 +1541,18 @@ export default function TaskBuilderPage() {
 
             {/* Client Name As per PAN */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Client Name As Per PAN</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Client Name As Per PAN</label>
+                {clientForm.name_as_per_pan && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.name_as_per_pan, 'Name As Per PAN')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 value={clientForm.name_as_per_pan} 
@@ -1528,7 +1565,18 @@ export default function TaskBuilderPage() {
 
             {/* PAN Number with Validation Indicator */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">PAN No *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">PAN No *</label>
+                {clientForm.pan_no && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.pan_no, 'PAN No')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <input 
                   type="text" 
@@ -1581,7 +1629,18 @@ export default function TaskBuilderPage() {
 
             {/* Contact No */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Contact No</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Contact No</label>
+                {clientForm.contact && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.contact, 'Contact No')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 maxLength={10}
@@ -1595,7 +1654,18 @@ export default function TaskBuilderPage() {
 
             {/* Alternative Contact No */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Alternative Contact No</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Alternative Contact No</label>
+                {clientForm.alternative_contact && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.alternative_contact, 'Alternative Contact No')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 maxLength={10}
@@ -1609,7 +1679,18 @@ export default function TaskBuilderPage() {
 
             {/* Email Address */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Email ID</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Email ID</label>
+                {clientForm.email && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.email, 'Email ID')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="email" 
                 value={clientForm.email} 
@@ -1622,7 +1703,18 @@ export default function TaskBuilderPage() {
 
             {/* Reference No */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Reference No</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Reference No</label>
+                {clientForm.reference_no && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.reference_no, 'Reference No')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 value={clientForm.reference_no} 
@@ -1635,7 +1727,18 @@ export default function TaskBuilderPage() {
 
             {/* City */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">City</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">City</label>
+                {clientForm.city && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.city, 'City')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 value={clientForm.city} 
@@ -1648,7 +1751,18 @@ export default function TaskBuilderPage() {
 
             {/* Pin Code */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Pin Code</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Pin Code</label>
+                {clientForm.pin_code && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.pin_code, 'Pin Code')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 maxLength={6}
@@ -1662,7 +1776,18 @@ export default function TaskBuilderPage() {
 
             {/* State */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">State</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">State</label>
+                {clientForm.state && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.state, 'State')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <input 
                 type="text" 
                 value={clientForm.state} 
@@ -1675,7 +1800,22 @@ export default function TaskBuilderPage() {
 
             {/* Date of Birth */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Date Of Birth *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">Date Of Birth *</label>
+                {clientForm.dob && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parts = clientForm.dob.split('-');
+                      const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}` : clientForm.dob;
+                      handleCopy(formatted, 'Date of Birth (dd/mm/yy)');
+                    }}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy (dd/mm/yy)
+                  </button>
+                )}
+              </div>
               <input 
                 type="date" 
                 value={clientForm.dob} 
@@ -1687,7 +1827,18 @@ export default function TaskBuilderPage() {
 
             {/* GST Number */}
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">GST No</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">GST No</label>
+                {clientForm.gst_number && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(clientForm.gst_number, 'GST No')}
+                    className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                  >
+                    <Copy size={10} /> Copy
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <input 
                   type="text" 
@@ -1695,6 +1846,7 @@ export default function TaskBuilderPage() {
                   onChange={e => setClientForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
                   placeholder="GST Identification Number" 
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 pr-8" 
+                  autoComplete="off"
                 />
                 {clientGstStatus && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -1745,9 +1897,26 @@ export default function TaskBuilderPage() {
                 <tbody className="divide-y divide-slate-100">
                   {/* EFILING row (Manual) */}
                   <tr>
-                    <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
-                      <Globe size={13} className="text-slate-400" />
-                      <span>WWW.EFILING INCOME TAX</span>
+                    <td className="px-4 py-3 font-semibold text-slate-600">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Globe size={13} className="text-slate-400" />
+                        <a 
+                          href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                        >
+                          WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                          className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                          title="Copy IT URL"
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-indigo-100">
@@ -1755,30 +1924,72 @@ export default function TaskBuilderPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono font-bold text-slate-600">
-                      {clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}
+                      <div className="flex items-center gap-1.5">
+                        <span>{clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}</span>
+                        {clientForm.pan_no && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(clientForm.pan_no, 'User ID (PAN)')}
+                            className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                            title="Copy User ID"
+                          >
+                            <Copy size={11} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
-                      <input 
-                        type={showPasswords ? "text" : "password"} 
-                        value={clientForm.credentials.efiling_password}
-                        onChange={e => setClientForm(f => ({
-                          ...f,
-                          credentials: {
-                            ...f.credentials,
-                            efiling_password: e.target.value
-                          }
-                        }))}
-                        placeholder="Type manual password..."
-                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-700"
-                      />
+                      <div className="relative flex items-center">
+                        <input 
+                          type={showPasswords ? "text" : "password"} 
+                          value={clientForm.credentials.efiling_password}
+                          onChange={e => setClientForm(f => ({
+                            ...f,
+                            credentials: {
+                              ...f.credentials,
+                              efiling_password: e.target.value
+                            }
+                          }))}
+                          placeholder="Type manual password..."
+                          className="w-full pl-2 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-700"
+                          autoComplete="new-password"
+                        />
+                        {clientForm.credentials.efiling_password && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(clientForm.credentials.efiling_password, 'E-filing Password')}
+                            className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                            title="Copy Password"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
 
                   {/* AIS & TIS row (Auto generated) */}
                   <tr>
-                    <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
-                      <Globe size={13} className="text-slate-400" />
-                      <span>WWW.EFILING INCOME TAX</span>
+                    <td className="px-4 py-3 font-semibold text-slate-600">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Globe size={13} className="text-slate-400" />
+                        <a 
+                          href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                        >
+                          WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                          className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                          title="Copy IT URL"
+                        >
+                          <Copy size={11} />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-100">
@@ -1786,16 +1997,41 @@ export default function TaskBuilderPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono font-bold text-slate-600">
-                      {clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}
+                      <div className="flex items-center gap-1.5">
+                        <span>{clientForm.pan_no ? clientForm.pan_no : 'LINKED TO PAN'}</span>
+                        {clientForm.pan_no && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(clientForm.pan_no, 'User ID (PAN)')}
+                            className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                            title="Copy User ID"
+                          >
+                            <Copy size={11} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <input 
-                          type={showPasswords ? "text" : "password"} 
-                          value={clientForm.credentials.ais_tis_password}
-                          disabled
-                          className="w-full px-2 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
-                        />
+                        <div className="relative flex items-center">
+                          <input 
+                            type={showPasswords ? "text" : "password"} 
+                            value={clientForm.credentials.ais_tis_password}
+                            disabled
+                            className="w-full pl-2 pr-8 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
+                            autoComplete="new-password"
+                          />
+                          {clientForm.credentials.ais_tis_password && (
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(clientForm.credentials.ais_tis_password, 'AIS/TIS Password')}
+                              className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                              title="Copy Password"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          )}
+                        </div>
                         <span className="text-[9px] font-bold text-slate-400 mt-1">
                           Auto Generated: lower(PAN) + DOB
                         </span>
@@ -2030,7 +2266,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           isLive={isLive}
           modalActions={modalActions}
         />
-        {field.value && (
+        {field.value && field.type !== 'dropdown' && field.type !== 'subtasks_list' && (
           <button
             onClick={handleCopy}
             className="absolute right-3 top-3 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10"

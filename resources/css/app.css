@@ -7,6 +7,38 @@
 @source '../react/**/*.jsx';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Plus Jakarta Sans', 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* Active Card Gradient Border styles */
+.active-card-blue {
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #1F5C99, #6366F1) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+}
+.active-card-amber {
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #D97706, #FBBF24) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+}
+.active-card-emerald {
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #059669, #34D399) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+}
+.active-card-rose {
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #E11D48, #F43F5E) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+}
+.active-card-slate {
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(white, white), linear-gradient(135deg, #475569, #94A3B8) !important;
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
 }

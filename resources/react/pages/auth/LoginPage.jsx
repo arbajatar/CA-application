@@ -29,7 +29,7 @@ export default function LoginPage() {
                 setError(`This account is not a ${role === 'ca' ? 'CA / Administrator' : 'Staff Member'}.`)
                 return
             }
-            navigate(user.role === 'ca' ? '/ca/dashboard' : '/staff/tasks')
+            navigate(user.role === 'ca' ? '/ca/dashboard' : '/staff/dashboard')
         } catch (err) {
             setError(err.response?.data?.message ?? 'Something went wrong. Please try again.')
         } finally {

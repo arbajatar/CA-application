@@ -20,12 +20,13 @@ class StaffController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $staff = User::staff()
+            ->with('roles')
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
                     ->orWhere('username', 'like', '%' . $request->search . '%');
             }))
             ->when($request->filled('is_active'), fn($q) => $q->where('is_active', filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN)))
-            ->when($request->filled('role_id'), fn($q) => $q->where('role_id', $request->role_id))
+            ->when($request->filled('role_id'), fn($q) => $q->whereHas('roles', fn($rq) => $rq->where('roles.id', $request->role_id)))
             ->latest();
 
         $perPage = $request->get('per_page', 15);
@@ -41,18 +42,23 @@ class StaffController extends Controller
             'username' => $request->username,
             'password' => Hash::make($request->password),
             'role' => UserRole::Staff,
-            'role_id' => $request->role_id,
             'is_active' => true,
+            'employee_code' => $request->employee_code,
+            'address' => $request->address,
+            'email' => $request->email,
+            'mobile' => $request->mobile,
         ]);
+        $staff->roles()->sync($request->input('role_ids', []));
 
-        return response()->json(['message' => 'Staff member created successfully.', 'data' => new StaffResource($staff)], 201);
+        return response()->json(['message' => 'Staff member created successfully.', 'data' => new StaffResource($staff->load('roles'))], 201);
     }
 
     public function update(UpdateStaffRequest $request, User $staff): JsonResponse
     {
-        $staff->update($request->validated());
+        $staff->update($request->only(['name', 'username', 'employee_code', 'address', 'email', 'mobile']));
+        $staff->roles()->sync($request->input('role_ids', []));
 
-        return response()->json(['message' => 'Staff member updated successfully.', 'data' => new StaffResource($staff)]);
+        return response()->json(['message' => 'Staff member updated successfully.', 'data' => new StaffResource($staff->load('roles'))]);
     }
 
     public function deactivate(User $staff): JsonResponse

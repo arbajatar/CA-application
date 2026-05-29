@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Search, Pencil, Trash2, ShieldCheck, ShieldAlert, Key, Globe, Eye, EyeOff, FileDown, FileUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ShieldCheck, ShieldAlert, Key, Globe, Eye, EyeOff, FileDown, FileUp, AlertTriangle, CheckCircle2, Copy, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -7,6 +7,7 @@ import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
+import CustomSelect from '../../components/ui/CustomSelect'
 
 const EMPTY_FORM = {
     name: '',
@@ -368,6 +369,16 @@ export default function ClientsPage() {
             // Write details rows
             let srNo = 1
             clients.forEach(c => {
+                let formattedDob = '—'
+                if (c.dob) {
+                    const parts = c.dob.split('-')
+                    if (parts.length === 3) {
+                        formattedDob = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`
+                    } else {
+                        formattedDob = c.dob
+                    }
+                }
+
                 const rowValues = [
                     srNo++,
                     c.name,
@@ -379,7 +390,7 @@ export default function ClientsPage() {
                     c.alternative_contact || '—',
                     c.email || '—',
                     c.reference_no || '—',
-                    c.dob || '—',
+                    formattedDob,
                     c.city || '—',
                     c.pin_code || '—',
                     c.state || '—',
@@ -500,7 +511,17 @@ export default function ClientsPage() {
                             } else {
                                 const parts = rawDob.split('/')
                                 if (parts.length === 3) {
-                                    dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
+                                    let year = parts[2].trim()
+                                    if (year.length === 2) {
+                                        const numYear = parseInt(year, 10)
+                                        const currentYearLastTwo = new Date().getFullYear() % 100
+                                        if (numYear <= currentYearLastTwo + 10) {
+                                            year = '20' + year
+                                        } else {
+                                            year = '19' + year
+                                        }
+                                    }
+                                    dobStr = `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`
                                 } else {
                                     const parsed = new Date(rawDob)
                                     if (!isNaN(parsed.getTime())) {
@@ -527,7 +548,8 @@ export default function ClientsPage() {
 
                         // Validate GST if provided
                         const rawGst = idxGst !== -1 ? String(rowData[idxGst] || '').trim().toUpperCase() : ''
-                        if (rawGst) {
+                        const isGstEmpty = !rawGst || rawGst === '-' || rawGst === '—' || rawGst === 'N/A' || rawGst === 'NA'
+                        if (rawGst && !isGstEmpty) {
                             const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
                             if (!gstRegex.test(rawGst)) {
                                 validationError = 'Invalid GST format.'
@@ -579,7 +601,7 @@ export default function ClientsPage() {
                             city: idxCity !== -1 ? String(rowData[idxCity] || '').trim() : '',
                             pin_code: idxPin !== -1 ? String(rowData[idxPin] || '').trim() : '',
                             state: idxState !== -1 ? String(rowData[idxState] || '').trim() : '',
-                            gst_number: idxGst !== -1 ? String(rowData[idxGst] || '').trim() : '',
+                            gst_number: (idxGst !== -1 && !isGstEmpty) ? rawGst : '',
                             credentials: {
                                 efiling_password: idxEfilingPwd !== -1 ? String(rowData[idxEfilingPwd] || '').trim() : '',
                                 ais_tis_password: aisTisPassword
@@ -613,6 +635,10 @@ export default function ClientsPage() {
 
             if (field === 'pan_no') {
                 row.pan_no = String(val || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+            } else if (field === 'gst_number') {
+                const cleanedGst = String(val || '').trim().toUpperCase()
+                const isGstEmpty = !cleanedGst || cleanedGst === '-' || cleanedGst === '—' || cleanedGst === 'N/A' || cleanedGst === 'NA'
+                row.gst_number = isGstEmpty ? '' : cleanedGst
             } else if (field.startsWith('credentials.')) {
                 const subKey = field.split('.')[1]
                 row.credentials = {
@@ -641,13 +667,16 @@ export default function ClientsPage() {
             }
 
             if (!validationError && row.gst_number) {
-                const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-                if (!gstRegex.test(row.gst_number)) {
-                    validationError = 'Invalid GST format.'
-                } else if (row.pan_no) {
-                    const panInGst = row.gst_number.substring(2, 12)
-                    if (panInGst !== row.pan_no.toUpperCase()) {
-                        validationError = 'GST PAN segment must match client PAN.'
+                const isGstEmpty = !row.gst_number || row.gst_number === '-' || row.gst_number === '—' || row.gst_number === 'N/A' || row.gst_number === 'NA'
+                if (!isGstEmpty) {
+                    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+                    if (!gstRegex.test(row.gst_number)) {
+                        validationError = 'Invalid GST format.'
+                    } else if (row.pan_no) {
+                        const panInGst = row.gst_number.substring(2, 12)
+                        if (panInGst !== row.pan_no.toUpperCase()) {
+                            validationError = 'GST PAN segment must match client PAN.'
+                        }
                     }
                 }
             }
@@ -707,6 +736,12 @@ export default function ClientsPage() {
         return matchesGroup && matchesType
     })
 
+    const handleCopy = (text, fieldName) => {
+        if (!text) return
+        navigator.clipboard.writeText(text)
+        toast.success(`${fieldName} copied!`)
+    }
+
     const inputCls = "w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
     const labelCls = "text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1"
 
@@ -716,7 +751,18 @@ export default function ClientsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Client Name */}
                 <div>
-                    <label className={labelCls}>Client Name *</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Client Name *</label>
+                        {form.name && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.name, 'Client Name')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         value={form.name} 
@@ -752,7 +798,18 @@ export default function ClientsPage() {
 
                 {/* Client Name As per PAN */}
                 <div>
-                    <label className={labelCls}>Client Name As Per PAN</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Client Name As Per PAN</label>
+                        {form.name_as_per_pan && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.name_as_per_pan, 'Name As Per PAN')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         value={form.name_as_per_pan} 
@@ -765,7 +822,18 @@ export default function ClientsPage() {
 
                 {/* PAN Number with Validation Indicator */}
                 <div>
-                    <label className={labelCls}>PAN No *</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>PAN No *</label>
+                        {form.pan_no && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.pan_no, 'PAN No')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <div className="relative">
                         <input 
                             type="text" 
@@ -818,7 +886,18 @@ export default function ClientsPage() {
 
                 {/* Contact No */}
                 <div>
-                    <label className={labelCls}>Contact No</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Contact No</label>
+                        {form.contact && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.contact, 'Contact No')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         maxLength={10}
@@ -832,7 +911,18 @@ export default function ClientsPage() {
 
                 {/* Alternative Contact No */}
                 <div>
-                    <label className={labelCls}>Alternative Contact No</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Alternative Contact No</label>
+                        {form.alternative_contact && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.alternative_contact, 'Alternative Contact No')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         maxLength={10}
@@ -846,7 +936,18 @@ export default function ClientsPage() {
 
                 {/* Email Address */}
                 <div>
-                    <label className={labelCls}>Email ID</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Email ID</label>
+                        {form.email && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.email, 'Email ID')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="email" 
                         value={form.email} 
@@ -859,7 +960,18 @@ export default function ClientsPage() {
 
                 {/* Reference No */}
                 <div>
-                    <label className={labelCls}>Reference No</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Reference No</label>
+                        {form.reference_no && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.reference_no, 'Reference No')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         value={form.reference_no} 
@@ -872,7 +984,18 @@ export default function ClientsPage() {
 
                 {/* City */}
                 <div>
-                    <label className={labelCls}>City</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>City</label>
+                        {form.city && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.city, 'City')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         value={form.city} 
@@ -885,7 +1008,18 @@ export default function ClientsPage() {
 
                 {/* Pin Code */}
                 <div>
-                    <label className={labelCls}>Pin Code</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Pin Code</label>
+                        {form.pin_code && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.pin_code, 'Pin Code')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         maxLength={6}
@@ -899,7 +1033,18 @@ export default function ClientsPage() {
 
                 {/* State */}
                 <div>
-                    <label className={labelCls}>State</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>State</label>
+                        {form.state && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.state, 'State')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="text" 
                         value={form.state} 
@@ -912,7 +1057,23 @@ export default function ClientsPage() {
 
                 {/* Date of Birth */}
                 <div>
-                    <label className={labelCls}>Date Of Birth</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>Date Of Birth</label>
+                        {form.dob && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // format to dd/mm/yy on copying dob
+                                    const parts = form.dob.split('-')
+                                    const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}` : form.dob
+                                    handleCopy(formatted, 'Date of Birth (dd/mm/yy)')
+                                }}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy (dd/mm/yy)
+                            </button>
+                        )}
+                    </div>
                     <input 
                         type="date" 
                         value={form.dob || ''} 
@@ -924,7 +1085,18 @@ export default function ClientsPage() {
 
                 {/* GST Number */}
                 <div>
-                    <label className={labelCls}>GST No</label>
+                    <div className="flex items-center justify-between mb-1">
+                        <label className={labelCls + " !mb-0"}>GST No</label>
+                        {form.gst_number && (
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(form.gst_number, 'GST No')}
+                                className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                            >
+                                <Copy size={10} /> Copy
+                            </button>
+                        )}
+                    </div>
                     <div className="relative">
                         <input 
                             type="text" 
@@ -932,6 +1104,7 @@ export default function ClientsPage() {
                             onChange={e => setForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
                             placeholder="GST Identification Number" 
                             className={`${inputCls} pr-8`} 
+                            autoComplete="off"
                         />
                         {gstStatus && (
                             <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -991,9 +1164,26 @@ export default function ClientsPage() {
                         <tbody className="divide-y divide-slate-100">
                             {/* EFILING row (Manual) */}
                             <tr>
-                                <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
-                                    <Globe size={13} className="text-slate-400" />
-                                    <span>WWW.EFILING INCOME TAX</span>
+                                <td className="px-4 py-3 font-semibold text-slate-600">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <Globe size={13} className="text-slate-400" />
+                                        <a 
+                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                                        >
+                                            WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                                            className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                            title="Copy IT URL"
+                                        >
+                                            <Copy size={11} />
+                                        </button>
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-indigo-100">
@@ -1001,30 +1191,72 @@ export default function ClientsPage() {
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono font-bold text-slate-600">
-                                    {form.pan_no ? form.pan_no : 'LINKED TO PAN'}
+                                    <div className="flex items-center gap-1.5">
+                                        <span>{form.pan_no ? form.pan_no : 'LINKED TO PAN'}</span>
+                                        {form.pan_no && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(form.pan_no, 'User ID (PAN)')}
+                                                className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                title="Copy User ID"
+                                            >
+                                                <Copy size={11} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3">
-                                    <input 
-                                        type={showPasswords ? "text" : "password"} 
-                                        value={form.credentials.efiling_password}
-                                        onChange={e => setForm(f => ({
-                                            ...f,
-                                            credentials: {
-                                                ...f.credentials,
-                                                efiling_password: e.target.value
-                                            }
-                                        }))}
-                                        placeholder="Type manual password..."
-                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-700"
-                                    />
+                                    <div className="relative flex items-center">
+                                        <input 
+                                            type={showPasswords ? "text" : "password"} 
+                                            value={form.credentials.efiling_password}
+                                            onChange={e => setForm(f => ({
+                                                ...f,
+                                                credentials: {
+                                                    ...f.credentials,
+                                                    efiling_password: e.target.value
+                                                }
+                                            }))}
+                                            placeholder="Type manual password..."
+                                            className="w-full pl-2 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-700"
+                                            autoComplete="new-password"
+                                        />
+                                        {form.credentials.efiling_password && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(form.credentials.efiling_password, 'E-filing Password')}
+                                                className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                                                title="Copy Password"
+                                            >
+                                                <Copy size={12} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
 
                             {/* AIS & TIS row (Auto generated) */}
                             <tr>
-                                <td className="px-4 py-3 font-semibold text-slate-600 flex items-center gap-1.5">
-                                    <Globe size={13} className="text-slate-400" />
-                                    <span>WWW.EFILING INCOME TAX</span>
+                                <td className="px-4 py-3 font-semibold text-slate-600">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <Globe size={13} className="text-slate-400" />
+                                        <a 
+                                            href="https://eportal.incometax.gov.in/iec/foservices/#/login" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                                        >
+                                            WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                        </a>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                                            className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                            title="Copy IT URL"
+                                        >
+                                            <Copy size={11} />
+                                        </button>
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-100">
@@ -1032,16 +1264,41 @@ export default function ClientsPage() {
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono font-bold text-slate-600">
-                                    {form.pan_no ? form.pan_no : 'LINKED TO PAN'}
+                                    <div className="flex items-center gap-1.5">
+                                        <span>{form.pan_no ? form.pan_no : 'LINKED TO PAN'}</span>
+                                        {form.pan_no && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(form.pan_no, 'User ID (PAN)')}
+                                                className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                title="Copy User ID"
+                                            >
+                                                <Copy size={11} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="flex flex-col">
-                                        <input 
-                                            type={showPasswords ? "text" : "password"} 
-                                            value={form.credentials.ais_tis_password}
-                                            disabled
-                                            className="w-full px-2 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
-                                        />
+                                        <div className="relative flex items-center">
+                                            <input 
+                                                type={showPasswords ? "text" : "password"} 
+                                                value={form.credentials.ais_tis_password}
+                                                disabled
+                                                className="w-full pl-2 pr-8 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
+                                                autoComplete="new-password"
+                                            />
+                                            {form.credentials.ais_tis_password && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopy(form.credentials.ais_tis_password, 'AIS/TIS Password')}
+                                                    className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                                                    title="Copy Password"
+                                                >
+                                                    <Copy size={12} />
+                                                </button>
+                                            )}
+                                        </div>
                                         <span className="text-[9px] font-bold text-slate-400 mt-1">
                                             Auto Generated: lower(PAN) + DOB
                                         </span>
@@ -1077,8 +1334,8 @@ export default function ClientsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Client Registry</h1>
-                    <p className="text-sm font-semibold text-slate-400 mt-1">Comprehensive register of business clients with secure validation checks.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Client Registry</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">Comprehensive register of business clients with secure validation checks.</p>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -1094,27 +1351,27 @@ export default function ClientsPage() {
                     {/* Import Button */}
                     <button 
                         onClick={() => document.getElementById('excel-import-file').click()}
-                        className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                         title="Import clients from Excel sheet"
                     >
-                        <FileUp size={16} /> Import Excel
+                        <FileUp size={15} /> Import Excel
                     </button>
 
                     {/* Export Button */}
                     <button 
                         onClick={handleExportExcel}
-                        className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-100 transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                         title="Export clients to formatted Excel"
                     >
-                        <FileDown size={16} /> Export Excel
+                        <FileDown size={15} /> Export Excel
                     </button>
 
                     {/* Add Client Button */}
                     <button 
                         onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-100 transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
                     >
-                        <Plus size={16} /> Register Client
+                        <Plus size={15} /> Register Client
                     </button>
                 </div>
             </div>
@@ -1135,39 +1392,38 @@ export default function ClientsPage() {
                     </div>
 
                     {/* Group Filter */}
-                    <select 
-                        value={filterGroup} 
+                    <CustomSelect
+                        value={filterGroup}
                         onChange={e => { setFilterGroup(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition font-semibold text-slate-600"
-                    >
-                        <option value="">All Groups</option>
-                        {groups.map(g => (
-                            <option key={g.id} value={g.name}>{g.name}</option>
-                        ))}
-                    </select>
+                        options={[
+                            { value: '', label: 'All Groups' },
+                            ...groups.map(g => ({ value: g.name, label: g.name }))
+                        ]}
+                        widthClass="w-full sm:w-auto min-w-[125px]"
+                    />
 
                     {/* Type Filter */}
-                    <select 
-                        value={filterType} 
+                    <CustomSelect
+                        value={filterType}
                         onChange={e => { setFilterType(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition font-semibold text-slate-600"
-                    >
-                        <option value="">All Types</option>
-                        {types.map(t => (
-                            <option key={t.id} value={t.name}>{t.name}</option>
-                        ))}
-                    </select>
+                        options={[
+                            { value: '', label: 'All Types' },
+                            ...types.map(t => ({ value: t.name, label: t.name }))
+                        ]}
+                        widthClass="w-full sm:w-auto min-w-[125px]"
+                    />
 
                     {/* Status Filter */}
-                    <select 
-                        value={status} 
+                    <CustomSelect
+                        value={status}
                         onChange={e => { setStatus(e.target.value); setPage(1) }}
-                        className="py-2 px-3 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition font-semibold text-slate-600"
-                    >
-                        <option value="">All Statuses</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
+                        options={[
+                            { value: '', label: 'All Statuses' },
+                            { value: 'active', label: 'Active' },
+                            { value: 'inactive', label: 'Inactive' }
+                        ]}
+                        widthClass="w-full sm:w-auto min-w-[125px]"
+                    />
                 </div>
 
                 <div className="overflow-x-auto">

@@ -97,11 +97,11 @@ export default function PortalListPage() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Portal List</h1>
-                    <p className="text-sm text-gray-400 mt-1">{isCa ? 'Manage and access all external links in one place.' : 'Access external portal links.'}</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Portal List</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">{isCa ? 'Manage and access all external links in one place.' : 'Access external portal links.'}</p>
                 </div>
                 {isCa && (
-                    <button onClick={openCreate} className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition w-full sm:w-auto shadow-sm">
+                    <button onClick={openCreate} className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] active:scale-95 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition w-full sm:w-auto shadow-sm cursor-pointer">
                         <Plus size={16} /> New Portal
                     </button>
                 )}

@@ -13,8 +13,36 @@ class ProfileController extends Controller
     public function show(\Illuminate\Http\Request $request): JsonResponse
     {
         $user = $request->user();
-        $user->load('customRole');
+        $user->load('roles');
         return response()->json([
+            'data' => new UserResource($user),
+        ]);
+    }
+
+    public function update(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'email' => ['nullable', 'email', 'max:255'],
+            'mobile' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string'],
+            'profile_photo' => ['nullable', 'image', 'max:2048'], // Max 2MB
+        ]);
+
+        $data = $request->only(['email', 'mobile', 'address']);
+
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo);
+            }
+            $data['profile_photo'] = \App\Helpers\UploadHelper::upload($request->file('profile_photo'), 'profile_photos');
+        }
+
+        $user->update($data);
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
             'data' => new UserResource($user),
         ]);
     }
