@@ -795,8 +795,6 @@ export default function TaskDetailPage() {
                         <span>New Task</span>
                     </button>
                 </div>
-                    </button>
-                </div>
             </div>
 
             {/* Global Settings Modal */}
