@@ -44,6 +44,8 @@ export default function TasksPage() {
     const [clientId, setClientId] = useState('')
     const [workTypeId, setWorkTypeId] = useState(() => new URLSearchParams(location.search).get('work_type_id') || '')
     const [page, setPage] = useState(1)
+    const [perPage, setPerPage] = useState(15)
+    const [selectedSheetIds, setSelectedSheetIds] = useState([])
 
     const [reassignOpen, setReassignOpen] = useState(false)
     const [deleteOpen, setDeleteOpen] = useState(false)
@@ -66,6 +68,43 @@ export default function TasksPage() {
 
     // Bulk Editing States
     const [pendingUpdates, setPendingUpdates] = useState({});
+
+    // Advanced Bulk Update States
+    const [bulkEditOpen, setBulkEditOpen] = useState(false)
+    const [bulkEditTab, setBulkEditTab] = useState('fields') // 'fields' | 'dynamic' | 'subtasks'
+    const [bulkMainFields, setBulkMainFields] = useState({
+        client_id: '',
+        work_type_id: '',
+        allocated_to: '',
+        form_name: '',
+        status: 'pending',
+        date_inward: '',
+        date_allocated: new Date().toISOString().split('T')[0],
+        remarks: '',
+        allow_attachments: false
+    })
+    const [bulkUpdateTargets, setBulkUpdateTargets] = useState({
+        client_id: false,
+        work_type_id: false,
+        allocated_to: false,
+        form_name: false,
+        status: false,
+        date_inward: false,
+        date_allocated: false,
+        remarks: false,
+        allow_attachments: false
+    })
+    const [bulkDynamicField, setBulkDynamicField] = useState('')
+    const [bulkDynamicValue, setBulkDynamicValue] = useState('')
+    const [bulkSubtaskMode, setBulkSubtaskMode] = useState('add') // 'add' | 'update' | 'delete'
+    const [bulkSubtaskTitle, setBulkSubtaskTitle] = useState('')
+    const [bulkSubtaskForm, setBulkSubtaskForm] = useState({
+        assigned_to: '',
+        priority: 'medium',
+        status: 'pending',
+        due_date: '',
+        remarks: ''
+    })
 
     const handleBulkFieldChange = (taskId, fieldKey, newValue) => {
         setPendingUpdates(prev => {
@@ -119,6 +158,110 @@ export default function TasksPage() {
         }
     };
 
+    const openBulkEditModal = () => {
+        setBulkEditOpen(true);
+        setBulkEditTab('fields');
+        setBulkDynamicField('');
+        setBulkDynamicValue('');
+        setBulkSubtaskTitle('');
+        setBulkSubtaskMode('add');
+        setBulkSubtaskForm({
+            assigned_to: '',
+            priority: 'medium',
+            status: 'pending',
+            due_date: '',
+            remarks: ''
+        });
+        setBulkUpdateTargets({
+            client_id: false,
+            work_type_id: false,
+            allocated_to: false,
+            form_name: false,
+            status: false,
+            date_inward: false,
+            date_allocated: false,
+            remarks: false,
+            allow_attachments: false
+        });
+    };
+
+    const handleApplyBulkUpdates = async () => {
+        if (selectedSheetIds.length === 0) return;
+        
+        setSaving(true);
+        const toastId = toast.loading(`Applying changes to ${selectedSheetIds.length} sheets...`);
+        try {
+            await Promise.all(
+                selectedSheetIds.map(async (taskId) => {
+                    const task = tasks.find(t => t.id === taskId);
+                    if (!task) return;
+
+                    if (bulkEditTab === 'fields') {
+                        const updates = {};
+                        Object.keys(bulkUpdateTargets).forEach(key => {
+                            if (bulkUpdateTargets[key]) {
+                                if (key === 'allow_attachments') {
+                                    updates[key] = !!bulkMainFields[key];
+                                } else {
+                                    updates[key] = bulkMainFields[key] || null;
+                                }
+                            }
+                        });
+                        if (Object.keys(updates).length > 0) {
+                            await api.patch(`/ca/tasks/${taskId}`, updates);
+                        }
+                    } else if (bulkEditTab === 'dynamic') {
+                        if (!bulkDynamicField) return;
+                        const mergedDyn = { ...(task.dynamic_fields || {}), [bulkDynamicField]: bulkDynamicValue };
+                        await api.patch(`/ca/tasks/${taskId}`, { dynamic_fields: mergedDyn });
+                    } else if (bulkEditTab === 'subtasks') {
+                        if (!bulkSubtaskTitle.trim()) return;
+
+                        if (bulkSubtaskMode === 'add') {
+                            await api.post(`/ca/tasks/${taskId}/sub-tasks`, {
+                                title: bulkSubtaskTitle,
+                                assigned_to: bulkSubtaskForm.assigned_to || null,
+                                priority: bulkSubtaskForm.priority,
+                                status: bulkSubtaskForm.status,
+                                due_date: bulkSubtaskForm.due_date || null,
+                                remarks: bulkSubtaskForm.remarks || null
+                            });
+                        } else {
+                            // Find matching subtask by title
+                            const matchingSt = (task.sub_tasks || []).find(st => 
+                                st.title?.toLowerCase().trim() === bulkSubtaskTitle.toLowerCase().trim()
+                            );
+                            if (matchingSt) {
+                                if (bulkSubtaskMode === 'update') {
+                                    await api.patch(`/ca/tasks/${taskId}/sub-tasks/${matchingSt.id}`, {
+                                        assigned_to: bulkSubtaskForm.assigned_to || null,
+                                        priority: bulkSubtaskForm.priority,
+                                        status: bulkSubtaskForm.status,
+                                        due_date: bulkSubtaskForm.due_date || null,
+                                        remarks: bulkSubtaskForm.remarks || null
+                                    });
+                                } else if (bulkSubtaskMode === 'delete') {
+                                    await api.delete(`/ca/tasks/${taskId}/sub-tasks/${matchingSt.id}`);
+                                }
+                            }
+                        }
+                    }
+                })
+            );
+
+            toast.success(`Successfully updated ${selectedSheetIds.length} sheets!`, { id: toastId });
+            setBulkEditOpen(false);
+            setSelectedSheetIds([]);
+            fetchTasks();
+            fetchSummary();
+        } catch (e) {
+            console.error('Bulk update failed', e);
+            toast.error('Failed to complete some bulk updates. Please check connection and try again.', { id: toastId });
+        } finally {
+            setSaving(false);
+        }
+    };
+
     // Column Sorting States
     const [sortField, setSortField] = useState(null)
     const [sortDirection, setSortDirection] = useState('default') // 'default' | 'asc' | 'desc'
@@ -165,9 +308,10 @@ export default function TasksPage() {
 
     const fetchTasks = useCallback(async () => {
         setLoading(true)
+        setSelectedSheetIds([]) // reset selection on new fetch
         try {
             const res = await api.get('/ca/tasks', {
-                params: { search, status, staff_id: staffId, client_id: clientId, work_type_id: workTypeId, page, per_page: 15 }
+                params: { search, status, staff_id: staffId, client_id: clientId, work_type_id: workTypeId, page, per_page: perPage, with_subtasks: 1 }
             })
             setTasks(res.data.data || [])
             setMeta(res.data.meta)
@@ -177,7 +321,7 @@ export default function TasksPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, status, staffId, clientId, workTypeId, page])
+    }, [search, status, staffId, clientId, workTypeId, page, perPage])
 
     const fetchSummary = useCallback(async () => {
         setSummaryLoading(true)
@@ -1369,7 +1513,23 @@ export default function TasksPage() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                                <th className="px-4 py-3.5 text-left whitespace-nowrap">#</th>
+                                                <th className="px-4 py-3.5 text-left whitespace-nowrap w-[60px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={tasks.length > 0 && selectedSheetIds.length === tasks.length}
+                                                            onChange={() => {
+                                                                if (selectedSheetIds.length === tasks.length) {
+                                                                    setSelectedSheetIds([]);
+                                                                } else {
+                                                                    setSelectedSheetIds(tasks.map(t => t.id));
+                                                                }
+                                                            }}
+                                                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                                        />
+                                                        <span>#</span>
+                                                    </div>
+                                                </th>
                                                 {activeColumns.map((col, index) => {
                                                     const handleColumnDrop = (targetIndex) => {
                                                         if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) return;
@@ -1448,7 +1608,21 @@ export default function TasksPage() {
                                                                 : 'hover:bg-slate-50/80 bg-white'
                                                         }`}
                                                     >
-                                                        <td className="px-4 py-3 text-gray-400 font-semibold text-xs">{String(i + 1).padStart(2, '0')}</td>
+                                                        <td className="px-4 py-3 text-gray-400 font-semibold text-xs w-[60px]">
+                                                            <div className="flex items-center gap-2">
+                                                                <input 
+                                                                    type="checkbox"
+                                                                    checked={selectedSheetIds.includes(t.id)}
+                                                                    onChange={() => {
+                                                                        setSelectedSheetIds(prev => 
+                                                                            prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                                                        );
+                                                                    }}
+                                                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                                                />
+                                                                <span>{String(i + 1).padStart(2, '0')}</span>
+                                                            </div>
+                                                        </td>
                                                         {activeColumns.map(col => {
                                                             if (col.id === 'form_name') {
                                                                 const draftVal = pendingUpdates[t.id]?.form_name !== undefined ? pendingUpdates[t.id].form_name : (t.form_name || '');
@@ -1668,15 +1842,35 @@ export default function TasksPage() {
                             </div>
 
                             {/* Pagination */}
-                            {meta && meta.last_page > 1 && (
-                                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-                                    <p className="text-xs text-gray-400">Showing {meta.from}–{meta.to} of {meta.total}</p>
-                                    <div className="flex gap-2">
-                                        <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
-                                            className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Previous</button>
-                                        <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
-                                            className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition">Next</button>
+                            {meta && (
+                                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50/20">
+                                    <div className="flex items-center gap-4">
+                                        <p className="text-xs text-gray-500 font-semibold">Showing {meta.from || 0}–{meta.to || 0} of {meta.total || 0}</p>
+                                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold">
+                                            <span>Show:</span>
+                                            <select 
+                                                value={perPage} 
+                                                onChange={e => {
+                                                    setPerPage(Number(e.target.value));
+                                                    setPage(1); // reset to page 1
+                                                }}
+                                                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] bg-white font-bold"
+                                            >
+                                                <option value={15}>15</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                                <option value={150}>150</option>
+                                            </select>
+                                        </div>
                                     </div>
+                                    {meta.last_page > 1 && (
+                                        <div className="flex gap-2">
+                                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition font-black">Previous</button>
+                                            <button disabled={page === meta.last_page} onClick={() => setPage(p => p + 1)}
+                                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition font-black">Next</button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>
@@ -1917,32 +2111,515 @@ export default function TasksPage() {
                 </div>
             </Modal>
 
-            {Object.keys(pendingUpdates).length > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white border border-slate-800 rounded-2xl shadow-2xl py-3 px-6 flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                        <p className="text-xs font-semibold text-slate-200">
-                            You have unsaved changes in <span className="font-extrabold text-amber-400">{Object.keys(pendingUpdates).length}</span> rows
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setPendingUpdates({})}
-                            disabled={saving}
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition disabled:opacity-50"
-                        >
-                            Discard
-                        </button>
-                        <button
-                            onClick={handleSaveAllBulkUpdates}
-                            disabled={saving}
-                            className="flex items-center gap-2 bg-[#1F5C99] hover:bg-[#154673] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-[#1F5C99]/20 disabled:opacity-50"
-                        >
-                            {saving ? 'Saving...' : 'Save All Bulk Updates'}
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Helper functions for Bulk Edit Modal dynamic key lookups */}
+            {(() => {
+                const getUniqueDynamicFieldKeys = () => {
+                    const keysSet = new Set();
+                    tasks.forEach(t => {
+                        if (t.dynamic_fields) {
+                            Object.keys(t.dynamic_fields).forEach(k => {
+                                if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                                    keysSet.add(k);
+                                }
+                            });
+                        }
+                    });
+                    return Array.from(keysSet).sort();
+                };
+
+                const getUniqueSubtaskTitlesOfSelected = () => {
+                    const titles = new Set();
+                    selectedSheetIds.forEach(id => {
+                        const task = tasks.find(t => t.id === id);
+                        if (task && task.sub_tasks) {
+                            task.sub_tasks.forEach(st => {
+                                if (st.title) titles.add(st.title.trim());
+                            });
+                        }
+                    });
+                    return Array.from(titles).sort();
+                };
+
+                return (
+                    <>
+                        {/* Advanced Bulk Edit Modal */}
+                        <Modal open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} title={`Bulk Edit Selected Sheets (${selectedSheetIds.length} sheets)`} width="max-w-xl">
+                            <div className="space-y-6">
+                                {/* Tab Navigation */}
+                                <div className="flex border-b border-gray-200">
+                                    {[
+                                        { id: 'fields', label: 'Main Fields' },
+                                        { id: 'dynamic', label: 'Custom Dynamic Fields' },
+                                        { id: 'subtasks', label: 'Checklist / Tasks' }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setBulkEditTab(tab.id)}
+                                            className={`px-4 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition duration-200 -mb-px ${
+                                                bulkEditTab === tab.id
+                                                    ? 'border-blue-600 text-blue-600'
+                                                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                                            }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Tab 1: Main Fields */}
+                                {bulkEditTab === 'fields' && (
+                                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                        <p className="text-xs text-gray-500 italic">Select which fields you want to update across all selected sheets. Fields left unchecked will remain unmodified.</p>
+                                        
+                                        {/* status */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.status}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, status: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sheet Status</label>
+                                                <select
+                                                    disabled={!bulkUpdateTargets.status}
+                                                    value={bulkMainFields.status}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, status: e.target.value }))}
+                                                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                >
+                                                    <option value="complete">Complete</option>
+                                                    <option value="work_in_progress">Work In Progress</option>
+                                                    <option value="pending">Pending</option>
+                                                    <option value="not_to_be_done">Not To Be Done</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* allocated_to */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.allocated_to}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, allocated_to: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Assigned Staff</label>
+                                                <select
+                                                    disabled={!bulkUpdateTargets.allocated_to}
+                                                    value={bulkMainFields.allocated_to}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, allocated_to: e.target.value }))}
+                                                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                >
+                                                    <option value="">— Unassigned —</option>
+                                                    {staff.filter(s => s.is_active).map(s => (
+                                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* remarks */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.remarks}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, remarks: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-650 uppercase tracking-wider">Remarks</label>
+                                                <textarea
+                                                    disabled={!bulkUpdateTargets.remarks}
+                                                    value={bulkMainFields.remarks}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, remarks: e.target.value }))}
+                                                    placeholder="Enter bulk remarks..."
+                                                    rows={2}
+                                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 resize-none font-semibold text-gray-700"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* client_id */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.client_id}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, client_id: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Client Name</label>
+                                                <select
+                                                    disabled={!bulkUpdateTargets.client_id}
+                                                    value={bulkMainFields.client_id}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, client_id: e.target.value }))}
+                                                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                >
+                                                    <option value="">Select client</option>
+                                                    {clients.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* work_type_id */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.work_type_id}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, work_type_id: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Work Type</label>
+                                                <select
+                                                    disabled={!bulkUpdateTargets.work_type_id}
+                                                    value={bulkMainFields.work_type_id}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, work_type_id: e.target.value }))}
+                                                    className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                >
+                                                    <option value="">Select work type</option>
+                                                    {workTypes.map(w => (
+                                                        <option key={w.id} value={w.id}>{w.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* form_name */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.form_name}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, form_name: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Sheet / Form Name</label>
+                                                <input
+                                                    type="text"
+                                                    disabled={!bulkUpdateTargets.form_name}
+                                                    value={bulkMainFields.form_name}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, form_name: e.target.value }))}
+                                                    placeholder="Enter sheet name..."
+                                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* date_inward */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.date_inward}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, date_inward: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Create Date</label>
+                                                <input
+                                                    type="date"
+                                                    disabled={!bulkUpdateTargets.date_inward}
+                                                    value={bulkMainFields.date_inward}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, date_inward: e.target.value }))}
+                                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* date_allocated */}
+                                        <div className="flex items-start gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.date_allocated}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, date_allocated: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition mt-1 cursor-pointer"
+                                            />
+                                            <div className="flex-1 space-y-1.5">
+                                                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Date Allocated</label>
+                                                <input
+                                                    type="date"
+                                                    disabled={!bulkUpdateTargets.date_allocated}
+                                                    value={bulkMainFields.date_allocated}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, date_allocated: e.target.value }))}
+                                                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* allow_attachments */}
+                                        <div className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkUpdateTargets.allow_attachments}
+                                                onChange={e => setBulkUpdateTargets(prev => ({ ...prev, allow_attachments: e.target.checked }))}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                            />
+                                            <div className="flex-1 flex items-center justify-between">
+                                                <label className="text-xs font-bold text-gray-650 uppercase tracking-wider">Allow Attachments</label>
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={!bulkUpdateTargets.allow_attachments}
+                                                    checked={bulkMainFields.allow_attachments}
+                                                    onChange={e => setBulkMainFields(prev => ({ ...prev, allow_attachments: e.target.checked }))}
+                                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer disabled:opacity-50 font-semibold"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab 2: Custom Dynamic Fields */}
+                                {bulkEditTab === 'dynamic' && (
+                                    <div className="space-y-4">
+                                        <p className="text-xs text-gray-500 italic">Enter a value for any dynamic custom field across all selected sheets. Only the chosen dynamic field will be updated.</p>
+                                        
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dynamic Field Name</label>
+                                            <select
+                                                value={bulkDynamicField}
+                                                onChange={e => setBulkDynamicField(e.target.value)}
+                                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-semibold text-gray-700"
+                                            >
+                                                <option value="">— Select dynamic field —</option>
+                                                {getUniqueDynamicFieldKeys().map(k => (
+                                                    <option key={k} value={k}>{k}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Bulk Value</label>
+                                            <input
+                                                type="text"
+                                                disabled={!bulkDynamicField}
+                                                value={bulkDynamicValue}
+                                                onChange={e => setBulkDynamicValue(e.target.value)}
+                                                placeholder="Enter bulk value..."
+                                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 text-gray-700 font-semibold"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab 3: Checklist / Tasks */}
+                                {bulkEditTab === 'subtasks' && (
+                                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                        <div className="flex border border-gray-200 rounded-xl overflow-hidden shadow-sm max-w-sm">
+                                            {[
+                                                { id: 'add', label: 'Add Task' },
+                                                { id: 'update', label: 'Update Task' },
+                                                { id: 'delete', label: 'Delete Task' }
+                                            ].map(mode => (
+                                                <button
+                                                    key={mode.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBulkSubtaskMode(mode.id);
+                                                        setBulkSubtaskTitle('');
+                                                    }}
+                                                    className={`flex-1 text-center py-2 text-xs font-bold transition duration-200 ${
+                                                        bulkSubtaskMode === mode.id
+                                                            ? 'bg-[#EEF4FB] text-blue-600'
+                                                            : 'bg-white text-gray-400 hover:text-gray-600'
+                                                    }`}
+                                                >
+                                                    {mode.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Task Selector/Input */}
+                                        {bulkSubtaskMode === 'add' ? (
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">New Task Name *</label>
+                                                <input
+                                                    type="text"
+                                                    value={bulkSubtaskTitle}
+                                                    onChange={e => setBulkSubtaskTitle(e.target.value)}
+                                                    placeholder="e.g. Income Tax Filing"
+                                                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-semibold"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Select Task *</label>
+                                                <select
+                                                    value={bulkSubtaskTitle}
+                                                    onChange={e => setBulkSubtaskTitle(e.target.value)}
+                                                    className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-semibold text-gray-700"
+                                                >
+                                                    <option value="">— Select existing task —</option>
+                                                    {getUniqueSubtaskTitlesOfSelected().map(t => (
+                                                        <option key={t} value={t}>{t}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* Form fields (only render for Add & Update modes) */}
+                                        {bulkSubtaskMode !== 'delete' && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned To</label>
+                                                    <select
+                                                        disabled={!bulkSubtaskTitle}
+                                                        value={bulkSubtaskForm.assigned_to}
+                                                        onChange={e => setBulkSubtaskForm(prev => ({ ...prev, assigned_to: e.target.value }))}
+                                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 font-semibold"
+                                                    >
+                                                        <option value="">— Unassigned —</option>
+                                                        {staff.filter(s => s.is_active).map(s => (
+                                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Priority</label>
+                                                    <select
+                                                        disabled={!bulkSubtaskTitle}
+                                                        value={bulkSubtaskForm.priority}
+                                                        onChange={e => setBulkSubtaskForm(prev => ({ ...prev, priority: e.target.value }))}
+                                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 font-semibold"
+                                                    >
+                                                        <option value="low">Low</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="high">High</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                                                    <select
+                                                        disabled={!bulkSubtaskTitle}
+                                                        value={bulkSubtaskForm.status}
+                                                        onChange={e => setBulkSubtaskForm(prev => ({ ...prev, status: e.target.value }))}
+                                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 font-semibold"
+                                                    >
+                                                        <option value="complete">Complete</option>
+                                                        <option value="work_in_progress">Work In Progress</option>
+                                                        <option value="pending">Pending</option>
+                                                        <option value="not_to_be_done">Not To Be Done</option>
+                                                        <option value="other">Other</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Due Date</label>
+                                                    <input
+                                                        type="date"
+                                                        disabled={!bulkSubtaskTitle}
+                                                        value={bulkSubtaskForm.due_date}
+                                                        onChange={e => setBulkSubtaskForm(prev => ({ ...prev, due_date: e.target.value }))}
+                                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 font-semibold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1 sm:col-span-2">
+                                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Task Remarks</label>
+                                                    <textarea
+                                                        disabled={!bulkSubtaskTitle}
+                                                        value={bulkSubtaskForm.remarks}
+                                                        onChange={e => setBulkSubtaskForm(prev => ({ ...prev, remarks: e.target.value }))}
+                                                        placeholder="Enter task remarks..."
+                                                        rows={2}
+                                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition disabled:opacity-50 resize-none font-semibold text-gray-700"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Footer Actions */}
+                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setBulkEditOpen(false)}
+                                        className="px-5 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 font-semibold transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleApplyBulkUpdates}
+                                        disabled={
+                                            saving ||
+                                            (bulkEditTab === 'fields' && !Object.values(bulkUpdateTargets).some(Boolean)) ||
+                                            (bulkEditTab === 'dynamic' && !bulkDynamicField) ||
+                                            (bulkEditTab === 'subtasks' && !bulkSubtaskTitle.trim())
+                                        }
+                                        className="px-6 py-2 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-60 transition font-bold shadow-md shadow-blue-600/10"
+                                    >
+                                        {saving ? 'Applying...' : 'Apply Bulk Updates'}
+                                    </button>
+                                </div>
+                            </div>
+                        </Modal>
+
+                        {/* Floating Selection Bar */}
+                        {selectedSheetIds.length > 0 && Object.keys(pendingUpdates).length === 0 && (
+                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white border border-slate-800 rounded-2xl shadow-2xl py-3 px-6 flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                    <p className="text-xs font-semibold text-slate-200">
+                                        <span className="font-extrabold text-blue-400">{selectedSheetIds.length}</span> sheets selected
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedSheetIds([])}
+                                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
+                                    >
+                                        Clear Selection
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openBulkEditModal}
+                                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/20"
+                                    >
+                                        Bulk Edit
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Unsaved changes bulk update bar */}
+                        {Object.keys(pendingUpdates).length > 0 && (
+                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white border border-slate-800 rounded-2xl shadow-2xl py-3 px-6 flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                    <p className="text-xs font-semibold text-slate-200">
+                                        You have unsaved changes in <span className="font-extrabold text-amber-400">{Object.keys(pendingUpdates).length}</span> rows
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setPendingUpdates({})}
+                                        disabled={saving}
+                                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition disabled:opacity-50"
+                                    >
+                                        Discard
+                                    </button>
+                                    <button
+                                        onClick={handleSaveAllBulkUpdates}
+                                        disabled={saving}
+                                        className="flex items-center gap-2 bg-[#1F5C99] hover:bg-[#154673] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-[#1F5C99]/20 disabled:opacity-50"
+                                    >
+                                        {saving ? 'Saving...' : 'Save All Bulk Updates'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                );
+            })()}
         </div>
     )
 }
