@@ -44,7 +44,7 @@ export default function TasksPage() {
     const [clientId, setClientId] = useState('')
     const [workTypeId, setWorkTypeId] = useState(() => new URLSearchParams(location.search).get('work_type_id') || '')
     const [page, setPage] = useState(1)
-    const [perPage, setPerPage] = useState(15)
+    const [perPage, setPerPage] = useState(50)
     const [selectedSheetIds, setSelectedSheetIds] = useState([])
 
     const [reassignOpen, setReassignOpen] = useState(false)
@@ -1856,7 +1856,6 @@ export default function TasksPage() {
                                                 }}
                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#1F5C99] bg-white font-bold"
                                             >
-                                                <option value={15}>15</option>
                                                 <option value={50}>50</option>
                                                 <option value={100}>100</option>
                                                 <option value={150}>150</option>
