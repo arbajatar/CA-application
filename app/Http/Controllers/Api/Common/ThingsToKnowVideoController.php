@@ -63,4 +63,24 @@ class ThingsToKnowVideoController extends Controller
             'message' => 'Video category renamed successfully'
         ]);
     }
+
+    public function update(Request $request, ThingsToKnowVideo $video): JsonResponse
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'url' => 'required|url',
+            'group_name' => 'nullable|string|max:255',
+        ]);
+
+        $video->update([
+            'title' => $request->title,
+            'url' => $request->url,
+            'group_name' => $request->group_name ?: 'General',
+        ]);
+
+        return response()->json([
+            'message' => 'Video updated successfully',
+            'data' => $video
+        ]);
+    }
 }

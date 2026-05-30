@@ -198,6 +198,7 @@ class DailyWorkReportController extends Controller
         ];
 
         if ($isCA) {
+            $rules['user_id'] = 'sometimes|required|integer|exists:users,id';
             $rules['ca_review'] = 'nullable|string|max:255';
             $rules['ca_remark'] = 'nullable|string';
         }

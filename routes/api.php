@@ -81,8 +81,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('/clients', ClientController::class);
         Route::get('/client-types', [ClientController::class, 'types']);
         Route::post('/client-types', [ClientController::class, 'storeType']);
+        Route::put('/client-types/{type}', [ClientController::class, 'updateType']);
+        Route::delete('/client-types/{type}', [ClientController::class, 'destroyType']);
         Route::get('/client-groups', [ClientController::class, 'groups']);
         Route::post('/client-groups', [ClientController::class, 'storeGroup']);
+        Route::put('/client-groups/{group}', [ClientController::class, 'updateGroup']);
+        Route::delete('/client-groups/{group}', [ClientController::class, 'destroyGroup']);
         // Recycle Bin
         Route::get('/recycle-bin/clients', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexClients']);
         Route::post('/recycle-bin/clients/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreClient']);
@@ -124,9 +128,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Things to Know Videos & Brochures
         Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
+        Route::put('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'update']);
         Route::delete('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'destroy']);
         Route::patch('/things-to-know/videos/group', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'updateGroup']);
         Route::post('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'store']);
+        Route::post('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'update']);
         Route::delete('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'destroy']);
         Route::patch('/things-to-know/brochures/group', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'updateGroup']);
     });
@@ -159,9 +165,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Things to Know Videos & Brochures
         Route::post('/things-to-know/videos', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'store']);
+        Route::put('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'update']);
         Route::delete('/things-to-know/videos/{video}', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'destroy']);
         Route::patch('/things-to-know/videos/group', [\App\Http\Controllers\Api\Common\ThingsToKnowVideoController::class, 'updateGroup']);
         Route::post('/things-to-know/brochures', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'store']);
+        Route::post('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'update']);
         Route::delete('/things-to-know/brochures/{brochure}', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'destroy']);
         Route::patch('/things-to-know/brochures/group', [\App\Http\Controllers\Api\Common\ThingsToKnowBrochureController::class, 'updateGroup']);
     });

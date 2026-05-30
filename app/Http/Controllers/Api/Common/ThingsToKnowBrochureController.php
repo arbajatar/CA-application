@@ -71,4 +71,32 @@ class ThingsToKnowBrochureController extends Controller
             'message' => 'Document category renamed successfully'
         ]);
     }
+
+    public function update(Request $request, ThingsToKnowBrochure $brochure): JsonResponse
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'file' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,zip,csv,txt,rtf,rar|max:10240', // Max 10MB
+            'group_name' => 'nullable|string|max:255',
+        ]);
+
+        $data = [
+            'title' => $request->title,
+            'group_name' => $request->group_name ?: 'General',
+        ];
+
+        if ($request->hasFile('file')) {
+            if ($brochure->file_path) {
+                Storage::disk('public')->delete($brochure->file_path);
+            }
+            $data['file_path'] = UploadHelper::upload($request->file('file'), 'brochures');
+        }
+
+        $brochure->update($data);
+
+        return response()->json([
+            'message' => 'Brochure updated successfully',
+            'data' => $brochure
+        ]);
+    }
 }
