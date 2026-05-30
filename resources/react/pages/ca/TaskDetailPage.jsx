@@ -619,9 +619,9 @@ export default function TaskDetailPage() {
                 ...prev,
                 sub_tasks: [...(prev.sub_tasks || []), res.data.data]
             }));
-            toast.success('Subtask added');
+            toast.success('Task added');
         } catch (e) {
-            toast.error('Failed to add subtask');
+            toast.error('Failed to add task');
         }
     };
 
@@ -634,7 +634,7 @@ export default function TaskDetailPage() {
                 sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
             }));
         } catch (e) {
-            toast.error('Failed to update subtask');
+            toast.error('Failed to update task');
         }
     };
 
@@ -642,7 +642,7 @@ export default function TaskDetailPage() {
         setConfirmState({
             open: true,
             title: 'Delete Task',
-            message: 'Are you sure you want to delete this subtask? This action cannot be undone.',
+            message: 'Are you sure you want to delete this task? This action cannot be undone.',
             confirmLabel: 'Delete Task',
             danger: true,
             onConfirm: async () => {
@@ -655,9 +655,9 @@ export default function TaskDetailPage() {
                         sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
                     }));
                     setSelectedTaskIds(prev => prev.filter(tid => tid !== subTaskId));
-                    toast.success('Subtask deleted');
+                    toast.success('Task deleted');
                 } catch (e) {
-                    toast.error('Failed to delete subtask');
+                    toast.error('Failed to delete task');
                 } finally {
                     setConfirmState({ open: false });
                 }
@@ -779,13 +779,13 @@ export default function TaskDetailPage() {
                 "Global Status",
                 "Global Remarks",
                 ...dynamicHeaders,
-                "Subtask ID",
-                "Subtask Name",
+                "Task ID",
+                "Task Name",
                 "Assignee",
                 "Priority",
-                "Subtask Status",
+                "Task Status",
                 "Due Date",
-                "Subtask Remarks"
+                "Task Remarks"
             ];
 
             const getColLetter = (colIdx) => {
@@ -889,7 +889,7 @@ export default function TaskDetailPage() {
                     1,
                     ...baseData,
                     '',
-                    'No Subtasks',
+                    'No Tasks',
                     'N/A',
                     'N/A',
                     'N/A',
@@ -1349,7 +1349,7 @@ export default function TaskDetailPage() {
                     { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
                     { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
                     { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
-                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All subtasks of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
+                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All tasks of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
                 ].map((card, i) => (
                     <SummaryCard 
                         key={i} 
@@ -1392,7 +1392,7 @@ export default function TaskDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3">
                     {[
-                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all subtasks', subColor: 'text-indigo-500 font-semibold' },
+                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all tasks', subColor: 'text-indigo-500 font-semibold' },
                         { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
                         ...subStatusOptions.map(opt => {
                             const lowerOpt = opt.toLowerCase();
@@ -2218,8 +2218,8 @@ export default function TaskDetailPage() {
                                                                     onClick={() => {
                                                                         setConfirmState({
                                                                             open: true,
-                                                                            title: 'Unverify & Unlock Subtask',
-                                                                            message: 'Are you sure you want to unverify and unlock this subtask? This will allow staff members to edit its status and details again.',
+                                                                            title: 'Unverify & Unlock Task',
+                                                                            message: 'Are you sure you want to unverify and unlock this task? This will allow staff members to edit its status and details again.',
                                                                             confirmLabel: 'Unverify & Unlock',
                                                                             danger: true,
                                                                             onConfirm: async () => {
@@ -2256,8 +2256,8 @@ export default function TaskDetailPage() {
                                                                     onClick={() => {
                                                                         setConfirmState({
                                                                             open: true,
-                                                                            title: 'Verify & Lock Subtask',
-                                                                            message: 'Are you sure you want to verify and lock this subtask? Once verified, staff members cannot modify its status or details.',
+                                                                            title: 'Verify & Lock Task',
+                                                                            message: 'Are you sure you want to verify and lock this task? Once verified, staff members cannot modify its status or details.',
                                                                             confirmLabel: 'Verify & Lock',
                                                                             danger: false,
                                                                             onConfirm: async () => {

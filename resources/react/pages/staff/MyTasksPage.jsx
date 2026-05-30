@@ -340,9 +340,9 @@ export default function MyTasksPage() {
                         icon={ClipboardList}
                         iconBg="bg-indigo-50"
                         iconColor="text-indigo-500"
-                        label="My Subtasks"
+                        label="My Tasks"
                         value={subTasks.length}
-                        sub="Assigned subtasks"
+                        sub="Assigned tasks"
                         active={activeTab === 'subtasks'}
                         onClick={() => { setActiveTab('subtasks'); setStatusFilter(''); }}
                     />
@@ -364,7 +364,7 @@ export default function MyTasksPage() {
                         onClick={() => setActiveTab('subtasks')}
                         className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'subtasks' ? 'border-[#1F5C99] text-[#1F5C99]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                     >
-                        Subtasks ({subTasks.length})
+                        Tasks ({subTasks.length})
                     </button>
                 </div>
 
@@ -400,7 +400,7 @@ export default function MyTasksPage() {
                                             <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
                                         ))
                                     ) : (
-                                        ['#', 'Subtask Title', 'Parent Task', 'Client', 'Priority', 'Status', 'Sub Status', 'Actions'].map(h => (
+                                        ['#', 'Task Title', 'Parent Sheet', 'Client', 'Priority', 'Status', 'Sub Status', 'Actions'].map(h => (
                                             <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
                                         ))
                                     )}
@@ -434,7 +434,7 @@ export default function MyTasksPage() {
                                     ))
                                 ) : (
                                     subTasks?.length === 0 ? (
-                                        <tr><td colSpan={8} className="text-center py-12 text-gray-400">No subtasks found</td></tr>
+                                        <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                     ) : subTasks?.map((st, i) => (
                                         <tr 
                                             key={st.id} 
@@ -475,7 +475,7 @@ export default function MyTasksPage() {
                                                                                 e.stopPropagation();
                                                                                 setConfirmState({
                                                                                     open: true,
-                                                                                    title: 'Verify & Lock Subtask',
+                                                                                    title: 'Verify & Lock Task',
                                                                                     message: 'Are you sure you want to verify and lock this task? Once verified, you cannot modify its status or details again.',
                                                                                     confirmLabel: 'Verify & Lock',
                                                                                     danger: false,
@@ -765,7 +765,7 @@ export default function MyTasksPage() {
                             {!selected.task_id && (
                                 <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                        <h4 className="text-xs font-bold text-gray-900">Checklist / Subtasks</h4>
+                                        <h4 className="text-xs font-bold text-gray-900">Checklist / Tasks</h4>
                                         {selected.allocated_to?.id === user?.id && (
                                             <button
                                                 onClick={() => setIsAddingSubTask(true)}
@@ -781,7 +781,7 @@ export default function MyTasksPage() {
                                         <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100 space-y-3">
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Subtask Title *</label>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Task Title *</label>
                                                     <input
                                                         type="text"
                                                         value={newSubTaskTitle}

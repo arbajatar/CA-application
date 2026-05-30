@@ -367,7 +367,7 @@ export default function RecycleBinPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Tooltip content="Restore Sheet & Subtasks">
+                                                    <Tooltip content="Restore Sheet & Tasks">
                                                         <button
                                                             onClick={() => handleOpenRestore(task)}
                                                             className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
@@ -462,7 +462,7 @@ export default function RecycleBinPage() {
                     activeTab === 'clients'
                         ? `Are you sure you want to restore "${selectedItem?.name}"? Doing so will recover the client record and any associated soft-deleted sheets.`
                         : activeTab === 'tasks'
-                        ? `Are you sure you want to restore this sheet/task? It will recover the sheet and all its related subtasks.`
+                        ? `Are you sure you want to restore this sheet/task? It will recover the sheet and all its related tasks.`
                         : `Are you sure you want to restore this folder? It will recover the folder and all sheets and tasks that were deleted with it.`
                 }
                 confirmLabel="Restore Data"
@@ -474,7 +474,7 @@ export default function RecycleBinPage() {
                 onClose={() => !actionLoading && setConfirmDeleteOpen(false)}
                 onConfirm={handleDeletePermanently}
                 title={`PERMANENTLY DELETE ${activeTab === 'clients' ? 'Client' : activeTab === 'tasks' ? 'Sheet/Task' : 'Folder'}`}
-                message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, sheets, and subtasks from the database forever.`}
+                message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, sheets, and tasks from the database forever.`}
                 confirmLabel="Delete Permanently"
                 danger
                 loading={actionLoading}

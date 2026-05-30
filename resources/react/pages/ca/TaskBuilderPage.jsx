@@ -3219,7 +3219,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
           <thead>
             <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
               <th className="pb-2 pl-2">Staff</th>
-              <th className="pb-2">Subtask Name</th>
+              <th className="pb-2">Task Name</th>
               <th className="pb-2">Priority</th>
               <th className="pb-2">Status</th>
               <th className="pb-2">Due Date</th>
@@ -3317,7 +3317,7 @@ function SubtasksAssignment({ value = [], staffOptions = [], onChange }) {
 
       {value.length === 0 && (
         <p className="text-center py-4 text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-          No subtasks added yet. Assign at least one person to continue.
+          No tasks added yet. Assign at least one person to continue.
         </p>
       )}
 

@@ -2384,7 +2384,7 @@ export default function TeamReportPage() {
                             <textarea
                                 name="sub_task_description"
                                 rows={2}
-                                placeholder="Describe details of the subtask performed..."
+                                placeholder="Describe details of the task performed..."
                                 value={logForm.sub_task_description}
                                 onChange={handleLogFormChange}
                                 className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"

@@ -907,7 +907,7 @@ function CalendarView() {
             selectedTasks.forEach((t) => {
                 const subtasksSummaryText = t.sub_tasks && t.sub_tasks.length > 0
                     ? t.sub_tasks.map(st => `• [${st.status}] ${st.title} (${st.assigned_to?.name || 'Unassigned'})`).join('\n')
-                    : 'No Subtasks'
+                    : 'No Tasks'
 
                 worksheet.addRow([
                     t.client?.name || '—',

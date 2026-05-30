@@ -182,7 +182,7 @@ export default function ReportsPage() {
             const ExcelJS = await import('exceljs')
             const workbook = new ExcelJS.Workbook()
             const worksheet = workbook.addWorksheet(
-                isTaskReport ? 'Task Report' : (activeTab === 'sheets' ? 'Sheets Timesheet' : 'Subtasks Timesheet')
+                isTaskReport ? 'Task Report' : (activeTab === 'sheets' ? 'Sheets Timesheet' : 'Tasks Timesheet')
             )
 
             // 1. Define Headers
@@ -231,7 +231,7 @@ export default function ReportsPage() {
 
             worksheet.mergeCells(`A1:${endColLetter}1`)
             const titleCell = worksheet.getCell('A1')
-            titleCell.value = isTaskReport ? 'Tasks Report' : (activeTab === 'sheets' ? 'Sheets Timesheet Report' : 'Subtasks Timesheet Report')
+            titleCell.value = isTaskReport ? 'Tasks Report' : (activeTab === 'sheets' ? 'Sheets Timesheet Report' : 'Tasks Timesheet Report')
             titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
             titleCell.fill = {
                 type: 'pattern',
@@ -398,7 +398,7 @@ export default function ReportsPage() {
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            const reportPrefix = isTaskReport ? 'Task_Report' : `${activeTab === 'sheets' ? 'Sheets' : 'Subtasks'}_Timesheet`
+            const reportPrefix = isTaskReport ? 'Task_Report' : `${activeTab === 'sheets' ? 'Sheets' : 'Tasks'}_Timesheet`
             a.download = `${reportPrefix}_${new Date().toISOString().split('T')[0]}.xlsx`
             a.click()
             window.URL.revokeObjectURL(url)
@@ -422,8 +422,8 @@ export default function ReportsPage() {
                     </h1>
                     <p className="text-sm font-medium text-slate-500 mt-1">
                         {isTaskReport 
-                            ? 'Complete register of all work tasks, work types, subtasks status, and staff allocation.'
-                            : 'Track timesheets, completion rates, and operations speed for sheets and subtasks.'}
+                            ? 'Complete register of all work tasks, work types, tasks status, and staff allocation.'
+                            : 'Track timesheets, completion rates, and operations speed for sheets and tasks.'}
                     </p>
                 </div>
                 <button
@@ -456,7 +456,7 @@ export default function ReportsPage() {
                                 : 'text-slate-400 hover:text-slate-600'
                         }`}
                     >
-                        Subtasks Timesheet
+                        Tasks Timesheet
                     </button>
                 </div>
             )}
@@ -720,11 +720,11 @@ export default function ReportsPage() {
                                                     <tr className="bg-slate-50/40">
                                                         <td colSpan={8} className="px-12 py-4 border-l-4 border-indigo-400">
                                                             <div className="space-y-3">
-                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Subtasks</h4>
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Tasks</h4>
                                                                 <table className="w-full text-xs text-left border border-slate-100 rounded-xl overflow-hidden bg-white shadow-sm">
                                                                     <thead>
                                                                         <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                                            <th className="px-4 py-2.5">Subtask Name</th>
+                                                                            <th className="px-4 py-2.5">Task Name</th>
                                                                             <th className="px-4 py-2.5">Assigned Employee</th>
                                                                             <th className="px-4 py-2.5 text-center">Status</th>
                                                                             <th className="px-4 py-2.5">Sub-status</th>

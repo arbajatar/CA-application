@@ -336,21 +336,21 @@ export default function TasksPage() {
                 headers.forEach(h => {
                     const lh = h.toLowerCase().trim();
                     if (['sheet id', 'task id', 'id', 'sheet_id'].includes(lh)) initialMapping[h] = 'sheet_id';
-                    else if (['subtask id', 'subtask_id'].includes(lh)) initialMapping[h] = 'subtask_id';
+                    else if (['subtask id', 'task id (checklist)', 'task id (for updates)', 'task_id', 'subtask_id'].includes(lh)) initialMapping[h] = 'subtask_id';
                     else if (['client name', 'name of client', 'client', 'client_name', 'name of cleint'].includes(lh)) initialMapping[h] = 'client_id';
                     else if (['mobile no', 'client mobile', 'mobile', 'client_mobile'].includes(lh)) initialMapping[h] = 'client_mobile';
                     else if (['work type', 'main task', 'related matter', 'task type', 'work_type_id'].includes(lh)) initialMapping[h] = 'work_type_id';
-                    else if (['form name', 'related matter detailed', 'sheet name', 'task name'].includes(lh)) initialMapping[h] = 'form_name';
+                    else if (['form name', 'related matter detailed', 'sheet name'].includes(lh)) initialMapping[h] = 'form_name';
                     else if (['date allocated', 'date', 'date of creation of task', 'date inward', 'date of receipt of documents'].includes(lh)) initialMapping[h] = 'date_allocated';
                     else if (['assignee', 'team member name', 'task allocation to', 'team member'].includes(lh)) initialMapping[h] = 'allocated_to';
                     else if (['status', 'sheet status', 'global status'].includes(lh)) initialMapping[h] = 'status';
                     else if (['remarks', 'global remarks', 'final remark', 'team remark'].includes(lh)) initialMapping[h] = 'remarks';
-                    else if (['subtask name', 'st_name'].includes(lh)) initialMapping[h] = 'st_name';
-                    else if (['subtask assignee', 'st_assignee', 'assignee'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_assignee';
-                    else if (['subtask priority', 'priority', 'st_priority'].includes(lh)) initialMapping[h] = 'st_priority';
-                    else if (['subtask status', 'st_status'].includes(lh)) initialMapping[h] = 'st_status';
-                    else if (['subtask due date', 'due date', 'st_due_date'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_due_date';
-                    else if (['subtask remarks', 'st_remarks'].includes(lh)) initialMapping[h] = 'st_remarks';
+                    else if (['subtask name', 'task name', 'st_name'].includes(lh)) initialMapping[h] = 'st_name';
+                    else if (['subtask assignee', 'task assignee', 'st_assignee', 'assignee'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_assignee';
+                    else if (['subtask priority', 'task priority', 'priority', 'st_priority'].includes(lh)) initialMapping[h] = 'st_priority';
+                    else if (['subtask status', 'task status', 'st_status'].includes(lh)) initialMapping[h] = 'st_status';
+                    else if (['subtask due date', 'task due date', 'due date', 'st_due_date'].includes(lh) && !initialMapping[h]) initialMapping[h] = 'st_due_date';
+                    else if (['subtask remarks', 'task remarks', 'st_remarks'].includes(lh)) initialMapping[h] = 'st_remarks';
                     else if (lh !== 'sr no' && lh !== 'sr_no') initialMapping[h] = 'dynamic_' + h; // default to dynamic field
                 });
                 
@@ -1740,7 +1740,7 @@ export default function TasksPage() {
                             className="flex flex-col items-start p-4 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50/30 transition group text-left w-full"
                         >
                             <span className="text-sm font-bold text-gray-900 group-hover:text-emerald-700">Duplicate with Data</span>
-                            <span className="text-[11px] text-gray-400 mt-1">Copies all dynamic fields and subtasks</span>
+                            <span className="text-[11px] text-gray-400 mt-1">Copies all dynamic fields and tasks</span>
                         </button>
 
                         <button
@@ -1845,7 +1845,6 @@ export default function TasksPage() {
                                                             <option value="ignore">-- Ignore Column --</option>
                                                             <option disabled>──────────</option>
                                                             <option value="sheet_id">Sheet ID (For updates)</option>
-                                                            <option value="subtask_id">Subtask ID (For updates)</option>
                                                             <option value="client_id">Client Name</option>
                                                             <option value="client_mobile">Client Mobile Number</option>
                                                             <option value="work_type_id">Work Type</option>
@@ -1854,6 +1853,14 @@ export default function TasksPage() {
                                                             <option value="date_allocated">Date Allocated</option>
                                                             <option value="status">Status</option>
                                                             <option value="remarks">Remarks</option>
+                                                            <option disabled>── Task Checklist Columns ──</option>
+                                                            <option value="subtask_id">Task ID (For updates)</option>
+                                                            <option value="st_name">Task Name</option>
+                                                            <option value="st_assignee">Task Assignee</option>
+                                                            <option value="st_priority">Task Priority</option>
+                                                            <option value="st_status">Task Status</option>
+                                                            <option value="st_due_date">Task Due Date</option>
+                                                            <option value="st_remarks">Task Remarks</option>
                                                             <option disabled>──────────</option>
                                                             <option value={`dynamic_${header}`}>Dynamic Field (Custom)</option>
                                                         </select>
