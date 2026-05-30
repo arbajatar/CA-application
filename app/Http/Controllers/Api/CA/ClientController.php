@@ -89,6 +89,43 @@ class ClientController extends Controller
         return response()->json(['message' => 'Client Group created successfully.', 'data' => $group], 201);
     }
 
+    public function updateType(Request $request, $id): JsonResponse
+    {
+        $type = \App\Models\ClientType::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'required|string|unique:client_types,name,' . $type->id,
+            'pan_char' => 'nullable|string|size:1',
+        ]);
+
+        $type->update($validated);
+        return response()->json(['message' => 'Client Type updated successfully.', 'data' => $type]);
+    }
+
+    public function destroyType($id): JsonResponse
+    {
+        $type = \App\Models\ClientType::findOrFail($id);
+        $type->delete();
+        return response()->json(['message' => 'Client Type deleted successfully.']);
+    }
+
+    public function updateGroup(Request $request, $id): JsonResponse
+    {
+        $group = \App\Models\ClientGroup::findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'required|string|unique:client_groups,name,' . $group->id,
+        ]);
+
+        $group->update($validated);
+        return response()->json(['message' => 'Client Group updated successfully.', 'data' => $group]);
+    }
+
+    public function destroyGroup($id): JsonResponse
+    {
+        $group = \App\Models\ClientGroup::findOrFail($id);
+        $group->delete();
+        return response()->json(['message' => 'Client Group deleted successfully.']);
+    }
+
     public function panNumbers(): JsonResponse
     {
         $pans = Client::pluck('pan_no')->filter()->values()->map(fn($p) => strtoupper($p));

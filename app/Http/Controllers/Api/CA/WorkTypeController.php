@@ -34,11 +34,10 @@ class WorkTypeController extends Controller
         return response()->json(['message' => 'Work type updated successfully.', 'data' => new WorkTypeResource($workType)]);
     }
 
-    public function toggle(WorkType $workType): JsonResponse
+    public function destroy(WorkType $workType): JsonResponse
     {
-        $workType->update(['is_active' => !$workType->is_active]);
-        $status = $workType->is_active ? 'activated' : 'deactivated';
+        $workType->delete();
 
-        return response()->json(['message' => "Work type {$status} successfully.", 'data' => new WorkTypeResource($workType)]);
+        return response()->json(['message' => 'Work type deleted successfully.']);
     }
 }

@@ -119,17 +119,62 @@ export default function StaffPage() {
 
     useEffect(() => { fetchStaff(); fetchRoles() }, [fetchStaff, fetchRoles])
 
+    const validateForm = (isEdit = false) => {
+        const tempErrors = {}
+        if (!form.name || !form.name.trim()) {
+            tempErrors.name = ['Full Name is required']
+        }
+        if (!form.username || !form.username.trim()) {
+            tempErrors.username = ['Username is required']
+        } else if (/\s/.test(form.username)) {
+            tempErrors.username = ['Username cannot contain spaces']
+        }
+        
+        if (!isEdit && (!form.password || form.password.length < 6)) {
+            tempErrors.password = ['Password must be at least 6 characters']
+        }
+        
+        if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+            tempErrors.email = ['Invalid email address format']
+        }
+        
+        if (form.mobile && !/^\d{10}$/.test(form.mobile.replace(/\D/g, ''))) {
+            tempErrors.mobile = ['Mobile number must be exactly 10 digits']
+        }
+
+        setErrors(tempErrors)
+        
+        const errorKeys = Object.keys(tempErrors)
+        if (errorKeys.length > 0) {
+            return { isValid: false, firstError: tempErrors[errorKeys[0]][0] }
+        }
+        return { isValid: true, firstError: '' }
+    }
+
     const handleAdd = async () => {
+        const validation = validateForm(false)
+        if (!validation.isValid) {
+            toast.error(validation.firstError)
+            return
+        }
         setSaving(true); setErrors({})
         try {
             await api.post('/ca/staff', { ...form, role_ids: form.role_ids || [] })
             toast.success('Staff member added successfully')
             setAddOpen(false); setForm(EMPTY_FORM); fetchStaff()
-        } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
+        } catch (e) {
+            setErrors(e.response?.data?.errors ?? {})
+            toast.error(e.response?.data?.message || 'Failed to add staff member')
+        }
         finally { setSaving(false) }
     }
 
     const handleEdit = async () => {
+        const validation = validateForm(true)
+        if (!validation.isValid) {
+            toast.error(validation.firstError)
+            return
+        }
         setSaving(true); setErrors({})
         try {
             await api.put(`/ca/staff/${selected.id}`, { 
@@ -143,17 +188,38 @@ export default function StaffPage() {
             })
             toast.success('Staff member updated successfully')
             setEditOpen(false); fetchStaff()
-        } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
+        } catch (e) {
+            setErrors(e.response?.data?.errors ?? {})
+            toast.error(e.response?.data?.message || 'Failed to update staff member')
+        }
         finally { setSaving(false) }
     }
 
     const handleReset = async () => {
+        const tempErrors = {}
+        if (!resetPass.password || resetPass.password.length < 6) {
+            tempErrors.password = ['Password must be at least 6 characters']
+        }
+        if (resetPass.password !== resetPass.password_confirmation) {
+            tempErrors.password_confirmation = ['Passwords do not match']
+        }
+
+        if (Object.keys(tempErrors).length > 0) {
+            setErrors(tempErrors)
+            const firstError = tempErrors.password?.[0] || tempErrors.password_confirmation?.[0]
+            toast.error(firstError)
+            return
+        }
+
         setSaving(true); setErrors({})
         try {
             await api.patch(`/ca/staff/${selected.id}/reset-password`, resetPass)
             toast.success('Password reset successfully')
             setResetOpen(false); setResetPass({ password: '', password_confirmation: '' })
-        } catch (e) { setErrors(e.response?.data?.errors ?? {}) }
+        } catch (e) {
+            setErrors(e.response?.data?.errors ?? {})
+            toast.error(e.response?.data?.message || 'Failed to reset password')
+        }
         finally { setSaving(false) }
     }
 

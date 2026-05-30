@@ -118,6 +118,7 @@ export default function ThingsToKnowPage() {
     const [loading, setLoading] = useState(true)
     const [addModalOpen, setAddModalOpen] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [editingVideo, setEditingVideo] = useState(null)
 
     const [newVideo, setNewVideo] = useState({ title: '', url: '', group_name: 'General' })
     const [deleteVideoOpen, setDeleteVideoOpen] = useState(false)
@@ -132,6 +133,7 @@ export default function ThingsToKnowPage() {
     const [brochureToDelete, setBrochureToDelete] = useState(null)
     const [savingBrochure, setSavingBrochure] = useState(false)
     const [previewBrochure, setPreviewBrochure] = useState(null)
+    const [editingBrochure, setEditingBrochure] = useState(null)
 
     // Folder/playlist drill-down: null = show group cards, string = open that group
     const [selectedVideoGroup, setSelectedVideoGroup] = useState(null)
@@ -207,14 +209,20 @@ export default function ThingsToKnowPage() {
         e.preventDefault()
         setSaving(true)
         try {
-            await api.post(`${rolePrefix}/things-to-know/videos`, newVideo)
-            toast.success('Video added successfully')
+            if (editingVideo) {
+                await api.put(`${rolePrefix}/things-to-know/videos/${editingVideo.id}`, newVideo)
+                toast.success('Video updated successfully')
+            } else {
+                await api.post(`${rolePrefix}/things-to-know/videos`, newVideo)
+                toast.success('Video added successfully')
+            }
             setAddModalOpen(false)
             setNewVideo({ title: '', url: '', group_name: 'General' })
+            setEditingVideo(null)
             setShowNewVideoGroupInput(false)
             fetchVideos()
         } catch (e) {
-            toast.error(e.response?.data?.message || 'Failed to add video')
+            toast.error(e.response?.data?.message || `Failed to ${editingVideo ? 'update' : 'add'} video`)
         } finally {
             setSaving(false)
         }
@@ -243,13 +251,13 @@ export default function ThingsToKnowPage() {
 
     const handleAddBrochure = async (e) => {
         e.preventDefault()
-        if (!newBrochure.file) {
+        if (!editingBrochure && !newBrochure.file) {
             toast.error('Please select a document file')
             return
         }
 
         // Client-side size check (10MB)
-        if (newBrochure.file.size > 10 * 1024 * 1024) {
+        if (newBrochure.file && newBrochure.file.size > 10 * 1024 * 1024) {
             toast.error('File size exceeds 10MB limit')
             return
         }
@@ -258,19 +266,29 @@ export default function ThingsToKnowPage() {
         try {
             const formData = new FormData()
             formData.append('title', newBrochure.title)
-            formData.append('file', newBrochure.file)
+            if (newBrochure.file) {
+                formData.append('file', newBrochure.file)
+            }
             formData.append('group_name', newBrochure.group_name || 'General')
 
-            await api.post(`${rolePrefix}/things-to-know/brochures`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
-            toast.success('Brochure added successfully')
+            if (editingBrochure) {
+                await api.post(`${rolePrefix}/things-to-know/brochures/${editingBrochure.id}`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                })
+                toast.success('Brochure updated successfully')
+            } else {
+                await api.post(`${rolePrefix}/things-to-know/brochures`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                })
+                toast.success('Brochure added successfully')
+            }
             setAddBrochureOpen(false)
             setNewBrochure({ title: '', file: null, group_name: 'General' })
+            setEditingBrochure(null)
             setShowNewBrochureGroupInput(false)
             fetchBrochures()
         } catch (e) {
-            toast.error(e.response?.data?.message || 'Failed to add brochure')
+            toast.error(e.response?.data?.message || `Failed to ${editingBrochure ? 'update' : 'add'} brochure`)
         } finally {
             setSavingBrochure(false)
         }
@@ -545,10 +563,20 @@ export default function ThingsToKnowPage() {
                                                         <div className="flex items-start justify-between gap-3">
                                                             <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight flex-1">{video.title}</h3>
                                                             {isAdmin && (
-                                                                <button onClick={() => handleDeleteVideo(video)}
-                                                                    className="p-1.5 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Video">
-                                                                    <Trash2 size={16} />
-                                                                </button>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    <button onClick={() => {
+                                                                        setEditingVideo(video)
+                                                                        setNewVideo({ title: video.title, url: video.url, group_name: video.group_name || 'General' })
+                                                                        setAddModalOpen(true)
+                                                                    }}
+                                                                        className="p-1.5 text-blue-650 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-805 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Edit Video">
+                                                                        <Pencil size={15} />
+                                                                    </button>
+                                                                    <button onClick={() => handleDeleteVideo(video)}
+                                                                        className="p-1.5 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Video">
+                                                                        <Trash2 size={15} />
+                                                                    </button>
+                                                                </div>
                                                             )}
                                                         </div>
                                                         <a href={video.url} target="_blank" rel="noopener noreferrer"
@@ -752,10 +780,20 @@ export default function ThingsToKnowPage() {
                                                         </div>
                                                     </div>
                                                     {isAdmin && (
-                                                        <button onClick={() => handleDeleteBrochure(brochure)}
-                                                            className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Brochure">
-                                                            <Trash2 size={16} />
-                                                        </button>
+                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                            <button onClick={() => {
+                                                                setEditingBrochure(brochure)
+                                                                setNewBrochure({ title: brochure.title, file: null, group_name: brochure.group_name || 'General' })
+                                                                setAddBrochureOpen(true)
+                                                            }}
+                                                                className="p-1.5 text-blue-650 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-805 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Edit Brochure">
+                                                                <Pencil size={15} />
+                                                            </button>
+                                                            <button onClick={() => handleDeleteBrochure(brochure)}
+                                                                className="p-1.5 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 rounded-lg transition-all" title="Remove Brochure">
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             );
@@ -769,11 +807,11 @@ export default function ThingsToKnowPage() {
             </div>
 
 
-            {/* Add Video Modal */}
+            {/* Add/Edit Video Modal */}
             <Modal
                 open={addModalOpen}
-                onClose={() => setAddModalOpen(false)}
-                title="Add New Video"
+                onClose={() => { setAddModalOpen(false); setEditingVideo(null); setNewVideo({ title: '', url: '', group_name: 'General' }); setShowNewVideoGroupInput(false) }}
+                title={editingVideo ? "Edit Video" : "Add New Video"}
                 width="max-w-md"
             >
                 <form onSubmit={handleAddVideo} className="space-y-4 py-2">
@@ -840,7 +878,7 @@ export default function ThingsToKnowPage() {
                     <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
-                            onClick={() => { setAddModalOpen(false); setShowNewVideoGroupInput(false) }}
+                            onClick={() => { setAddModalOpen(false); setEditingVideo(null); setNewVideo({ title: '', url: '', group_name: 'General' }); setShowNewVideoGroupInput(false) }}
                             className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                         >
                             Cancel
@@ -850,17 +888,17 @@ export default function ThingsToKnowPage() {
                             disabled={saving}
                             className="bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-6 py-2 rounded-xl text-sm font-bold transition disabled:opacity-50"
                         >
-                            {saving ? 'Adding...' : 'Add Video'}
+                            {saving ? 'Saving...' : (editingVideo ? 'Save Changes' : 'Add Video')}
                         </button>
                     </div>
                 </form>
             </Modal>
 
-            {/* Add Brochure Modal */}
+            {/* Add/Edit Brochure Modal */}
             <Modal
                 open={addBrochureOpen}
-                onClose={() => setAddBrochureOpen(false)}
-                title="Add New Brochure"
+                onClose={() => { setAddBrochureOpen(false); setEditingBrochure(null); setNewBrochure({ title: '', file: null, group_name: 'General' }); setShowNewBrochureGroupInput(false) }}
+                title={editingBrochure ? "Edit Brochure" : "Add New Brochure"}
                 width="max-w-md"
             >
                 <form onSubmit={handleAddBrochure} className="space-y-4 py-2">
@@ -876,10 +914,10 @@ export default function ThingsToKnowPage() {
                         />
                     </div>
                     <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Document File</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Document File {editingBrochure && "(Optional)"}</label>
                         <div className="relative">
                             <input
-                                required
+                                required={!editingBrochure}
                                 type="file"
                                 accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.csv,.txt,.rtf"
                                 className="hidden"
@@ -891,7 +929,7 @@ export default function ThingsToKnowPage() {
                                 className="flex items-center justify-between w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition"
                             >
                                 <span className="text-sm text-gray-500 truncate">
-                                    {newBrochure.file ? newBrochure.file.name : 'Select file...'}
+                                    {newBrochure.file ? newBrochure.file.name : (editingBrochure ? 'Keep current file...' : 'Select file...')}
                                 </span>
                                 <Plus size={18} className="text-gray-400" />
                             </label>
@@ -939,7 +977,7 @@ export default function ThingsToKnowPage() {
                     <div className="flex justify-end gap-3 pt-4">
                         <button
                             type="button"
-                            onClick={() => { setAddBrochureOpen(false); setShowNewBrochureGroupInput(false) }}
+                            onClick={() => { setAddBrochureOpen(false); setEditingBrochure(null); setNewBrochure({ title: '', file: null, group_name: 'General' }); setShowNewBrochureGroupInput(false) }}
                             className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
                         >
                             Cancel
@@ -949,7 +987,7 @@ export default function ThingsToKnowPage() {
                             disabled={savingBrochure}
                             className="bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-6 py-2 rounded-xl text-sm font-bold transition disabled:opacity-50"
                         >
-                            {savingBrochure ? 'Uploading...' : 'Add Brochure'}
+                            {savingBrochure ? 'Saving...' : (editingBrochure ? 'Save Changes' : 'Add Brochure')}
                         </button>
                     </div>
                 </form>

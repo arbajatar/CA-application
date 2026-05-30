@@ -109,7 +109,7 @@ function TimePicker12Hour({ value, onChange, label, className = "" }) {
                                 type="button"
                                 key={h}
                                 onClick={() => handleSelect(h, currentMinute, currentAmpm)}
-                                className={`py-1 text-xs font-semibold rounded-lg hover:bg-gray-100 transition ${h === currentHour ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold' : 'text-gray-700'}`}
+                                className={`py-1 text-xs font-semibold rounded-lg transition ${h === currentHour ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold hover:bg-[#d8e7f5]' : 'text-gray-700 hover:bg-gray-100'}`}
                             >
                                 {h}
                             </button>
@@ -123,7 +123,7 @@ function TimePicker12Hour({ value, onChange, label, className = "" }) {
                                 type="button"
                                 key={m}
                                 onClick={() => handleSelect(currentHour, m, currentAmpm)}
-                                className={`py-1 text-xs font-semibold rounded-lg hover:bg-gray-100 transition ${m === currentMinute ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold' : 'text-gray-700'}`}
+                                className={`py-1 text-xs font-semibold rounded-lg transition ${m === currentMinute ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold hover:bg-[#d8e7f5]' : 'text-gray-700 hover:bg-gray-100'}`}
                             >
                                 {m}
                             </button>
@@ -136,7 +136,7 @@ function TimePicker12Hour({ value, onChange, label, className = "" }) {
                                 type="button"
                                 key={period}
                                 onClick={() => handleSelect(currentHour, currentMinute, period)}
-                                className={`py-2 text-xs font-bold rounded-lg hover:bg-gray-100 transition ${period === currentAmpm ? 'bg-[#1F5C99] text-white' : 'text-gray-600'}`}
+                                className={`py-2 text-xs font-bold rounded-lg transition ${period === currentAmpm ? 'bg-[#1F5C99] text-white hover:bg-[#154673]' : 'text-gray-600 hover:bg-gray-100'}`}
                             >
                                 {period}
                             </button>
@@ -277,17 +277,24 @@ export default function TeamReportPage() {
         }
     }
 
+    const [customReviewModalOpen, setCustomReviewModalOpen] = useState(false)
+    const [newCustomReviewVal, setNewCustomReviewVal] = useState('')
+    const [customReviewCallback, setCustomReviewCallback] = useState(null)
+
     const handleAddCustomReview = (currentVal, setterFunc) => {
-        const custom = prompt('Enter custom review status (e.g. VERY SLOW, EXCELLENT):')
-        if (custom && custom.trim()) {
-            const trimmed = custom.trim().toUpperCase()
-            if (!CA_REVIEW_OPTIONS.some(o => o.value === trimmed) && !customReviewOptions.includes(trimmed)) {
-                setCustomReviewOptions(prev => [...prev, trimmed])
+        setNewCustomReviewVal('')
+        setCustomReviewCallback(() => (newVal) => {
+            if (newVal && newVal.trim()) {
+                const trimmed = newVal.trim().toUpperCase()
+                if (!CA_REVIEW_OPTIONS.some(o => o.value === trimmed) && !customReviewOptions.includes(trimmed)) {
+                    setCustomReviewOptions(prev => [...prev, trimmed])
+                }
+                setterFunc(trimmed)
+            } else {
+                setterFunc(currentVal || '')
             }
-            setterFunc(trimmed)
-        } else {
-            setterFunc(currentVal || '')
-        }
+        })
+        setCustomReviewModalOpen(true)
     }
 
     // States
@@ -2876,6 +2883,59 @@ export default function TeamReportPage() {
                         </button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Custom Review Status Modal */}
+            <Modal
+                open={customReviewModalOpen}
+                onClose={() => {
+                    setCustomReviewModalOpen(false)
+                    if (customReviewCallback) customReviewCallback(null)
+                }}
+                title="Add Custom Review Status"
+                width="max-w-md"
+            >
+                <form 
+                    onSubmit={e => {
+                        e.preventDefault()
+                        setCustomReviewModalOpen(false)
+                        if (customReviewCallback) customReviewCallback(newCustomReviewVal)
+                    }}
+                    className="space-y-4"
+                >
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
+                            Custom Review Status Name
+                        </label>
+                        <input
+                            type="text"
+                            value={newCustomReviewVal}
+                            onChange={e => setNewCustomReviewVal(e.target.value)}
+                            placeholder="e.g. VERY SLOW, EXCELLENT"
+                            className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-gray-800"
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCustomReviewModalOpen(false)
+                                if (customReviewCallback) customReviewCallback(null)
+                            }}
+                            className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 font-bold transition"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-5 py-2 text-sm bg-[#0f1c2e] hover:bg-[#1c324e] text-white rounded-xl font-bold transition"
+                        >
+                            Add Status
+                        </button>
+                    </div>
+                </form>
             </Modal>
 
             {/* Sliding Bottom Bulk Action Panel */}
