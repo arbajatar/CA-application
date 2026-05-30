@@ -217,8 +217,47 @@ export default function ReportsPage() {
             }
 
             // Write headers row
-            const headerRowValues = headers.map(h => h.name)
-            const headerRow = worksheet.addRow(headerRowValues)
+            const getColLetter = (colIdx) => {
+                let temp = colIdx
+                let letter = ''
+                while (temp > 0) {
+                    let modulo = (temp - 1) % 26
+                    letter = String.fromCharCode(65 + modulo) + letter
+                    temp = Math.floor((temp - modulo) / 26)
+                }
+                return letter
+            }
+            const endColLetter = getColLetter(headers.length)
+
+            worksheet.mergeCells(`A1:${endColLetter}1`)
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = isTaskReport ? 'Tasks Report' : (activeTab === 'sheets' ? 'Sheets Timesheet Report' : 'Subtasks Timesheet Report')
+            titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells(`A2:${endColLetter}2`)
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            // Skip row 3
+
+            const headerRow = worksheet.getRow(4)
+            headerRow.values = headers.map(h => h.name)
             headerRow.height = 28
 
             // Style headers with Navy Blue background & White bold text
@@ -226,7 +265,7 @@ export default function ReportsPage() {
                 cell.fill = {
                     type: 'pattern',
                     pattern: 'solid',
-                    fgColor: { argb: 'FF1F5C99' } // Navy Blue
+                    fgColor: { argb: 'FF154673' } // Dark blue
                 }
                 cell.font = {
                     name: 'Segoe UI',
@@ -342,9 +381,11 @@ export default function ReportsPage() {
             worksheet.columns.forEach(column => {
                 let maxLen = 0
                 column.eachCell({ includeEmpty: true }, cell => {
-                    const val = cell.value ? cell.value.toString() : ''
-                    if (val.length > maxLen) {
-                        maxLen = val.length
+                    if (cell.row > 3) {
+                        const val = cell.value ? cell.value.toString() : ''
+                        if (val.length > maxLen) {
+                            maxLen = val.length
+                        }
                     }
                 })
                 // Extra padding of 5 characters for standard padding

@@ -660,16 +660,44 @@ export default function TasksPage() {
                 { header: 'CA Remark', key: 'ca_remark' }
             ];
 
-            worksheet.columns = exportedColumns;
+            worksheet.mergeCells('A1:L1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = 'Tasks Register'
+            titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
 
-            // 3. Format header row
-            const headerRow = worksheet.getRow(1);
+            worksheet.mergeCells('A2:L2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            // Skip row 3
+
+            // Write headers row
+            const headerRow = worksheet.getRow(4);
+            headerRow.values = exportedColumns.map(c => c.header);
+            headerRow.height = 28;
+
             headerRow.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+                cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
                 cell.fill = {
                     type: 'pattern',
                     pattern: 'solid',
-                    fgColor: { argb: 'FF0F1C2E' } // Matches theme color #0f1c2e
+                    fgColor: { argb: 'FF154673' } // Dark blue
                 };
                 cell.alignment = { vertical: 'middle', horizontal: 'center' };
                 cell.border = {
@@ -679,7 +707,6 @@ export default function TasksPage() {
                     right: { style: 'thin' }
                 };
             });
-            headerRow.height = 25;
 
             // 4. Add data rows
             const formatVal = (val) => {
@@ -690,37 +717,35 @@ export default function TasksPage() {
 
             let srNo = 1;
             filteredExportTasks.forEach(task => {
-                const baseData = {
-                    sheet_id: task.id || '',
-                    client_name: task.client?.name || '',
-                    mobile: task.client?.contact || '',
-                    work_type: task.work_type?.name || '',
-                    form_name: task.form_name || '',
-                    date_allocated: formatDate(task.date_inward || task.date_allocated),
-                    assigned_to: task.allocated_to?.name || '',
-                    status: task.status_label || task.status,
-                    remarks: task.remarks || '',
-                    ca_feedback: formatVal(task.dynamic_fields?.['CA Feedback']),
-                    ca_remark: formatVal(task.dynamic_fields?.['CA Rating'] || task.dynamic_fields?.['CA Remark'] || '')
-                };
-
-                worksheet.addRow({
-                    sr_no: srNo++,
-                    ...baseData
-                });
+                const rowValues = [
+                    srNo++,
+                    task.id || '',
+                    task.form_name || '',
+                    task.work_type?.name || '',
+                    task.allocated_to?.name || '',
+                    formatDate(task.date_inward || task.date_allocated),
+                    task.client?.name || '',
+                    task.client?.contact || '',
+                    task.status_label || task.status,
+                    task.remarks || '',
+                    formatVal(task.dynamic_fields?.['CA Feedback']),
+                    formatVal(task.dynamic_fields?.['CA Rating'] || task.dynamic_fields?.['CA Remark'] || '')
+                ];
+                worksheet.addRow(rowValues);
             });
 
             // 5. Style data rows and Auto-size columns
             worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 1) {
+                if (rowNumber > 4) {
                     row.eachCell((cell) => {
+                        cell.font = { name: 'Segoe UI', size: 10 };
                         cell.border = {
-                            top: { style: 'thin' },
-                            left: { style: 'thin' },
-                            bottom: { style: 'thin' },
-                            right: { style: 'thin' }
+                            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
                         };
-                        cell.alignment = { vertical: 'middle', wrapText: true };
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
                     });
                 }
             });
@@ -729,9 +754,11 @@ export default function TasksPage() {
             worksheet.columns.forEach(column => {
                 let maxLength = 0;
                 column.eachCell({ includeEmpty: true }, (cell) => {
-                    const columnLength = cell.value ? cell.value.toString().length : 10;
-                    if (columnLength > maxLength) {
-                        maxLength = columnLength;
+                    if (cell.row > 3) {
+                        const columnLength = cell.value ? cell.value.toString().length : 10;
+                        if (columnLength > maxLength) {
+                            maxLength = columnLength;
+                        }
                     }
                 });
                 column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);

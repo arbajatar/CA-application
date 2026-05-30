@@ -1030,28 +1030,16 @@ export default function TeamReportPage() {
             sheet.views = [{ showGridLines: true }]
 
             // Style definitions
+            // Style definitions
             const titleFill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FF1F4E78' } // Premium Deep Navy Blue
-            }
-
-            const headerFill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF2F5597' } // Muted Steel Blue
+                fgColor: { argb: 'FF1F5C99' } // Standard blue
             }
 
             const titleFont = {
                 name: 'Segoe UI',
-                size: 16,
-                bold: true,
-                color: { argb: 'FFFFFFFF' }
-            }
-
-            const headerFont = {
-                name: 'Segoe UI',
-                size: 11,
+                size: 14,
                 bold: true,
                 color: { argb: 'FFFFFFFF' }
             }
@@ -1061,24 +1049,26 @@ export default function TeamReportPage() {
                 size: 10
             }
 
-            const borderStyle = {
-                top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                right: { style: 'thin', color: { argb: 'FFD9D9D9' } }
-            }
-
             // Title Block
-            sheet.mergeCells('B2:P3')
-            const titleCell = sheet.getCell('B2')
+            sheet.mergeCells('A1:O1')
+            const titleCell = sheet.getCell('A1')
             titleCell.value = 'TEAM DAILY WORK PROGRESS REPORT'
             titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
             titleCell.fill = titleFill
             titleCell.font = titleFont
 
             // Metadata row
-            sheet.getCell('B4').value = `Generated At: ${new Date().toLocaleString()}`
-            sheet.getCell('B4').font = { name: 'Segoe UI', size: 9, italic: true }
+            sheet.mergeCells('A2:O2')
+            const dateCell = sheet.getCell('A2')
+            dateCell.value = `Generated At: ${new Date().toLocaleString()}`
+            dateCell.alignment = { horizontal: 'center', vertical: 'middle' }
+            dateCell.fill = titleFill
+            dateCell.font = { name: 'Segoe UI', size: 10, italic: true, color: { argb: 'FFFFFFFF' } }
+
+            sheet.getRow(1).height = 30
+            sheet.getRow(2).height = 20
+
+            // Skip row 3
 
             // Column Header Block
             const headers = [
@@ -1099,21 +1089,35 @@ export default function TeamReportPage() {
                 'CA REMARK'
             ]
 
-            const headerRow = sheet.getRow(6)
-            headerRow.height = 26
+            const headerRow = sheet.getRow(4)
+            headerRow.height = 28
 
             headers.forEach((h, idx) => {
-                const cell = headerRow.getCell(idx + 2) // Start from Col B (index 2)
+                const cell = headerRow.getCell(idx + 1) // Start from Col A (index 1)
                 cell.value = h
-                cell.fill = headerFill
-                cell.font = headerFont
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' } // Dark blue
+                }
+                cell.font = {
+                    name: 'Segoe UI',
+                    size: 11,
+                    bold: true,
+                    color: { argb: 'FFFFFFFF' }
+                }
                 cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-                cell.border = borderStyle
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    right: { style: 'thin', color: { argb: 'FFD9D9D9' } }
+                }
             })
 
             // Populate rows
             displayedReports.forEach((item, rIdx) => {
-                const rowNum = 7 + rIdx
+                const rowNum = 5 + rIdx
                 const row = sheet.getRow(rowNum)
                 row.height = 22
 
@@ -1136,10 +1140,15 @@ export default function TeamReportPage() {
                 ]
 
                 values.forEach((val, cIdx) => {
-                    const cell = row.getCell(cIdx + 2)
+                    const cell = row.getCell(cIdx + 1)
                     cell.value = val
                     cell.font = bodyFont
-                    cell.border = borderStyle
+                    cell.border = {
+                        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                        right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+                    }
                     cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
 
                     // Formatting specifics
@@ -1171,14 +1180,9 @@ export default function TeamReportPage() {
 
             // Auto-adjust Column widths
             sheet.columns.forEach((col, idx) => {
-                if (idx === 0) {
-                    col.width = 3 // Margin column A
-                    return
-                }
-                
                 let maxLen = 12
                 sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
-                    if (rowNum < 5) return // Skip title block
+                    if (rowNum < 4) return // Skip title block
                     const cellVal = row.getCell(idx + 1).value
                     if (cellVal) {
                         const len = String(cellVal).length

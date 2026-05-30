@@ -728,98 +728,197 @@ export default function TaskDetailPage() {
     };
 
     const handleExport = async () => {
-        const XLSX = await import('xlsx');
-        const data = [];
+        try {
+            const ExcelJS = await import('exceljs');
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet("Comprehensive Sheet Export");
 
-        // 1. Extract Dynamic Fields (excluding system keys)
-        const dynamicFieldEntries = Object.entries(task.dynamic_fields || {}).filter(([label]) =>
-            !['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)
-        );
-        const dynamicHeaders = dynamicFieldEntries.map(([label]) => label);
+            // Enable gridlines
+            worksheet.views = [{ showGridLines: true }];
 
-        // 2. Define Comprehensive Headers
-        const headers = [
-            "SR NO",
-            "Sheet ID",
-            "Client Name",
-            "Mobile No",
-            "Work Type",
-            "Form Name",
-            "Date Allocated",
-            "Global Status",
-            "Global Remarks",
-            ...dynamicHeaders, // Insert dynamic fields as columns
-            "Subtask ID",
-            "Subtask Name",
-            "Assignee",
-            "Priority",
-            "Subtask Status",
-            "Due Date",
-            "Subtask Remarks"
-        ];
-        data.push(headers);
+            // 1. Extract Dynamic Fields (excluding system keys)
+            const dynamicFieldEntries = Object.entries(task.dynamic_fields || {}).filter(([label]) =>
+                !['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)
+            );
+            const dynamicHeaders = dynamicFieldEntries.map(([label]) => label);
 
-        // 3. Helper for value formatting
-        const formatVal = (val) => {
-            if (Array.isArray(val)) return val.join(', ');
-            if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-            return val || 'N/A';
-        };
+            // 2. Define Comprehensive Headers
+            const headers = [
+                "SR NO",
+                "Sheet ID",
+                "Client Name",
+                "Mobile No",
+                "Work Type",
+                "Form Name",
+                "Date Allocated",
+                "Global Status",
+                "Global Remarks",
+                ...dynamicHeaders,
+                "Subtask ID",
+                "Subtask Name",
+                "Assignee",
+                "Priority",
+                "Subtask Status",
+                "Due Date",
+                "Subtask Remarks"
+            ];
 
-        // 4. Shared Task-Level Data for every row
-        const baseData = [
-            task.id || '',
-            task.client?.name || 'N/A',
-            task.client?.contact || 'N/A',
-            task.work_type?.name || 'N/A',
-            task.form_name || 'N/A',
-            formatDate(task.date_allocated),
-            globalStatus || 'N/A',
-            globalRemarks || '',
-            ...dynamicFieldEntries.map(([, val]) => formatVal(val))
-        ];
+            const getColLetter = (colIdx) => {
+                let temp = colIdx
+                let letter = ''
+                while (temp > 0) {
+                    let modulo = (temp - 1) % 26
+                    letter = String.fromCharCode(65 + modulo) + letter
+                    temp = Math.floor((temp - modulo) / 26)
+                }
+                return letter
+            }
+            const endColLetter = getColLetter(headers.length)
 
-        // 5. Generate Rows (one per subtask)
-        if (task.sub_tasks && task.sub_tasks.length > 0) {
-            task.sub_tasks.forEach((st, index) => {
-                data.push([
-                    index + 1,
-                    ...baseData,
-                    st.id || '',
-                    st.title,
-                    st.assigned_to?.name || 'Unassigned',
-                    st.priority,
-                    st.status_label || st.status,
-                    formatDate(st.due_date),
-                    st.remarks || ''
-                ]);
+            worksheet.mergeCells(`A1:${endColLetter}1`)
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = `Sheet Complete Export: ${task.client?.name || 'Sheet'} - ${task.form_name || ''}`
+            titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells(`A2:${endColLetter}2`)
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            // Skip row 3
+
+            // Write headers row
+            const headerRow = worksheet.getRow(4);
+            headerRow.values = headers;
+            headerRow.height = 28;
+
+            headerRow.eachCell((cell) => {
+                cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF154673' } // Dark blue
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
             });
-        } else {
-            // Row for task with no subtasks
-            data.push([
-                1,
-                ...baseData,
-                '',
-                'No Subtasks',
-                'N/A',
-                'N/A',
-                'N/A',
-                'N/A',
-                'N/A'
-            ]);
+
+            // 3. Helper for value formatting
+            const formatVal = (val) => {
+                if (Array.isArray(val)) return val.join(', ');
+                if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+                return val || 'N/A';
+            };
+
+            // 4. Shared Task-Level Data for every row
+            const baseData = [
+                task.id || '',
+                task.client?.name || 'N/A',
+                task.client?.contact || 'N/A',
+                task.work_type?.name || 'N/A',
+                task.form_name || 'N/A',
+                formatDate(task.date_allocated),
+                globalStatus || 'N/A',
+                globalRemarks || '',
+                ...dynamicFieldEntries.map(([, val]) => formatVal(val))
+            ];
+
+            // 5. Generate Rows (one per subtask)
+            if (task.sub_tasks && task.sub_tasks.length > 0) {
+                task.sub_tasks.forEach((st, index) => {
+                    worksheet.addRow([
+                        index + 1,
+                        ...baseData,
+                        st.id || '',
+                        st.title,
+                        st.assigned_to?.name || 'Unassigned',
+                        st.priority,
+                        st.status_label || st.status,
+                        formatDate(st.due_date),
+                        st.remarks || ''
+                    ]);
+                });
+            } else {
+                // Row for task with no subtasks
+                worksheet.addRow([
+                    1,
+                    ...baseData,
+                    '',
+                    'No Subtasks',
+                    'N/A',
+                    'N/A',
+                    'N/A',
+                    'N/A',
+                    'N/A'
+                ]);
+            }
+
+            // 6. Style data rows
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 4) {
+                    row.eachCell((cell) => {
+                        cell.font = { name: 'Segoe UI', size: 10 };
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+                        };
+                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+                    });
+                }
+            });
+
+            // 7. Automatic column resizing
+            worksheet.columns.forEach(column => {
+                let maxLength = 0;
+                column.eachCell({ includeEmpty: true }, (cell) => {
+                    if (cell.row > 3) {
+                        const columnLength = cell.value ? cell.value.toString().length : 10;
+                        if (columnLength > maxLength) {
+                            maxLength = columnLength;
+                        }
+                    }
+                });
+                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);
+            });
+
+            // 8. Generate and download
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${task.client?.name || 'Sheet'}_Complete_Export_${new Date().toISOString().substring(0, 10)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            toast.success('Comprehensive Excel export completed');
+        } catch (err) {
+            console.error('Export Error:', err);
+            toast.error('Failed to export sheet details');
         }
-
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Comprehensive Sheet Export");
-
-        // Set flexible column widths
-        const colWidths = headers.map(() => ({ wch: 25 }));
-        colWidths[0] = { wch: 8 }; // SR NO
-        ws['!cols'] = colWidths;
-
-        XLSX.writeFile(wb, `${task.client?.name || 'Sheet'}_Complete_Export.xlsx`);
-        toast.success('Comprehensive Excel export started');
     };
 
     if (loading || !task) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;

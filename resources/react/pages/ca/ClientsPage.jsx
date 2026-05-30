@@ -336,16 +336,44 @@ export default function ClientsPage() {
                 { name: 'Status', key: 'status' }
             ]
 
+            worksheet.mergeCells('A1:P1')
+            const titleCell = worksheet.getCell('A1')
+            titleCell.value = 'Clients Registry'
+            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
+            titleCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.mergeCells('A2:P2')
+            const dateCell = worksheet.getCell('A2')
+            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
+            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
+            dateCell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF1F5C99' }
+            }
+            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
+
+            worksheet.getRow(1).height = 30
+            worksheet.getRow(2).height = 20
+
+            // Skip row 3
+
             // Write header row
-            const headerRow = worksheet.addRow(headers.map(h => h.name))
+            const headerRow = worksheet.getRow(4)
+            headerRow.values = headers.map(h => h.name)
             headerRow.height = 28
 
-            // Style headers with Navy Blue background & White text
+            // Style headers with dark blue background & White text
             headerRow.eachCell(cell => {
                 cell.fill = {
                     type: 'pattern',
                     pattern: 'solid',
-                    fgColor: { argb: 'FF1F5C99' }
+                    fgColor: { argb: 'FF154673' }
                 }
                 cell.font = {
                     name: 'Segoe UI',
@@ -415,9 +443,11 @@ export default function ClientsPage() {
             worksheet.columns.forEach(column => {
                 let maxLen = 0
                 column.eachCell({ includeEmpty: true }, cell => {
-                    const val = cell.value ? cell.value.toString() : ''
-                    if (val.length > maxLen) {
-                        maxLen = val.length
+                    if (cell.row > 3) {
+                        const val = cell.value ? cell.value.toString() : ''
+                        if (val.length > maxLen) {
+                            maxLen = val.length
+                        }
                     }
                 })
                 column.width = Math.max(maxLen + 5, 12)
@@ -460,12 +490,35 @@ export default function ClientsPage() {
                         return
                     }
 
-                    // Match headers fuzzymatched
-                    const headers = json[0].map(h => String(h || '').trim().toLowerCase())
+                    // Scan first 10 rows to locate header row index dynamically
+                    let headerRowIndex = 0
+                    let headers = []
+                    let idxName = -1
+                    let idxPan = -1
 
-                    const idxName = headers.findIndex(h => h.includes('name') && !h.includes('pan'))
+                    for (let i = 0; i < Math.min(json.length, 10); i++) {
+                        const candidateRow = json[i]
+                        if (!candidateRow || candidateRow.length === 0) continue
+
+                        const candidateHeaders = candidateRow.map(h => String(h || '').trim().toLowerCase())
+                        const tempName = candidateHeaders.findIndex(h => h.includes('name') && !h.includes('pan'))
+                        const tempPan = candidateHeaders.findIndex(h => h.includes('pan') && !h.includes('name') && !h.includes('as per'))
+
+                        if (tempName !== -1 && tempPan !== -1) {
+                            headerRowIndex = i
+                            headers = candidateHeaders
+                            idxName = tempName
+                            idxPan = tempPan
+                            break
+                        }
+                    }
+
+                    if (idxName === -1 || idxPan === -1) {
+                        toast.error('Could not find mandatory "Client Name" or "PAN No" columns in Excel header.')
+                        return
+                    }
+
                     const idxNameAsPan = headers.findIndex(h => h.includes('name as per pan') || h.includes('as per pan'))
-                    const idxPan = headers.findIndex(h => h.includes('pan') && !h.includes('name') && !h.includes('as per'))
                     const idxType = headers.findIndex(h => h.includes('type'))
                     const idxGroup = headers.findIndex(h => h.includes('group'))
                     const idxContact = headers.findIndex(h => h.includes('contact') && !h.includes('alternative'))
@@ -479,18 +532,13 @@ export default function ClientsPage() {
                     const idxGst = headers.findIndex(h => h.includes('gst'))
                     const idxEfilingPwd = headers.findIndex(h => h.includes('password') || h.includes('efiling password'))
 
-                    if (idxName === -1 || idxPan === -1) {
-                        toast.error('Could not find mandatory "Client Name" or "PAN No" columns in Excel header.')
-                        return
-                    }
-
                     // Load all active database PANs to flag duplicate rows in RED
                     const pansRes = await api.get('/ca/clients/pan-numbers')
                     const existingPans = new Set(pansRes.data.data.map(p => p.toUpperCase()))
                     existingPansRef.current = existingPans
 
                     const rows = []
-                    for (let i = 1; i < json.length; i++) {
+                    for (let i = headerRowIndex + 1; i < json.length; i++) {
                         const rowData = json[i]
                         if (rowData.length === 0 || !rowData[idxName] || !rowData[idxPan]) {
                             continue // Skip completely empty rows
