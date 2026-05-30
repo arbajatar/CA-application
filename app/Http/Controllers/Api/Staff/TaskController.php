@@ -83,9 +83,48 @@ class TaskController extends Controller
         }
 
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role', 'subTasks.assignedTo'])),
         ]);
     }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'client_id' => ['nullable', 'exists:clients,id'],
+            'work_type_id' => ['required', 'exists:work_types,id'],
+            'form_name' => ['required', 'string'],
+            'date_inward' => ['nullable', 'date'],
+            'date_allocated' => ['nullable', 'date'],
+            'remarks' => ['nullable', 'string'],
+            'task_particular' => ['nullable', 'string'],
+            'sub_status' => ['nullable', 'string'],
+            'entry_date' => ['nullable', 'date'],
+        ]);
+
+        $user = $request->user();
+
+        $task = Task::create([
+            'client_id' => $validated['client_id'] ?? null,
+            'work_type_id' => $validated['work_type_id'],
+            'form_name' => $validated['form_name'],
+            'date_inward' => $validated['date_inward'] ?? now()->toDateString(),
+            'allocated_to' => $user->id, // Force allocation to themselves
+            'created_by' => $user->id,
+            'date_allocated' => $validated['date_allocated'] ?? now()->toDateString(),
+            'status' => TaskStatus::Pending,
+            'remarks' => $validated['remarks'] ?? null,
+            'task_particular' => $validated['task_particular'] ?? null,
+            'sub_status' => $validated['sub_status'] ?? null,
+            'entry_date' => $validated['entry_date'] ?? now()->toDateString(),
+            'allow_attachments' => true, // default to true for staff created tasks
+        ]);
+
+        return response()->json([
+            'message' => 'Task created successfully.',
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo'])),
+        ], 201);
+    }
+
 
     public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse
     {
@@ -157,6 +196,64 @@ class TaskController extends Controller
         return response()->json([
             'message' => 'Task status updated successfully.',
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role'])),
+        ]);
+    }
+
+    public function update(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+
+        // Check parent task write permission
+        $perms = (new TaskResource($task))->getUserPermissions($user);
+        if (!$perms['can_write']) {
+            return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+        }
+
+        $validated = $request->validate([
+            'client_id' => ['sometimes', 'nullable', 'exists:clients,id'],
+            'work_type_id' => ['sometimes', 'nullable', 'exists:work_types,id'],
+            'form_name' => ['sometimes', 'string'],
+            'date_inward' => ['sometimes', 'date'],
+            'allocated_to' => ['sometimes', 'nullable', 'exists:users,id'],
+            'date_allocated' => ['sometimes', 'date'],
+            'date_completed' => ['nullable', 'date'],
+            'status' => ['sometimes', 'string', \Illuminate\Validation\Rule::enum(TaskStatus::class)],
+            'remarks' => ['nullable', 'string'],
+            'dynamic_fields' => ['nullable', 'array'],
+            'task_particular' => ['nullable', 'string'],
+            'sub_status' => ['nullable', 'string'],
+            'feedback' => ['nullable', 'string'],
+            'entry_date' => ['nullable', 'date'],
+            'allow_attachments' => ['nullable', 'boolean'],
+        ]);
+
+        $oldStatus = $task->status;
+
+        // Auto-fill date_completed when status changes to Complete
+        if (isset($validated['status'])) {
+            $newStatus = TaskStatus::from($validated['status']);
+            if ($newStatus === TaskStatus::Complete && $oldStatus !== TaskStatus::Complete) {
+                $validated['date_completed'] = now()->toDateString();
+            } elseif ($newStatus !== TaskStatus::Complete && $oldStatus === TaskStatus::Complete) {
+                $validated['date_completed'] = null;
+            }
+        }
+
+        $task->update($validated);
+
+        if (isset($validated['status']) && $task->status !== $oldStatus) {
+            TaskLog::create([
+                'task_id' => $task->id,
+                'changed_by' => $user->id,
+                'old_status' => $oldStatus->value,
+                'new_status' => $task->status->value,
+                'remarks' => 'Status updated by staff member. ' . ($request->remarks ?? ''),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Task updated successfully.',
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo'])),
         ]);
     }
 }

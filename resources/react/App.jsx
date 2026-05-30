@@ -203,6 +203,11 @@ export default function App() {
               <StaffLayout><MyTasksPage /></StaffLayout>
             </RoleRoute></ProtectedRoute>
           } />
+          <Route path="/staff/tasks/:id" element={
+            <ProtectedRoute><RoleRoute role="staff">
+              <StaffLayout><TaskDetailPage /></StaffLayout>
+            </RoleRoute></ProtectedRoute>
+          } />
           <Route path="/staff/reports/team" element={
             <ProtectedRoute><RoleRoute role="staff">
               <StaffLayout><TeamReportPage /></StaffLayout>

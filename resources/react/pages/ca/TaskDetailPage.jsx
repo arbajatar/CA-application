@@ -217,9 +217,14 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
 export default function TaskDetailPage() {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ca';
+    const isStaff = user?.role === 'staff';
     const { id } = useParams();
     const navigate = useNavigate();
     const [task, setTask] = useState(null);
+    
+    // Computed write access based on backend-supplied permissions
+    const canWrite = isAdmin || !!task?.user_permissions?.can_write;
+    const canDelete = isAdmin || !!task?.user_permissions?.can_delete;
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -323,12 +328,12 @@ export default function TaskDetailPage() {
     const fetchInitialData = async () => {
         setLoading(true);
         try {
-            const [taskRes, clientsRes, staffRes, workTypesRes, rolesRes] = await Promise.all([
-                api.get(`/ca/tasks/${id}`),
-                api.get('/ca/clients', { params: { per_page: 100 } }),
-                api.get('/ca/staff', { params: { per_page: 100 } }),
-                api.get('/ca/work-types'),
-                api.get('/ca/roles')
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const [taskRes, clientsRes, staffRes, workTypesRes] = await Promise.all([
+                api.get(`${apiPrefix}/tasks/${id}`),
+                api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { per_page: 100 } }),
+                api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { per_page: 100 } }),
+                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types')
             ]);
 
             const data = taskRes.data.data;
@@ -339,12 +344,22 @@ export default function TaskDetailPage() {
             setCaRating(data.dynamic_fields?.['CA Rating'] || '');
             setInlineFeedbackValue(data.dynamic_fields?.['CA Feedback'] || '');
             setFormName(data.form_name || 'Untitled Form');
-            setClients(clientsRes.data.data);
-            setStaff(staffRes.data.data);
-            setWorkTypes(workTypesRes.data.data);
-            setAvailableRoles(rolesRes.data.data || []);
+            setClients(clientsRes.data.data || clientsRes.data || []);
+            setStaff(staffRes.data.data || staffRes.data || []);
+            setWorkTypes(workTypesRes.data.data || workTypesRes.data || []);
             setSheetPermissions(data.permissions || []);
             setAllowAttachments(!!data.allow_attachments);
+
+            let rolesData = [];
+            if (!isStaff) {
+                try {
+                    const rolesRes = await api.get('/ca/roles');
+                    rolesData = rolesRes.data.data || [];
+                } catch (roleErr) {
+                    console.error("Failed to load roles", roleErr);
+                }
+            }
+            setAvailableRoles(rolesData);
 
             if (data.dynamic_fields?.schema) {
                 setSchema(data.dynamic_fields.schema);
@@ -379,8 +394,9 @@ export default function TaskDetailPage() {
                 }
             }
         } catch (e) {
+            console.error(e);
             toast.error('Error loading dashboard data');
-            navigate('/ca/tasks');
+            navigate(isStaff ? '/staff/tasks' : '/ca/tasks');
         } finally {
             setLoading(false);
         }
@@ -503,13 +519,14 @@ export default function TaskDetailPage() {
     const handleUpdateGlobal = async () => {
         setSaving(true);
         try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
             const updatedDynamicFields = {
                 ...(task.dynamic_fields || {}),
                 'CA Feedback': caFeedback,
                 'CA Rating': caRating
             };
 
-            await api.patch(`/ca/tasks/${id}`, {
+            await api.patch(`${apiPrefix}/tasks/${id}`, {
                 status: globalStatus,
                 remarks: globalRemarks,
                 dynamic_fields: updatedDynamicFields,
@@ -535,12 +552,13 @@ export default function TaskDetailPage() {
     };
     const handleUpdateSingleDynamicField = async (key, val) => {
         try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
             const updatedDynamicFields = {
                 ...(task.dynamic_fields || {}),
                 [key]: val
             };
 
-            await api.patch(`/ca/tasks/${id}`, {
+            await api.patch(`${apiPrefix}/tasks/${id}`, {
                 dynamic_fields: updatedDynamicFields
             });
 
@@ -562,6 +580,7 @@ export default function TaskDetailPage() {
     };
     const handleUpdateTaskFields = async (updates) => {
         try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
             const payload = {
                 client_id: updates.client_id !== undefined ? updates.client_id : (task.client?.id || null),
                 work_type_id: updates.work_type_id !== undefined ? updates.work_type_id : (task.work_type?.id || null),
@@ -572,7 +591,7 @@ export default function TaskDetailPage() {
                 dynamic_fields: updates.dynamic_fields !== undefined ? updates.dynamic_fields : task.dynamic_fields
             };
 
-            const res = await api.patch(`/ca/tasks/${id}`, payload);
+            const res = await api.patch(`${apiPrefix}/tasks/${id}`, payload);
             const nextData = res.data.data;
             setTask(prev => ({
                 ...nextData,
@@ -594,7 +613,8 @@ export default function TaskDetailPage() {
     };
     const handleAddSubTask = async () => {
         try {
-            const res = await api.post(`/ca/tasks/${id}/sub-tasks`, { title: 'New Subtask' });
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const res = await api.post(`${apiPrefix}/tasks/${id}/sub-tasks`, { title: 'New Subtask' });
             setTask(prev => ({
                 ...prev,
                 sub_tasks: [...(prev.sub_tasks || []), res.data.data]
@@ -607,7 +627,8 @@ export default function TaskDetailPage() {
 
     const handleUpdateSubTask = async (subTaskId, data) => {
         try {
-            const res = await api.patch(`/ca/tasks/${id}/sub-tasks/${subTaskId}`, data);
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const res = await api.patch(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`, data);
             setTask(prev => ({
                 ...prev,
                 sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
@@ -627,7 +648,8 @@ export default function TaskDetailPage() {
             onConfirm: async () => {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 try {
-                    await api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`);
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    await api.delete(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`);
                     setTask(prev => ({
                         ...prev,
                         sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
@@ -653,7 +675,8 @@ export default function TaskDetailPage() {
             onConfirm: async () => {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 try {
-                    await Promise.all(selectedTaskIds.map(subTaskId => api.delete(`/ca/tasks/${id}/sub-tasks/${subTaskId}`)));
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    await Promise.all(selectedTaskIds.map(subTaskId => api.delete(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`)));
                     setTask(prev => ({
                         ...prev,
                         sub_tasks: prev.sub_tasks.filter(st => !selectedTaskIds.includes(st.id))
@@ -681,11 +704,12 @@ export default function TaskDetailPage() {
 
         const loadingToast = toast.loading("Uploading attachment...");
         try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
             const formData = new FormData();
             formData.append('screenshot', file);
             formData.append('_method', 'PATCH');
 
-            const res = await api.post(`/ca/tasks/${id}/sub-tasks/${subTaskId}`, formData, {
+            const res = await api.post(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
@@ -711,7 +735,8 @@ export default function TaskDetailPage() {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 const loadingToast = toast.loading("Deleting attachment...");
                 try {
-                    const res = await api.patch(`/ca/tasks/${id}/sub-tasks/${subTaskId}`, { screenshot: null });
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    const res = await api.patch(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`, { screenshot: null });
                     setTask(prev => ({
                         ...prev,
                         sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
@@ -997,14 +1022,14 @@ export default function TaskDetailPage() {
                 {/* Top Row: Breadcrumbs and Info Badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
                     <nav className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        <Link to="/ca/tasks" className="hover:text-indigo-650 transition flex items-center gap-1">
+                        <Link to={isStaff ? "/staff/tasks" : "/ca/tasks"} className="hover:text-indigo-650 transition flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             Sheets
                         </Link>
                         <ChevronRight size={10} className="text-slate-350" />
                         {task.work_type && (
                             <>
-                                <Link to={`/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
+                                <Link to={isStaff ? `/staff/tasks?work_type_id=${task.work_type.id}` : `/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
                                     {task.work_type.name}
                                 </Link>
                                 <ChevronRight size={10} className="text-slate-350" />
@@ -1028,7 +1053,7 @@ export default function TaskDetailPage() {
                     {/* Left: Sleek Back + App Icon + Title */}
                     <div className="flex items-center gap-4 min-w-0">
                         <button 
-                            onClick={() => navigate('/ca/tasks')} 
+                            onClick={() => navigate(isStaff ? '/staff/tasks' : '/ca/tasks')} 
                             className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
                             title="Back to Sheets"
                         >
@@ -1073,34 +1098,36 @@ export default function TaskDetailPage() {
                                 <Sliders size={14} className="text-indigo-500" />
                                 <span>Global Settings</span>
                             </button>
-                            <button 
-                                onClick={() => {
-                                    if (!task) return;
-                                    const duplicateData = {
-                                        form_name: task.form_name,
-                                        client_id: task.client?.id,
-                                        work_type_id: task.work_type?.id,
-                                        remarks: task.remarks,
-                                        dynamic_fields: task.dynamic_fields,
-                                        created_at: task.created_at,
-                                        status: task.status,
-                                        allow_attachments: task.allow_attachments,
-                                        subtasks: (task.sub_tasks || []).map(st => ({
-                                            title: st.title,
-                                            assigned_to: st.assigned_to?.id,
-                                            priority: st.priority,
-                                            status: st.status,
-                                            due_date: st.due_date,
-                                            remarks: st.remarks
-                                        }))
-                                    };
-                                    navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                                }}
-                                className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                            >
-                                <Edit2 size={14} className="text-violet-600" /> 
-                                <span>Layout Builder</span>
-                            </button>
+                            {!isStaff && (
+                                <button 
+                                    onClick={() => {
+                                        if (!task) return;
+                                        const duplicateData = {
+                                            form_name: task.form_name,
+                                            client_id: task.client?.id,
+                                            work_type_id: task.work_type?.id,
+                                            remarks: task.remarks,
+                                            dynamic_fields: task.dynamic_fields,
+                                            created_at: task.created_at,
+                                            status: task.status,
+                                            allow_attachments: task.allow_attachments,
+                                            subtasks: (task.sub_tasks || []).map(st => ({
+                                                title: st.title,
+                                                assigned_to: st.assigned_to?.id,
+                                                priority: st.priority,
+                                                status: st.status,
+                                                due_date: st.due_date,
+                                                remarks: st.remarks
+                                            }))
+                                        };
+                                        navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                    }}
+                                    className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                >
+                                    <Edit2 size={14} className="text-violet-600" /> 
+                                    <span>Layout Builder</span>
+                                </button>
+                            )}
                         </div>
 
                         {/* Primary action removed as requested */}
@@ -1191,104 +1218,106 @@ export default function TaskDetailPage() {
                             </div>
 
                             {/* Roles & Permissions Section */}
-                            <div className="pt-8 border-t border-slate-100 space-y-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
-                                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
-                                </div>
-                                <p className="text-xs text-slate-400 font-semibold mb-4">
-                                    Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
-                                </p>
+                            {!isStaff && (
+                                <div className="pt-8 border-t border-slate-100 space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
+                                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-400 font-semibold mb-4">
+                                        Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
+                                    </p>
 
-                                <div className="flex items-center gap-3 mb-6 max-w-md">
-                                    <div className="flex-1">
-                                        <SearchableSelect
-                                            value={selectedRoleId}
-                                            options={availableRoles
-                                                .filter(role => !sheetPermissions.some(p => Number(p.role_id) === role.id))
-                                                .map(role => ({ value: role.id, label: role.name }))
-                                            }
-                                            placeholder="Select Role"
-                                            onChange={(val) => setSelectedRoleId(val)}
-                                            direction="down"
-                                            size="sm"
-                                        />
+                                    <div className="flex items-center gap-3 mb-6 max-w-md">
+                                        <div className="flex-1">
+                                            <SearchableSelect
+                                                value={selectedRoleId}
+                                                options={availableRoles
+                                                    .filter(role => !sheetPermissions.some(p => Number(p.role_id) === role.id))
+                                                    .map(role => ({ value: role.id, label: role.name }))
+                                                }
+                                                placeholder="Select Role"
+                                                onChange={(val) => setSelectedRoleId(val)}
+                                                direction="down"
+                                                size="sm"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleAddRolePermission}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg h-[38px] shrink-0"
+                                        >
+                                            <Plus size={14} />
+                                            <span>Add Role</span>
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleAddRolePermission}
-                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 active:scale-95 shadow-lg h-[38px] shrink-0"
-                                    >
-                                        <Plus size={14} />
-                                        <span>Add Role</span>
-                                    </button>
-                                </div>
 
-                                {sheetPermissions.length > 0 ? (
-                                    <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
-                                                    <th className="px-6 py-4">Role</th>
-                                                    <th className="px-6 py-4 text-center">Read</th>
-                                                    <th className="px-6 py-4 text-center">Write</th>
-                                                    <th className="px-6 py-4 text-center">Delete</th>
-                                                    <th className="px-6 py-4 text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-200 text-slate-700 text-xs">
-                                                {sheetPermissions.map((perm, index) => {
-                                                    const role = availableRoles.find(r => r.id === Number(perm.role_id));
-                                                    return (
-                                                        <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
-                                                            <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={perm.can_read}
-                                                                    onChange={(e) => handleTogglePermission(index, 'can_read', e.target.checked)}
-                                                                    className="w-4 h-4 text-indigo-600 border-slate-350 rounded focus:ring-indigo-500"
-                                                                />
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={perm.can_write}
-                                                                    onChange={(e) => handleTogglePermission(index, 'can_write', e.target.checked)}
-                                                                    className="w-4 h-4 text-indigo-600 border-slate-355 rounded focus:ring-indigo-500"
-                                                                />
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={perm.can_delete}
-                                                                    onChange={(e) => handleTogglePermission(index, 'can_delete', e.target.checked)}
-                                                                    className="w-4 h-4 text-indigo-600 border-slate-360 rounded focus:ring-indigo-500"
-                                                                />
-                                                            </td>
-                                                            <td className="px-6 py-4 text-right">
-                                                                <Tooltip content="Remove Permission" position="left">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRemoveRolePermission(perm.role_id)}
-                                                                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </Tooltip>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                        <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
-                                    </div>
-                                )}
-                            </div>
+                                    {sheetPermissions.length > 0 ? (
+                                        <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                                                        <th className="px-6 py-4">Role</th>
+                                                        <th className="px-6 py-4 text-center">Read</th>
+                                                        <th className="px-6 py-4 text-center">Write</th>
+                                                        <th className="px-6 py-4 text-center">Delete</th>
+                                                        <th className="px-6 py-4 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 text-slate-700 text-xs">
+                                                    {sheetPermissions.map((perm, index) => {
+                                                        const role = availableRoles.find(r => r.id === Number(perm.role_id));
+                                                        return (
+                                                            <tr key={perm.role_id} className="hover:bg-slate-50/50 transition">
+                                                                <td className="px-6 py-4 font-bold text-slate-800">{role?.name || `Role #${perm.role_id}`}</td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={perm.can_read}
+                                                                        onChange={(e) => handleTogglePermission(index, 'can_read', e.target.checked)}
+                                                                        className="w-4 h-4 text-indigo-600 border-slate-350 rounded focus:ring-indigo-500"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={perm.can_write}
+                                                                        onChange={(e) => handleTogglePermission(index, 'can_write', e.target.checked)}
+                                                                        className="w-4 h-4 text-indigo-600 border-slate-355 rounded focus:ring-indigo-500"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={perm.can_delete}
+                                                                        onChange={(e) => handleTogglePermission(index, 'can_delete', e.target.checked)}
+                                                                        className="w-4 h-4 text-indigo-600 border-slate-360 rounded focus:ring-indigo-500"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-6 py-4 text-right">
+                                                                    <Tooltip content="Remove Permission" position="left">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleRemoveRolePermission(perm.role_id)}
+                                                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </Tooltip>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                            <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="px-8 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/40">
@@ -1978,7 +2007,7 @@ export default function TaskDetailPage() {
                             <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Manage checklist tasks and progress tracking</p>
                         </div>
                     </div>
-                    {selectedTaskIds.length > 0 && (
+                    {selectedTaskIds.length > 0 && !isStaff && (
                         <button
                             type="button"
                             onClick={handleDeleteMultipleSubTasks}
@@ -2206,7 +2235,7 @@ export default function TaskDetailPage() {
                                                                             }
                                                                         });
                                                                     }}
-                                                                    className="px-2.5 py-1.5 text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-105 hover:text-rose-800 transition active:scale-95 duration-150 flex items-center gap-1 shadow-sm shrink-0"
+                                                                    className="px-2.5 py-1.5 text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 hover:text-rose-800 transition active:scale-95 duration-150 flex items-center gap-1 shadow-sm shrink-0"
                                                                     style={{ cursor: 'pointer' }}
                                                                     title="Click to Unverify and unlock this task"
                                                                 >
@@ -2244,7 +2273,7 @@ export default function TaskDetailPage() {
                                                                             }
                                                                         });
                                                                     }}
-                                                                    className="px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-105 hover:text-green-800 transition active:scale-95 duration-150 flex items-center gap-1 shrink-0"
+                                                                    className="px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-100 hover:text-green-800 transition active:scale-95 duration-150 flex items-center gap-1 shrink-0"
                                                                     style={{ cursor: 'pointer' }}
                                                                     title="Click to Verify and lock this task"
                                                                 >
@@ -2264,6 +2293,8 @@ export default function TaskDetailPage() {
                                                 <td className="px-6 py-5 text-right" style={{ minWidth: '40px', width: '40px' }}>
                                                     {isLocked ? (
                                                         <Lock size={14} className="text-rose-600 mx-auto" />
+                                                    ) : isStaff ? (
+                                                        null
                                                     ) : (
                                                         <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 transition-all rounded-lg" style={{ cursor: 'pointer' }}>
                                                             <Trash2 size={14} />

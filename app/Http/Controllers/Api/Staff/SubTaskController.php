@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Enums\TaskStatus;
+use App\Enums\TaskPriority;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SubTaskResource;
 use App\Models\SubTask;
+use App\Models\Task;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -41,6 +43,53 @@ class SubTaskController extends Controller
         ]);
     }
 
+    public function store(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+
+        // Ensure staff can only create subtasks for tasks allocated to them
+        if ($task->allocated_to !== $user->id) {
+            return response()->json(['message' => 'Unauthorized access to this task.'], 403);
+        }
+
+        // Check parent task write permission
+        if ($task->permissions()->exists()) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            $hasWriteAccess = $task->permissions()
+                ->whereIn('role_id', $roleIds)
+                ->where('can_write', true)
+                ->exists();
+            if (!$hasWriteAccess) {
+                return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+            }
+        }
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
+            'priority' => ['nullable', Rule::enum(TaskPriority::class)],
+            'due_date' => ['nullable', 'date'],
+            'status' => ['nullable', Rule::enum(TaskStatus::class)],
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $subTask = $task->subTasks()->create([
+            'title' => $validated['title'],
+            'assigned_to' => $validated['assigned_to'] ?? null,
+            'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
+            'due_date' => $validated['due_date'] ?? null,
+            'status' => $validated['status'] ?? TaskStatus::Pending->value,
+            'remarks' => $validated['remarks'] ?? null,
+            'sub_status' => $validated['sub_status'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'Subtask created successfully.',
+            'data' => new SubTaskResource($subTask->load('assignedTo')),
+        ], 201);
+    }
+
     public function updateStatus(Request $request, SubTask $subTask): JsonResponse
     {
         // Ensure subtask is assigned to this staff member
@@ -68,14 +117,14 @@ class SubTaskController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['required', Rule::enum(TaskStatus::class)],
+            'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'screenshot' => ['nullable', 'file', 'max:5120'],
             'sub_status' => ['nullable', 'string', 'max:255'],
             'is_verified' => ['nullable', 'boolean'],
         ]);
 
-        $newStatus = TaskStatus::from($validated['status']);
+        $newStatus = $request->has('status') ? TaskStatus::from($validated['status']) : $subTask->status;
         
         $screenshotPath = $subTask->screenshot;
         if ($request->hasFile('screenshot')) {
@@ -85,19 +134,18 @@ class SubTaskController extends Controller
             $screenshotPath = UploadHelper::upload($request->file('screenshot'), 'task_screenshots');
         }
 
-        // Simple status update for now, maybe add transition logic later like in TaskController
         $updateData = [
             'status' => $newStatus,
-            'remarks' => $validated['remarks'] ?? $subTask->remarks,
+            'remarks' => $request->has('remarks') ? $validated['remarks'] : $subTask->remarks,
             'screenshot' => $screenshotPath,
-            'sub_status' => $validated['sub_status'] ?? $subTask->sub_status,
+            'sub_status' => $request->has('sub_status') ? $validated['sub_status'] : $subTask->sub_status,
         ];
 
         if ($request->has('is_verified')) {
             $updateData['is_verified'] = $request->boolean('is_verified');
         }
 
-        if ($newStatus === TaskStatus::Complete) {
+        if ($newStatus === TaskStatus::Complete && $subTask->status !== TaskStatus::Complete) {
             $updateData['completed_at'] = now();
         }
 
@@ -108,4 +156,61 @@ class SubTaskController extends Controller
             'data' => new SubTaskResource($subTask->load('assignedTo')),
         ]);
     }
+
+    public function update(Request $request, Task $task, SubTask $subTask): JsonResponse
+    {
+        $user = $request->user();
+
+        // Check if subtask belongs to task
+        if ($subTask->task_id !== $task->id) {
+            return response()->json(['message' => 'Subtask does not belong to this task.'], 400);
+        }
+
+        // Lock verified tasks for staff
+        if ($subTask->is_verified) {
+            return response()->json(['message' => 'Verified tasks are locked and cannot be edited by staff.'], 403);
+        }
+
+        // Check parent task write permission
+        $perms = (new \App\Http\Resources\TaskResource($task))->getUserPermissions($user);
+        if (!$perms['can_write']) {
+            return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
+            'priority' => ['nullable', Rule::enum(TaskPriority::class)],
+            'due_date' => ['nullable', 'date'],
+            'status' => ['nullable', Rule::enum(TaskStatus::class)],
+            'remarks' => ['nullable', 'string', 'max:1000'],
+            'sub_status' => ['nullable', 'string', 'max:255'],
+            'screenshot' => ['nullable', 'file', 'max:5120'],
+            'is_verified' => ['nullable', 'boolean'],
+        ]);
+
+        if (isset($validated['status']) && $validated['status'] === TaskStatus::Complete->value && $subTask->status !== TaskStatus::Complete) {
+            $validated['completed_at'] = now();
+        }
+
+        if ($request->hasFile('screenshot')) {
+            if (!$task->allow_attachments) {
+                return response()->json(['message' => 'File upload / screenshots are not allowed for this sheet.'], 422);
+            }
+            $validated['screenshot'] = UploadHelper::upload($request->file('screenshot'), 'task_screenshots');
+        }
+
+        $subTask->update($validated);
+
+        return response()->json([
+            'message' => 'Subtask updated successfully.',
+            'data' => new SubTaskResource($subTask->load('assignedTo')),
+        ]);
+    }
+
+    public function destroy(Task $task, SubTask $subTask): JsonResponse
+    {
+        return response()->json(['message' => 'Staff members are not allowed to delete subtasks.'], 403);
+    }
 }
+

@@ -72,7 +72,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -100,7 +100,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -136,7 +136,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -171,7 +171,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -203,7 +203,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -232,7 +232,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -250,7 +250,7 @@ class SheetPermissionTest extends TestCase
             ]);
 
         $response->assertStatus(403);
-        $this->assertEquals(TaskStatus::Assigned, $task->fresh()->status);
+        $this->assertEquals(TaskStatus::Pending, $task->fresh()->status);
     }
 
     public function test_backward_compatibility_allows_read_write_if_no_permissions_configured()
@@ -261,7 +261,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -290,7 +290,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -298,7 +298,7 @@ class SheetPermissionTest extends TestCase
             'task_id' => $task->id,
             'title' => 'Collect documents',
             'assigned_to' => $this->staffAccountant->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'priority' => TaskPriority::Medium,
         ]);
 
@@ -317,7 +317,7 @@ class SheetPermissionTest extends TestCase
             ]);
 
         $response->assertStatus(403);
-        $this->assertEquals(TaskStatus::Assigned, $subtask->fresh()->status);
+        $this->assertEquals(TaskStatus::Pending, $subtask->fresh()->status);
     }
 
     public function test_subtask_update_is_allowed_if_parent_sheet_write_is_granted()
@@ -328,7 +328,7 @@ class SheetPermissionTest extends TestCase
             'form_name' => 'Form 10E',
             'allocated_to' => $this->staffAccountant->id,
             'created_by' => $this->admin->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'date_allocated' => now()->toDateString(),
         ]);
 
@@ -336,7 +336,7 @@ class SheetPermissionTest extends TestCase
             'task_id' => $task->id,
             'title' => 'Collect documents',
             'assigned_to' => $this->staffAccountant->id,
-            'status' => TaskStatus::Assigned,
+            'status' => TaskStatus::Pending,
             'priority' => TaskPriority::Medium,
         ]);
 

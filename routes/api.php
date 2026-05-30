@@ -143,13 +143,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard/tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'tasks']);
         Route::get('/dashboard/calendar-tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'calendarTasks']);
 
+        // Staff List (read-only for assignment)
+        Route::get('/staff-members', [\App\Http\Controllers\Api\CA\StaffController::class, 'index']);
+
         // Tasks
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
+        Route::post('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'store']);
         Route::get('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'show']);
+        Route::patch('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'update']);
         Route::patch('/tasks/{task}/status', [App\Http\Controllers\Api\Staff\TaskController::class, 'updateStatus']);
 
         // Sub Tasks
         Route::get('/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'index']);
+        Route::post('/tasks/{task}/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'store']);
+        Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'update']);
+        Route::delete('/tasks/{task}/sub-tasks/{sub_task}', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'destroy']);
         Route::patch('/sub-tasks/{sub_task}/status', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'updateStatus']);
 
         // Profile

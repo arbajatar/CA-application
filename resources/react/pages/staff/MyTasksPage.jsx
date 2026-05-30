@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock, Plus } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -66,6 +68,29 @@ function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, active,
 }
 
 export default function MyTasksPage() {
+    const { user } = useAuth()
+    const navigate = useNavigate()
+
+    // Inline Add Subtask State
+    const [isAddingSubTask, setIsAddingSubTask] = useState(false)
+    const [newSubTaskTitle, setNewSubTaskTitle] = useState('')
+    const [newSubTaskAssignee, setNewSubTaskAssignee] = useState('')
+    const [submittingSubTask, setSubmittingSubTask] = useState(false)
+
+    // Create task (sheet) modal state
+    const [createOpen, setCreateOpen] = useState(false)
+    const [clients, setClients] = useState([])
+    const [workTypes, setWorkTypes] = useState([])
+    const [createClientId, setCreateClientId] = useState('')
+    const [createWorkTypeId, setCreateWorkTypeId] = useState('')
+    const [createFormName, setCreateFormName] = useState('')
+    const [createDateInward, setCreateDateInward] = useState(new Date().toISOString().split('T')[0])
+    const [createDateAllocated, setCreateDateAllocated] = useState(new Date().toISOString().split('T')[0])
+    const [createRemarks, setCreateRemarks] = useState('')
+    const [createTaskParticular, setCreateTaskParticular] = useState('')
+    const [creatingSheet, setCreatingSheet] = useState(false)
+    const [createError, setCreateError] = useState('')
+
     const [summary, setSummary] = useState(null)
     const [tasks, setTasks] = useState([])
     const [subTasks, setSubTasks] = useState([])
@@ -96,6 +121,85 @@ export default function MyTasksPage() {
         danger: false,
         loading: false
     });
+
+    const fetchMetadataForCreation = async () => {
+        try {
+            const [cRes, wRes] = await Promise.all([
+                api.get('/daily-reports/clients'),
+                api.get('/daily-reports/work-types')
+            ])
+            setClients(cRes.data.data || cRes.data || [])
+            setWorkTypes(wRes.data.data || wRes.data || [])
+        } catch (e) {
+            console.error("Failed to fetch clients/worktypes for creation", e)
+        }
+    }
+
+    const openCreate = () => {
+        setCreateClientId('')
+        setCreateWorkTypeId('')
+        setCreateFormName('')
+        setCreateDateInward(new Date().toISOString().split('T')[0])
+        setCreateDateAllocated(new Date().toISOString().split('T')[0])
+        setCreateRemarks('')
+        setCreateTaskParticular('')
+        setCreateError('')
+        setCreateOpen(true)
+        fetchMetadataForCreation()
+    }
+
+    const handleCreateSheet = async () => {
+        if (!createWorkTypeId || !createFormName.trim()) {
+            setCreateError('Nature of Work and Sheet Name are required.')
+            return
+        }
+        setCreatingSheet(true)
+        setCreateError('')
+        try {
+            await api.post('/staff/tasks', {
+                client_id: createClientId || null,
+                work_type_id: createWorkTypeId,
+                form_name: createFormName,
+                date_inward: createDateInward,
+                date_allocated: createDateAllocated,
+                remarks: createRemarks,
+                task_particular: createTaskParticular,
+            })
+            toast.success('Main sheet created successfully!')
+            setCreateOpen(false)
+            await fetchTasks()
+        } catch (e) {
+            setCreateError(e.response?.data?.message || 'Failed to create sheet.')
+        } finally {
+            setCreatingSheet(false)
+        }
+    }
+
+    const handleAddSubTask = async () => {
+        if (!newSubTaskTitle.trim()) return
+        setSubmittingSubTask(true)
+        try {
+            await api.post(`/staff/tasks/${selected.id}/sub-tasks`, {
+                title: newSubTaskTitle,
+                assigned_to: newSubTaskAssignee || null,
+                priority: 'medium',
+                status: 'pending',
+            })
+            toast.success('Task item added successfully!')
+            setIsAddingSubTask(false)
+            setNewSubTaskTitle('')
+            setNewSubTaskAssignee('')
+            
+            // Refresh modal details
+            await openView(selected)
+            // Refresh task lists
+            await fetchTasks()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to add task item.')
+        } finally {
+            setSubmittingSubTask(false)
+        }
+    }
 
     const fetchSummary = async () => {
         const res = await api.get('/staff/dashboard/summary')
@@ -139,20 +243,10 @@ export default function MyTasksPage() {
         setUpdateOpen(true)
     }
 
-    const openView = async (item) => {
+    const openView = (item) => {
         const taskId = item.task_id || item.id;
-        setSelected(item)
-        setViewOpen(true)
-        setViewLoading(true)
-        try {
-            const res = await api.get(`/staff/tasks/${taskId}`)
-            setSelected(res.data.data)
-        } catch (error) {
-            console.error("Failed to fetch task details", error)
-        } finally {
-            setViewLoading(false)
-        }
-    }
+        navigate(`/staff/tasks/${taskId}`);
+    };
 
     const handleUpdateStatus = async () => {
         if (!newStatus) { setUpdateError('Please select a status.'); return }
@@ -228,7 +322,15 @@ export default function MyTasksPage() {
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
+                <button
+                    onClick={openCreate}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-[#0f1c2e] hover:bg-[#1a2f4a] rounded-xl shadow-md border border-[#0f1c2e]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-lg active:scale-95 cursor-pointer shrink-0"
+                >
+                    <Plus size={16} /> Create New Sheet
+                </button>
+            </div>
 
             {/* Summary Cards */}
             {summary ? (
@@ -659,6 +761,99 @@ export default function MyTasksPage() {
                                 </div>
                             )}
 
+                            {/* Checklist / Subtasks Section for Main Sheet */}
+                            {!selected.task_id && (
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                        <h4 className="text-xs font-bold text-gray-900">Checklist / Subtasks</h4>
+                                        {selected.allocated_to?.id === user?.id && (
+                                            <button
+                                                onClick={() => setIsAddingSubTask(true)}
+                                                className="flex items-center gap-1 text-[11px] font-black text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/70 border border-blue-100 rounded-lg px-2.5 py-1 transition cursor-pointer select-none"
+                                            >
+                                                <Plus size={12} /> Add Task Item
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Add Subtask Form inline */}
+                                    {isAddingSubTask && (
+                                        <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100 space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Subtask Title *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newSubTaskTitle}
+                                                        onChange={e => setNewSubTaskTitle(e.target.value)}
+                                                        placeholder="e.g. Verification of GST Portal..."
+                                                        className="w-full px-3 py-1.8 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Assignee</label>
+                                                    <select
+                                                        value={newSubTaskAssignee}
+                                                        onChange={e => setNewSubTaskAssignee(e.target.value)}
+                                                        className="w-full px-3 py-1.8 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
+                                                    >
+                                                        <option value="">Unassigned</option>
+                                                        <option value={user?.id}>{user?.name} (Myself)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setIsAddingSubTask(false);
+                                                        setNewSubTaskTitle('');
+                                                        setNewSubTaskAssignee('');
+                                                    }}
+                                                    className="px-3 py-1.5 text-[11px] font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={handleAddSubTask}
+                                                    disabled={submittingSubTask || !newSubTaskTitle.trim()}
+                                                    className="px-4 py-1.5 text-[11px] font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] disabled:opacity-60 transition cursor-pointer"
+                                                >
+                                                    {submittingSubTask ? 'Adding...' : 'Add Item'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Subtask list */}
+                                    {selected.sub_tasks?.length === 0 ? (
+                                        <p className="text-xs text-gray-400 italic py-4 text-center bg-gray-50/30 rounded-xl border border-gray-100">No subtasks defined for this sheet.</p>
+                                    ) : (
+                                        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                            <table className="w-full text-xs">
+                                                <thead>
+                                                    <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase text-[9px] tracking-wider">
+                                                        <th className="px-4 py-2 text-left">Task</th>
+                                                        <th className="px-4 py-2 text-left">Assignee</th>
+                                                        <th className="px-4 py-2 text-left">Priority</th>
+                                                        <th className="px-4 py-2 text-left">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50 bg-white">
+                                                    {selected.sub_tasks?.map(st => (
+                                                        <tr key={st.id} className="hover:bg-slate-50/30 transition">
+                                                            <td className="px-4 py-2.5 font-semibold text-gray-700">{st.title}</td>
+                                                            <td className="px-4 py-2.5 text-gray-650 font-medium">{st.assigned_to?.name || 'Unassigned'}</td>
+                                                            <td className="px-4 py-2.5 capitalize font-bold text-gray-650">{st.priority}</td>
+                                                            <td className="px-4 py-2.5"><StatusBadge status={st.status} /></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Task Logs */}
                             {selected.logs && selected.logs.length > 0 && (
                                 <div className="space-y-4">
@@ -688,19 +883,128 @@ export default function MyTasksPage() {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Subtask specific screenshot */}
-                            {selected.task_id && selected.screenshot_url && (
-                                <div className="space-y-2">
-                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Attachment</h4>
-                                    <a href={selected.screenshot_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-700 font-medium hover:bg-blue-100 transition">
-                                        <Eye size={16} /> View Attached Screenshot
-                                    </a>
-                                </div>
-                            )}
                         </div>
                     )
                 )}
+            </Modal>
+
+            {/* Create Sheet Modal */}
+            <Modal
+                open={createOpen}
+                onClose={() => setCreateOpen(false)}
+                title="Create New Sheet"
+                width="max-w-2xl"
+            >
+                <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Client (Optional)
+                            </label>
+                            <select
+                                value={createClientId}
+                                onChange={e => setCreateClientId(e.target.value)}
+                                className={inputCls + " cursor-pointer font-semibold text-gray-700"}
+                            >
+                                <option value="">— Select Client —</option>
+                                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Nature of Work *
+                            </label>
+                            <select
+                                value={createWorkTypeId}
+                                onChange={e => setCreateWorkTypeId(e.target.value)}
+                                className={inputCls + " cursor-pointer font-semibold text-gray-700"}
+                            >
+                                <option value="">— Select Nature —</option>
+                                {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Sheet / Form Name *
+                            </label>
+                            <input
+                                type="text"
+                                value={createFormName}
+                                onChange={e => setCreateFormName(e.target.value)}
+                                placeholder="e.g. GST GSTR-3B filing..."
+                                className={inputCls}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Task Particulars
+                            </label>
+                            <input
+                                type="text"
+                                value={createTaskParticular}
+                                onChange={e => setCreateTaskParticular(e.target.value)}
+                                placeholder="e.g. FY 2025-26 April..."
+                                className={inputCls}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Inward Date
+                            </label>
+                            <input
+                                type="date"
+                                value={createDateInward}
+                                onChange={e => setCreateDateInward(e.target.value)}
+                                className={inputCls}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                                Allocated Date
+                            </label>
+                            <input
+                                type="date"
+                                value={createDateAllocated}
+                                onChange={e => setCreateDateAllocated(e.target.value)}
+                                className={inputCls}
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
+                            Remarks
+                        </label>
+                        <textarea
+                            value={createRemarks}
+                            onChange={e => setCreateRemarks(e.target.value)}
+                            rows={3}
+                            placeholder="Add any internal instructions or remarks..."
+                            className={inputCls}
+                        />
+                    </div>
+
+                    {createError && (
+                        <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+                            {createError}
+                        </p>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button
+                            onClick={() => setCreateOpen(false)}
+                            className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleCreateSheet}
+                            disabled={creatingSheet || !createWorkTypeId || !createFormName.trim()}
+                            className="px-5 py-2 text-sm bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white rounded-xl disabled:opacity-60 transition cursor-pointer"
+                        >
+                            {creatingSheet ? 'Creating...' : 'Create Sheet'}
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             <ConfirmDialog

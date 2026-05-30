@@ -355,7 +355,8 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
     const handleUpdateSubTask = async (taskId, subTaskId, updatedData) => {
         try {
-            const res = await api.patch(`/ca/tasks/${taskId}/sub-tasks/${subTaskId}`, updatedData)
+            const url = isStaff ? `/staff/sub-tasks/${subTaskId}/status` : `/ca/tasks/${taskId}/sub-tasks/${subTaskId}`
+            const res = await api.patch(url, updatedData)
             const updatedSubTask = res.data.data
 
             // Find old subtask for count adjustment before state change
@@ -553,7 +554,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation()
-                                                                    navigate(`/ca/tasks/${sheet.id}`)
+                                                                    navigate(isStaff ? `/staff/tasks/${sheet.id}` : `/ca/tasks/${sheet.id}`)
                                                                 }}
                                                                 className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
                                                                 title="View Details"
@@ -1225,7 +1226,7 @@ function CalendarView() {
                                                         <button
                                                              onClick={(e) => {
                                                                  e.stopPropagation()
-                                                                 navigate(`/ca/tasks/${t.id}`)
+                                                                 navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)
                                                              }}
                                                              className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
                                                              title="View Details"
@@ -1827,7 +1828,7 @@ export default function DashboardPage() {
                                         {tasks?.length === 0 ? (
                                             <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
-                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
                                                 <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
