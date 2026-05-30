@@ -6,11 +6,46 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Task;
 use App\Models\SubTask;
+use App\Models\WorkType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RecycleBinController extends Controller
 {
+    public function indexWorkTypes(): JsonResponse
+    {
+        $workTypes = WorkType::onlyTrashed()->latest('deleted_at')->get();
+        
+        $data = $workTypes->map(function ($wt) {
+            return [
+                'id' => $wt->id,
+                'name' => $wt->name,
+                'deleted_at' => $wt->deleted_at->toDateTimeString(),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function restoreWorkType($id): JsonResponse
+    {
+        $workType = WorkType::onlyTrashed()->findOrFail($id);
+        $workType->restore();
+
+        return response()->json([
+            'message' => 'Folder and all related sheets/tasks successfully restored.',
+        ]);
+    }
+
+    public function forceDeleteWorkType($id): JsonResponse
+    {
+        $workType = WorkType::onlyTrashed()->findOrFail($id);
+        $workType->forceDelete();
+
+        return response()->json([
+            'message' => 'Folder and all related data permanently deleted.',
+        ]);
+    }
     public function indexClients(): JsonResponse
     {
         $clients = Client::onlyTrashed()->latest('deleted_at')->get();

@@ -94,6 +94,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/recycle-bin/tasks', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexTasks']);
         Route::post('/recycle-bin/tasks/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreTask']);
         Route::delete('/recycle-bin/tasks/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteTask']);
+        Route::get('/recycle-bin/work-types', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexWorkTypes']);
+        Route::post('/recycle-bin/work-types/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreWorkType']);
+        Route::delete('/recycle-bin/work-types/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteWorkType']);
 
         // Reports
         Route::get('/reports/timesheet', [\App\Http\Controllers\Api\CA\ReportController::class, 'timesheet']);
@@ -117,8 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('/roles', RoleController::class);
 
         // Work Types
-        Route::patch('/work-types/{work_type}/toggle', [WorkTypeController::class, 'toggle']);
-        Route::apiResource('/work-types', WorkTypeController::class)->except(['destroy', 'show']);
+        Route::apiResource('/work-types', WorkTypeController::class)->except(['show']);
 
         // Settings
         Route::patch('/settings/change-password', [SettingsController::class, 'changePassword']);

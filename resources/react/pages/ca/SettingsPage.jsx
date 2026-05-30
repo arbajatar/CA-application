@@ -49,6 +49,8 @@ export default function SettingsPage() {
     const [typeToDelete, setTypeToDelete] = useState(null)
     const [deleteGroupOpen, setDeleteGroupOpen] = useState(false)
     const [groupToDelete, setGroupToDelete] = useState(null)
+    const [deleteWtOpen, setDeleteWtOpen] = useState(false)
+    const [wtToDelete, setWtToDelete] = useState(null)
 
     const fetchWorkTypes = async () => {
         setLoading(true)
@@ -95,15 +97,22 @@ export default function SettingsPage() {
         finally { setSaving(false) }
     }
 
-    const handleToggle = async (wt) => {
+    const handleOpenDeleteWt = (wt) => {
+        setWtToDelete(wt)
+        setDeleteWtOpen(true)
+    }
+
+    const confirmDeleteWt = async () => {
+        if (!wtToDelete) return
         setSaving(true)
         try {
-            await api.patch(`/ca/work-types/${wt.id}/toggle`)
-            toast.success(`Work type ${wt.is_active ? 'deactivated' : 'activated'} successfully`)
+            await api.delete(`/ca/work-types/${wtToDelete.id}`)
+            toast.success('Work type and all its contents moved to Recycle Bin successfully')
+            setDeleteWtOpen(false)
+            setWtToDelete(null)
             fetchWorkTypes()
-        } catch (err) {
-            toast.error('Failed to toggle work type status')
-            console.error('Toggle failed', err)
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to delete work type')
         } finally {
             setSaving(false)
         }
@@ -281,7 +290,7 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {workTypes?.map(wt => (
                                     <div key={wt.id} className="flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 border border-gray-100 rounded-2xl transition">
-                                        <span className={`text-sm font-semibold ${wt.is_active ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                                        <span className="text-sm font-semibold text-gray-800">
                                             {wt.name}
                                         </span>
                                         <div className="flex items-center gap-2">
@@ -291,12 +300,10 @@ export default function SettingsPage() {
                                                     <Pencil size={14} />
                                                 </button>
                                             </Tooltip>
-                                            <Tooltip content={wt.is_active ? 'Deactivate' : 'Activate'}>
-                                                <button onClick={() => handleToggle(wt)} 
-                                                    className="text-gray-400 hover:text-gray-600 hover:scale-110 active:scale-95 transition-all">
-                                                    {wt.is_active
-                                                        ? <ToggleRight size={22} className="text-green-500" />
-                                                        : <ToggleLeft size={22} />}
+                                            <Tooltip content="Delete Work Type" position="left">
+                                                <button onClick={() => handleOpenDeleteWt(wt)} 
+                                                    className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all">
+                                                    <Trash2 size={13} />
                                                 </button>
                                             </Tooltip>
                                         </div>
@@ -563,6 +570,18 @@ export default function SettingsPage() {
                 title="Delete Client Group" 
                 message={`Are you sure you want to delete the client group "${groupToDelete?.name}"?`} 
                 confirmLabel="Delete" 
+            />
+
+            {/* Delete Work Type Confirmation */}
+            <ConfirmDialog 
+                open={deleteWtOpen} 
+                onClose={() => { setDeleteWtOpen(false); setWtToDelete(null); }} 
+                onConfirm={confirmDeleteWt} 
+                danger 
+                loading={saving}
+                title="Delete Work Type (Folder)" 
+                message={`Are you sure you want to delete the folder "${wtToDelete?.name}"? Doing so will move this folder and all its associated sheets and tasks into the Recycle Bin.`} 
+                confirmLabel="Delete to Recycle Bin" 
             />
         </div>
     )

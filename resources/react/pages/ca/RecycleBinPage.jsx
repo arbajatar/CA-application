@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Trash2, RotateCcw, Search, Users, ClipboardList, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { Trash2, RotateCcw, Search, Users, ClipboardList, AlertTriangle, ArrowLeft, Folder } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
@@ -10,6 +10,7 @@ export default function RecycleBinPage() {
     const [activeTab, setActiveTab] = useState('clients') // 'clients' | 'tasks'
     const [clients, setClients] = useState([])
     const [tasks, setTasks] = useState([])
+    const [workTypes, setWorkTypes] = useState([])
     const [loading, setLoading] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
 
@@ -37,15 +38,26 @@ export default function RecycleBinPage() {
         }
     }, [])
 
+    const fetchDeletedWorkTypes = useCallback(async () => {
+        try {
+            const res = await api.get('/ca/recycle-bin/work-types')
+            setWorkTypes(res.data.data || [])
+        } catch (e) {
+            toast.error('Failed to load deleted folders')
+        }
+    }, [])
+
     const loadData = useCallback(async () => {
         setLoading(true)
         if (activeTab === 'clients') {
             await fetchDeletedClients()
-        } else {
+        } else if (activeTab === 'tasks') {
             await fetchDeletedTasks()
+        } else {
+            await fetchDeletedWorkTypes()
         }
         setLoading(false)
-    }, [activeTab, fetchDeletedClients, fetchDeletedTasks])
+    }, [activeTab, fetchDeletedClients, fetchDeletedTasks, fetchDeletedWorkTypes])
 
     useEffect(() => {
         loadData()
@@ -67,7 +79,9 @@ export default function RecycleBinPage() {
         try {
             const endpoint = activeTab === 'clients' 
                 ? `/ca/recycle-bin/clients/${selectedItem.id}/restore`
-                : `/ca/recycle-bin/tasks/${selectedItem.id}/restore`
+                : activeTab === 'tasks'
+                ? `/ca/recycle-bin/tasks/${selectedItem.id}/restore`
+                : `/ca/recycle-bin/work-types/${selectedItem.id}/restore`
             
             const res = await api.post(endpoint)
             toast.success(res.data.message || 'Restored successfully')
@@ -87,7 +101,9 @@ export default function RecycleBinPage() {
         try {
             const endpoint = activeTab === 'clients' 
                 ? `/ca/recycle-bin/clients/${selectedItem.id}/force-delete`
-                : `/ca/recycle-bin/tasks/${selectedItem.id}/force-delete`
+                : activeTab === 'tasks'
+                ? `/ca/recycle-bin/tasks/${selectedItem.id}/force-delete`
+                : `/ca/recycle-bin/work-types/${selectedItem.id}/force-delete`
             
             const res = await api.delete(endpoint)
             toast.success(res.data.message || 'Deleted permanently')
@@ -115,6 +131,10 @@ export default function RecycleBinPage() {
         t.form_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.task_particular?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.allocated_to_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    const filteredWorkTypes = workTypes.filter(wt => 
+        wt.name?.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     const formatDate = (dateStr) => {
@@ -179,6 +199,20 @@ export default function RecycleBinPage() {
                             {tasks.length}
                         </span>
                     </button>
+                    <button
+                        onClick={() => { setActiveTab('work-types'); setSearchQuery(''); }}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+                            activeTab === 'work-types'
+                                ? 'bg-[#EEF4FB] text-[#1F5C99]'
+                                : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                    >
+                        <Folder size={16} />
+                        <span>Folders Bin</span>
+                        <span className="bg-slate-200/60 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-black">
+                            {workTypes.length}
+                        </span>
+                    </button>
                 </div>
 
                 {/* Search Bar */}
@@ -186,7 +220,7 @@ export default function RecycleBinPage() {
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder={activeTab === 'clients' ? "Search by client name, PAN, type or group..." : "Search by client, work type, form name..."}
+                        placeholder={activeTab === 'clients' ? "Search by client name, PAN, type or group..." : activeTab === 'tasks' ? "Search by client, work type, form name..." : "Search folders by name..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-10 pr-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
@@ -284,7 +318,7 @@ export default function RecycleBinPage() {
                             </table>
                         </div>
                     )
-                ) : (
+                ) : activeTab === 'tasks' ? (
                     filteredTasks.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center py-20 text-center px-4">
                             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mb-4 border border-slate-100">
@@ -357,6 +391,65 @@ export default function RecycleBinPage() {
                             </table>
                         </div>
                     )
+                ) : (
+                    filteredWorkTypes.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 text-center px-4">
+                            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mb-4 border border-slate-100">
+                                <Folder size={28} />
+                            </div>
+                            <h3 className="text-sm font-bold text-slate-800">No Deleted Folders</h3>
+                            <p className="text-xs text-slate-400 max-w-sm mt-1">
+                                {searchQuery ? 'No deleted folders match your search filter.' : 'Your deleted folders register is currently empty.'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                                        <th className="px-6 py-4">Folder / Work Type Name</th>
+                                        <th className="px-6 py-4">Deleted At</th>
+                                        <th className="px-6 py-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                                    {filteredWorkTypes.map((wt) => (
+                                        <tr key={wt.id} className="hover:bg-slate-50/50 transition">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-800 flex items-center gap-2">
+                                                    <Folder className="w-4 h-4 text-[#1F5C99]" />
+                                                    <span>{wt.name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-400 font-medium">
+                                                {formatDate(wt.deleted_at)}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Tooltip content="Restore Folder & Contents">
+                                                        <button
+                                                            onClick={() => handleOpenRestore(wt)}
+                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                        >
+                                                            <RotateCcw size={15} />
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip content="Permanently Delete Folder" position="left">
+                                                        <button
+                                                            onClick={() => handleOpenDelete(wt)}
+                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </Tooltip>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
                 )}
             </div>
 
@@ -364,11 +457,13 @@ export default function RecycleBinPage() {
                 open={confirmRestoreOpen}
                 onClose={() => !actionLoading && setConfirmRestoreOpen(false)}
                 onConfirm={handleRestore}
-                title={`Restore Soft-Deleted ${activeTab === 'clients' ? 'Client' : 'Sheet/Task'}`}
+                title={`Restore Soft-Deleted ${activeTab === 'clients' ? 'Client' : activeTab === 'tasks' ? 'Sheet/Task' : 'Folder'}`}
                 message={
                     activeTab === 'clients'
                         ? `Are you sure you want to restore "${selectedItem?.name}"? Doing so will recover the client record and any associated soft-deleted sheets.`
-                        : `Are you sure you want to restore this sheet/task? It will recover the sheet and all its related subtasks.`
+                        : activeTab === 'tasks'
+                        ? `Are you sure you want to restore this sheet/task? It will recover the sheet and all its related subtasks.`
+                        : `Are you sure you want to restore this folder? It will recover the folder and all sheets and tasks that were deleted with it.`
                 }
                 confirmLabel="Restore Data"
                 loading={actionLoading}
@@ -378,8 +473,8 @@ export default function RecycleBinPage() {
                 open={confirmDeleteOpen}
                 onClose={() => !actionLoading && setConfirmDeleteOpen(false)}
                 onConfirm={handleDeletePermanently}
-                title={`PERMANENTLY DELETE ${activeTab === 'clients' ? 'Client' : 'Sheet/Task'}`}
-                message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, logs, and subtasks from the database forever.`}
+                title={`PERMANENTLY DELETE ${activeTab === 'clients' ? 'Client' : activeTab === 'tasks' ? 'Sheet/Task' : 'Folder'}`}
+                message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, sheets, and subtasks from the database forever.`}
                 confirmLabel="Delete Permanently"
                 danger
                 loading={actionLoading}
