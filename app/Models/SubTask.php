@@ -23,6 +23,7 @@ class SubTask extends Model
         'remarks',
         'screenshot',
         'sub_status',
+        'is_verified',
     ];
 
     protected $appends = ['screenshot_url'];
@@ -37,6 +38,7 @@ class SubTask extends Model
         'status' => TaskStatus::class,
         'due_date' => 'date',
         'completed_at' => 'datetime',
+        'is_verified' => 'boolean',
     ];
 
     public function task()

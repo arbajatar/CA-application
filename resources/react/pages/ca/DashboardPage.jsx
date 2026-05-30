@@ -152,6 +152,8 @@ function SheetSubtaskPills({ subTasks = [], expandedFilter, onPillClick }) {
 }
 
 function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
+    const { user } = useAuth()
+    const isStaff = user?.role === 'staff'
     const navigate = useNavigate()
     const [allSheets, setAllSheets] = useState([])
     const [selectedSheetId, setSelectedSheetId] = useState('')
@@ -623,39 +625,52 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                                                                                         <td className="px-4 py-3 text-gray-500">{formatDate(st.due_date)}</td>
                                                                                         {/* Interactive Status Edit on Click */}
                                                                                         <td className="px-4 py-3">
-                                                                                            {editingSubTaskId === st.id ? (
-                                                                                                <select
-                                                                                                    value={st.status}
-                                                                                                    autoFocus
-                                                                                                    onBlur={() => setEditingSubTaskId(null)}
-                                                                                                    onChange={async (e) => {
-                                                                                                        const newStatus = e.target.value
-                                                                                                        await handleUpdateSubTask(sheet.id, st.id, { status: newStatus })
-                                                                                                        setEditingSubTaskId(null)
-                                                                                                    }}
-                                                                                                    className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700"
-                                                                                                >
-                                                                                                    <option value="complete">Complete</option>
-                                                                                                    <option value="work_in_progress">Work In Progress</option>
-                                                                                                    <option value="pending">Pending</option>
-                                                                                                    <option value="not_to_be_done">Not To Be Done</option>
-                                                                                                    <option value="other">Other</option>
-                                                                                                </select>
-                                                                                            ) : (
-                                                                                                <div
-                                                                                                    onClick={() => setEditingSubTaskId(st.id)}
-                                                                                                    className="cursor-pointer hover:opacity-80 transition inline-block animate-fade-in"
-                                                                                                >
-                                                                                                    <StatusBadge status={st.status} />
-                                                                                                </div>
-                                                                                            )}
+                                                                                            {(() => {
+                                                                                                const isLocked = isStaff && st.is_verified;
+                                                                                                return isLocked ? (
+                                                                                                    <div className="inline-block" title="Locked (Verified)">
+                                                                                                        <StatusBadge status={st.status} />
+                                                                                                    </div>
+                                                                                                ) : editingSubTaskId === st.id ? (
+                                                                                                    <select
+                                                                                                        value={st.status}
+                                                                                                        autoFocus
+                                                                                                        onBlur={() => setEditingSubTaskId(null)}
+                                                                                                        onChange={async (e) => {
+                                                                                                            const newStatus = e.target.value
+                                                                                                            await handleUpdateSubTask(sheet.id, st.id, { status: newStatus })
+                                                                                                            setEditingSubTaskId(null)
+                                                                                                        }}
+                                                                                                        className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
+                                                                                                    >
+                                                                                                        <option value="complete">Complete</option>
+                                                                                                        <option value="work_in_progress">Work In Progress</option>
+                                                                                                        <option value="pending">Pending</option>
+                                                                                                        <option value="not_to_be_done">Not To Be Done</option>
+                                                                                                        <option value="other">Other</option>
+                                                                                                    </select>
+                                                                                                ) : (
+                                                                                                    <div
+                                                                                                        onClick={() => setEditingSubTaskId(st.id)}
+                                                                                                        className="cursor-pointer hover:opacity-80 transition inline-block animate-fade-in"
+                                                                                                    >
+                                                                                                        <StatusBadge status={st.status} />
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })()}
                                                                                         </td>
                                                                                         <td className="px-4 py-3">
-                                                                                            <SubStatusPicker
-                                                                                                value={st.sub_status}
-                                                                                                onChange={(newVal) => handleUpdateSubTask(sheet.id, st.id, { sub_status: newVal })}
-                                                                                                options={getSubStatusOptions(sheet)}
-                                                                                            />
+                                                                                            {(() => {
+                                                                                                const isLocked = isStaff && st.is_verified;
+                                                                                                return (
+                                                                                                    <SubStatusPicker
+                                                                                                        value={st.sub_status}
+                                                                                                        onChange={(newVal) => handleUpdateSubTask(sheet.id, st.id, { sub_status: newVal })}
+                                                                                                        options={getSubStatusOptions(sheet)}
+                                                                                                        disabled={isLocked}
+                                                                                                    />
+                                                                                                );
+                                                                                            })()}
                                                                                         </td>
                                                                                     </tr>
                                                                                 ))}
@@ -682,6 +697,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
 function CalendarView() {
     const { user } = useAuth()
+    const isStaff = user?.role === 'staff'
     const navigate = useNavigate()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [tasks, setTasks] = useState([])
@@ -1274,24 +1290,39 @@ function CalendarView() {
                                                                                 </td>
                                                                                 <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{formatDate(st.due_date)}</td>
                                                                                 <td className="px-4 py-2">
-                                                                                    <select
-                                                                                        value={st.status}
-                                                                                        onChange={e => handleUpdateSubTask(t.id, st.id, { status: e.target.value })}
-                                                                                        className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
-                                                                                    >
-                                                                                        <option value="complete">Complete</option>
-                                                                                        <option value="work_in_progress">Work In Progress</option>
-                                                                                        <option value="pending">Pending</option>
-                                                                                        <option value="not_to_be_done">Not To Be Done</option>
-                                                                                        <option value="other">Other</option>
-                                                                                    </select>
+                                                                                    {(() => {
+                                                                                        const isLocked = isStaff && st.is_verified;
+                                                                                        return isLocked ? (
+                                                                                            <div className="inline-block" title="Locked (Verified)">
+                                                                                                <StatusBadge status={st.status} />
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <select
+                                                                                                value={st.status}
+                                                                                                onChange={e => handleUpdateSubTask(t.id, st.id, { status: e.target.value })}
+                                                                                                className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
+                                                                                            >
+                                                                                                <option value="complete">Complete</option>
+                                                                                                <option value="work_in_progress">Work In Progress</option>
+                                                                                                <option value="pending">Pending</option>
+                                                                                                <option value="not_to_be_done">Not To Be Done</option>
+                                                                                                <option value="other">Other</option>
+                                                                                            </select>
+                                                                                        );
+                                                                                    })()}
                                                                                 </td>
                                                                                 <td className="px-4 py-2">
-                                                                                    <SubStatusPicker
-                                                                                        value={st.sub_status}
-                                                                                        onChange={(newVal) => handleUpdateSubTask(t.id, st.id, { sub_status: newVal })}
-                                                                                        options={getSubStatusOptions(t)}
-                                                                                    />
+                                                                                    {(() => {
+                                                                                        const isLocked = isStaff && st.is_verified;
+                                                                                        return (
+                                                                                            <SubStatusPicker
+                                                                                                value={st.sub_status}
+                                                                                                onChange={(newVal) => handleUpdateSubTask(t.id, st.id, { sub_status: newVal })}
+                                                                                                options={getSubStatusOptions(t)}
+                                                                                                disabled={isLocked}
+                                                                                            />
+                                                                                        );
+                                                                                    })()}
                                                                                 </td>
                                                                             </tr>
                                                                         ))}

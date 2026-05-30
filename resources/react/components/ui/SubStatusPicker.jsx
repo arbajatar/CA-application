@@ -12,7 +12,8 @@ export default function SubStatusPicker({
     onChange, 
     placeholder = 'Set Sub Status...', 
     size = 'sm', 
-    options: customOptions
+    options: customOptions,
+    disabled = false
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
@@ -39,6 +40,7 @@ export default function SubStatusPicker({
     }, []);
 
     const handleToggle = () => {
+        if (disabled) return;
         if (!isOpen && containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
             const spaceBelow = window.innerHeight - rect.bottom;
@@ -101,10 +103,12 @@ export default function SubStatusPicker({
             {/* Trigger Button */}
             <div
                 onClick={handleToggle}
-                className={`bg-white border rounded-xl px-3 py-1.8 flex items-center justify-between cursor-pointer transition-all duration-300 select-none shadow-sm hover:shadow-md ${
-                    isOpen 
-                        ? 'border-blue-500 ring-2 ring-blue-500/10' 
-                        : 'border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/30'
+                className={`bg-white border rounded-xl px-3 py-1.8 flex items-center justify-between transition-all duration-300 select-none shadow-sm ${
+                    disabled 
+                        ? 'border-slate-100 bg-slate-50/50 cursor-not-allowed text-slate-350 opacity-60' 
+                        : isOpen 
+                            ? 'border-blue-500 ring-2 ring-blue-500/10 cursor-pointer shadow-md' 
+                            : 'border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/30 cursor-pointer hover:shadow-md'
                 } ${
                     size === 'xs' ? 'text-[11px] py-1 px-2.5' : 'text-xs'
                 }`}

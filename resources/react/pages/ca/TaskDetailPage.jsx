@@ -5,9 +5,10 @@ import {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
     Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe,
-    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal
+    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock
 } from 'lucide-react';
 import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import Spinner from '../../components/ui/Spinner';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -214,6 +215,8 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
 }
 
 export default function TaskDetailPage() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ca';
     const { id } = useParams();
     const navigate = useNavigate();
     const [task, setTask] = useState(null);
@@ -1888,10 +1891,10 @@ export default function TaskDetailPage() {
                     )}
                 </div>
                 <div className="overflow-x-auto min-h-[300px]">
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse" style={{ minWidth: allowAttachments ? '1800px' : '1680px' }}>
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
-                                <th className="px-6 py-4 text-center w-12 min-w-[48px] text-white bg-[#1F5C99]">
+                                <th className="px-6 py-4 text-center text-white bg-[#1F5C99]" style={{ minWidth: '48px', width: '48px' }}>
                                     <input
                                         type="checkbox"
                                         checked={filteredSubTasks.length > 0 && filteredSubTasks.every(st => selectedTaskIds.includes(st.id))}
@@ -1907,177 +1910,285 @@ export default function TaskDetailPage() {
                                         className="w-4 h-4 text-indigo-655 border-slate-350 rounded focus:ring-indigo-500/20 cursor-pointer"
                                     />
                                 </th>
-                                <th className="px-6 py-4 text-left min-w-[280px] whitespace-nowrap text-white">Name</th>
-                                <th className="px-6 py-4 text-left min-w-[180px] whitespace-nowrap text-white">Assignee</th>
-                                <th className="px-6 py-4 text-left min-w-[130px] whitespace-nowrap text-white">Priority</th>
-                                <th className="px-6 py-4 text-left min-w-[180px] whitespace-nowrap text-white">Status</th>
-                                <th className="px-6 py-4 text-left min-w-[220px] whitespace-nowrap text-white">Sub Status</th>
-                                <th className="px-6 py-4 text-left min-w-[145px] whitespace-nowrap text-white">Due date</th>
-                                <th className="px-6 py-4 text-left min-w-[260px] whitespace-nowrap text-white">Remarks</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '280px', width: '280px' }}>Name</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Assignee</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '130px', width: '130px' }}>Priority</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Status</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '220px', width: '220px' }}>Sub Status</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '145px', width: '145px' }}>Due date</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '260px', width: '260px' }}>Remarks</th>
                                 {allowAttachments && (
-                                    <th className="px-6 py-4 text-center min-w-[120px] whitespace-nowrap text-white">Attachment</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '120px', width: '120px' }}>Attachment</th>
                                 )}
-                                <th className="px-6 py-4 text-right w-10 min-w-[40px] text-white"></th>
+                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '145px', width: '145px' }}>Verification</th>
+                                <th className="px-6 py-4 text-right text-white" style={{ minWidth: '40px', width: '40px' }}></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {filteredSubTasks.length > 0 ? (
                                 filteredSubTasks.map((st) => (
                                 <tr key={st.id} className={`group hover:bg-slate-50/40 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-slate-50/30' : ''}`}>
-                                    <td className="px-6 py-5 text-center w-12 min-w-[48px]">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedTaskIds.includes(st.id)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setSelectedTaskIds(prev => [...prev, st.id]);
-                                                } else {
-                                                    setSelectedTaskIds(prev => prev.filter(id => id !== st.id));
-                                                }
-                                            }}
-                                            className="w-4 h-4 text-indigo-655 border-slate-300 rounded focus:ring-indigo-500/20 cursor-pointer"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[280px]">
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
-                                                className={`transition-colors shrink-0 ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
-                                            >
-                                                {st.status === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-                                            </button>
-                                            <div className="flex-1 flex items-center group/title min-w-0">
-                                                <input
-                                                    defaultValue={st.title}
-                                                    onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                    className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full truncate ${st.status === 'complete' ? 'line-through text-slate-300' : ''}`}
-                                                />
-                                                <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[180px]">
-                                        <select
-                                            value={st.assigned_to?.id || ''}
-                                            onChange={e => handleUpdateSubTask(st.id, { assigned_to: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
-                                        >
-                                            <option value="">Unassigned</option>
-                                            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[130px]">
-                                        <select
-                                            value={st.priority}
-                                            onChange={e => handleUpdateSubTask(st.id, { priority: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
-                                        >
-                                            <option value="low">Low</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="high">High</option>
-                                            <option value="urgent">Urgent</option>
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[180px]">
-                                        <select
-                                            value={st.status}
-                                            onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer capitalize w-full"
-                                        >
-                                            <option value="complete">Complete</option>
-                                            <option value="work_in_progress">Work In Progress</option>
-                                            <option value="pending">Pending</option>
-                                            <option value="not_to_be_done">Not To Be Done</option>
-                                            <option value="other">Other</option>
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[220px]">
-                                        <select
-                                            value={st.sub_status || ''}
-                                            onChange={e => handleUpdateSubTask(st.id, { sub_status: e.target.value || null })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
-                                        >
-                                            <option value="">— Set Sub Status —</option>
-                                            {getSubStatusOptions(task, schema).map((opt, i) => (
-                                                <option key={i} value={opt}>{opt}</option>
-                                            ))}
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[145px]">
-                                        <input
-                                            type="date"
-                                            defaultValue={st.due_date}
-                                            onBlur={e => handleUpdateSubTask(st.id, { due_date: e.target.value })}
-                                            className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-5 min-w-[260px]">
-                                        <div className="flex items-center group/rem w-full">
-                                            <textarea
-                                                defaultValue={st.remarks}
-                                                onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
-                                                placeholder="Remarks..."
-                                                rows="1"
-                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.8 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition focus:ring-4 focus:ring-indigo-500/10 leading-relaxed"
-                                            />
-                                            {st.remarks && (
-                                                <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
-                                            )}
-                                        </div>
-                                    </td>
-                                    {allowAttachments && (
-                                        <td className="px-6 py-5 text-center min-w-[120px]">
-                                            {st.screenshot_url ? (
-                                                <div className="flex items-center justify-center gap-1.5">
-                                                    <button
-                                                        onClick={() => setPreviewImage(st.screenshot_url)}
-                                                        className="inline-flex items-center justify-center p-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-655 border border-indigo-100/50 rounded-xl transition shadow-sm cursor-pointer"
-                                                        title="View Attachment"
+                                    {(() => {
+                                        const isLocked = !isAdmin && st.is_verified;
+                                        return (
+                                            <>
+                                                <td className="px-6 py-5 text-center" style={{ minWidth: '48px', width: '48px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedTaskIds.includes(st.id)}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedTaskIds(prev => [...prev, st.id]);
+                                                            } else {
+                                                                 setSelectedTaskIds(prev => prev.filter(id => id !== st.id));
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 text-indigo-655 border-slate-350 rounded focus:ring-indigo-500/20 cursor-pointer"
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '280px', width: '280px' }}>
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            disabled={isLocked}
+                                                            onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
+                                                            className={`transition-colors shrink-0 ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                                        >
+                                                            {st.status === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                                        </button>
+                                                        <div className="flex-1 flex items-center group/title min-w-0">
+                                                            <input
+                                                                disabled={isLocked}
+                                                                defaultValue={st.title}
+                                                                onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
+                                                                className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full truncate ${st.status === 'complete' ? 'line-through text-slate-300' : ''} ${isLocked ? 'cursor-not-allowed opacity-75' : ''}`}
+                                                            />
+                                                            <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '180px', width: '180px' }}>
+                                                    <select
+                                                        disabled={isLocked}
+                                                        value={st.assigned_to?.id || ''}
+                                                        onChange={e => handleUpdateSubTask(st.id, { assigned_to: e.target.value })}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
                                                     >
-                                                        <Eye size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteSubTaskAttachment(st.id)}
-                                                        className="inline-flex items-center justify-center p-2 bg-rose-50 hover:bg-rose-100/80 text-rose-600 border border-rose-100/50 rounded-xl transition shadow-sm cursor-pointer"
-                                                        title="Delete Attachment"
+                                                        <option value="">Unassigned</option>
+                                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                    </select>
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '130px', width: '130px' }}>
+                                                    <select
+                                                        disabled={isLocked}
+                                                        value={st.priority}
+                                                        onChange={e => handleUpdateSubTask(st.id, { priority: e.target.value })}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
                                                     >
-                                                        <X size={14} />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center justify-center">
-                                                    <label className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-650 transition cursor-pointer select-none">
-                                                        <Plus size={10} />
-                                                        <span>Attach</span>
-                                                        <input
-                                                            type="file"
-                                                            onChange={(e) => handleUploadSubTaskAttachment(st.id, e.target.files[0])}
-                                                            className="hidden"
+                                                        <option value="low">Low</option>
+                                                        <option value="medium">Medium</option>
+                                                        <option value="high">High</option>
+                                                        <option value="urgent">Urgent</option>
+                                                    </select>
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '180px', width: '180px' }}>
+                                                    <select
+                                                        disabled={isLocked}
+                                                        value={st.status}
+                                                        onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer capitalize w-full ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                    >
+                                                        <option value="complete">Complete</option>
+                                                        <option value="work_in_progress">Work In Progress</option>
+                                                        <option value="pending">Pending</option>
+                                                        <option value="not_to_be_done">Not To Be Done</option>
+                                                        <option value="other">Other</option>
+                                                    </select>
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '220px', width: '220px' }}>
+                                                    <select
+                                                        disabled={isLocked}
+                                                        value={st.sub_status || ''}
+                                                        onChange={e => handleUpdateSubTask(st.id, { sub_status: e.target.value || null })}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                    >
+                                                        <option value="">— Set Sub Status —</option>
+                                                        {getSubStatusOptions(task, schema).map((opt, i) => (
+                                                            <option key={i} value={opt}>{opt}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '145px', width: '145px' }}>
+                                                    <input
+                                                        disabled={isLocked}
+                                                        type="date"
+                                                        defaultValue={st.due_date}
+                                                        onBlur={e => handleUpdateSubTask(st.id, { due_date: e.target.value })}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-5" style={{ minWidth: '260px', width: '260px' }}>
+                                                    <div className="flex items-center group/rem w-full">
+                                                        <textarea
+                                                            disabled={isLocked}
+                                                            defaultValue={st.remarks}
+                                                            onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
+                                                            placeholder="Remarks..."
+                                                            rows="1"
+                                                            className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.8 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition focus:ring-4 focus:ring-indigo-500/10 leading-relaxed ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
                                                         />
-                                                    </label>
-                                                </div>
-                                            )}
-                                        </td>
-                                    )}
-                                    <td className="px-6 py-5 text-right w-10 min-w-[40px]">
-                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 transition-all rounded-lg">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </td>
+                                                        {st.remarks && (
+                                                            <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                {allowAttachments && (
+                                                    <td className="px-6 py-5 text-center" style={{ minWidth: '120px', width: '120px' }}>
+                                                        {st.screenshot_url ? (
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
+                                                                    onClick={() => setPreviewImage(st.screenshot_url)}
+                                                                    className="inline-flex items-center justify-center p-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-655 border border-indigo-100/50 rounded-xl transition shadow-sm cursor-pointer"
+                                                                    title="View Attachment"
+                                                                >
+                                                                    <Eye size={14} />
+                                                                </button>
+                                                                <button
+                                                                    disabled={isLocked}
+                                                                    onClick={() => handleDeleteSubTaskAttachment(st.id)}
+                                                                    className={`inline-flex items-center justify-center p-2 bg-rose-50 border border-rose-100/50 rounded-xl transition shadow-sm ${isLocked ? 'cursor-not-allowed opacity-50 text-rose-300 bg-rose-50/20' : 'hover:bg-rose-100/80 text-rose-600 cursor-pointer'}`}
+                                                                    title="Delete Attachment"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center justify-center">
+                                                                {isLocked ? (
+                                                                    <span className="text-[10px] text-slate-300 font-bold italic select-none">No file</span>
+                                                                ) : (
+                                                                    <label className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-655 transition cursor-pointer select-none">
+                                                                        <Plus size={10} />
+                                                                        <span>Attach</span>
+                                                                        <input
+                                                                            type="file"
+                                                                            onChange={(e) => handleUploadSubTaskAttachment(st.id, e.target.files[0])}
+                                                                            className="hidden"
+                                                                        />
+                                                                    </label>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                )}
+                                                
+                                                {/* Verification Column */}
+                                                <td className="px-6 py-5 text-center" style={{ minWidth: '145px', width: '145px' }}>
+                                                    {st.is_verified ? (
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            {isAdmin ? (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setConfirmState({
+                                                                            open: true,
+                                                                            title: 'Unverify & Unlock Subtask',
+                                                                            message: 'Are you sure you want to unverify and unlock this subtask? This will allow staff members to edit its status and details again.',
+                                                                            confirmLabel: 'Unverify & Unlock',
+                                                                            danger: true,
+                                                                            onConfirm: async () => {
+                                                                                setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                try {
+                                                                                    await handleUpdateSubTask(st.id, { is_verified: false });
+                                                                                    toast.success("Task unverified and unlocked successfully!");
+                                                                                } catch (err) {
+                                                                                    toast.error("Failed to unverify task");
+                                                                                } finally {
+                                                                                    setConfirmState({ open: false });
+                                                                                }
+                                                                            }
+                                                                        });
+                                                                    }}
+                                                                    className="px-2.5 py-1.5 text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-105 hover:text-rose-800 transition active:scale-95 duration-150 flex items-center gap-1 shadow-sm shrink-0"
+                                                                    style={{ cursor: 'pointer' }}
+                                                                    title="Click to Unverify and unlock this task"
+                                                                >
+                                                                    <Lock size={12} className="text-rose-500 animate-pulse animate-duration-1000" />
+                                                                    Unverify
+                                                                </button>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0" title="Locked by staff/admin">
+                                                                    <Lock size={12} className="text-rose-600" />
+                                                                    Locked
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center">
+                                                            {st.status === 'complete' ? (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setConfirmState({
+                                                                            open: true,
+                                                                            title: 'Verify & Lock Subtask',
+                                                                            message: 'Are you sure you want to verify and lock this subtask? Once verified, staff members cannot modify its status or details.',
+                                                                            confirmLabel: 'Verify & Lock',
+                                                                            danger: false,
+                                                                            onConfirm: async () => {
+                                                                                setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                try {
+                                                                                    await handleUpdateSubTask(st.id, { is_verified: true });
+                                                                                    toast.success("Task verified and locked successfully!");
+                                                                                } catch (err) {
+                                                                                    toast.error("Failed to verify task");
+                                                                                } finally {
+                                                                                    setConfirmState({ open: false });
+                                                                                }
+                                                                            }
+                                                                        });
+                                                                    }}
+                                                                    className="px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-105 hover:text-green-800 transition active:scale-95 duration-150 flex items-center gap-1 shrink-0"
+                                                                    style={{ cursor: 'pointer' }}
+                                                                    title="Click to Verify and lock this task"
+                                                                >
+                                                                    <Unlock size={12} className="text-green-600" />
+                                                                    Verify
+                                                                </button>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0" title="Unlocked">
+                                                                    <Unlock size={12} className="text-green-600" />
+                                                                    Unlocked
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td className="px-6 py-5 text-right" style={{ minWidth: '40px', width: '40px' }}>
+                                                    {isLocked ? (
+                                                        <Lock size={14} className="text-rose-600 mx-auto" />
+                                                    ) : (
+                                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 transition-all rounded-lg" style={{ cursor: 'pointer' }}>
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </>
+                                        );
+                                    })()}
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={allowAttachments ? 10 : 9} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
+                                <td colSpan={allowAttachments ? 11 : 10} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
                                     No tasks match the selected filters. Click "Clear all filters" or select another card to see all items.
                                 </td>
                             </tr>
                         )}
                             <tr className="hover:bg-slate-50/50 transition-colors">
-                                <td colSpan={allowAttachments ? 10 : 9} className="px-10 py-4">
+                                <td colSpan={allowAttachments ? 11 : 10} className="px-10 py-4">
                                     <button
                                         onClick={handleAddSubTask}
                                         className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"
+                                        style={{ cursor: 'pointer' }}
                                     >
                                         <Plus size={16} /> Add Task
                                     </button>

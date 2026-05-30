@@ -25,6 +25,7 @@ class SubTaskResource extends JsonResource
             'completed_at' => $this->completed_at?->toDateTimeString(),
             'remarks' => $this->remarks,
             'sub_status' => $this->sub_status,
+            'is_verified' => (bool)$this->is_verified,
             'screenshot_url' => $this->screenshot_url,
             'task' => [
                 'id' => $this->task->id,

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown } from 'lucide-react'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock } from 'lucide-react'
 import api from '../../api/axios'
+import toast from 'react-hot-toast'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Spinner from '../../components/ui/Spinner'
 import Modal from '../../components/ui/Modal'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import CustomSelect from '../../components/ui/CustomSelect'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { formatDate } from '../../utils/dateHelper'
 
 const DEFAULT_SUB_STATUSES = [
@@ -83,6 +85,17 @@ export default function MyTasksPage() {
     const [subStatus, setSubStatus] = useState('')
     const [viewOpen, setViewOpen] = useState(false)
     const [viewLoading, setViewLoading] = useState(false)
+
+    // Custom Confirm Dialog State
+    const [confirmState, setConfirmState] = useState({
+        open: false,
+        title: '',
+        message: '',
+        confirmLabel: '',
+        onConfirm: null,
+        danger: false,
+        loading: false
+    });
 
     const fetchSummary = async () => {
         const res = await api.get('/staff/dashboard/summary')
@@ -336,15 +349,74 @@ export default function MyTasksPage() {
                                                 {st.sub_status || <span className="text-gray-300 italic">—</span>}
                                             </td>
                                             <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <button onClick={(e) => { e.stopPropagation(); openView(st); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
                                                     {st.user_permissions?.can_write !== false && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); openUpdate(st); }}
-                                                            className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition"
-                                                        >
-                                                            Update
-                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            {st.is_verified ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold select-none shrink-0" title="Verified and Locked">
+                                                                    <Lock size={12} className="text-rose-600 animate-pulse animate-duration-1000" />
+                                                                    Verified
+                                                                </span>
+                                                            ) : (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); openUpdate(st); }}
+                                                                        className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition shrink-0 cursor-pointer"
+                                                                        style={{ cursor: 'pointer' }}
+                                                                    >
+                                                                        Update
+                                                                    </button>
+                                                                    {st.status === 'complete' ? (
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setConfirmState({
+                                                                                    open: true,
+                                                                                    title: 'Verify & Lock Subtask',
+                                                                                    message: 'Are you sure you want to verify and lock this task? Once verified, you cannot modify its status or details again.',
+                                                                                    confirmLabel: 'Verify & Lock',
+                                                                                    danger: false,
+                                                                                    onConfirm: async () => {
+                                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                        try {
+                                                                                            await api.patch(`/staff/sub-tasks/${st.id}/status`, { 
+                                                                                                status: st.status,
+                                                                                                is_verified: true 
+                                                                                            });
+                                                                                            toast.success("Task verified and locked successfully!");
+                                                                                            await Promise.all([fetchSummary(), fetchTasks()]);
+                                                                                        } catch (err) {
+                                                                                            toast.error(err.response?.data?.message || "Failed to verify task");
+                                                                                        } finally {
+                                                                                            setConfirmState({
+                                                                                                open: false,
+                                                                                                title: '',
+                                                                                                message: '',
+                                                                                                confirmLabel: '',
+                                                                                                onConfirm: null,
+                                                                                                danger: false,
+                                                                                                loading: false
+                                                                                            });
+                                                                                        }
+                                                                                    }
+                                                                                });
+                                                                            }}
+                                                                            className="px-2.5 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition flex items-center gap-1 shrink-0 cursor-pointer"
+                                                                            style={{ cursor: 'pointer' }}
+                                                                        >
+                                                                            <Unlock size={12} className="text-green-600" />
+                                                                            Verify
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold select-none shrink-0" title="Unlocked">
+                                                                            <Unlock size={12} className="text-green-600" />
+                                                                            Unlocked
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -630,6 +702,17 @@ export default function MyTasksPage() {
                     )
                 )}
             </Modal>
+
+            <ConfirmDialog
+                open={confirmState.open}
+                onClose={() => setConfirmState(prev => ({ ...prev, open: false }))}
+                onConfirm={confirmState.onConfirm}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmLabel={confirmState.confirmLabel}
+                loading={confirmState.loading}
+                danger={confirmState.danger}
+            />
         </div>
     )
 }

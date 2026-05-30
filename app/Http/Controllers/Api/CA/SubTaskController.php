@@ -53,6 +53,7 @@ class SubTaskController extends Controller
             'remarks' => ['nullable', 'string', 'max:1000'],
             'sub_status' => ['nullable', 'string', 'max:255'],
             'screenshot' => ['nullable', 'file', 'max:5120'],
+            'is_verified' => ['nullable', 'boolean'],
         ]);
 
         if (isset($validated['status']) && $validated['status'] === TaskStatus::Complete->value && $subTask->status !== TaskStatus::Complete) {

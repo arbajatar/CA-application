@@ -48,6 +48,11 @@ class SubTaskController extends Controller
             return response()->json(['message' => 'Unauthorized access to this subtask.'], 403);
         }
 
+        // Lock verified tasks for staff
+        if ($subTask->is_verified) {
+            return response()->json(['message' => 'Verified tasks are locked and cannot be edited by staff.'], 403);
+        }
+
         // Check parent task write permission
         $user = $request->user();
         $task = $subTask->task;
@@ -67,6 +72,7 @@ class SubTaskController extends Controller
             'remarks' => ['nullable', 'string', 'max:1000'],
             'screenshot' => ['nullable', 'file', 'max:5120'],
             'sub_status' => ['nullable', 'string', 'max:255'],
+            'is_verified' => ['nullable', 'boolean'],
         ]);
 
         $newStatus = TaskStatus::from($validated['status']);
@@ -87,6 +93,10 @@ class SubTaskController extends Controller
             'sub_status' => $validated['sub_status'] ?? $subTask->sub_status,
         ];
 
+        if ($request->has('is_verified')) {
+            $updateData['is_verified'] = $request->boolean('is_verified');
+        }
+
         if ($newStatus === TaskStatus::Complete) {
             $updateData['completed_at'] = now();
         }
@@ -95,7 +105,7 @@ class SubTaskController extends Controller
 
         return response()->json([
             'message' => 'Subtask status updated successfully.',
-            'data' => new SubTaskResource($subTask),
+            'data' => new SubTaskResource($subTask->load('assignedTo')),
         ]);
     }
 }
