@@ -227,9 +227,7 @@ export default function TaskBuilderPage() {
     navigator.clipboard.writeText(text);
     toast.success(`${fieldName} copied!`);
   };
-  const [viewMode, setViewMode] = useState(
-    (location.state?.isEditing || location.state?.duplicateData) ? 'builder' : 'initial'
-  ); // initial, builder, live
+  const [viewMode, setViewMode] = useState('builder'); // initial, builder, live
 
   // Pre-configured custom fields for GST Filing
   const gstFields = [
