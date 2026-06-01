@@ -1461,7 +1461,7 @@ export default function TaskBuilderPage() {
             {/* Form Area */}
             <div className="form-container">
               {/* Premium Breadcrumbs & Gradient Header Workspace Toolbar */}
-              <div className="bg-white rounded-[2rem] border border-slate-100/80 py-4.5 px-6.5 shadow-sm mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4.5 relative overflow-hidden animate-fade-in">
+              <div className="bg-white rounded-[2rem] border border-slate-100/80 py-5 px-6 shadow-sm mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 relative overflow-hidden animate-fade-in">
                 {/* Decorative background gradients */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
@@ -1469,7 +1469,7 @@ export default function TaskBuilderPage() {
                 <div className="flex-1 min-w-0 flex items-center gap-3 relative z-10">
                   <button
                     onClick={() => navigate('/ca/tasks')}
-                    className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-650 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
+                    className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
                     title="Back to Tasks"
                   >
                     <ChevronLeft size={18} />
@@ -1479,8 +1479,8 @@ export default function TaskBuilderPage() {
                   </div>
                   <div className="min-w-0">
                     <nav className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                      <Link to="/ca/tasks" className="hover:text-indigo-650 transition">Sheets</Link>
-                      <ChevronRight size={8} className="text-slate-350" />
+                      <Link to="/ca/tasks" className="hover:text-indigo-600 transition">Sheets</Link>
+                      <ChevronRight size={8} className="text-slate-400" />
                       <span className="text-slate-800 font-extrabold">Sheet Creator</span>
                     </nav>
                     <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase truncate">
@@ -1489,23 +1489,23 @@ export default function TaskBuilderPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center flex-wrap gap-2.5 relative z-10 select-none">
+                <div className="flex items-center flex-wrap gap-2 relative z-10 select-none">
                   {viewMode === 'live' ? (
                     <button
                       onClick={() => setViewMode('builder')}
-                      className="px-4.5 py-2.5 bg-slate-900 text-white font-black rounded-xl text-xs hover:bg-slate-950 transition-all shadow-md hover:shadow-lg active:scale-95 duration-200 cursor-pointer"
+                      className="px-5 py-2.5 bg-slate-900 text-white font-black rounded-xl text-xs hover:bg-slate-950 transition-all shadow-md hover:shadow-lg active:scale-95 duration-200 cursor-pointer"
                     >
                       Edit Layout
                     </button>
                   ) : (
                     <button
                       onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                      className={`flex items-center gap-2 px-4.5 py-2.5 rounded-xl transition-all duration-300 border shadow-sm cursor-pointer ${isSidebarOpen
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 border shadow-sm cursor-pointer ${isSidebarOpen
                         ? 'bg-slate-900 border-slate-900 text-white shadow-slate-200'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                     >
-                      <Sliders className={`w-3.5 h-3.5 ${isSidebarOpen ? 'text-slate-350' : 'text-slate-500'}`} />
+                      <Sliders className={`w-3.5 h-3.5 ${isSidebarOpen ? 'text-slate-400' : 'text-slate-500'}`} />
                       <span className="text-xs font-black uppercase tracking-wider whitespace-nowrap">
                         {isSidebarOpen ? 'Hide Panel' : 'Add Fields'}
                       </span>
@@ -1514,7 +1514,7 @@ export default function TaskBuilderPage() {
                   {isDuplicating && selectedFields.length > 0 && (
                     <button
                       onClick={removeSelectedFields}
-                      className="flex items-center gap-1.5 px-4.5 py-2.5 bg-rose-500 text-white rounded-xl text-xs font-black hover:bg-rose-600 transition shadow-md shadow-rose-250 cursor-pointer"
+                      className="flex items-center gap-1.5 px-5 py-2.5 bg-rose-500 text-white rounded-xl text-xs font-black hover:bg-rose-600 transition shadow-md shadow-rose-500/20 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Delete ({selectedFields.length})</span>
@@ -1600,7 +1600,7 @@ export default function TaskBuilderPage() {
                     Configure specialized functionality for this sheet.
                   </p>
 
-                  <div className="flex items-center justify-between p-4.5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
+                  <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
                     <div>
                       <h4 className="text-sm font-black text-slate-800">Allow File Uploads & Screenshots</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Allow employees to upload screenshots and files when updating status of this sheet.</p>
@@ -1643,7 +1643,7 @@ export default function TaskBuilderPage() {
                     <button
                       type="button"
                       onClick={handleAddRolePermission}
-                      className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow-md h-[38px] shrink-0 cursor-pointer"
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 active:scale-95 shadow-md h-[38px] shrink-0 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Add Role</span>
@@ -1654,7 +1654,7 @@ export default function TaskBuilderPage() {
                     <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-sm">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-150">
+                          <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
                             <th className="px-6 py-4">Role</th>
                             <th className="px-6 py-4 text-center">Read</th>
                             <th className="px-6 py-4 text-center">Write</th>
@@ -1812,7 +1812,7 @@ export default function TaskBuilderPage() {
                                     {React.createElement(IconMap[type.icon], { size: 14 })}
                                   </div>
                                   <span className="text-xs font-black text-slate-700">{type.name}</span>
-                                  <Plus className="w-3.5 h-3.5 text-slate-350 ml-auto shrink-0" />
+                                  <Plus className="w-3.5 h-3.5 text-slate-400 ml-auto shrink-0" />
                                 </div>
                               );
                             })}
@@ -1855,11 +1855,11 @@ export default function TaskBuilderPage() {
             {/* Hero Header */}
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 text-indigo-700 text-[10px] font-black tracking-widest uppercase shadow-sm">
-                <Sparkles size={12} className="text-indigo-500 animate-spin duration-3000" />
+                <Sparkles size={12} className="text-indigo-500" style={{ animation: 'spin 4s linear infinite' }} />
                 Enterprise Workspace Architect
               </div>
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-900 leading-tight">
-                CREATE CUSTOM <span className="bg-gradient-to-r from-[#1F5C99] via-indigo-650 to-violet-650 bg-clip-text text-transparent">TASK SHEETS</span>
+                CREATE CUSTOM <span className="bg-gradient-to-r from-[#1F5C99] via-[#4F46E5] to-[#7C3AED] bg-clip-text text-transparent">TASK SHEETS</span>
               </h1>
               <p className="max-w-2xl mx-auto text-sm md:text-base font-semibold text-slate-400 leading-relaxed">
                 Design bespoke compliance trackers, corporate client sheets, and routine auditing checklists. Choose a premium pre-built CA template below to get a running start, or start fresh.
@@ -1877,7 +1877,7 @@ export default function TaskBuilderPage() {
                   iconColor: 'text-slate-800',
                   iconBg: 'bg-slate-100 border-slate-200/60',
                   badge: 'Standard',
-                  badgeBg: 'bg-slate-50 border-slate-150 text-slate-500',
+                  badgeBg: 'bg-slate-50 border-slate-200 text-slate-500',
                   borderColor: 'hover:border-slate-300 hover:shadow-slate-200/50',
                   pills: ['Static Name', 'Work Type', 'Created Date', 'Remarks', 'Assignee'],
                   colorTheme: 'slate'
@@ -1890,7 +1890,7 @@ export default function TaskBuilderPage() {
                   iconColor: 'text-[#1F5C99]',
                   iconBg: 'bg-blue-50 border-blue-100/60',
                   badge: 'GST Matrix',
-                  badgeBg: 'bg-blue-50/60 border-blue-100/40 text-[#1F5C99]',
+                  badgeBg: 'bg-blue-50/60 border-blue-200/40 text-[#1F5C99]',
                   borderColor: 'hover:border-blue-300 hover:shadow-blue-200/40',
                   pills: ['GSTIN No', 'GSTR-1 status', 'GSTR-3B status', 'Tax Liability', 'Filing Date'],
                   colorTheme: 'blue'
@@ -1903,7 +1903,7 @@ export default function TaskBuilderPage() {
                   iconColor: 'text-amber-600',
                   iconBg: 'bg-amber-50 border-amber-100/60',
                   badge: 'Direct Tax',
-                  badgeBg: 'bg-amber-50/60 border-amber-100/40 text-amber-600',
+                  badgeBg: 'bg-amber-50/60 border-amber-200/40 text-amber-600',
                   borderColor: 'hover:border-amber-300 hover:shadow-amber-200/40',
                   pills: ['Assess. Year', 'ITR Form Type', 'Challan Status', 'BSR Code', 'Ack Number'],
                   colorTheme: 'amber'
@@ -1916,7 +1916,7 @@ export default function TaskBuilderPage() {
                   iconColor: 'text-emerald-600',
                   iconBg: 'bg-emerald-50 border-emerald-100/60',
                   badge: 'Audit Checklist',
-                  badgeBg: 'bg-emerald-50/60 border-emerald-100/40 text-emerald-600',
+                  badgeBg: 'bg-emerald-50/60 border-emerald-200/40 text-emerald-600',
                   borderColor: 'hover:border-emerald-300 hover:shadow-emerald-200/40',
                   pills: ['Financial Year', 'Audit Status', 'CARO applicability', 'MRL Status', 'Manual Slider'],
                   colorTheme: 'emerald'
@@ -2706,7 +2706,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
   } else if (field.static) {
     cardClass = isActive
       ? 'bg-slate-50/80 border-slate-400/80 shadow-md ring-4 ring-slate-400/5 -translate-y-0.5 border-l-4 border-l-slate-600'
-      : 'bg-slate-50/40 hover:bg-slate-50/80 border-slate-150 shadow-sm hover:shadow border-l-4 border-l-slate-400';
+      : 'bg-slate-50/40 hover:bg-slate-50/80 border-slate-200 shadow-sm hover:shadow border-l-4 border-l-slate-400';
   } else {
     const isText = ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink'].includes(field.type);
     const isChoice = ['dropdown', 'checkbox', 'labels', 'date', 'time'].includes(field.type);
@@ -2714,15 +2714,15 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
     if (isText) {
       cardClass = isActive
         ? 'bg-white border-blue-400/80 shadow-lg shadow-blue-500/5 ring-4 ring-blue-500/5 -translate-y-0.5 border-l-4 border-l-blue-600'
-        : 'bg-white hover:bg-blue-50/10 border-slate-150 hover:border-blue-200/80 shadow-sm hover:shadow border-l-4 border-l-blue-400';
+        : 'bg-white hover:bg-blue-50/10 border-slate-200 hover:border-blue-200/80 shadow-sm hover:shadow border-l-4 border-l-blue-400';
     } else if (isChoice) {
       cardClass = isActive
         ? 'bg-white border-amber-400/80 shadow-lg shadow-amber-500/5 ring-4 ring-amber-500/5 -translate-y-0.5 border-l-4 border-l-amber-600'
-        : 'bg-white hover:bg-amber-50/10 border-slate-150 hover:border-amber-200/80 shadow-sm hover:shadow border-l-4 border-l-amber-400';
+        : 'bg-white hover:bg-amber-50/10 border-slate-200 hover:border-amber-200/80 shadow-sm hover:shadow border-l-4 border-l-amber-400';
     } else {
       cardClass = isActive
         ? 'bg-white border-emerald-400/80 shadow-lg shadow-emerald-500/5 ring-4 ring-emerald-500/5 -translate-y-0.5 border-l-4 border-l-emerald-600'
-        : 'bg-white hover:bg-emerald-50/10 border-slate-150 hover:border-emerald-200/80 shadow-sm hover:shadow border-l-4 border-l-emerald-400';
+        : 'bg-white hover:bg-emerald-50/10 border-slate-200 hover:border-emerald-200/80 shadow-sm hover:shadow border-l-4 border-l-emerald-400';
     }
   }
 
@@ -2812,7 +2812,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
             {!field.static && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onRemove(); }} 
-                className="p-1.5 text-slate-355 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
                 title="Delete field"
               >
                 <Trash2 className="w-4 h-4" />

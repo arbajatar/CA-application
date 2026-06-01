@@ -970,9 +970,40 @@ export default function TasksPage() {
         }
     };
 
-    const openEdit = (task) => {
-        navigate(`/ca/tasks/${task.id}`);
-    }
+    const openEdit = async (task) => {
+        const toastId = toast.loading('Loading sheet layout for editing...');
+        try {
+            // Fetch FULL task details to get dynamic fields and subtasks
+            const res = await api.get(`/ca/tasks/${task.id}`);
+            const fullTask = res.data.data;
+
+            // Prepare pre-filled data for TaskBuilder in Edit Mode
+            const duplicateData = {
+                form_name: fullTask.form_name,
+                client_id: fullTask.client?.id,
+                work_type_id: fullTask.work_type?.id,
+                remarks: fullTask.remarks,
+                dynamic_fields: fullTask.dynamic_fields,
+                created_at: fullTask.created_at,
+                status: fullTask.status,
+                allow_attachments: fullTask.allow_attachments,
+                subtasks: (fullTask.sub_tasks || []).map(st => ({
+                    title: st.title,
+                    assigned_to: st.assigned_to?.id,
+                    priority: st.priority,
+                    status: st.status,
+                    due_date: st.due_date,
+                    remarks: st.remarks
+                }))
+            };
+
+            toast.dismiss(toastId);
+            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: fullTask.id } });
+        } catch (err) {
+            console.error('Edit Error:', err);
+            toast.error('Failed to load sheet details for editing', { id: toastId });
+        }
+    };
 
     const openReassign = (task) => {
         setSelected(task)
