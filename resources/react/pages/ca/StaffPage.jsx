@@ -138,8 +138,8 @@ export default function StaffPage() {
             tempErrors.email = ['Invalid email address format']
         }
         
-        if (form.mobile && !/^\d{10}$/.test(form.mobile.replace(/\D/g, ''))) {
-            tempErrors.mobile = ['Mobile number must be exactly 10 digits']
+        if (form.mobile && !/^\d{10}$/.test(form.mobile)) {
+            tempErrors.mobile = ['Mobile number must be exactly 10 digits and contain only numbers']
         }
 
         setErrors(tempErrors)
@@ -452,7 +452,16 @@ export default function StaffPage() {
                         {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} autoComplete="new-password" />)}
                         {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} autoComplete="off" />)}
                         {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} autoComplete="off" />)}
-                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} autoComplete="off" />)}
+                        {renderField("Mobile Number", errors.mobile?.[0], (
+                            <input 
+                                type="text" 
+                                value={form.mobile} 
+                                onChange={e => setForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))} 
+                                placeholder="Enter 10-digit mobile number" 
+                                className={inputCls} 
+                                autoComplete="off" 
+                            />
+                        ))}
                         {renderField("Address", errors.address?.[0], <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Enter address" className={`${inputCls} h-20 resize-none`} />)}
                         {renderField("Assign Roles", errors.role_ids?.[0], (
                             <div>
@@ -522,7 +531,15 @@ export default function StaffPage() {
                         {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />)}
                         {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} />)}
                         {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} />)}
-                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} />)}
+                        {renderField("Mobile Number", errors.mobile?.[0], (
+                            <input 
+                                type="text" 
+                                value={form.mobile} 
+                                onChange={e => setForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))} 
+                                placeholder="Enter 10-digit mobile number" 
+                                className={inputCls} 
+                            />
+                        ))}
                         {renderField("Address", errors.address?.[0], <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Enter address" className={`${inputCls} h-20 resize-none`} />)}
                         {renderField("Assign Roles", errors.role_ids?.[0], (
                             <div>

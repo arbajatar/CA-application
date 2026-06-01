@@ -2018,8 +2018,9 @@ export default function TaskDetailPage() {
                         </button>
                     )}
                 </div>
-                <div className="overflow-x-auto min-h-[300px]">
-                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: allowAttachments ? '1800px' : '1680px' }}>
+                <div className="px-6 pb-6 md:px-8 md:pb-8">
+                    <div className="overflow-x-auto min-h-[300px] border border-slate-200 rounded-2xl shadow-sm">
+                        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: allowAttachments ? '1800px' : '1680px' }}>
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
                                 <th className="px-2 py-4 text-center text-white bg-[#1F5C99]" style={{ minWidth: '48px', width: '48px' }}>
@@ -2333,6 +2334,7 @@ export default function TaskDetailPage() {
                     </table>
                 </div>
             </div>
+        </div>
 
             {/* Unified Management Sidebar */}
             {isSidebarOpen && (

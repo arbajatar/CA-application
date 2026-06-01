@@ -4,7 +4,8 @@ import {
     FileSpreadsheet, Plus, Search, Edit3, Trash2, CheckCircle2, 
     AlertCircle, ChevronDown, ChevronUp, UserCheck, CheckSquare, 
     ArrowUpDown, RefreshCw, X, MessageSquare, Info,
-    ShieldCheck, ShieldAlert, Folder, ArrowLeft, User, ChevronRight
+    ShieldCheck, ShieldAlert, Folder, ArrowLeft, User, ChevronRight,
+    Copy
 } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -44,7 +45,7 @@ const parseTime24Hour = (time12) => {
     return `${String(hours).padStart(2, '0')}:${minutes}`
 }
 
-function TimePicker12Hour({ value, onChange, label, className = "" }) {
+function TimePicker12Hour({ value, onChange, label, className = "", position = "bottom" }) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
 
@@ -100,7 +101,7 @@ function TimePicker12Hour({ value, onChange, label, className = "" }) {
             </div>
             
             {isOpen && (
-                <div className="absolute left-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-xl p-3 z-50 flex gap-2 w-64">
+                <div className={`absolute left-0 ${position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white border border-gray-100 rounded-2xl shadow-xl p-3 z-50 flex gap-2 w-64`}>
                     {/* Hours */}
                     <div className="flex-1 flex flex-col h-40 overflow-y-auto select-none border-r border-gray-100 pr-1">
                         <p className="text-[10px] font-bold text-gray-400 text-center sticky top-0 bg-white pb-1">HR</p>
@@ -816,6 +817,12 @@ export default function TeamReportPage() {
     }
 
     // Add Client Inline
+    const handleCopy = (text, fieldName) => {
+        if (!text) return
+        navigator.clipboard.writeText(text)
+        toast.success(`${fieldName} copied!`)
+    }
+
     const handleCreateClient = async (e) => {
         e.preventDefault()
         if (!newClientForm.name) {
@@ -852,7 +859,7 @@ export default function TeamReportPage() {
                 pan_no: (newClientForm.pan_no || '').toUpperCase(),
                 gst_number: (newClientForm.gst_number || '').toUpperCase()
             }
-            const res = await api.post('/ca/clients', payload)
+            const res = await api.post(isCA ? '/ca/clients' : '/daily-reports/clients', payload)
             const created = res.data.data
             setClients(prev => [...prev, created])
             setLogForm(prev => ({ ...prev, client_id: created.id }))
@@ -1703,9 +1710,9 @@ export default function TeamReportPage() {
             </div>
 
             {/* Interactive Data Table Area */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    {loading ? (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden relative">
+                <div className="overflow-x-auto min-h-[320px]">
+                    {loading && [...displayedReports, ...inlineNewRows].length === 0 ? (
                         <div className="py-20 flex justify-center"><Spinner /></div>
                     ) : (
                         <table className="w-full text-sm">
@@ -1713,7 +1720,7 @@ export default function TeamReportPage() {
                                 <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap">#</th>
                                     {isCA && <th className="px-6 py-3.5 text-left whitespace-nowrap">Team Member</th>}
-                                    <th onClick={() => handleSort('date')} className="px-6 py-3.5 text-left whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
+                                    <th onClick={() => handleSort('date')} className="px-6 py-3.5 text-left whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5">
                                             Date <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
@@ -1723,7 +1730,7 @@ export default function TeamReportPage() {
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap">Duration</th>
                                     <th className="px-6 py-3.5 text-center whitespace-nowrap">Start Time</th>
                                     <th className="px-6 py-3.5 text-center whitespace-nowrap">End Time</th>
-                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
+                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5 justify-end">
                                             Hours <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
@@ -1731,7 +1738,7 @@ export default function TeamReportPage() {
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap">Client</th>
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap">Sub Task Description</th>
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap">Status</th>
-                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-3.5 text-center whitespace-nowrap cursor-pointer hover:bg-[#154673] transition-colors">
+                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-3.5 text-center whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
                                         <div className="flex items-center gap-1.5 justify-center">
                                             % Done <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
@@ -2094,6 +2101,11 @@ export default function TeamReportPage() {
                         </table>
                     )}
                 </div>
+                {loading && [...displayedReports, ...inlineNewRows].length > 0 && (
+                    <div className="absolute inset-0 bg-white/45 backdrop-blur-[1px] flex items-center justify-center z-30 animate-fade-in">
+                        <Spinner />
+                    </div>
+                )}
             </div>
 
             {/* Notes Section at the Bottom */}
@@ -2566,7 +2578,18 @@ export default function TeamReportPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Client Name */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name *</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name *</label>
+                                {newClientForm.name && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.name, 'Client Name')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.name}
@@ -2579,7 +2602,18 @@ export default function TeamReportPage() {
 
                         {/* Client Name As per PAN */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name As Per PAN</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name As Per PAN</label>
+                                {newClientForm.name_as_per_pan && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.name_as_per_pan, 'Name As Per PAN')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.name_as_per_pan}
@@ -2623,7 +2657,18 @@ export default function TeamReportPage() {
 
                         {/* PAN Number */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">PAN No. *</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">PAN No. *</label>
+                                {newClientForm.pan_no && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.pan_no, 'PAN No')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <div className="relative">
                                 <input
                                     type="text"
@@ -2653,7 +2698,18 @@ export default function TeamReportPage() {
 
                         {/* GST Number */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">GST Number</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">GST Number</label>
+                                {newClientForm.gst_number && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.gst_number, 'GST Number')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <div className="relative">
                                 <input
                                     type="text"
@@ -2682,7 +2738,22 @@ export default function TeamReportPage() {
 
                         {/* Date of Birth */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Date of Birth</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Date of Birth</label>
+                                {newClientForm.dob && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const parts = newClientForm.dob.split('-')
+                                            const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}` : newClientForm.dob
+                                            handleCopy(formatted, 'Date of Birth (dd/mm/yy)')
+                                        }}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy (dd/mm/yy)
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="date"
                                 value={newClientForm.dob}
@@ -2693,7 +2764,18 @@ export default function TeamReportPage() {
 
                         {/* Reference No */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Reference No.</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Reference No.</label>
+                                {newClientForm.reference_no && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.reference_no, 'Reference No')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.reference_no}
@@ -2705,7 +2787,18 @@ export default function TeamReportPage() {
 
                         {/* Contact No */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Contact No.</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Contact No.</label>
+                                {newClientForm.contact && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.contact, 'Contact No')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 maxLength={10}
@@ -2718,7 +2811,18 @@ export default function TeamReportPage() {
 
                         {/* Alternative Contact */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Alt. Contact No.</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Alt. Contact No.</label>
+                                {newClientForm.alternative_contact && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.alternative_contact, 'Alternative Contact No')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 maxLength={10}
@@ -2731,7 +2835,18 @@ export default function TeamReportPage() {
 
                         {/* Email Address */}
                         <div className="space-y-1 md:col-span-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Email Address</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Email Address</label>
+                                {newClientForm.email && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.email, 'Email Address')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="email"
                                 value={newClientForm.email}
@@ -2743,7 +2858,18 @@ export default function TeamReportPage() {
 
                         {/* Address segment */}
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">City</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">City</label>
+                                {newClientForm.city && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.city, 'City')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.city}
@@ -2754,7 +2880,18 @@ export default function TeamReportPage() {
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Pin Code</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Pin Code</label>
+                                {newClientForm.pin_code && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.pin_code, 'Pin Code')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.pin_code}
@@ -2765,7 +2902,18 @@ export default function TeamReportPage() {
                         </div>
 
                         <div className="space-y-1 md:col-span-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">State</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">State</label>
+                                {newClientForm.state && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.state, 'State')}
+                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
                             <input
                                 type="text"
                                 value={newClientForm.state}
@@ -2780,7 +2928,18 @@ export default function TeamReportPage() {
                             <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Portal Credentials</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">E-Filing Password</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">E-Filing Password</label>
+                                        {newClientForm.credentials.efiling_password && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(newClientForm.credentials.efiling_password, 'E-Filing Password')}
+                                                className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                            >
+                                                <Copy size={10} /> Copy
+                                            </button>
+                                        )}
+                                    </div>
                                     <input
                                         type="text"
                                         value={newClientForm.credentials.efiling_password}
@@ -2796,7 +2955,18 @@ export default function TeamReportPage() {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">AIS & TIS Password (Auto Generated)</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">AIS & TIS Password (Auto Generated)</label>
+                                        {newClientForm.credentials.ais_tis_password && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(newClientForm.credentials.ais_tis_password, 'AIS & TIS Password')}
+                                                className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                            >
+                                                <Copy size={10} /> Copy
+                                            </button>
+                                        )}
+                                    </div>
                                     <input
                                         type="text"
                                         value={newClientForm.credentials.ais_tis_password}

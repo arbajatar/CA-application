@@ -61,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Read-only dependency endpoints for daily reporting (accessible to staff & CA)
     Route::get('/daily-reports/clients', [ClientController::class, 'index']);
+    Route::post('/daily-reports/clients', [ClientController::class, 'store']);
     Route::get('/daily-reports/client-types', [ClientController::class, 'types']);
     Route::get('/daily-reports/client-groups', [ClientController::class, 'groups']);
     Route::get('/daily-reports/work-types', [WorkTypeController::class, 'index']);
