@@ -919,6 +919,16 @@ export default function TeamReportPage() {
 
         setSaving(true)
         try {
+            if (selectedReport && String(selectedReport.id).startsWith('new-')) {
+                setInlineNewRows(prev => prev.filter(r => r.id !== selectedReport.id))
+                if (editingRowId === selectedReport.id) {
+                    setEditingRowId(null)
+                    setInlineForm(null)
+                }
+                toast.success('Unsaved report entry removed')
+                setDeleteModalOpen(false)
+                return
+            }
             await api.delete(`/daily-reports/${selectedReport.id}`)
             toast.success('Report entry deleted successfully')
             setDeleteModalOpen(false)
@@ -2074,8 +2084,8 @@ export default function TeamReportPage() {
                                     })
                                 )}
                                     <tr className="bg-gray-50/50 hover:bg-slate-50 transition cursor-pointer" onClick={handleAddRowInline}>
-                                        <td colSpan={isCA ? 17 : 16} className="px-6 py-4 text-center text-[#1F5C99] font-bold text-sm">
-                                            <div className="flex items-center justify-center gap-2">
+                                        <td colSpan={isCA ? 17 : 16} className="px-6 py-4 text-left text-[#1F5C99] font-bold text-sm">
+                                            <div className="flex items-center justify-start gap-2">
                                                 <Plus size={16} /> Add New Row Inline
                                             </div>
                                         </td>

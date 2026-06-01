@@ -10,15 +10,13 @@ import {
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
-import toast_pkg from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import '../../styles/task-builder.css';
-
-const toast = toast_pkg;
 
 const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
@@ -720,7 +718,7 @@ export default function TaskBuilderPage() {
   const [selectedFields, setSelectedFields] = useState([]);
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toastState, setToastState] = useState({ show: false, message: '' });
   const [saving, setSaving] = useState(false);
 
   const isDuplicating = !!location.state?.duplicateData;
@@ -846,12 +844,12 @@ export default function TaskBuilderPage() {
 
   const handleAddRolePermission = () => {
     if (!selectedRoleId) {
-      toast_pkg.error('Please select a role.');
+      toast.error('Please select a role.');
       return;
     }
     const roleIdNum = Number(selectedRoleId);
     if (sheetPermissions.some(p => Number(p.role_id) === roleIdNum)) {
-      toast_pkg.error('This role is already added.');
+      toast.error('This role is already added.');
       return;
     }
     setSheetPermissions(prev => [
@@ -880,8 +878,9 @@ export default function TaskBuilderPage() {
   };
 
   const showToast = (message) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast({ show: false, message: '' }), 3000);
+    toast(message);
+    setToastState({ show: true, message });
+    setTimeout(() => setToastState({ show: false, message: '' }), 3000);
   };
 
   const addField = (type, atIndex = null) => {
@@ -970,6 +969,13 @@ export default function TaskBuilderPage() {
       field.error = 'Invalid email format';
       return false;
     }
+    if (field.label === 'GSTIN No' && field.value) {
+      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstRegex.test(field.value.toUpperCase())) {
+        field.error = 'Invalid 15-digit GSTIN format (e.g. 22AAAAA0000A1Z5)';
+        return false;
+      }
+    }
     if (field.type === 'hyperlink' && field.value) {
       const val = field.value.trim();
       let formattedVal = val;
@@ -988,8 +994,8 @@ export default function TaskBuilderPage() {
       const digits = field.value.replace(/\D/g, '');
       const isIndian = field.value.startsWith('+91');
       const minDigits = isIndian ? 12 : 10;
-      if (digits.length > 0 && digits.length < minDigits) {
-        field.error = `Enter a valid ${isIndian ? '10-digit number after +91' : 'number'}`;
+      if (digits.length > 0 && digits.length !== minDigits) {
+        field.error = `Enter a valid ${isIndian ? '10-digit number after +91' : '10-digit number'}`;
         return false;
       }
     }
@@ -1148,23 +1154,23 @@ export default function TaskBuilderPage() {
   const handleSaveClient = async () => {
     // Run pre-submit PAN validation check
     if (clientPanStatus && !clientPanStatus.valid) {
-      toast_pkg.error(clientPanStatus.msg);
+      toast.error(clientPanStatus.msg);
       return;
     }
 
     // Run pre-submit GST validation check
     if (clientGstStatus && !clientGstStatus.valid) {
-      toast_pkg.error(clientGstStatus.msg);
+      toast.error(clientGstStatus.msg);
       return;
     }
 
     // Validate mobile number lengths (exactly 10 digits if provided)
     if (clientForm?.contact && clientForm.contact.replace(/\D/g, '').length !== 10) {
-      toast_pkg.error('Contact No must be exactly 10 digits.');
+      toast.error('Contact No must be exactly 10 digits.');
       return;
     }
     if (clientForm?.alternative_contact && clientForm.alternative_contact.replace(/\D/g, '').length !== 10) {
-      toast_pkg.error('Alternative Contact No must be exactly 10 digits.');
+      toast.error('Alternative Contact No must be exactly 10 digits.');
       return;
     }
 
@@ -1181,7 +1187,7 @@ export default function TaskBuilderPage() {
       await fetchClients(res.data.data.id);
     } catch (e) { 
       setClientErrors(e.response?.data?.errors ?? {});
-      toast_pkg.error('Please fix validation errors');
+      toast.error('Please fix validation errors');
     } finally { 
       setSavingClient(false); 
     }
@@ -1200,9 +1206,9 @@ export default function TaskBuilderPage() {
       setNewTypeName('');
       setNewTypePanChar('');
       setAddTypeOpen(false);
-      toast_pkg.success('Custom client type added successfully');
+      toast.success('Custom client type added successfully');
     } catch (e) {
-      toast_pkg.error(e.response?.data?.message || 'Failed to create client type');
+      toast.error(e.response?.data?.message || 'Failed to create client type');
     } finally {
       setSavingClient(false);
     }
@@ -1219,9 +1225,9 @@ export default function TaskBuilderPage() {
       setClientForm(prev => ({ ...prev, group: res.data.data.name }));
       setNewGroupName('');
       setAddGroupOpen(false);
-      toast_pkg.success('Custom client group added successfully');
+      toast.success('Custom client group added successfully');
     } catch (e) {
-      toast_pkg.error(e.response?.data?.message || 'Failed to create client group');
+      toast.error(e.response?.data?.message || 'Failed to create client group');
     } finally {
       setSavingClient(false);
     }
@@ -2735,7 +2741,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
     >
       <div className={`flex items-center justify-between gap-2 ${!isLive ? 'pr-2' : ''}`}>
         {/* Drag handle */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {!isLive && (
             <>
               {isDuplicating && (
@@ -2831,10 +2837,10 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           isLive={isLive}
           modalActions={modalActions}
         />
-        {field.value && field.type !== 'dropdown' && field.type !== 'subtasks_list' && (
+        {field.value && !['dropdown', 'subtasks_list', 'checkbox', 'labels'].includes(field.type) && (
           <button
             onClick={handleCopy}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-650 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10 opacity-0 group-hover/input:opacity-100"
+            className={`absolute ${field.type === 'date' || field.type === 'time' ? 'right-10' : 'right-3'} top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 text-slate-400 hover:text-indigo-650 hover:border-indigo-200 rounded-lg transition-all shadow-sm z-10 opacity-0 group-hover/input:opacity-100`}
             title="Copy field content"
           >
             <Copy size={13} />
@@ -2853,8 +2859,24 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
   const baseClass = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-slate-800 focus:ring-4 focus:ring-slate-200/50 transition-all";
 
   switch (field.type) {
-    case 'text':
-      return <input type="text" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} placeholder={field.placeholder} />;
+    case 'text': {
+      const isGst = field.label === 'GSTIN No';
+      return (
+        <input
+          type="text"
+          value={field.value}
+          onChange={(e) => {
+            let val = e.target.value;
+            if (isGst) {
+              val = val.toUpperCase().slice(0, 15);
+            }
+            onUpdate('value', val);
+          }}
+          className={baseClass}
+          placeholder={field.placeholder}
+        />
+      );
+    }
     case 'longtext':
       return <textarea value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} rows="3" placeholder={field.placeholder} />;
     case 'dropdown':
@@ -3071,8 +3093,11 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
           value={field.value}
           onChange={(e) => {
             let val = e.target.value;
-            if (!val.startsWith('+91') && field.value.startsWith('+91')) {
-              if (val.length < 3) val = '+91 ';
+            if (val.startsWith('+91')) {
+              const digits = val.substring(3).replace(/\D/g, '').slice(0, 10);
+              val = `+91 ${digits}`;
+            } else {
+              val = val.replace(/\D/g, '').slice(0, 10);
             }
             onUpdate('value', val);
           }}
