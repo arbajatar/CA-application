@@ -2040,7 +2040,7 @@ export default function TaskDetailPage() {
                                 </th>
                                 <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '280px', width: '280px' }}>Name</th>
                                 <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Assignee</th>
-                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '130px', width: '130px' }}>Priority</th>
+                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '150px', width: '150px' }}>Priority</th>
                                 <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Status</th>
                                 <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '220px', width: '220px' }}>Sub Status</th>
                                 <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '145px', width: '145px' }}>Due date</th>
@@ -2105,7 +2105,7 @@ export default function TaskDetailPage() {
                                                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                     </select>
                                                 </td>
-                                                <td className="px-6 py-5" style={{ minWidth: '130px', width: '130px' }}>
+                                                <td className="px-6 py-5" style={{ minWidth: '150px', width: '150px' }}>
                                                     <select
                                                         disabled={isLocked}
                                                         value={st.priority}
@@ -2317,7 +2317,7 @@ export default function TaskDetailPage() {
                                 <td colSpan={allowAttachments ? 11 : 10} className="px-10 py-4">
                                     <button
                                         onClick={handleAddSubTask}
-                                        className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 text-sm font-bold transition-colors"
+                                        className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 text-sm font-bold transition-colors"
                                         style={{ cursor: 'pointer' }}
                                     >
                                         <Plus size={16} /> Add Task

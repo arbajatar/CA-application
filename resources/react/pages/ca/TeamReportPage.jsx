@@ -691,12 +691,17 @@ export default function TeamReportPage() {
                 payload.client_name_custom = null
             }
 
-            if (selectedReport) {
+            const isNew = selectedReport && String(selectedReport.id).startsWith('new-')
+
+            if (selectedReport && !isNew) {
                 await api.patch(`/daily-reports/${selectedReport.id}`, payload)
                 toast.success('Daily report updated successfully')
             } else {
                 await api.post('/daily-reports', payload)
                 toast.success('Daily report saved successfully')
+                if (isNew) {
+                    setInlineNewRows(prev => prev.filter(r => r.id !== selectedReport.id))
+                }
             }
             setLogModalOpen(false)
             fetchReports()
@@ -905,6 +910,13 @@ export default function TeamReportPage() {
     }
 
     const handleDeleteReport = async () => {
+        if (selectedReport && String(selectedReport.id).startsWith('new-')) {
+            setInlineNewRows(prev => prev.filter(r => r.id !== selectedReport.id))
+            toast.success('Temporary report entry removed')
+            setDeleteModalOpen(false)
+            return
+        }
+
         setSaving(true)
         try {
             await api.delete(`/daily-reports/${selectedReport.id}`)
