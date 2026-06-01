@@ -324,12 +324,6 @@ export default function MyTasksPage() {
         <div className="space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
-                <button
-                    onClick={openCreate}
-                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-[#0f1c2e] hover:bg-[#1a2f4a] rounded-xl shadow-md border border-[#0f1c2e]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-lg active:scale-95 cursor-pointer shrink-0"
-                >
-                    <Plus size={16} /> Create New Sheet
-                </button>
             </div>
 
             {/* Summary Cards */}
