@@ -54,6 +54,16 @@ export default function ProfilePage() {
 
     const handleInfoSubmit = async (e) => {
         e.preventDefault()
+
+        if (infoForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(infoForm.email)) {
+            setInfoError('Invalid email address format')
+            return
+        }
+        if (infoForm.mobile && !/^\d{10}$/.test(infoForm.mobile)) {
+            setInfoError('Mobile number must be exactly 10 digits')
+            return
+        }
+
         setSavingInfo(true); setInfoError(''); setInfoSuccess('')
         try {
             const res = await api.post('/staff/profile', infoForm)
@@ -70,6 +80,15 @@ export default function ProfilePage() {
 
         if (file.size > 2 * 1024 * 1024) {
             toast.error('Profile photo must be less than 2MB.')
+            return
+        }
+
+        if (infoForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(infoForm.email)) {
+            toast.error('Invalid email address format')
+            return
+        }
+        if (infoForm.mobile && !/^\d{10}$/.test(infoForm.mobile)) {
+            toast.error('Mobile number must be exactly 10 digits')
             return
         }
 
@@ -286,7 +305,10 @@ export default function ProfilePage() {
                                         <input
                                             type="text"
                                             value={infoForm.mobile}
-                                            onChange={e => setInfoForm({ ...infoForm, mobile: e.target.value })}
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                                setInfoForm({ ...infoForm, mobile: val });
+                                            }}
                                             className={`${inputCls} pl-10`}
                                             placeholder="Enter mobile number"
                                         />

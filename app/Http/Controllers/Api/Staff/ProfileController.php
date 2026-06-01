@@ -25,9 +25,11 @@ class ProfileController extends Controller
 
         $request->validate([
             'email' => ['nullable', 'email', 'max:255'],
-            'mobile' => ['nullable', 'string', 'max:20'],
+            'mobile' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'],
             'address' => ['nullable', 'string'],
             'profile_photo' => ['nullable', 'image', 'max:2048'], // Max 2MB
+        ], [
+            'mobile.regex' => 'The mobile number must be exactly 10 digits.',
         ]);
 
         $data = $request->only(['email', 'mobile', 'address']);

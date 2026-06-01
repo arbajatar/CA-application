@@ -444,11 +444,15 @@ export default function StaffPage() {
             {addOpen && (
                 <Modal open={addOpen} onClose={handleCloseAdd} title="Add New Staff Member">
                     <div className="space-y-4">
-                        {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} />)}
-                        {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} />)}
-                        {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} />)}
-                        {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} />)}
-                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} />)}
+                        {/* Dummy inputs to intercept browser autofill */}
+                        <input type="text" name="prevent_autofill_username" style={{ display: 'none' }} autoComplete="off" />
+                        <input type="password" name="prevent_autofill_password" style={{ display: 'none' }} autoComplete="off" />
+
+                        {renderField("Full Name *", errors.name?.[0], <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" className={inputCls} autoComplete="off" />)}
+                        {renderField("Username *", errors.username?.[0], <input type="text" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="Enter username" className={inputCls} autoComplete="new-password" />)}
+                        {renderField("Employee Code", errors.employee_code?.[0], <input type="text" value={form.employee_code} onChange={e => setForm(f => ({ ...f, employee_code: e.target.value }))} placeholder="Enter employee code" className={inputCls} autoComplete="off" />)}
+                        {renderField("Email Address", errors.email?.[0], <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Enter email address" className={inputCls} autoComplete="off" />)}
+                        {renderField("Mobile Number", errors.mobile?.[0], <input type="text" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="Enter mobile number" className={inputCls} autoComplete="off" />)}
                         {renderField("Address", errors.address?.[0], <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Enter address" className={`${inputCls} h-20 resize-none`} />)}
                         {renderField("Assign Roles", errors.role_ids?.[0], (
                             <div>
@@ -491,6 +495,7 @@ export default function StaffPage() {
                                     onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                                     placeholder="Min 6 characters"
                                     className={`${inputCls} pr-10`}
+                                    autoComplete="new-password"
                                 />
                                 <button
                                     type="button"

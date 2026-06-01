@@ -2728,7 +2728,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
 
   return (
     <div
-      className={`relative rounded-3xl border p-5 transition-all duration-300 animate-slide-in flex flex-col gap-3 group/card select-none cursor-pointer ${cardClass} ${
+      className={`relative rounded-3xl border p-5 transition-all duration-300 animate-slide-in flex flex-col gap-3 group/card select-none cursor-pointer focus-within:z-[25] hover:z-10 ${cardClass} ${
         field.type === 'subtasks_list' ? 'md:col-span-2' : ''
       }`}
       onClick={onActive}
