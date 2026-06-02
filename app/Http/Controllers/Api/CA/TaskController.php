@@ -339,4 +339,17 @@ class TaskController extends Controller
 
         return response()->json(['message' => 'Task deleted successfully.']);
     }
+
+    public function uploadFile(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:5120'],
+        ]);
+        $path = \App\Helpers\UploadHelper::upload($request->file('file'), 'sheet_attachments');
+        return response()->json([
+            'url' => asset('storage/' . $path),
+            'path' => $path,
+            'name' => $request->file('file')->getClientOriginalName(),
+        ]);
+    }
 }

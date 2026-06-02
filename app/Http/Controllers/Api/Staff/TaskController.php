@@ -256,4 +256,17 @@ class TaskController extends Controller
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo'])),
         ]);
     }
+
+    public function uploadFile(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'max:5120'],
+        ]);
+        $path = UploadHelper::upload($request->file('file'), 'sheet_attachments');
+        return response()->json([
+            'url' => asset('storage/' . $path),
+            'path' => $path,
+            'name' => $request->file('file')->getClientOriginalName(),
+        ]);
+    }
 }

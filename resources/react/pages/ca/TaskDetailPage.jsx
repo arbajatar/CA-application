@@ -5,7 +5,7 @@ import {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
     Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe,
-    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock
+    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -112,7 +112,7 @@ const IconMap = {
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
 };
 
-function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md' }) {
+function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md', disabled = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
@@ -145,14 +145,14 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
       <div
         className={`w-full bg-white border border-slate-200 rounded-xl px-4 outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer ${
           size === 'sm' ? 'py-1.5 text-xs h-[38px]' : 'py-3 text-sm'
-        }`}
-        onClick={() => setIsOpen(!isOpen)}
+        } ${disabled ? 'opacity-60 bg-slate-50 cursor-not-allowed pointer-events-none' : ''}`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <span className={selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}>
+        <span className={`truncate mr-2 ${selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}`}>
           {selectedOption ? getLabel(selectedOption) : placeholder}
         </span>
         <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${
-          size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'
+          size === 'sm' ? 'w-3.5 h-3.5 shrink-0' : 'w-4 h-4 shrink-0'
         }`} />
       </div>
 
@@ -229,6 +229,8 @@ export default function TaskDetailPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
+    const [attachmentsModal, setAttachmentsModal] = useState({ open: false, title: '', files: [], type: 'subtask', id: null, originalIndex: null });
+    const [incomingPreviewFile, setIncomingPreviewFile] = useState(null);
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
     const [selectedSubStatusFilter, setSelectedSubStatusFilter] = useState(null);
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
@@ -253,6 +255,8 @@ export default function TaskDetailPage() {
     const [caFeedback, setCaFeedback] = useState('');
     const [caRating, setCaRating] = useState('');
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
+    const [editingFeedbackIndex, setEditingFeedbackIndex] = useState(null);
+
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
     const [focusedValue, setFocusedValue] = useState('');
@@ -320,6 +324,31 @@ export default function TaskDetailPage() {
     const [formName, setFormName] = useState('');
     const [rows, setRows] = useState([]);
     const [schema, setSchema] = useState([]); // Array of field objects
+
+    // Column Drag & Drop and Sorting/Filtering States
+    const [customColumnOrder, setCustomColumnOrder] = useState(null);
+    const [draggedColumnIndex, setDraggedColumnIndex] = useState(null);
+    const [dragOverColumnIndex, setDragOverColumnIndex] = useState(null);
+    const [sortField, setSortField] = useState(null);
+    const [sortDirection, setSortDirection] = useState('default'); // 'default' | 'asc' | 'desc'
+    const [dynamicFilters, setDynamicFilters] = useState({});
+    const [showColumnFilters, setShowColumnFilters] = useState(true);
+
+    const handleSort = (fieldId) => {
+        if (sortField !== fieldId) {
+            setSortField(fieldId);
+            setSortDirection('asc');
+        } else {
+            if (sortDirection === 'default') {
+                setSortDirection('asc');
+            } else if (sortDirection === 'asc') {
+                setSortDirection('desc');
+            } else {
+                setSortField(null);
+                setSortDirection('default');
+            }
+        }
+    };
 
     useEffect(() => {
         fetchInitialData();
@@ -481,17 +510,51 @@ export default function TaskDetailPage() {
         }
     };
 
+    const handleSaveRows = async (updatedRows) => {
+        try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const firstRow = updatedRows[0] || {};
+            const nextDynamicFields = {
+                ...(task.dynamic_fields || {}),
+                multi_rows: updatedRows
+            };
+            const payload = {
+                client_id: firstRow.client_id || null,
+                work_type_id: firstRow.work_type_id || null,
+                allocated_to: firstRow.allocated_to || null,
+                date_allocated: firstRow.date_allocated || null,
+                form_name: firstRow.form_name || task.form_name || '',
+                status: task.status,
+                dynamic_fields: nextDynamicFields
+            };
+
+            const res = await api.patch(`${apiPrefix}/tasks/${id}`, payload);
+            const nextData = res.data.data;
+            setTask(prev => ({
+                ...nextData,
+                sub_tasks: nextData.sub_tasks !== undefined ? nextData.sub_tasks : (prev?.sub_tasks || [])
+            }));
+            setRows(nextData.dynamic_fields?.multi_rows || []);
+            toast.success('Rows saved successfully');
+        } catch (e) {
+            console.error(e);
+            toast.error(e.response?.data?.message || 'Failed to save row changes');
+        }
+    };
+
     const addRow = () => {
         const newRow = {
-            client_id: '',
-            work_type_id: rows[0]?.work_type_id || '',
+            form_name: rows[0]?.form_name || task.form_name || '',
+            client_id: rows[0]?.client_id || task.client?.id || '',
+            work_type_id: rows[0]?.work_type_id || task.work_type?.id || '',
             allocated_to: '',
             date_allocated: new Date().toISOString().split('T')[0],
             status: 'assigned',
             dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
         };
-        setRows([...rows, newRow]);
-        setIsEditing(true);
+        const updatedRows = [...rows, newRow];
+        setRows(updatedRows);
+        handleSaveRows(updatedRows);
     };
 
     const removeRow = (index) => {
@@ -499,21 +562,10 @@ export default function TaskDetailPage() {
             toast.error("At least one row is required.");
             return;
         }
-        const newRows = [...rows];
-        newRows.splice(index, 1);
-        setRows(newRows);
-    };
-
-    const updateRow = (index, field, value) => {
-        const newRows = [...rows];
-        newRows[index][field] = value;
-        setRows(newRows);
-    };
-
-    const updateDynamic = (index, key, value) => {
-        const newRows = [...rows];
-        newRows[index].dynamic_data[key] = value;
-        setRows(newRows);
+        const updatedRows = [...rows];
+        updatedRows.splice(index, 1);
+        setRows(updatedRows);
+        handleSaveRows(updatedRows);
     };
 
     const handleUpdateGlobal = async () => {
@@ -713,14 +765,30 @@ export default function TaskDetailPage() {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            setTask(prev => ({
-                ...prev,
-                sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
-            }));
+            setTask(prev => {
+                const updated = prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st);
+                const updatedSubTask = updated.find(st => st.id === subTaskId);
+                if (updatedSubTask) {
+                    setAttachmentsModal(modalPrev => {
+                        if (modalPrev.open && modalPrev.type === 'subtask' && modalPrev.id === subTaskId) {
+                            return { ...modalPrev, files: updatedSubTask.attachments || [] };
+                        }
+                        return modalPrev;
+                    });
+                }
+                return { ...prev, sub_tasks: updated };
+            });
             toast.success("Attachment uploaded successfully!", { id: loadingToast });
         } catch (e) {
             console.error(e);
             toast.error(e.response?.data?.message || "Failed to upload attachment", { id: loadingToast });
+        }
+    };
+
+    const handleUploadMultipleSubTaskAttachments = async (subTaskId, fileList) => {
+        const files = Array.from(fileList || []);
+        for (const file of files) {
+            await handleUploadSubTaskAttachment(subTaskId, file);
         }
     };
 
@@ -741,9 +809,148 @@ export default function TaskDetailPage() {
                         ...prev,
                         sub_tasks: prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st)
                     }));
+                    setAttachmentsModal(modalPrev => {
+                        if (modalPrev.open && modalPrev.type === 'subtask' && modalPrev.id === subTaskId) {
+                            return { ...modalPrev, files: [] };
+                        }
+                        return modalPrev;
+                    });
                     toast.success("Attachment deleted successfully!", { id: loadingToast });
                 } catch (e) {
                     console.error(e);
+                    toast.error("Failed to delete attachment", { id: loadingToast });
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const handleDeleteSubTaskFileAttachment = async (subTaskId, filePath) => {
+        const subTask = task.sub_tasks?.find(st => st.id === subTaskId);
+        if (!subTask) return;
+
+        setConfirmState({
+            open: true,
+            title: 'Delete Attachment',
+            message: 'Are you sure you want to delete this attachment? This action cannot be undone.',
+            confirmLabel: 'Delete Attachment',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                const loadingToast = toast.loading("Deleting attachment...");
+                try {
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    const currentPaths = subTask.attachments?.map(att => att.path) || [];
+                    const updatedPaths = currentPaths.filter(p => p !== filePath);
+                    
+                    const res = await api.patch(`${apiPrefix}/tasks/${id}/sub-tasks/${subTaskId}`, {
+                        screenshot: updatedPaths.length > 0 ? JSON.stringify(updatedPaths) : null
+                    });
+
+                    setTask(prev => {
+                        const updated = prev.sub_tasks.map(st => st.id === subTaskId ? res.data.data : st);
+                        const updatedSubTask = updated.find(st => st.id === subTaskId);
+                        if (updatedSubTask) {
+                            setAttachmentsModal(modalPrev => {
+                                if (modalPrev.open && modalPrev.type === 'subtask' && modalPrev.id === subTaskId) {
+                                    return { ...modalPrev, files: updatedSubTask.attachments || [] };
+                                }
+                                return modalPrev;
+                            });
+                        }
+                        return { ...prev, sub_tasks: updated };
+                    });
+
+                    toast.success("Attachment deleted successfully!", { id: loadingToast });
+                } catch (e) {
+                    console.error(e);
+                    toast.error("Failed to delete attachment", { id: loadingToast });
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const handleUploadRowAttachment = async (rowIndex, file) => {
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("File size must be under 5MB.");
+            return;
+        }
+
+        const loadingToast = toast.loading("Uploading attachment...");
+        try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const res = await api.post(`${apiPrefix}/tasks/upload-file`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const newRows = [...rows];
+            if (!newRows[rowIndex].attachments) {
+                newRows[rowIndex].attachments = [];
+            }
+            newRows[rowIndex].attachments.push({
+                name: res.data.name,
+                url: res.data.url,
+                path: res.data.path
+            });
+            setRows(newRows);
+            await handleSaveRows(newRows);
+
+            setAttachmentsModal(prev => {
+                if (prev.open && prev.type === 'row' && prev.originalIndex === rowIndex) {
+                    return { ...prev, files: newRows[rowIndex].attachments };
+                }
+                return prev;
+            });
+
+            toast.success("Attachment uploaded successfully!", { id: loadingToast });
+        } catch (e) {
+            console.error(e);
+            toast.error(e.response?.data?.message || "Failed to upload attachment", { id: loadingToast });
+        }
+    };
+
+    const handleUploadMultipleRowAttachments = async (rowIndex, fileList) => {
+        const files = Array.from(fileList || []);
+        for (const file of files) {
+            await handleUploadRowAttachment(rowIndex, file);
+        }
+    };
+
+    const handleDeleteRowAttachment = async (rowIndex, filePath) => {
+        setConfirmState({
+            open: true,
+            title: 'Delete Attachment',
+            message: 'Are you sure you want to delete this attachment? This action cannot be undone.',
+            confirmLabel: 'Delete Attachment',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                const loadingToast = toast.loading("Deleting attachment...");
+                try {
+                    const newRows = [...rows];
+                    if (newRows[rowIndex].attachments) {
+                        newRows[rowIndex].attachments = newRows[rowIndex].attachments.filter(att => att.path !== filePath);
+                    }
+                    setRows(newRows);
+                    await handleSaveRows(newRows);
+
+                    setAttachmentsModal(prev => {
+                        if (prev.open && prev.type === 'row' && prev.originalIndex === rowIndex) {
+                            return { ...prev, files: newRows[rowIndex].attachments || [] };
+                        }
+                        return prev;
+                    });
+
+                    toast.success("Attachment deleted successfully!", { id: loadingToast });
+                } catch (err) {
+                    console.error(err);
                     toast.error("Failed to delete attachment", { id: loadingToast });
                 } finally {
                     setConfirmState({ open: false });
@@ -952,12 +1159,12 @@ export default function TaskDetailPage() {
     const subStatusOptions = getSubStatusOptions(task, schema);
 
     const getSubStatusCount = (subStatus) => {
-        if (!task || !task.sub_tasks) return 0;
-        return task.sub_tasks.filter(st => {
+        return rows.filter(r => {
+            const rowSubStatus = r.sub_status || r.dynamic_data?.['Sub Status'] || r.dynamic_data?.['static_sub_status'];
             if (subStatus === 'Unassigned') {
-                return !st.sub_status;
+                return !rowSubStatus;
             }
-            return st.sub_status === subStatus;
+            return rowSubStatus === subStatus;
         }).length;
     };
 
@@ -969,17 +1176,157 @@ export default function TaskDetailPage() {
         'Other': 'other'
     };
 
-    const filteredSubTasks = (task.sub_tasks || []).filter(st => {
-        if (selectedStatusFilter && st.status !== selectedStatusFilter) return false;
+    const filteredSubTasks = task.sub_tasks || [];
+
+
+    const baseColumns = schema.length > 0 ? [
+        ...schema.map(f => {
+            if (f.id === 'static_form_name') {
+                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[200px]' };
+            }
+            if (f.id === 'static_client_name') {
+                return { id: 'client', label: 'Client', minWidth: 'min-w-[220px]' };
+            }
+            if (f.id === 'static_work_type') {
+                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' };
+            }
+            if (f.id === 'static_assignee') {
+                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[220px]' };
+            }
+            if (f.id === 'static_created_date') {
+                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[150px]' };
+            }
+            if (f.id === 'static_sheet_status') {
+                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[180px]' };
+            }
+            if (f.id === 'static_sub_status') {
+                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' };
+            }
+            return {
+                id: `dynamic_${f.label}`,
+                label: f.label,
+                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[240px]' : 'min-w-[200px]',
+                isDynamic: true,
+                field: f
+            };
+        }),
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[145px]' }
+    ] : [
+        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[200px]' },
+        { id: 'client', label: 'Client', minWidth: 'min-w-[220px]' },
+        { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' },
+        { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[220px]' },
+        { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[150px]' },
+        { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[180px]' },
+        { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' },
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[145px]' }
+    ];
+
+    let activeColumns = [];
+    if (customColumnOrder) {
+        const baseIds = baseColumns.map(c => c.id);
+        const ordered = customColumnOrder.filter(id => baseIds.includes(id));
+        const missing = baseIds.filter(id => !ordered.includes(id));
+        const finalIds = [...ordered, ...missing];
+        activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
+    } else {
+        activeColumns = baseColumns;
+    }
+
+    const allFields = activeColumns.map(col => {
+        if (col.id === 'form_name') return { key: 'form_name', label: 'Sheet Name', isStatic: true };
+        if (col.id === 'client') return { key: 'client_id', label: 'Client', isStatic: true };
+        if (col.id === 'work_type') return { key: 'work_type_id', label: 'Work Type', isStatic: true };
+        if (col.id === 'assigned_to') return { key: 'allocated_to', label: 'Assigned To', isStatic: true };
+        if (col.id === 'date_allocated') return { key: 'date_allocated', label: 'Create Date', isStatic: true };
+        if (col.id === 'status') return { key: 'status', label: 'Sheet Status', isStatic: true };
+        if (col.id === 'sub_status') return { key: 'sub_status', label: 'Sub Status', isStatic: true };
+        if (col.isDynamic) return { key: col.label, label: col.label, isStatic: false };
+        return null;
+    }).filter(Boolean);
+
+    const filteredRows = rows.filter(row => {
+        if (selectedStatusFilter && row.status?.toLowerCase() !== selectedStatusFilter.toLowerCase()) return false;
         if (selectedSubStatusFilter) {
+            const rowSubStatus = row.sub_status || row.dynamic_data?.['Sub Status'] || row.dynamic_data?.['static_sub_status'];
             if (selectedSubStatusFilter === 'Unassigned') {
-                if (st.sub_status) return false;
+                if (rowSubStatus) return false;
             } else {
-                if (st.sub_status !== selectedSubStatusFilter) return false;
+                if (rowSubStatus !== selectedSubStatusFilter) return false;
             }
         }
-        return true;
+        
+        return allFields.every(field => {
+            const query = dynamicFilters[field.key];
+            if (!query) return true;
+
+            let value = '';
+            if (field.isStatic) {
+                if (field.key === 'form_name') {
+                    value = row.form_name;
+                } else if (field.key === 'client_id') {
+                    value = clients.find(c => String(c.id) === String(row.client_id))?.name;
+                } else if (field.key === 'work_type_id') {
+                    value = workTypes.find(wt => String(wt.id) === String(row.work_type_id))?.name;
+                } else if (field.key === 'allocated_to') {
+                    value = staff.find(s => String(s.id) === String(row.allocated_to))?.name;
+                } else if (field.key === 'date_allocated') {
+                    value = row.date_allocated;
+                } else if (field.key === 'status') {
+                    value = row.status;
+                } else if (field.key === 'sub_status') {
+                    value = row.sub_status;
+                }
+            } else {
+                value = row.dynamic_data?.[field.key];
+            }
+
+            return (value || '').toString().toLowerCase().includes(query.toLowerCase());
+        });
     });
+
+    const sortedRows = sortField && sortDirection !== 'default'
+        ? [...filteredRows].sort((a, b) => {
+            let valA = '';
+            let valB = '';
+
+            if (sortField === 'form_name') {
+                valA = a.form_name || '';
+                valB = b.form_name || '';
+            } else if (sortField === 'client') {
+                valA = clients.find(c => String(c.id) === String(a.client_id))?.name || '';
+                valB = clients.find(c => String(c.id) === String(b.client_id))?.name || '';
+            } else if (sortField === 'work_type') {
+                valA = workTypes.find(wt => String(wt.id) === String(a.work_type_id))?.name || '';
+                valB = workTypes.find(wt => String(wt.id) === String(b.work_type_id))?.name || '';
+            } else if (sortField === 'assigned_to') {
+                valA = staff.find(s => String(s.id) === String(a.allocated_to))?.name || '';
+                valB = staff.find(s => String(s.id) === String(b.allocated_to))?.name || '';
+            } else if (sortField === 'date_allocated') {
+                valA = a.date_allocated || '';
+                valB = b.date_allocated || '';
+            } else if (sortField === 'status') {
+                valA = a.status || '';
+                valB = b.status || '';
+            } else if (sortField === 'sub_status') {
+                valA = a.sub_status || '';
+                valB = b.sub_status || '';
+            } else if (sortField.startsWith('dynamic_')) {
+                const fieldLabel = sortField.replace('dynamic_', '');
+                valA = a.dynamic_data?.[fieldLabel] || '';
+                valB = b.dynamic_data?.[fieldLabel] || '';
+            }
+
+            const strA = (valA ?? '').toString().toLowerCase();
+            const strB = (valB ?? '').toString().toLowerCase();
+
+            if (strA < strB) return sortDirection === 'asc' ? -1 : 1;
+            if (strA > strB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        })
+        : filteredRows;
 
     return (
         <div className="space-y-6 max-w-[100vw] pb-12 relative">
@@ -1344,12 +1691,12 @@ export default function TaskDetailPage() {
             {/* Subtask Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3 animate-fade-in">
                 {[
-                    { label: 'Pending', count: task.sub_tasks?.filter(st => st.status === 'pending').length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
-                    { label: 'Work In Progress', count: task.sub_tasks?.filter(st => st.status === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
-                    { label: 'Complete', count: task.sub_tasks?.filter(st => st.status === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
-                    { label: 'Not To Be Done', count: task.sub_tasks?.filter(st => st.status === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
-                    { label: 'Other', count: task.sub_tasks?.filter(st => st.status === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
-                    { label: 'Total Tasks', count: task.sub_tasks?.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All tasks of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
+                    { label: 'Pending', count: rows.filter(r => r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'assigned' || !r.status).length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
+                    { label: 'Work In Progress', count: rows.filter(r => r.status?.toLowerCase() === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
+                    { label: 'Complete', count: rows.filter(r => r.status?.toLowerCase() === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
+                    { label: 'Not To Be Done', count: rows.filter(r => r.status?.toLowerCase() === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
+                    { label: 'Other', count: rows.filter(r => r.status?.toLowerCase() === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
+                    { label: 'Total Sheets', count: rows.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All rows of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
                 ].map((card, i) => (
                     <SummaryCard 
                         key={i} 
@@ -1392,7 +1739,7 @@ export default function TaskDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3">
                     {[
-                        { label: 'All Sub Statuses', count: task.sub_tasks?.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all tasks', subColor: 'text-indigo-500 font-semibold' },
+                        { label: 'All Sub Statuses', count: rows.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
                         { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
                         ...subStatusOptions.map(opt => {
                             const lowerOpt = opt.toLowerCase();
@@ -1453,8 +1800,7 @@ export default function TaskDetailPage() {
                         );
                     })}
                 </div>
-            </div>
-            {/* Sheet Information Table (Excel/Spreadsheet style row) */}
+            </div>            {/* Sheet Information Table (Excel/Spreadsheet style row) */}
             <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-6 md:p-8 space-y-6 animate-fade-in mt-6">
                 <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
@@ -1466,516 +1812,873 @@ export default function TaskDetailPage() {
                             <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Spreadsheet metadata & custom variables</p>
                         </div>
                     </div>
+                    <div className="flex items-center gap-2">
+                        {allFields.length > 0 && (
+                            <button
+                                onClick={() => setShowColumnFilters(!showColumnFilters)}
+                                className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border ${showColumnFilters ? 'bg-[#1F5C99] text-white border-[#1F5C99]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                            >
+                                <Sliders size={14} /> 
+                                <span>Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
+
+                {/* Dynamic Column Filters Panel */}
+                {showColumnFilters && allFields.length > 0 && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-extrabold text-slate-800 tracking-wide flex items-center gap-2">
+                                <Sliders size={14} className="text-[#1F5C99]" />
+                                Scrollable Column Filters
+                            </h4>
+                            {Object.values(dynamicFilters).filter(Boolean).length > 0 && (
+                                <button
+                                    onClick={() => setDynamicFilters({})}
+                                    className="text-xs font-bold text-red-500 hover:text-red-700 transition"
+                                >
+                                    Clear All Filters
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex gap-4 overflow-x-auto pb-3 pt-1 px-1 no-scrollbar scroll-smooth">
+                            {allFields.map(field => (
+                                <div key={field.key} className="relative min-w-[200px] shrink-0 bg-white p-3 rounded-xl border border-slate-150 shadow-sm hover:border-[#1F5C99]/30 transition">
+                                    <Tooltip content={field.label} position="bottom">
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1.5 truncate cursor-help">
+                                            {field.label}
+                                            {field.isStatic && <span className="ml-1.5 text-[8px] font-semibold text-[#1F5C99] bg-[#1F5C99]/5 px-1 py-0.5 rounded">System</span>}
+                                        </label>
+                                    </Tooltip>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder={`Search ${field.label}...`}
+                                            value={dynamicFilters[field.key] || ''}
+                                            onChange={e => setDynamicFilters(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            className="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-bold text-slate-700"
+                                        />
+                                        {dynamicFilters[field.key] && (
+                                            <button
+                                                onClick={() => setDynamicFilters(prev => {
+                                                    const copy = { ...prev };
+                                                    delete copy[field.key];
+                                                    return copy;
+                                                })}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 transition"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
                                 <th className="px-6 py-4 text-center border-r border-[#154673] w-16 text-white bg-[#1F5C99]">#</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[200px] text-white">Sheet Name</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[220px] text-white">Client</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[180px] text-white">Work Type</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[220px] text-white">Assigned To</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[150px] text-white">Create Date</th>
-                                <th className="px-6 py-4 border-r border-[#154673] min-w-[180px] text-white">Sheet Status</th>
-                                {/* Dynamic Field Headers */}
-                                {schema.filter(f => !['static_form_name', 'static_client_name', 'static_work_type', 'static_assignee', 'static_created_date', 'static_sheet_status', 'static_entry_date', 'static_task_particular', 'static_due_date', 'static_task_status', 'static_sub_status', 'static_feedback'].includes(f.id)).map(f => (
-                                    <th key={f.id} className="px-6 py-4 border-r border-[#154673] min-w-[200px] text-white">{f.label}</th>
-                                ))}
+                                {activeColumns.map((col, idx) => {
+                                    const handleColumnDrop = (targetIdx) => {
+                                        if (draggedColumnIndex === null || draggedColumnIndex === targetIdx) return;
+                                        const copy = [...activeColumns.map(c => c.id)];
+                                        const draggedItem = copy[draggedColumnIndex];
+                                        copy.splice(draggedColumnIndex, 1);
+                                        copy.splice(targetIdx, 0, draggedItem);
+                                        setCustomColumnOrder(copy);
+                                        setDraggedColumnIndex(null);
+                                        setDragOverColumnIndex(null);
+                                        toast.success(`Positioned "${col.label}" column!`);
+                                    };
+                                    
+                                    const isDragging = draggedColumnIndex === idx;
+                                    const isDragOver = dragOverColumnIndex === idx;
+                                    
+                                    return (
+                                        <th
+                                            key={col.id}
+                                            draggable
+                                            onDragStart={() => setDraggedColumnIndex(idx)}
+                                            onDragOver={(e) => {
+                                                e.preventDefault();
+                                                setDragOverColumnIndex(idx);
+                                            }}
+                                            onDragEnd={() => {
+                                                setDraggedColumnIndex(null);
+                                                setDragOverColumnIndex(null);
+                                            }}
+                                            onDrop={() => handleColumnDrop(idx)}
+                                            className={`px-6 py-4 text-left border-r border-[#154673] whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th text-white font-bold ${col.minWidth} ${
+                                                isDragging ? 'opacity-40 bg-[#154673]/50 scale-95 border-dashed border-2 border-slate-350' : ''
+                                            } ${
+                                                isDragOver && !isDragging ? 'bg-[#154673] border-l-2 border-blue-400 scale-102 shadow-sm' : ''
+                                            }`}
+                                            title="Drag to rearrange column order"
+                                        >
+                                            <div className="flex items-center gap-1.5 justify-between">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <GripVertical size={13} className="text-blue-200 shrink-0 cursor-grab group-hover/th:text-white transition" />
+                                                    <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSort(col.id);
+                                                        }}
+                                                        className="flex items-center gap-1 cursor-pointer hover:text-white transition min-w-0 select-none"
+                                                        title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
+                                                    >
+                                                        <span className={`font-black transition truncate ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
+                                                        {sortField === col.id ? (
+                                                            sortDirection === 'asc' ? (
+                                                                <ArrowUp size={13} className="text-white shrink-0" />
+                                                            ) : (
+                                                                <ArrowDown size={13} className="text-white shrink-0" />
+                                                            )
+                                                        ) : (
+                                                            <ArrowUpDown size={13} className="text-blue-200 group-hover/th:text-white shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-slate-700 text-xs">
-                            <tr key={task.id} className="hover:bg-slate-50/30 transition group">
-                                {/* # column */}
-                                <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40">
-                                    01
-                                </td>
-
-                                {/* Sheet Name column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            value={task.form_name || ''}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setTask(prev => ({ ...prev, form_name: val }));
-                                            }}
-                                            onFocus={(e) => setFocusedValue(e.target.value)}
-                                            onBlur={(e) => {
-                                                if (e.target.value !== focusedValue) {
-                                                    handleUpdateTaskFields({ form_name: e.target.value });
-                                                }
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.target.blur();
-                                                }
-                                            }}
-                                            placeholder="Sheet Name..."
-                                            className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition"
-                                        />
-                                    </div>
-                                </td>
-
-                                {/* Client column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <select
-                                        value={task.client?.id || ''}
-                                        onChange={(e) => {
-                                            handleUpdateTaskFields({ client_id: e.target.value || null });
-                                        }}
-                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
+                            {sortedRows.length === 0 ? (
+                                <tr>
+                                    <td 
+                                        colSpan={1 + activeColumns.length} 
+                                        className="px-10 py-8 text-center text-slate-400 text-xs italic font-bold"
                                     >
-                                        <option value="">— Select Client —</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </td>
+                                        No rows match the selected filters. Click "Clear all filters" or select another card to see all items.
+                                    </td>
+                                </tr>
+                            ) : (
+                                sortedRows.map((row, idx) => {
+                                    const originalIndex = rows.indexOf(row);
+                                    if (originalIndex === -1) return null;
 
-                                {/* Work Type column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <select
-                                        value={task.work_type?.id || ''}
-                                        onChange={(e) => {
-                                            handleUpdateTaskFields({ work_type_id: e.target.value || null });
-                                        }}
-                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
-                                    >
-                                        <option value="">— Select Work Type —</option>
-                                        {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                    </select>
-                                </td>
-
-                                {/* Assigned To column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <select
-                                        value={task.allocated_to?.id || ''}
-                                        onChange={(e) => {
-                                            handleUpdateTaskFields({ allocated_to: e.target.value || null });
-                                        }}
-                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
-                                    >
-                                        <option value="">— Select Assigned To —</option>
-                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </td>
-
-                                {/* Create Date column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <input
-                                        type="date"
-                                        value={task.date_allocated || ''}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            setTask(prev => ({ ...prev, date_allocated: val }));
-                                        }}
-                                        onFocus={(e) => setFocusedValue(e.target.value)}
-                                        onBlur={(e) => {
-                                            if (e.target.value !== focusedValue) {
-                                                handleUpdateTaskFields({ date_allocated: e.target.value });
-                                            }
-                                        }}
-                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full"
-                                    />
-                                </td>
-
-                                {/* Sheet Status column */}
-                                <td className="px-6 py-4 border-r border-slate-200">
-                                    <select
-                                        value={task.status || ''}
-                                        onChange={(e) => {
-                                            handleUpdateTaskFields({ status: e.target.value });
-                                        }}
-                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full"
-                                    >
-                                        <option value="complete">Complete</option>
-                                        <option value="work_in_progress">Work In Progress</option>
-                                        <option value="pending">Pending</option>
-                                        <option value="not_to_be_done">Not To Be Done</option>
-                                        <option value="other">Other</option>
-                                    </select>
-                                </td>
-
-                                {/* Dynamic Columns */}
-                                {schema.filter(f => !['static_form_name', 'static_client_name', 'static_work_type', 'static_assignee', 'static_created_date', 'static_sheet_status', 'static_entry_date', 'static_task_particular', 'static_due_date', 'static_task_status', 'static_sub_status', 'static_feedback'].includes(f.id)).map(field => {
-                                    const value = task.dynamic_fields?.[field.label] ?? '';
-                                    const isDropdown = field.type === 'dropdown';
-                                    const isCheckbox = field.type === 'checkbox';
-                                    const isDate = field.type === 'date';
-                                    const isRating = field.label === 'CA Rating';
-                                    const isFeedback = field.label === 'CA Feedback';
-                                    const isProgressAuto = field.type === 'progress_auto';
-                                    const isProgressManual = field.type === 'progress_manual';
-                                    const isTime = field.type === 'time';
+                                    const isRowLocked = !isAdmin && (
+                                        row.is_verified || 
+                                        !canWrite || 
+                                        (isStaff && String(row.allocated_to) !== String(user.id))
+                                    );
 
                                     return (
-                                        <td key={field.id} className="px-6 py-4 border-r border-slate-200">
-                                            {isRating ? (
-                                                <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
-                                                    {Array.from({ length: 5 }).map((_, i) => {
-                                                        const starNum = i + 1;
-                                                        const isFilled = starNum <= parseInt(value || '0');
-                                                        return (
-                                                            <button 
-                                                                key={i} 
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const nextDynamicFields = {
-                                                                        ...(task.dynamic_fields || {}),
-                                                                        'CA Rating': String(starNum)
-                                                                    };
-                                                                    handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                        <tr key={originalIndex} className="hover:bg-slate-50/30 transition group">
+                                            {/* # column with hover delete */}
+                                            <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40 relative group/rowno">
+                                                <span className="group-hover/rowno:hidden">
+                                                    {String(idx + 1).padStart(2, '0')}
+                                                </span>
+                                                {rows.length > 1 && !isRowLocked && canDelete && (
+                                                    <button
+                                                        onClick={() => removeRow(originalIndex)}
+                                                        className="hidden group-hover/rowno:inline-flex absolute inset-0 items-center justify-center text-rose-500 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 transition-all font-bold"
+                                                        title="Delete Row"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                            </td>
+
+                                            {activeColumns.map(col => {
+                                                if (col.id === 'form_name') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    disabled={isRowLocked}
+                                                                    value={row.form_name || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].form_name = val;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                    onBlur={(e) => {
+                                                                        if (e.target.value !== focusedValue) {
+                                                                            handleSaveRows(rows);
+                                                                        }
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') {
+                                                                            e.target.blur();
+                                                                        }
+                                                                    }}
+                                                                    placeholder="Sheet Name..."
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'client') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200 min-w-[220px]">
+                                                            <SearchableSelect
+                                                                value={row.client_id || ''}
+                                                                disabled={isRowLocked}
+                                                                options={clients.map(c => {
+                                                                    const details = [];
+                                                                    if (c.contact) details.push(c.contact);
+                                                                    if (c.pan_no) details.push(c.pan_no);
+                                                                    const label = details.length > 0 ? `${c.name} (${details.join(' | ')})` : c.name;
+                                                                    return { value: c.id, label };
+                                                                })}
+                                                                placeholder="Select Client..."
+                                                                onChange={(val) => {
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].client_id = val || null;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
                                                                 }}
-                                                                className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
-                                                                title={`Rate ${starNum} Stars`}
+                                                                size="sm"
+                                                                direction={originalIndex > 3 ? 'up' : 'down'}
+                                                            />
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'work_type') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <select
+                                                                disabled={isRowLocked}
+                                                                value={row.work_type_id || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].work_type_id = val || null;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
-                                                                ★
-                                                            </button>
-                                                        );
-                                                    })}
-                                                    <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
-                                                </div>
-                                            ) : isFeedback ? (
-                                                <div className="flex items-center gap-2 group/edit-inline w-full">
-                                                    {isEditingFeedbackInline ? (
-                                                        <div className="flex items-center gap-2 w-full min-w-[200px]">
-                                                            <input 
-                                                                type="text" 
-                                                                value={inlineFeedbackValue} 
-                                                                onChange={e => setInlineFeedbackValue(e.target.value)}
-                                                                onBlur={() => {
-                                                                    setIsEditingFeedbackInline(false);
-                                                                    const nextDynamicFields = {
-                                                                        ...(task.dynamic_fields || {}),
-                                                                        'CA Feedback': inlineFeedbackValue
-                                                                    };
-                                                                    handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                                <option value="">— Select Work Type —</option>
+                                                                {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                                            </select>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'assigned_to') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <select
+                                                                disabled={isRowLocked}
+                                                                value={row.allocated_to || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].allocated_to = val || null;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
                                                                 }}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') {
-                                                                        setIsEditingFeedbackInline(false);
-                                                                        const nextDynamicFields = {
-                                                                            ...(task.dynamic_fields || {}),
-                                                                            'CA Feedback': inlineFeedbackValue
-                                                                        };
-                                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                            >
+                                                                <option value="">— Select Assigned To —</option>
+                                                                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                            </select>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'date_allocated') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <input
+                                                                type="date"
+                                                                disabled={isRowLocked}
+                                                                value={row.date_allocated || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].date_allocated = val;
+                                                                    setRows(newRows);
+                                                                }}
+                                                                onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                onBlur={(e) => {
+                                                                    if (e.target.value !== focusedValue) {
+                                                                        handleSaveRows(rows);
                                                                     }
                                                                 }}
-                                                                autoFocus
-                                                                className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 w-full focus:bg-white focus:border-indigo-500 outline-none transition"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
-                                                        </div>
-                                                    ) : (
-                                                        <div 
-                                                            onClick={() => {
-                                                                setInlineFeedbackValue(value || '');
-                                                                setIsEditingFeedbackInline(true);
-                                                            }}
-                                                            className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group min-w-[150px]"
-                                                            title="Click to Edit Feedback"
-                                                        >
-                                                            <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
-                                                            <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : isProgressAuto ? (
-                                                <div className="flex flex-col gap-1.5 w-full min-w-[220px] select-none p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                                                    {(() => {
-                                                        const totalSub = task.sub_tasks?.length || 0;
-                                                        const completeSub = task.sub_tasks?.filter(st => st.status === 'complete').length || 0;
-                                                        const pct = totalSub > 0 ? Math.round((completeSub / totalSub) * 100) : 0;
+                                                        </td>
+                                                    );
+                                                }
 
-                                                        let gradient = 'from-rose-500 to-amber-500';
-                                                        let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
-                                                        if (pct >= 40 && pct < 90) {
-                                                            gradient = 'from-blue-500 to-indigo-600';
-                                                            badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-650';
-                                                        } else if (pct >= 90) {
-                                                            gradient = 'from-emerald-500 to-teal-500';
-                                                            badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
-                                                        }
+                                                if (col.id === 'status') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <select
+                                                                disabled={isRowLocked}
+                                                                value={row.status || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].status = val;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                            >
+                                                                <option value="">— Select Status —</option>
+                                                                <option value="assigned">Assigned</option>
+                                                                <option value="complete">Complete</option>
+                                                                <option value="work_in_progress">Work In Progress</option>
+                                                                <option value="pending">Pending</option>
+                                                                <option value="not_to_be_done">Not To Be Done</option>
+                                                                <option value="other">Other</option>
+                                                            </select>
+                                                        </td>
+                                                    );
+                                                }
 
-                                                        const timeText = (() => {
-                                                            if (!task.created_at) return 'Sync: Just now';
-                                                            const diffMs = new Date() - new Date(task.created_at);
-                                                            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-                                                            const diffDays = Math.floor(diffHrs / 24);
-                                                            if (diffHrs < 1) return 'Sync: Just now';
-                                                            if (diffHrs < 24) return `Active ${diffHrs}h ago`;
-                                                            return `Active ${diffDays}d ago`;
-                                                        })();
+                                                if (col.id === 'sub_status') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                            <select
+                                                                disabled={isRowLocked}
+                                                                value={row.sub_status || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].sub_status = val || null;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                            >
+                                                                <option value="">— Set Sub Status —</option>
+                                                                {getSubStatusOptions(task, schema).map((opt, i) => (
+                                                                    <option key={i} value={opt}>{opt}</option>
+                                                                ))}
+                                                            </select>
+                                                        </td>
+                                                    );
+                                                }
 
-                                                        return (
-                                                            <>
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                                        AUTO CALCULATED
-                                                                    </span>
-                                                                    <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
-                                                                        {pct}%
-                                                                    </span>
-                                                                </div>
-                                                                
-                                                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden relative shadow-inner border border-slate-200/20">
-                                                                    <div 
-                                                                        className={`h-full rounded-full bg-gradient-to-r ${gradient} transition-all duration-700 ease-out shadow-sm relative`}
-                                                                        style={{ width: `${pct}%` }}
-                                                                    >
-                                                                        {pct > 0 && pct < 100 && (
-                                                                            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.25)_50%,transparent_100%)] animate-[shimmer_1.8s_infinite] w-full h-full" />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                
-                                                                <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-0.5 select-none">
-                                                                    <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
-                                                                        <Clock size={9} className="text-slate-350" />
-                                                                        {timeText}
-                                                                    </span>
-                                                                    <span className="text-[9px] font-extrabold text-indigo-650 bg-indigo-50 border border-indigo-100/30 px-1.5 py-0.5 rounded-md">
-                                                                        {completeSub}/{totalSub} Completed
-                                                                    </span>
-                                                                </div>
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            ) : isProgressManual ? (
-                                                <div className="flex flex-col gap-1.5 w-full min-w-[220px] p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                                                    {(() => {
-                                                        const parsedVal = Math.min(100, Math.max(0, parseInt(value) || 0));
-
-                                                        let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
-                                                        if (parsedVal >= 40 && parsedVal < 90) {
-                                                            badgeBg = 'bg-teal-50 border-teal-100 text-teal-700';
-                                                        } else if (parsedVal >= 90) {
-                                                            badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
-                                                        }
-
-                                                        const handleManualSave = (val) => {
-                                                            const nextDynamicFields = {
-                                                                ...(task.dynamic_fields || {}),
-                                                                [field.label]: String(val)
-                                                            };
-                                                            handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                        };
-
-                                                        return (
-                                                            <>
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                                        PROGRESS
-                                                                    </span>
-                                                                    <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
-                                                                        {parsedVal}%
-                                                                    </span>
-                                                                </div>
-
-                                                                <div className="relative flex items-center group/slider mt-1">
-                                                                    <input 
-                                                                        type="range" 
-                                                                        min="0" 
-                                                                        max="100" 
-                                                                        value={parsedVal}
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value;
-                                                                            setTask(prev => ({
-                                                                                ...prev,
-                                                                                dynamic_fields: {
-                                                                                    ...(prev.dynamic_fields || {}),
-                                                                                    [field.label]: String(val)
-                                                                                }
-                                                                            }));
-                                                                        }}
-                                                                        onMouseUp={(e) => handleManualSave(e.target.value)}
-                                                                        onTouchEnd={(e) => handleManualSave(e.target.value)}
-                                                                        className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20"
-                                                                        style={{
-                                                                            background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
-                                                                        }}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Quick adjust pills */}
-                                                                <div className="flex gap-1 mt-1 justify-between select-none">
-                                                                    {[-10, 10, 50, 100].map(adjust => {
-                                                                        let pillLabel = adjust > 0 ? `+${adjust}%` : `${adjust}%`;
-                                                                        if (adjust === 50) pillLabel = "50%";
-                                                                        if (adjust === 100) pillLabel = "100%";
-                                                                        
-                                                                        return (
-                                                                            <button
-                                                                                key={adjust}
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    let nextVal = parsedVal;
-                                                                                    if (adjust === -10 || adjust === 10) {
-                                                                                        nextVal = Math.min(100, Math.max(0, parsedVal + adjust));
-                                                                                    } else {
-                                                                                        nextVal = adjust;
-                                                                                    }
-                                                                                    
-                                                                                    setTask(prev => ({
-                                                                                        ...prev,
-                                                                                        dynamic_fields: {
-                                                                                            ...(prev.dynamic_fields || {}),
-                                                                                            [field.label]: String(nextVal)
-                                                                                        }
-                                                                                    }));
-                                                                                    
-                                                                                    handleManualSave(nextVal);
-                                                                                }}
-                                                                                className="text-[8px] font-black tracking-widest uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200/50 hover:border-slate-350 text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded-md transition duration-150 active:scale-90"
-                                                                            >
-                                                                                {pillLabel}
-                                                                            </button>
-                                                                        );
-                                                                    })}
-                                                                </div>
-
-                                                                <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-1 select-none">
-                                                                    <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
-                                                                        <Clock size={9} className="text-slate-350" />
-                                                                        Updated: Just now
-                                                                    </span>
-                                                                    <span className="text-[8px] font-black uppercase text-indigo-500/80 tracking-wider">
-                                                                        Adjustable
-                                                                    </span>
-                                                                </div>
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            ) : isDropdown ? (
-                                                <select
-                                                    value={value || ''}
-                                                    onChange={(e) => {
-                                                        const nextDynamicFields = {
-                                                            ...(task.dynamic_fields || {}),
-                                                            [field.label]: e.target.value
-                                                        };
-                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                    }}
-                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[150px]"
-                                                >
-                                                    <option value="">Select Option</option>
-                                                    {(field.options || []).map((opt, i) => {
-                                                         const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
-                                                         const optLbl = typeof opt === 'object' ? opt.label : opt;
-                                                         return (
-                                                             <option key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt} value={optVal}>
-                                                                 {optLbl}
-                                                             </option>
-                                                         );
-                                                     })}
-                                                </select>
-                                            ) : isCheckbox ? (
-                                                <div className="flex flex-wrap gap-2.5 min-w-[160px]">
-                                                    {(field.options || []).map(opt => {
-                                                        const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
-                                                        const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
-                                                         const optLbl = typeof opt === 'object' ? opt.label : opt;
-                                                         const isChecked = selectedValues.includes(optVal);
-                                                        return (
-                                                            <label key={typeof opt === 'object' ? (opt.value || opt.label || idx) : opt} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-650">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={(e) => {
-                                                                        let nextVals;
-                                                                        if (e.target.checked) {
-                                                                            nextVals = [...selectedValues, optVal];
-                                                                        } else {
-                                                                            nextVals = selectedValues.filter(v => v !== optVal);
-                                                                        }
-                                                                        const nextDynamicFields = {
-                                                                            ...(task.dynamic_fields || {}),
-                                                                            [field.label]: nextVals
-                                                                        };
-                                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
+                                                if (col.id === 'attachments') {
+                                                    return (
+                                                        <td className="px-6 py-5 text-center" style={{ minWidth: '120px', width: '120px' }}>
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setAttachmentsModal({
+                                                                            open: true,
+                                                                            title: `Attachments for Row ${idx + 1}`,
+                                                                            files: row.attachments || [],
+                                                                            type: 'row',
+                                                                            id: originalIndex,
+                                                                            originalIndex: originalIndex
+                                                                        });
+                                                                        setIncomingPreviewFile(null);
                                                                     }}
-                                                                    className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
+                                                                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-655 border border-indigo-100/50 rounded-xl transition shadow-sm cursor-pointer text-[10px] font-bold"
+                                                                    title="View/Manage Attachments"
+                                                                >
+                                                                    <Eye size={12} />
+                                                                    <span>{(row.attachments || []).length} Files</span>
+                                                                </button>
+                                                                {!isRowLocked && (
+                                                                    <label className="inline-flex items-center justify-center p-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-slate-500 hover:text-indigo-655 transition cursor-pointer" title="Upload multiple files">
+                                                                        <Plus size={12} />
+                                                                        <input
+                                                                            type="file"
+                                                                            multiple
+                                                                            onChange={(e) => handleUploadMultipleRowAttachments(originalIndex, e.target.files)}
+                                                                            className="hidden"
+                                                                        />
+                                                                    </label>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'is_verified') {
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200 text-center min-w-[145px]">
+                                                            {row.is_verified ? (
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    {isAdmin ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setConfirmState({
+                                                                                    open: true,
+                                                                                    title: 'Unverify & Unlock Row',
+                                                                                    message: 'Are you sure you want to unverify and unlock this sheet row? This will allow the assigned staff member to edit it again.',
+                                                                                    confirmLabel: 'Unverify & Unlock',
+                                                                                    danger: true,
+                                                                                    onConfirm: async () => {
+                                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                        try {
+                                                                                            const newRows = [...rows];
+                                                                                            newRows[originalIndex].is_verified = false;
+                                                                                            setRows(newRows);
+                                                                                            await handleSaveRows(newRows);
+                                                                                            toast.success("Row unverified and unlocked successfully!");
+                                                                                        } catch (err) {
+                                                                                            toast.error("Failed to unverify row");
+                                                                                        } finally {
+                                                                                            setConfirmState({ open: false });
+                                                                                        }
+                                                                                    }
+                                                                                });
+                                                                            }}
+                                                                            className="px-2.5 py-1.5 text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 hover:text-rose-800 transition active:scale-95 duration-150 flex items-center gap-1 shadow-sm shrink-0 mx-auto cursor-pointer"
+                                                                            title="Click to Unverify and unlock this row"
+                                                                        >
+                                                                            <Lock size={12} className="text-rose-500 animate-pulse" />
+                                                                            Unverify
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0 mx-auto" title="Locked by admin">
+                                                                            <Lock size={12} className="text-rose-600" />
+                                                                            Locked
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center justify-center">
+                                                                    {isAdmin ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setConfirmState({
+                                                                                    open: true,
+                                                                                    title: 'Verify & Lock Row',
+                                                                                    message: 'Are you sure you want to verify and lock this sheet row? Once verified, staff members cannot modify its details.',
+                                                                                    confirmLabel: 'Verify & Lock',
+                                                                                    danger: false,
+                                                                                    onConfirm: async () => {
+                                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                        try {
+                                                                                            const newRows = [...rows];
+                                                                                            newRows[originalIndex].is_verified = true;
+                                                                                            setRows(newRows);
+                                                                                            await handleSaveRows(newRows);
+                                                                                            toast.success("Row verified and locked successfully!");
+                                                                                        } catch (err) {
+                                                                                            toast.error("Failed to verify row");
+                                                                                        } finally {
+                                                                                            setConfirmState({ open: false });
+                                                                                        }
+                                                                                    }
+                                                                                });
+                                                                            }}
+                                                                            className="px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-100 hover:text-green-800 transition active:scale-95 duration-150 flex items-center gap-1 shrink-0 mx-auto cursor-pointer"
+                                                                            title="Click to Verify and lock this row"
+                                                                        >
+                                                                            <Unlock size={12} className="text-green-600" />
+                                                                            Verify
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0 mx-auto border-dashed" title="Unlocked">
+                                                                            <Unlock size={12} className="text-green-600" />
+                                                                            Unlocked
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                }
+
+                                                // Dynamic column cell rendering
+                                                const field = col.field;
+                                                const value = row.dynamic_data?.[field.label] ?? '';
+                                                const isDropdown = field.type === 'dropdown';
+                                                const isCheckbox = field.type === 'checkbox';
+                                                const isDate = field.type === 'date';
+                                                const isRating = field.label === 'CA Rating';
+                                                const isFeedback = field.label === 'CA Feedback';
+                                                const isProgressAuto = field.type === 'progress_auto';
+                                                const isProgressManual = field.type === 'progress_manual';
+                                                const isTime = field.type === 'time';
+
+                                                return (
+                                                    <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        {isRating ? (
+                                                            <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
+                                                                {Array.from({ length: 5 }).map((_, i) => {
+                                                                    const starNum = i + 1;
+                                                                    const isFilled = starNum <= parseInt(value || '0');
+                                                                    return (
+                                                                        <button 
+                                                                            key={i} 
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                const newRows = [...rows];
+                                                                                if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                newRows[originalIndex].dynamic_data['CA Rating'] = String(starNum);
+                                                                                setRows(newRows);
+                                                                                handleSaveRows(newRows);
+                                                                            }}
+                                                                            className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                                                                            title={`Rate ${starNum} Stars`}
+                                                                        >
+                                                                            ★
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                                <span className="text-[10px] font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({value || '0'}/5)</span>
+                                                            </div>
+                                                        ) : isFeedback ? (
+                                                            <div className="flex items-center gap-2 group/edit-inline w-full">
+                                                                {editingFeedbackIndex === originalIndex ? (
+                                                                    <div className="flex items-center gap-2 w-full min-w-[200px]">
+                                                                        <input 
+                                                                            type="text" 
+                                                                            value={inlineFeedbackValue} 
+                                                                            onChange={e => setInlineFeedbackValue(e.target.value)}
+                                                                            onBlur={() => {
+                                                                                setEditingFeedbackIndex(null);
+                                                                                const newRows = [...rows];
+                                                                                if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                newRows[originalIndex].dynamic_data['CA Feedback'] = inlineFeedbackValue;
+                                                                                setRows(newRows);
+                                                                                handleSaveRows(newRows);
+                                                                            }}
+                                                                            onKeyDown={e => {
+                                                                                if (e.key === 'Enter') {
+                                                                                    setEditingFeedbackIndex(null);
+                                                                                    const newRows = [...rows];
+                                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                    newRows[originalIndex].dynamic_data['CA Feedback'] = inlineFeedbackValue;
+                                                                                    setRows(newRows);
+                                                                                    handleSaveRows(newRows);
+                                                                                }
+                                                                            }}
+                                                                            autoFocus
+                                                                            className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 w-full focus:bg-white focus:border-indigo-500 outline-none transition"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div 
+                                                                        onClick={() => {
+                                                                            setInlineFeedbackValue(value || '');
+                                                                            setEditingFeedbackIndex(originalIndex);
+                                                                        }}
+                                                                        className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group min-w-[150px]"
+                                                                        title="Click to Edit Feedback"
+                                                                    >
+                                                                        <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
+                                                                        <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : isProgressAuto ? (
+                                                            <div className="flex flex-col gap-1.5 w-full min-w-[220px] select-none p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                                                                {(() => {
+                                                                    const totalSub = task.sub_tasks?.length || 0;
+                                                                    const completeSub = task.sub_tasks?.filter(st => st.status === 'complete').length || 0;
+                                                                    const pct = totalSub > 0 ? Math.round((completeSub / totalSub) * 100) : 0;
+
+                                                                    let gradient = 'from-rose-500 to-amber-500';
+                                                                    let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                                    if (pct >= 40 && pct < 90) {
+                                                                        gradient = 'from-blue-500 to-indigo-600';
+                                                                        badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-650';
+                                                                    } else if (pct >= 90) {
+                                                                        gradient = 'from-emerald-500 to-teal-500';
+                                                                        badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                                    }
+
+                                                                    const timeText = (() => {
+                                                                        if (!task.created_at) return 'Sync: Just now';
+                                                                        const diffMs = new Date() - new Date(task.created_at);
+                                                                        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+                                                                        const diffDays = Math.floor(diffHrs / 24);
+                                                                        if (diffHrs < 1) return 'Sync: Just now';
+                                                                        if (diffHrs < 24) return `Active ${diffHrs}h ago`;
+                                                                        return `Active ${diffDays}d ago`;
+                                                                    })();
+
+                                                                    return (
+                                                                        <>
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                                    AUTO CALCULATED
+                                                                                </span>
+                                                                                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
+                                                                                    {pct}%
+                                                                                </span>
+                                                                            </div>
+                                                                            
+                                                                            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden relative shadow-inner border border-slate-200/20">
+                                                                                <div 
+                                                                                    className={`h-full rounded-full bg-gradient-to-r ${gradient} transition-all duration-700 ease-out shadow-sm relative`}
+                                                                                    style={{ width: `${pct}%` }}
+                                                                                >
+                                                                                    {pct > 0 && pct < 100 && (
+                                                                                        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.25)_50%,transparent_100%)] animate-[shimmer_1.8s_infinite] w-full h-full" />
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            
+                                                                            <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-0.5 select-none">
+                                                                                <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
+                                                                                    <Clock size={9} className="text-slate-350" />
+                                                                                    {timeText}
+                                                                                </span>
+                                                                                <span className="text-[9px] font-extrabold text-indigo-650 bg-indigo-50 border border-indigo-100/30 px-1.5 py-0.5 rounded-md">
+                                                                                    {completeSub}/{totalSub} Completed
+                                                                                </span>
+                                                                            </div>
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        ) : isProgressManual ? (
+                                                            <div className="flex flex-col gap-1.5 w-full min-w-[220px] p-2 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                                                                {(() => {
+                                                                    const parsedVal = Math.min(100, Math.max(0, parseInt(value) || 0));
+
+                                                                    let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                                    if (parsedVal >= 40 && parsedVal < 90) {
+                                                                        badgeBg = 'bg-teal-50 border-teal-100 text-teal-700';
+                                                                    } else if (parsedVal >= 90) {
+                                                                        badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                                    }
+
+                                                                    const handleManualSave = (val) => {
+                                                                        const newRows = [...rows];
+                                                                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                        newRows[originalIndex].dynamic_data[field.label] = String(val);
+                                                                        setRows(newRows);
+                                                                        handleSaveRows(newRows);
+                                                                    };
+
+                                                                    return (
+                                                                        <>
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                                    PROGRESS
+                                                                                </span>
+                                                                                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>
+                                                                                    {parsedVal}%
+                                                                                </span>
+                                                                            </div>
+
+                                                                            <div className="relative flex items-center group/slider mt-1">
+                                                                                <input 
+                                                                                    type="range" 
+                                                                                    min="0" 
+                                                                                    max="100" 
+                                                                                    value={parsedVal}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        const newRows = [...rows];
+                                                                                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                        newRows[originalIndex].dynamic_data[field.label] = String(val);
+                                                                                        setRows(newRows);
+                                                                                    }}
+                                                                                    onMouseUp={(e) => handleManualSave(e.target.value)}
+                                                                                    onTouchEnd={(e) => handleManualSave(e.target.value)}
+                                                                                    className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20"
+                                                                                    style={{
+                                                                                        background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+
+                                                                            {/* Quick adjust pills */}
+                                                                            <div className="flex gap-1 mt-1 justify-between select-none">
+                                                                                {[-10, 10, 50, 100].map(adjust => {
+                                                                                    let pillLabel = adjust > 0 ? `+${adjust}%` : `${adjust}%`;
+                                                                                    if (adjust === 50) pillLabel = "50%";
+                                                                                    if (adjust === 100) pillLabel = "100%";
+                                                                                    
+                                                                                    return (
+                                                                                        <button
+                                                                                            key={adjust}
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                let nextVal = parsedVal;
+                                                                                                if (adjust === -10 || adjust === 10) {
+                                                                                                    nextVal = Math.min(100, Math.max(0, parsedVal + adjust));
+                                                                                                } else {
+                                                                                                    nextVal = adjust;
+                                                                                                }
+                                                                                                const newRows = [...rows];
+                                                                                                if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                                newRows[originalIndex].dynamic_data[field.label] = String(nextVal);
+                                                                                                setRows(newRows);
+                                                                                                handleManualSave(nextVal);
+                                                                                            }}
+                                                                                            className="text-[8px] font-black tracking-widest uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200/50 hover:border-slate-350 text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded-md transition duration-150 active:scale-90"
+                                                                                        >
+                                                                                            {pillLabel}
+                                                                                        </button>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+
+                                                                            <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-1 select-none">
+                                                                                <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
+                                                                                    <Clock size={9} className="text-slate-350" />
+                                                                                    Updated: Just now
+                                                                                </span>
+                                                                                <span className="text-[8px] font-black uppercase text-indigo-500/80 tracking-wider">
+                                                                                    Adjustable
+                                                                                </span>
+                                                                            </div>
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        ) : isDropdown ? (
+                                                            <select
+                                                                value={value || ''}
+                                                                onChange={(e) => {
+                                                                    const newRows = [...rows];
+                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                    newRows[originalIndex].dynamic_data[field.label] = e.target.value;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[150px]"
+                                                            >
+                                                                <option value="">Select Option</option>
+                                                                {(field.options || []).map((opt, i) => {
+                                                                     const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                     const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                                     return (
+                                                                         <option key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt} value={optVal}>
+                                                                             {optLbl}
+                                                                         </option>
+                                                                     );
+                                                                 })}
+                                                            </select>
+                                                        ) : isCheckbox ? (
+                                                            <div className="flex flex-wrap gap-2.5 min-w-[160px]">
+                                                                {(field.options || []).map((opt, idx) => {
+                                                                    const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+                                                                    const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                    const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                                    const isChecked = selectedValues.includes(optVal);
+                                                                    return (
+                                                                        <label key={typeof opt === 'object' ? (opt.value || opt.label || idx) : opt} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-650">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={isChecked}
+                                                                                onChange={(e) => {
+                                                                                    let nextVals;
+                                                                                    if (e.target.checked) {
+                                                                                        nextVals = [...selectedValues, optVal];
+                                                                                    } else {
+                                                                                        nextVals = selectedValues.filter(v => v !== optVal);
+                                                                                    }
+                                                                                    const newRows = [...rows];
+                                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                    newRows[originalIndex].dynamic_data[field.label] = nextVals;
+                                                                                    setRows(newRows);
+                                                                                    handleSaveRows(newRows);
+                                                                                }}
+                                                                                className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
+                                                                            />
+                                                                            <span>{optLbl}</span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : isDate ? (
+                                                            <input
+                                                                type="date"
+                                                                value={value || ''}
+                                                                onChange={(e) => {
+                                                                    const newRows = [...rows];
+                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                    newRows[originalIndex].dynamic_data[field.label] = e.target.value;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                            />
+                                                        ) : isTime ? (
+                                                            <input
+                                                                type="time"
+                                                                value={value || ''}
+                                                                onChange={(e) => {
+                                                                    const newRows = [...rows];
+                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                    newRows[originalIndex].dynamic_data[field.label] = e.target.value;
+                                                                    setRows(newRows);
+                                                                    handleSaveRows(newRows);
+                                                                }}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex items-center justify-between group/cell w-full">
+                                                                <input
+                                                                     type="text"
+                                                                     value={value || ''}
+                                                                     onChange={(e) => {
+                                                                         const val = e.target.value;
+                                                                         const newRows = [...rows];
+                                                                         if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                         newRows[originalIndex].dynamic_data[field.label] = val;
+                                                                         setRows(newRows);
+                                                                     }}
+                                                                     onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                     onBlur={(e) => {
+                                                                         if (e.target.value !== focusedValue) {
+                                                                             handleSaveRows(rows);
+                                                                         }
+                                                                     }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') {
+                                                                            e.target.blur();
+                                                                        }
+                                                                    }}
+                                                                    placeholder={field.placeholder || `Enter ${field.label}...`}
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[160px] outline-none transition"
                                                                 />
-                                                                <span>{optLbl}</span>
-                                                            </label>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : isDate ? (
-                                                <input
-                                                    type="date"
-                                                    value={value || ''}
-                                                    onChange={(e) => {
-                                                        const nextDynamicFields = {
-                                                            ...(task.dynamic_fields || {}),
-                                                            [field.label]: e.target.value
-                                                        };
-                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                    }}
-                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
-                                                />
-                                            ) : isTime ? (
-                                                <input
-                                                    type="time"
-                                                    value={value || ''}
-                                                    onChange={(e) => {
-                                                        const nextDynamicFields = {
-                                                            ...(task.dynamic_fields || {}),
-                                                            [field.label]: e.target.value
-                                                        };
-                                                        handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                    }}
-                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
-                                                />
-                                            ) : (
-                                                <div className="flex items-center justify-between group/cell w-full">
-                                                    <input
-                                                         type="text"
-                                                         value={value || ''}
-                                                         onChange={(e) => {
-                                                             const val = e.target.value;
-                                                             setTask(prev => ({
-                                                                 ...prev,
-                                                                 dynamic_fields: {
-                                                                     ...(prev.dynamic_fields || {}),
-                                                                     [field.label]: val
-                                                                 }
-                                                             }));
-                                                         }}
-                                                         onFocus={(e) => setFocusedValue(e.target.value)}
-                                                         onBlur={(e) => {
-                                                             if (e.target.value !== focusedValue) {
-                                                                 const nextDynamicFields = {
-                                                                     ...(task.dynamic_fields || {}),
-                                                                     [field.label]: e.target.value
-                                                                 };
-                                                                 handleUpdateTaskFields({ dynamic_fields: nextDynamicFields });
-                                                             }
-                                                         }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                e.target.blur();
-                                                            }
-                                                        }}
-                                                        placeholder={field.placeholder || `Enter ${field.label}...`}
-                                                        className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[160px] outline-none transition"
-                                                    />
-                                                    {value && (
-                                                        <button
-                                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
-                                                            className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
-                                                            title="Copy"
-                                                        >
-                                                            <Copy size={12} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </td>
+                                                                {value && (
+                                                                    <button
+                                                                        onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                                                        className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
+                                                                        title="Copy"
+                                                                    >
+                                                                        <Copy size={12} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
                                     );
-                                })}
+                                })
+                            )}
+                            <tr className="hover:bg-slate-50/50 transition-colors">
+                                <td 
+                                    colSpan={1 + activeColumns.length} 
+                                    className="px-10 py-4"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={addRow}
+                                        className="flex items-center gap-2 text-slate-800 hover:text-indigo-600 text-sm font-bold transition-colors bg-transparent border-none cursor-pointer outline-none"
+                                    >
+                                        <Plus size={16} /> Add Row
+                                    </button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -2019,117 +2722,90 @@ export default function TaskDetailPage() {
                     )}
                 </div>
                 <div className="px-6 pb-6 md:px-8 md:pb-8">
-                    <div className="overflow-x-auto min-h-[300px] border border-slate-200 rounded-2xl shadow-sm">
-                        <table className="w-full border-collapse" style={{ tableLayout: 'fixed', minWidth: allowAttachments ? '1800px' : '1680px' }}>
-                        <thead>
-                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
-                                <th className="px-2 py-4 text-center text-white bg-[#1F5C99]" style={{ minWidth: '48px', width: '48px' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={filteredSubTasks.length > 0 && filteredSubTasks.every(st => selectedTaskIds.includes(st.id))}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                const newSelected = [...new Set([...selectedTaskIds, ...filteredSubTasks.map(st => st.id)])];
-                                                setSelectedTaskIds(newSelected);
-                                            } else {
-                                                const filteredIds = filteredSubTasks.map(st => st.id);
-                                                setSelectedTaskIds(prev => prev.filter(id => !filteredIds.includes(id)));
-                                            }
-                                        }}
-                                        className="w-4 h-4 text-indigo-655 border-slate-350 rounded focus:ring-indigo-500/20 cursor-pointer"
-                                    />
-                                </th>
-                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '280px', width: '280px' }}>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-[18px] shrink-0"></div>
-                                        <span>Name</span>
-                                    </div>
-                                </th>
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Assignee</th>
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '150px', width: '150px' }}>Priority</th>
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '180px', width: '180px' }}>Status</th>
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '220px', width: '220px' }}>Sub Status</th>
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '145px', width: '145px' }}>Due date</th>
-                                <th className="px-6 py-4 text-left whitespace-nowrap text-white" style={{ minWidth: '260px', width: '260px' }}>Remarks</th>
-                                {allowAttachments && (
-                                    <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '120px', width: '120px' }}>Attachment</th>
-                                )}
-                                <th className="px-6 py-4 text-center whitespace-nowrap text-white" style={{ minWidth: '145px', width: '145px' }}>Verification</th>
-                                <th className="px-6 py-4 text-center text-white" style={{ minWidth: '40px', width: '40px' }}></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {filteredSubTasks.length > 0 ? (
-                                filteredSubTasks.map((st) => (
-                                <tr key={st.id} className={`group hover:bg-slate-50/40 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-slate-50/30' : ''}`}>
-                                    {(() => {
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                        <table className="w-full border-collapse" style={{ minWidth: '1700px' }}>
+                            <thead>
+                                <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
+                                    <th className="px-2 py-4 text-center" style={{ minWidth: '48px', width: '48px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={filteredSubTasks.length > 0 && filteredSubTasks.every(st => selectedTaskIds.includes(st.id))}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedTaskIds([...new Set([...selectedTaskIds, ...filteredSubTasks.map(st => st.id)])]);
+                                                } else {
+                                                    const ids = filteredSubTasks.map(st => st.id);
+                                                    setSelectedTaskIds(prev => prev.filter(id => !ids.includes(id)));
+                                                }
+                                            }}
+                                            className="w-4 h-4 rounded cursor-pointer"
+                                        />
+                                    </th>
+                                    <th className="px-6 py-4 text-left whitespace-nowrap" style={{ minWidth: '280px', width: '280px' }}>Task Name</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '180px', width: '180px' }}>Assignee</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '180px', width: '180px' }}>Status</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '220px', width: '220px' }}>Sub Status</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '145px', width: '145px' }}>Due Date</th>
+                                    <th className="px-6 py-4 text-left whitespace-nowrap" style={{ minWidth: '260px', width: '260px' }}>Remarks</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '180px', width: '180px' }}>Attachments</th>
+                                    <th className="px-6 py-4 text-center whitespace-nowrap" style={{ minWidth: '145px', width: '145px' }}>Verification</th>
+                                    <th className="px-6 py-4 text-center" style={{ minWidth: '40px', width: '40px' }}></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredSubTasks.length > 0 ? (
+                                    filteredSubTasks.map((st) => {
                                         const isLocked = !isAdmin && st.is_verified;
                                         return (
-                                            <>
-                                                <td className="px-2 py-5 text-center" style={{ minWidth: '48px', width: '48px' }}>
+                                            <tr key={st.id} className={`group hover:bg-slate-50/30 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-indigo-50/20' : ''}`}>
+                                                <td key="chk" className="px-2 py-4 text-center border-r border-slate-100" style={{ minWidth: '48px', width: '48px' }}>
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedTaskIds.includes(st.id)}
                                                         onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedTaskIds(prev => [...prev, st.id]);
-                                                            } else {
-                                                                 setSelectedTaskIds(prev => prev.filter(id => id !== st.id));
-                                                            }
+                                                            if (e.target.checked) setSelectedTaskIds(prev => [...prev, st.id]);
+                                                            else setSelectedTaskIds(prev => prev.filter(id => id !== st.id));
                                                         }}
-                                                        className="w-4 h-4 text-indigo-655 border-slate-350 rounded focus:ring-indigo-500/20 cursor-pointer"
+                                                        className="w-4 h-4 rounded cursor-pointer"
                                                     />
                                                 </td>
-                                                <td className="px-6 py-5" style={{ minWidth: '280px', width: '280px' }}>
-                                                    <div className="flex items-center gap-3">
+                                                <td key="name" className="px-6 py-4 border-r border-slate-100" style={{ minWidth: '280px', width: '280px' }}>
+                                                    <div className="flex items-center gap-2.5">
                                                         <button
                                                             disabled={isLocked}
                                                             onClick={() => handleUpdateSubTask(st.id, { status: st.status === 'complete' ? 'work_in_progress' : 'complete' })}
-                                                            className={`transition-colors shrink-0 ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${st.status === 'complete' ? 'text-green-500' : 'text-slate-200 hover:text-slate-400'}`}
+                                                            className={`shrink-0 transition-colors ${isLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${st.status === 'complete' ? 'text-green-500' : 'text-slate-300 hover:text-slate-500'}`}
                                                         >
-                                                            {st.status === 'complete' ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                                            {st.status === 'complete' ? <CheckCircle2 size={17} /> : <Circle size={17} />}
                                                         </button>
-                                                        <div className="flex-1 flex items-center group/title min-w-0">
+                                                        <div className="flex-1 flex items-center gap-1 min-w-0">
                                                             <input
                                                                 disabled={isLocked}
                                                                 defaultValue={st.title}
                                                                 onBlur={e => handleUpdateSubTask(st.id, { title: e.target.value })}
-                                                                className={`bg-transparent border-none focus:ring-0 text-sm font-bold text-slate-700 w-full truncate ${st.status === 'complete' ? 'line-through text-slate-300' : ''} ${isLocked ? 'cursor-not-allowed opacity-75' : ''}`}
+                                                                className={`bg-transparent border-none focus:ring-0 text-xs font-bold text-slate-700 w-full truncate outline-none ${st.status === 'complete' ? 'line-through text-slate-400' : ''} ${isLocked ? 'cursor-not-allowed opacity-75' : ''}`}
                                                             />
-                                                            <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/title:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
+                                                            <button onClick={() => handleCopy(st.title)} className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition shrink-0" title="Copy"><Copy size={11} /></button>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '180px', width: '180px' }}>
+                                                <td key="assignee" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '180px', width: '180px' }}>
                                                     <select
                                                         disabled={isLocked}
                                                         value={st.assigned_to?.id || ''}
                                                         onChange={e => handleUpdateSubTask(st.id, { assigned_to: e.target.value })}
-                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full max-w-[150px] mx-auto ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-lg pl-2.5 pr-6 py-1.5 text-xs font-bold text-slate-700 transition focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed`}
                                                     >
                                                         <option value="">Unassigned</option>
                                                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                     </select>
                                                 </td>
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '150px', width: '150px' }}>
-                                                    <select
-                                                        disabled={isLocked}
-                                                        value={st.priority}
-                                                        onChange={e => handleUpdateSubTask(st.id, { priority: e.target.value })}
-                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full max-w-[100px] mx-auto ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
-                                                    >
-                                                        <option value="low">Low</option>
-                                                        <option value="medium">Medium</option>
-                                                        <option value="high">High</option>
-                                                        <option value="urgent">Urgent</option>
-                                                    </select>
-                                                </td>
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '180px', width: '180px' }}>
+                                                <td key="status" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '180px', width: '180px' }}>
                                                     <select
                                                         disabled={isLocked}
                                                         value={st.status}
                                                         onChange={e => handleUpdateSubTask(st.id, { status: e.target.value })}
-                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer capitalize w-full max-w-[140px] mx-auto ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-lg pl-2.5 pr-6 py-1.5 text-xs font-bold text-slate-700 transition focus:outline-none cursor-pointer capitalize w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed`}
                                                     >
                                                         <option value="complete">Complete</option>
                                                         <option value="work_in_progress">Work In Progress</option>
@@ -2138,120 +2814,104 @@ export default function TaskDetailPage() {
                                                         <option value="other">Other</option>
                                                     </select>
                                                 </td>
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '220px', width: '220px' }}>
+                                                <td key="substatus" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '220px', width: '220px' }}>
                                                     <select
                                                         disabled={isLocked}
                                                         value={st.sub_status || ''}
                                                         onChange={e => handleUpdateSubTask(st.id, { sub_status: e.target.value || null })}
-                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full max-w-[180px] mx-auto ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-lg pl-2.5 pr-6 py-1.5 text-xs font-bold text-slate-700 transition focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed`}
                                                     >
-                                                        <option value="">— Set Sub Status —</option>
+                                                        <option value="">— Sub Status —</option>
                                                         {getSubStatusOptions(task, schema).map((opt, i) => (
                                                             <option key={i} value={opt}>{opt}</option>
                                                         ))}
                                                     </select>
                                                 </td>
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '145px', width: '145px' }}>
+                                                <td key="duedate" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '145px', width: '145px' }}>
                                                     <input
                                                         disabled={isLocked}
                                                         type="date"
                                                         defaultValue={st.due_date}
                                                         onBlur={e => handleUpdateSubTask(st.id, { due_date: e.target.value })}
-                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-4 focus:ring-indigo-500/10 focus:outline-none cursor-pointer w-full max-w-[130px] mx-auto ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:outline-none w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed`}
                                                     />
                                                 </td>
-                                                <td className="px-6 py-5" style={{ minWidth: '260px', width: '260px' }}>
-                                                    <div className="flex items-center group/rem w-full">
+                                                <td key="remarks" className="px-6 py-4 border-r border-slate-100" style={{ minWidth: '260px', width: '260px' }}>
+                                                    <div className="flex items-center gap-1 group/rem w-full">
                                                         <textarea
                                                             disabled={isLocked}
                                                             defaultValue={st.remarks}
                                                             onBlur={e => handleUpdateSubTask(st.id, { remarks: e.target.value })}
                                                             placeholder="Remarks..."
                                                             rows="1"
-                                                            className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl px-3 py-1.8 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition focus:ring-4 focus:ring-indigo-500/10 leading-relaxed ${isLocked ? 'cursor-not-allowed opacity-70 bg-slate-100/50' : ''}`}
+                                                            className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 w-full resize-y min-h-[36px] outline-none transition leading-relaxed disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed`}
                                                         />
                                                         {st.remarks && (
-                                                            <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shadow-sm shrink-0" title="Copy"><Copy size={12} /></button>
+                                                            <button onClick={() => handleCopy(st.remarks)} className="ml-1 p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/rem:opacity-100 transition shrink-0" title="Copy"><Copy size={11} /></button>
                                                         )}
                                                     </div>
                                                 </td>
-                                                {allowAttachments && (
-                                                    <td className="px-6 py-5 text-center" style={{ minWidth: '120px', width: '120px' }}>
-                                                        {st.screenshot_url ? (
-                                                            <div className="flex items-center justify-center gap-1.5">
-                                                                <button
-                                                                    onClick={() => setPreviewImage(st.screenshot_url)}
-                                                                    className="inline-flex items-center justify-center p-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-655 border border-indigo-100/50 rounded-xl transition shadow-sm cursor-pointer"
-                                                                    title="View Attachment"
-                                                                >
-                                                                    <Eye size={14} />
-                                                                </button>
-                                                                <button
-                                                                    disabled={isLocked}
-                                                                    onClick={() => handleDeleteSubTaskAttachment(st.id)}
-                                                                    className={`inline-flex items-center justify-center p-2 bg-rose-50 border border-rose-100/50 rounded-xl transition shadow-sm ${isLocked ? 'cursor-not-allowed opacity-50 text-rose-300 bg-rose-50/20' : 'hover:bg-rose-100/80 text-rose-600 cursor-pointer'}`}
-                                                                    title="Delete Attachment"
-                                                                >
-                                                                    <X size={14} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center justify-center">
-                                                                {isLocked ? (
-                                                                    <span className="text-[10px] text-slate-300 font-bold italic select-none">No file</span>
-                                                                ) : (
-                                                                    <label className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-indigo-655 transition cursor-pointer select-none">
-                                                                        <Plus size={10} />
-                                                                        <span>Attach</span>
-                                                                        <input
-                                                                            type="file"
-                                                                            onChange={(e) => handleUploadSubTaskAttachment(st.id, e.target.files[0])}
-                                                                            className="hidden"
-                                                                        />
-                                                                    </label>
-                                                                )}
-                                                            </div>
+                                                <td key="attachments" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '180px', width: '180px' }}>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAttachmentsModal({
+                                                                    open: true,
+                                                                    title: `Attachments: ${st.title}`,
+                                                                    files: st.attachments || [],
+                                                                    type: 'subtask',
+                                                                    id: st.id,
+                                                                    originalIndex: null
+                                                                });
+                                                                setIncomingPreviewFile(null);
+                                                            }}
+                                                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg transition text-[11px] font-bold cursor-pointer"
+                                                            title="View/Manage Attachments"
+                                                        >
+                                                            <Eye size={13} />
+                                                            <span>{(st.attachments || []).length} Files</span>
+                                                        </button>
+                                                        {!isLocked && (
+                                                            <label className="inline-flex items-center justify-center p-1.5 bg-slate-50 hover:bg-white border border-dashed border-slate-300 hover:border-indigo-400 rounded-lg text-slate-500 hover:text-indigo-600 transition cursor-pointer" title="Upload files">
+                                                                <Plus size={13} />
+                                                                <input
+                                                                    type="file"
+                                                                    multiple
+                                                                    onChange={(e) => handleUploadMultipleSubTaskAttachments(st.id, e.target.files)}
+                                                                    className="hidden"
+                                                                />
+                                                            </label>
                                                         )}
-                                                    </td>
-                                                )}
-                                                
-                                                {/* Verification Column */}
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '145px', width: '145px' }}>
+                                                    </div>
+                                                </td>
+                                                <td key="verify" className="px-6 py-4 border-r border-slate-100 text-center" style={{ minWidth: '145px', width: '145px' }}>
                                                     {st.is_verified ? (
-                                                        <div className="flex items-center justify-center gap-1.5">
+                                                        <div className="flex items-center justify-center">
                                                             {isAdmin ? (
                                                                 <button
                                                                     onClick={() => {
                                                                         setConfirmState({
                                                                             open: true,
                                                                             title: 'Unverify & Unlock Task',
-                                                                            message: 'Are you sure you want to unverify and unlock this task? This will allow staff members to edit its status and details again.',
+                                                                            message: 'Are you sure you want to unverify and unlock this task?',
                                                                             confirmLabel: 'Unverify & Unlock',
                                                                             danger: true,
                                                                             onConfirm: async () => {
                                                                                 setConfirmState(prev => ({ ...prev, loading: true }));
-                                                                                try {
-                                                                                    await handleUpdateSubTask(st.id, { is_verified: false });
-                                                                                    toast.success("Task unverified and unlocked successfully!");
-                                                                                } catch (err) {
-                                                                                    toast.error("Failed to unverify task");
-                                                                                } finally {
-                                                                                    setConfirmState({ open: false });
-                                                                                }
+                                                                                try { await handleUpdateSubTask(st.id, { is_verified: false }); toast.success("Task unverified!"); }
+                                                                                catch { toast.error("Failed to unverify"); }
+                                                                                finally { setConfirmState({ open: false }); }
                                                                             }
                                                                         });
                                                                     }}
-                                                                    className="px-2.5 py-1.5 text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 hover:text-rose-800 transition active:scale-95 duration-150 flex items-center gap-1 shadow-sm shrink-0"
-                                                                    style={{ cursor: 'pointer' }}
-                                                                    title="Click to Unverify and unlock this task"
+                                                                    className="px-2.5 py-1.5 text-[11px] font-bold bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition flex items-center gap-1 cursor-pointer"
                                                                 >
-                                                                    <Lock size={12} className="text-rose-500 animate-pulse animate-duration-1000" />
-                                                                    Unverify
+                                                                    <Lock size={11} className="animate-pulse" /> Unverify
                                                                 </button>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0" title="Locked by staff/admin">
-                                                                    <Lock size={12} className="text-rose-600" />
-                                                                    Locked
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-[11px] font-extrabold select-none">
+                                                                    <Lock size={11} /> Locked
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2263,76 +2923,62 @@ export default function TaskDetailPage() {
                                                                         setConfirmState({
                                                                             open: true,
                                                                             title: 'Verify & Lock Task',
-                                                                            message: 'Are you sure you want to verify and lock this task? Once verified, staff members cannot modify its status or details.',
+                                                                            message: 'Are you sure you want to verify and lock this task?',
                                                                             confirmLabel: 'Verify & Lock',
                                                                             danger: false,
                                                                             onConfirm: async () => {
                                                                                 setConfirmState(prev => ({ ...prev, loading: true }));
-                                                                                try {
-                                                                                    await handleUpdateSubTask(st.id, { is_verified: true });
-                                                                                    toast.success("Task verified and locked successfully!");
-                                                                                } catch (err) {
-                                                                                    toast.error("Failed to verify task");
-                                                                                } finally {
-                                                                                    setConfirmState({ open: false });
-                                                                                }
+                                                                                try { await handleUpdateSubTask(st.id, { is_verified: true }); toast.success("Task verified!"); }
+                                                                                catch { toast.error("Failed to verify"); }
+                                                                                finally { setConfirmState({ open: false }); }
                                                                             }
                                                                         });
                                                                     }}
-                                                                    className="px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 rounded-xl hover:bg-green-100 hover:text-green-800 transition active:scale-95 duration-150 flex items-center gap-1 shrink-0"
-                                                                    style={{ cursor: 'pointer' }}
-                                                                    title="Click to Verify and lock this task"
+                                                                    className="px-3 py-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
                                                                 >
-                                                                    <Unlock size={12} className="text-green-600" />
-                                                                    Verify
+                                                                    <Unlock size={11} /> Verify
                                                                 </button>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-xl text-xs font-extrabold select-none shadow-sm shrink-0" title="Unlocked">
-                                                                    <Unlock size={12} className="text-green-600" />
-                                                                    Unlocked
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-50 text-slate-500 border border-slate-200 rounded-lg text-[11px] font-bold select-none">
+                                                                    <Unlock size={11} /> Unlocked
                                                                 </span>
                                                             )}
                                                         </div>
                                                     )}
                                                 </td>
-
-                                                <td className="px-6 py-5 text-center" style={{ minWidth: '40px', width: '40px' }}>
+                                                <td key="del" className="px-4 py-4 text-center" style={{ minWidth: '40px', width: '40px' }}>
                                                     {isLocked ? (
-                                                        <Lock size={14} className="text-rose-600 mx-auto" />
-                                                    ) : isStaff ? (
-                                                        null
-                                                    ) : (
-                                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-2 text-rose-600 bg-rose-50/70 border border-rose-100/40 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 transition-all rounded-lg" style={{ cursor: 'pointer' }}>
-                                                            <Trash2 size={14} />
+                                                        <Lock size={13} className="text-rose-500 mx-auto" />
+                                                    ) : isStaff ? null : (
+                                                        <button onClick={() => handleDeleteSubTask(st.id)} className="p-1.5 text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 opacity-0 group-hover:opacity-100 rounded-lg transition cursor-pointer">
+                                                            <Trash2 size={13} />
                                                         </button>
                                                     )}
                                                 </td>
-                                            </>
+                                            </tr>
                                         );
-                                    })()}
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={10} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
+                                            No tasks found. Click "+ Add Task" below to get started.
+                                        </td>
+                                    </tr>
+                                )}
+                                <tr className="hover:bg-slate-50/50 transition-colors">
+                                    <td colSpan={10} className="px-8 py-4">
+                                        <button
+                                            onClick={handleAddSubTask}
+                                            className="flex items-center gap-2 text-slate-700 hover:text-indigo-600 text-sm font-bold transition-colors cursor-pointer"
+                                        >
+                                            <Plus size={15} /> Add Task
+                                        </button>
+                                    </td>
                                 </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={allowAttachments ? 11 : 10} className="px-10 py-16 text-center text-slate-400 text-xs italic font-bold">
-                                    No tasks match the selected filters. Click "Clear all filters" or select another card to see all items.
-                                </td>
-                            </tr>
-                        )}
-                            <tr className="hover:bg-slate-50/50 transition-colors">
-                                <td colSpan={allowAttachments ? 11 : 10} className="px-10 py-4">
-                                    <button
-                                        onClick={handleAddSubTask}
-                                        className="flex items-center gap-2 text-slate-800 hover:text-indigo-600 text-sm font-bold transition-colors"
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <Plus size={16} /> Add Task
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                            </tbody>
+                        </table>
+                    </div>
+
             </div>
         </div>
 
@@ -2516,6 +3162,144 @@ export default function TaskDetailPage() {
                                 })()}
                             </>
                         ) : null}
+                    </div>
+                </div>
+            )}
+
+            {/* Multiple Attachments List & Preview Modal */}
+            {attachmentsModal.open && (
+                <div className="fixed inset-0 z-[990] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden max-w-lg w-full border border-slate-100 flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                            <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">{attachmentsModal.title}</h3>
+                            <button
+                                onClick={() => setAttachmentsModal({ open: false, title: '', files: [], type: 'subtask', id: null, originalIndex: null })}
+                                className="p-2 text-slate-400 hover:text-slate-650 hover:bg-slate-50 rounded-xl transition"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {incomingPreviewFile ? (
+                                // PDF / Image Preview State inside the modal (with Back button)
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                        <button
+                                            onClick={() => setIncomingPreviewFile(null)}
+                                            className="flex items-center gap-1 text-[11px] font-black text-indigo-650 hover:text-indigo-700 bg-white border border-slate-200 rounded-xl px-3.5 py-1.8 transition shadow-sm"
+                                        >
+                                            ← Back to List
+                                        </button>
+                                        <span className="text-[10px] font-black uppercase text-indigo-650 bg-indigo-50/50 px-2.5 py-1 rounded-full">
+                                            {getFileType(incomingPreviewFile.url)}
+                                        </span>
+                                    </div>
+                                    <div className="overflow-auto max-h-[45vh] p-2 flex items-center justify-center bg-slate-50/30 rounded-2xl border border-slate-150">
+                                        {getFileType(incomingPreviewFile.url) === 'image' ? (
+                                            <img src={incomingPreviewFile.url} alt={incomingPreviewFile.name} className="max-w-full max-h-[40vh] object-contain rounded-xl shadow-sm" />
+                                        ) : getFileType(incomingPreviewFile.url) === 'pdf' ? (
+                                            <iframe src={incomingPreviewFile.url} className="w-full h-[40vh] rounded-xl border border-slate-200 bg-white" title="PDF Preview"></iframe>
+                                        ) : (
+                                            <div className="py-8 px-4 flex flex-col items-center justify-center gap-3 text-center">
+                                                <FileText size={32} className="text-slate-400" />
+                                                <p className="text-xs font-bold text-slate-600">{incomingPreviewFile.name}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-black">Preview not supported</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Attachments List View
+                                <div className="space-y-3">
+                                    {attachmentsModal.files.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <FileText size={36} className="mx-auto text-slate-300 mb-2" />
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Attachments Uploaded</p>
+                                        </div>
+                                    ) : (
+                                        attachmentsModal.files.map((file, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/50 rounded-2xl border border-slate-100 transition gap-4">
+                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                    <FileText size={16} className="text-indigo-500 shrink-0" />
+                                                    <span className="text-xs font-bold text-slate-700 truncate" title={file.name}>
+                                                        {file.name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        onClick={() => setIncomingPreviewFile(file)}
+                                                        className="p-2 text-indigo-650 hover:text-indigo-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                        title="Preview"
+                                                    >
+                                                        <Eye size={14} />
+                                                    </button>
+                                                    <a
+                                                        href={file.url}
+                                                        download={file.name}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                        title="Download"
+                                                    >
+                                                        <FileDown size={14} />
+                                                    </a>
+                                                    {((attachmentsModal.type === 'subtask' && !task.sub_tasks?.find(st => st.id === attachmentsModal.id)?.is_verified) ||
+                                                      (attachmentsModal.type === 'row' && !rows[attachmentsModal.originalIndex]?.is_verified)) && (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (attachmentsModal.type === 'subtask') {
+                                                                    handleDeleteSubTaskFileAttachment(attachmentsModal.id, file.path);
+                                                                } else {
+                                                                    handleDeleteRowAttachment(attachmentsModal.originalIndex, file.path);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-rose-600 hover:text-rose-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer (Upload form when inside list view) */}
+                        {!incomingPreviewFile && (
+                            <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                                {((attachmentsModal.type === 'subtask' && !task.sub_tasks?.find(st => st.id === attachmentsModal.id)?.is_verified) ||
+                                  (attachmentsModal.type === 'row' && !rows[attachmentsModal.originalIndex]?.is_verified)) ? (
+                                    <label className="flex items-center justify-center gap-2 p-3 bg-white hover:bg-slate-50 border border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-650 cursor-pointer transition shadow-sm">
+                                        <Plus size={16} />
+                                        <span>Upload Attachments (Select Multiple)</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                if (e.target.files.length > 0) {
+                                                    if (attachmentsModal.type === 'subtask') {
+                                                        handleUploadMultipleSubTaskAttachments(attachmentsModal.id, e.target.files);
+                                                    } else {
+                                                        handleUploadMultipleRowAttachments(attachmentsModal.originalIndex, e.target.files);
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                ) : (
+                                    <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400 select-none">
+                                        Locked / Verified Row
+                                    </p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

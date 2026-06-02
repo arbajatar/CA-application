@@ -106,6 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Tasks
         Route::patch('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
         Route::post('/tasks/import', [TaskController::class, 'import']);
+        Route::post('/tasks/upload-file', [TaskController::class, 'uploadFile']);
         Route::apiResource('/tasks', TaskController::class);
         Route::post('/tasks/{task}/sub-tasks', [CASubTaskController::class, 'store']);
         Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'update']);
@@ -158,6 +159,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Tasks
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
         Route::post('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'store']);
+        Route::post('/tasks/upload-file', [App\Http\Controllers\Api\Staff\TaskController::class, 'uploadFile']);
         Route::get('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'show']);
         Route::patch('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'update']);
         Route::patch('/tasks/{task}/status', [App\Http\Controllers\Api\Staff\TaskController::class, 'updateStatus']);

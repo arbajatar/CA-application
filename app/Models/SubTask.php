@@ -26,11 +26,31 @@ class SubTask extends Model
         'is_verified',
     ];
 
-    protected $appends = ['screenshot_url'];
+    protected $appends = ['screenshot_url', 'attachments'];
 
     public function getScreenshotUrlAttribute()
     {
+        $decoded = json_decode($this->screenshot, true);
+        if (is_array($decoded)) {
+            return !empty($decoded) ? asset('storage/' . $decoded[0]) : null;
+        }
         return $this->screenshot ? asset('storage/' . $this->screenshot) : null;
+    }
+
+    public function getAttachmentsAttribute()
+    {
+        $decoded = json_decode($this->screenshot, true);
+        $files = is_array($decoded) ? $decoded : ($this->screenshot ? [$this->screenshot] : []);
+        
+        $result = [];
+        foreach ($files as $file) {
+            $result[] = [
+                'name' => basename($file),
+                'url' => asset('storage/' . $file),
+                'path' => $file
+            ];
+        }
+        return $result;
     }
 
     protected $casts = [
