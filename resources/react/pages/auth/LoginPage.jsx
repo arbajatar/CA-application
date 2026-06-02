@@ -125,39 +125,13 @@ export default function LoginPage() {
                             </>
                         )}
                     </button>
-
-                    {/* Hint */}
-                    <div className="pt-2 text-center border-t border-gray-100 mt-4">
-                        <p className="text-xs text-gray-400 font-medium mb-2">Demo Access Credentials:</p>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (role === 'ca') {
-                                    setUsername('ca_admin')
-                                    setPassword('admin@123')
-                                } else {
-                                    setUsername('sarthak')
-                                    setPassword('staff@123')
-                                }
-                            }}
-                            className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
-                        >
-                            {role === 'ca' ? (
-                                <>
-                                    <ShieldCheck size={14} />
-                                    <span>CA: <strong>ca_admin</strong> / <strong>admin@123</strong> (Click to auto-fill)</span>
-                                </>
-                            ) : (
-                                <>
-                                    <User size={14} />
-                                    <span>Staff: <strong>sarthak</strong> / <strong>staff@123</strong> (Click to auto-fill)</span>
-                                </>
-                            )}
-                        </button>
-                    </div>
                 </form>
             </div>
-            <p className="mt-6 text-xs text-gray-400 uppercase tracking-widest">© 2026 CA Office Suite</p>
+            <div className="mt-8 flex items-center justify-center gap-2 select-none opacity-75">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered by</span>
+                <div className="w-[1px] h-3 bg-slate-300"></div>
+                <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Tipic</span>
+            </div>
         </div>
     )
 }
