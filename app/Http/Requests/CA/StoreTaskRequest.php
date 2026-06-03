@@ -15,7 +15,7 @@ class StoreTaskRequest extends FormRequest
     {
         return [
             'client_id' => ['nullable', 'exists:clients,id'],
-            'work_type_id' => ['required', 'exists:work_types,id'],
+            'work_type_id' => ['nullable', 'exists:work_types,id'],
             'form_name' => ['required', 'string'],
             'date_inward' => ['nullable', 'date'],
             'allocated_to' => ['nullable', 'exists:users,id'],
@@ -26,7 +26,7 @@ class StoreTaskRequest extends FormRequest
             'subtasks.*.status' => ['required', 'string'],
             'subtasks.*.due_date' => ['required', 'date'],
             'subtasks.*.remarks' => ['nullable', 'string'],
-            'date_allocated' => ['required', 'date'],
+            'date_allocated' => ['nullable', 'date'],
             'status' => ['nullable', 'string', \Illuminate\Validation\Rule::enum(\App\Enums\TaskStatus::class)],
             'remarks' => ['nullable', 'string'],
             'dynamic_fields' => ['nullable', 'array'],

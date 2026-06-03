@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
@@ -116,16 +117,56 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [visibleCount, setVisibleCount] = useState(50);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      if (containerRef.current && !containerRef.current.contains(event.target) && (!dropdownRef.current || !dropdownRef.current.contains(event.target))) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (direction === 'up') {
+            setDropdownStyle({
+                position: 'fixed',
+                bottom: window.innerHeight - rect.top + 8,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 99999
+            });
+        } else {
+            setDropdownStyle({
+                position: 'fixed',
+                top: rect.bottom + 8,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 99999
+            });
+        }
+    }
+  }, [isOpen, direction]);
+
+  useEffect(() => {
+    const handleScroll = (e) => { 
+        // ignore scroll inside the dropdown itself
+        if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
+        if (isOpen) setIsOpen(false); 
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isOpen]);
 
   const filteredOptions = options.filter(opt => {
     const label = typeof opt === 'object' ? opt.label : opt;
@@ -156,10 +197,14 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
         }`} />
       </div>
 
-      {isOpen && (
-        <div className={`absolute z-[100] w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 ${
-          direction === 'up' ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'
-        }`}>
+      {isOpen && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className={`bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden ${
+            direction === 'up' ? 'origin-bottom' : 'origin-top'
+          }`}
+        >
           <div className="p-2 border-b border-slate-50">
             <div className="relative">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -173,9 +218,17 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
               />
             </div>
           </div>
-          <div className="max-h-60 overflow-y-auto">
+          <div 
+            className="max-h-60 overflow-y-auto"
+            onScroll={(e) => {
+              const { scrollTop, scrollHeight, clientHeight } = e.target;
+              if (scrollTop + clientHeight >= scrollHeight - 20) {
+                setVisibleCount(prev => prev + 50);
+              }
+            }}
+          >
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, i) => (
+              filteredOptions.slice(0, visibleCount).map((opt, i) => (
                 <div
                   key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt}
                   className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${
@@ -208,7 +261,8 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -360,9 +414,9 @@ export default function TaskDetailPage() {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             const [taskRes, clientsRes, staffRes, workTypesRes] = await Promise.all([
                 api.get(`${apiPrefix}/tasks/${id}`),
-                api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { per_page: 100 } }),
-                api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { per_page: 100 } }),
-                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types')
+                api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { per_page: 10000 } }),
+                api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { per_page: 10000 } }),
+                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { per_page: 10000 } })
             ]);
 
             const data = taskRes.data.data;
@@ -390,9 +444,72 @@ export default function TaskDetailPage() {
             }
             setAvailableRoles(rolesData);
 
+            const getTopLevelData = (df) => {
+                const topLevel = {};
+                if (df) {
+                    Object.keys(df).forEach(k => {
+                        if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                            const trimmedK = k.trim();
+                            const val = df[k];
+                            if (val !== null && val !== undefined && val !== '') {
+                                topLevel[trimmedK] = val;
+                            } else if (topLevel[trimmedK] === undefined) {
+                                topLevel[trimmedK] = val;
+                            }
+                        }
+                    });
+                }
+                return topLevel;
+            };
+
+            const mergeDynamicData = (rowDynamicData, topLevel) => {
+                let parsedRow = rowDynamicData;
+                if (typeof parsedRow === 'string') {
+                    try { parsedRow = JSON.parse(parsedRow); } catch(e) {}
+                }
+                const merged = {};
+                if (parsedRow) {
+                    Object.keys(parsedRow).forEach(k => {
+                        const trimmedK = k.trim();
+                        const val = parsedRow[k];
+                        if (val !== null && val !== undefined && val !== '') {
+                            merged[trimmedK] = val;
+                        } else if (merged[trimmedK] === undefined) {
+                            merged[trimmedK] = val;
+                        }
+                    });
+                }
+                Object.keys(topLevel || {}).forEach(k => {
+                    const trimmedK = k.trim();
+                    const topVal = topLevel[k];
+                    if (topVal !== null && topVal !== undefined && topVal !== '') {
+                        const rowVal = merged[trimmedK];
+                        if (rowVal === null || rowVal === undefined || rowVal === '') {
+                            merged[trimmedK] = topVal;
+                        }
+                    }
+                });
+                return merged;
+            };
+
+            const topLevelData = getTopLevelData(data.dynamic_fields);
+
             if (data.dynamic_fields?.schema) {
                 setSchema(data.dynamic_fields.schema);
-                setRows(data.dynamic_fields.multi_rows || []);
+                let loadedRows = data.dynamic_fields.multi_rows || [];
+                if (loadedRows.length === 0) {
+                    const initialRow = {
+                        form_name: data.form_name || '',
+                        client_id: data.client?.id || '',
+                        work_type_id: data.work_type?.id || '',
+                        allocated_to: data.allocated_to?.id || '',
+                        date_allocated: data.date_allocated || '',
+                        status: data.status || 'assigned',
+                        dynamic_data: topLevelData
+                    };
+                    loadedRows = [initialRow];
+                }
+                setRows(loadedRows);
             } else {
                 // Migration logic for old structure
                 const fieldNames = data.dynamic_fields?.field_names || Object.keys(data.dynamic_fields || {}).filter(k => !['multi_rows', 'field_names', 'field_types'].includes(k));
@@ -408,19 +525,24 @@ export default function TaskDetailPage() {
                 }));
                 setSchema(initialSchema);
 
-                if (data.dynamic_fields?.multi_rows) {
-                    setRows(data.dynamic_fields.multi_rows);
-                } else {
+                let loadedRows = data.dynamic_fields?.multi_rows || [];
+                if (loadedRows.length === 0) {
                     const initialRow = {
                         client_id: data.client?.id || '',
                         work_type_id: data.work_type?.id || '',
                         allocated_to: data.allocated_to?.id || '',
                         date_allocated: data.date_allocated || '',
                         status: data.status || 'assigned',
-                        dynamic_data: data.dynamic_fields || {}
+                        dynamic_data: topLevelData
                     };
-                    setRows([initialRow]);
+                    loadedRows = [initialRow];
+                } else {
+                    loadedRows = loadedRows.map((r) => ({
+                        ...r,
+                        dynamic_data: mergeDynamicData(r.dynamic_data, topLevelData)
+                    }));
                 }
+                setRows(loadedRows);
             }
         } catch (e) {
             console.error(e);
@@ -510,14 +632,36 @@ export default function TaskDetailPage() {
         }
     };
 
-    const handleSaveRows = async (updatedRows) => {
+    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully') => {
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             const firstRow = updatedRows[0] || {};
+            
+            const firstRowData = {};
+            if (firstRow.dynamic_data) {
+                Object.keys(firstRow.dynamic_data).forEach(k => {
+                    firstRowData[k.trim()] = firstRow.dynamic_data[k];
+                });
+            }
+            delete firstRowData.schema;
+            delete firstRowData.multi_rows;
+            delete firstRowData.field_names;
+            delete firstRowData.field_types;
+
+            // Preserve special keys from current task.dynamic_fields
+            const cleanDynamicFields = {};
+            ['schema', 'field_names', 'field_types'].forEach(k => {
+                if (task.dynamic_fields?.[k] !== undefined) {
+                    cleanDynamicFields[k] = task.dynamic_fields[k];
+                }
+            });
+
             const nextDynamicFields = {
-                ...(task.dynamic_fields || {}),
+                ...cleanDynamicFields,
+                ...firstRowData,
                 multi_rows: updatedRows
             };
+
             const payload = {
                 client_id: firstRow.client_id || null,
                 work_type_id: firstRow.work_type_id || null,
@@ -534,8 +678,56 @@ export default function TaskDetailPage() {
                 ...nextData,
                 sub_tasks: nextData.sub_tasks !== undefined ? nextData.sub_tasks : (prev?.sub_tasks || [])
             }));
-            setRows(nextData.dynamic_fields?.multi_rows || []);
-            toast.success('Rows saved successfully');
+
+            // Process nextData rows to merge top-level fields
+            const savedDynamicFields = nextData.dynamic_fields || {};
+            const savedTopLevelData = {};
+            Object.keys(savedDynamicFields).forEach(k => {
+                if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
+                    const trimmedK = k.trim();
+                    const val = savedDynamicFields[k];
+                    if (val !== null && val !== undefined && val !== '') {
+                        savedTopLevelData[trimmedK] = val;
+                    } else if (savedTopLevelData[trimmedK] === undefined) {
+                        savedTopLevelData[trimmedK] = val;
+                    }
+                }
+            });
+
+            const mergeDynamicData = (rowDynamicData, topLevel) => {
+                let parsedRow = rowDynamicData;
+                if (typeof parsedRow === 'string') {
+                    try { parsedRow = JSON.parse(parsedRow); } catch(e) {}
+                }
+                const merged = {};
+                if (parsedRow) {
+                    Object.keys(parsedRow).forEach(k => {
+                        const trimmedK = k.trim();
+                        const val = parsedRow[k];
+                        if (val !== null && val !== undefined && val !== '') {
+                            merged[trimmedK] = val;
+                        } else if (merged[trimmedK] === undefined) {
+                            merged[trimmedK] = val;
+                        }
+                    });
+                }
+                Object.keys(topLevel || {}).forEach(k => {
+                    const trimmedK = k.trim();
+                    const topVal = topLevel[k];
+                    if (topVal !== null && topVal !== undefined && topVal !== '') {
+                        const rowVal = merged[trimmedK];
+                        if (rowVal === null || rowVal === undefined || rowVal === '') {
+                            merged[trimmedK] = topVal;
+                        }
+                    }
+                });
+                return merged;
+            };
+
+            let savedRows = savedDynamicFields.multi_rows || [];
+            setRows(savedRows);
+
+            toast.success(successMessage);
         } catch (e) {
             console.error(e);
             toast.error(e.response?.data?.message || 'Failed to save row changes');
@@ -544,28 +736,40 @@ export default function TaskDetailPage() {
 
     const addRow = () => {
         const newRow = {
-            form_name: rows[0]?.form_name || task.form_name || '',
-            client_id: rows[0]?.client_id || task.client?.id || '',
-            work_type_id: rows[0]?.work_type_id || task.work_type?.id || '',
+            form_name: task.form_name || '',
+            client_id: '',
+            work_type_id: task.work_type?.id || '',
             allocated_to: '',
-            date_allocated: new Date().toISOString().split('T')[0],
+            date_allocated: '',
             status: 'assigned',
             dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
         };
         const updatedRows = [...rows, newRow];
         setRows(updatedRows);
-        handleSaveRows(updatedRows);
+        handleSaveRows(updatedRows, 'Row added successfully');
     };
 
     const removeRow = (index) => {
-        if (rows.length <= 1) {
-            toast.error("At least one row is required.");
-            return;
-        }
-        const updatedRows = [...rows];
-        updatedRows.splice(index, 1);
-        setRows(updatedRows);
-        handleSaveRows(updatedRows);
+        setConfirmState({
+            open: true,
+            title: 'Delete Row',
+            message: 'Are you sure you want to delete this sheet row? All dynamic data entered for this row will be permanently removed.',
+            confirmLabel: 'Delete Row',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    const updatedRows = [...rows];
+                    updatedRows.splice(index, 1);
+                    setRows(updatedRows);
+                    await handleSaveRows(updatedRows, 'Row deleted successfully');
+                } catch (err) {
+                    toast.error("Failed to delete row");
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
     };
 
     const handleUpdateGlobal = async () => {
@@ -707,7 +911,7 @@ export default function TaskDetailPage() {
                         sub_tasks: prev.sub_tasks.filter(st => st.id !== subTaskId)
                     }));
                     setSelectedTaskIds(prev => prev.filter(tid => tid !== subTaskId));
-                    toast.success('Task deleted');
+                    toast.success('Deleted successfully');
                 } catch (e) {
                     toast.error('Failed to delete task');
                 } finally {
@@ -1947,13 +2151,14 @@ export default function TaskDetailPage() {
                                         </th>
                                     );
                                 })}
+                                <th className="w-12 px-2 py-4 text-center border-l border-[#154673]"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-150 text-slate-700 text-xs">
                             {sortedRows.length === 0 ? (
                                 <tr>
                                     <td 
-                                        colSpan={1 + activeColumns.length} 
+                                        colSpan={2 + activeColumns.length} 
                                         className="px-10 py-8 text-center text-slate-400 text-xs italic font-bold"
                                     >
                                         No rows match the selected filters. Click "Clear all filters" or select another card to see all items.
@@ -1973,19 +2178,10 @@ export default function TaskDetailPage() {
                                     return (
                                         <tr key={originalIndex} className="hover:bg-slate-50/30 transition group">
                                             {/* # column with hover delete */}
-                                            <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40 relative group/rowno">
-                                                <span className="group-hover/rowno:hidden">
+                                            <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40 relative">
+                                                <span>
                                                     {String(idx + 1).padStart(2, '0')}
                                                 </span>
-                                                {rows.length > 1 && !isRowLocked && canDelete && (
-                                                    <button
-                                                        onClick={() => removeRow(originalIndex)}
-                                                        className="hidden group-hover/rowno:inline-flex absolute inset-0 items-center justify-center text-rose-500 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 transition-all font-bold"
-                                                        title="Delete Row"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
                                             </td>
 
                                             {activeColumns.map(col => {
@@ -2029,11 +2225,7 @@ export default function TaskDetailPage() {
                                                                 value={row.client_id || ''}
                                                                 disabled={isRowLocked}
                                                                 options={clients.map(c => {
-                                                                    const details = [];
-                                                                    if (c.contact) details.push(c.contact);
-                                                                    if (c.pan_no) details.push(c.pan_no);
-                                                                    const label = details.length > 0 ? `${c.name} (${details.join(' | ')})` : c.name;
-                                                                    return { value: c.id, label };
+                                                                    return { value: c.id, label: c.name };
                                                                 })}
                                                                 placeholder="Select Client..."
                                                                 onChange={(val) => {
@@ -2662,13 +2854,24 @@ export default function TaskDetailPage() {
                                                     </td>
                                                 );
                                             })}
+                                            <td className="px-4 py-4 text-center border-l border-slate-200 min-w-[50px]">
+                                                {!isRowLocked && canDelete && (
+                                                    <button
+                                                        onClick={() => removeRow(originalIndex)}
+                                                        className="inline-flex items-center justify-center text-rose-500 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 rounded-lg p-1.5 transition-all font-bold cursor-pointer"
+                                                        title="Delete Row"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })
                             )}
                             <tr className="hover:bg-slate-50/50 transition-colors">
                                 <td 
-                                    colSpan={1 + activeColumns.length} 
+                                    colSpan={2 + activeColumns.length} 
                                     className="px-10 py-4"
                                 >
                                     <button

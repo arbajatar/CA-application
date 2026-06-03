@@ -27,6 +27,11 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
+  const [visibleCount, setVisibleCount] = useState(50);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -68,7 +73,7 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
       </div>
 
       {isOpen && (
-        <div className={`absolute z-[100] w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 ${
+        <div className={`absolute z-[100] w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden ${
           direction === 'up' ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'
         }`}>
           <div className="p-2 border-b border-slate-50">
@@ -84,9 +89,17 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
               />
             </div>
           </div>
-          <div className="max-h-60 overflow-y-auto">
+          <div 
+            className="max-h-60 overflow-y-auto"
+            onScroll={(e) => {
+              const { scrollTop, scrollHeight, clientHeight } = e.target;
+              if (scrollTop + clientHeight >= scrollHeight - 20) {
+                setVisibleCount(prev => prev + 50);
+              }
+            }}
+          >
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, i) => (
+              filteredOptions.slice(0, visibleCount).map((opt, i) => (
                 <div
                   key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt}
                   className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${
@@ -521,7 +534,7 @@ export default function TaskBuilderPage() {
       placeholder: 'Select work type...',
       options: [],
       value: '',
-      required: true,
+      required: false,
       static: true,
       section: 1
     },
@@ -533,7 +546,7 @@ export default function TaskBuilderPage() {
       label: 'Created Date',
       placeholder: 'Select date...',
       value: new Date().toISOString().split('T')[0],
-      required: true,
+      required: false,
       static: true,
       section: 1
     },
@@ -552,7 +565,7 @@ export default function TaskBuilderPage() {
         { value: 'other', label: 'Other' }
       ],
       value: 'pending',
-      required: true,
+      required: false,
       static: true,
       section: 1
     },
@@ -2813,7 +2826,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                 <span className="slider"></span>
               </label>
             </div>
-            {!field.static && (
+            {(!field.static || field.section === 2) && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onRemove(); }} 
                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
