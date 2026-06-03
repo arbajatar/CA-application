@@ -534,7 +534,7 @@ export default function TaskBuilderPage() {
       placeholder: 'Select work type...',
       options: [],
       value: '',
-      required: false,
+      required: true,
       static: true,
       section: 1
     },
