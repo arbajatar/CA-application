@@ -1387,46 +1387,46 @@ export default function TaskDetailPage() {
     const baseColumns = schema.length > 0 ? [
         ...schema.map(f => {
             if (f.id === 'static_form_name') {
-                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[200px]' };
+                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[260px]' };
             }
             if (f.id === 'static_client_name') {
-                return { id: 'client', label: 'Client', minWidth: 'min-w-[220px]' };
+                return { id: 'client', label: 'Client', minWidth: 'min-w-[300px]' };
             }
             if (f.id === 'static_work_type') {
-                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' };
+                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[260px]' };
             }
             if (f.id === 'static_assignee') {
-                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[220px]' };
+                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[260px]' };
             }
             if (f.id === 'static_created_date') {
-                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[150px]' };
+                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[180px]' };
             }
             if (f.id === 'static_sheet_status') {
-                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[180px]' };
+                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[240px]' };
             }
             if (f.id === 'static_sub_status') {
-                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' };
+                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[320px]' };
             }
             return {
                 id: `dynamic_${f.label}`,
                 label: f.label,
-                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[240px]' : (f.type === 'checkbox' ? 'min-w-[240px]' : 'min-w-[300px]'),
+                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[320px]' : (f.type === 'checkbox' ? 'min-w-[320px]' : 'min-w-[360px]'),
                 isDynamic: true,
                 field: f
             };
         }),
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[145px]' }
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[180px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[180px]' }
     ] : [
-        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[200px]' },
-        { id: 'client', label: 'Client', minWidth: 'min-w-[220px]' },
-        { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' },
-        { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[220px]' },
-        { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[150px]' },
-        { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[180px]' },
-        { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' },
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[145px]' }
+        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[260px]' },
+        { id: 'client', label: 'Client', minWidth: 'min-w-[300px]' },
+        { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[260px]' },
+        { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[260px]' },
+        { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[180px]' },
+        { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[240px]' },
+        { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[320px]' },
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[180px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[180px]' }
     ];
 
     let activeColumns = [];
@@ -2277,7 +2277,7 @@ export default function TaskDetailPage() {
                                                                     setRows(newRows);
                                                                     handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
                                                                 <option value="">— Select Assigned To —</option>
                                                                 {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -2351,7 +2351,7 @@ export default function TaskDetailPage() {
                                                                     setRows(newRows);
                                                                     handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
                                                                 <option value="">— Set Sub Status —</option>
                                                                 {getSubStatusOptions(task, schema).map((opt, i) => (
@@ -2744,7 +2744,7 @@ export default function TaskDetailPage() {
                                                                     setRows(newRows);
                                                                     handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[150px]"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
                                                             >
                                                                 <option value="">Select Option</option>
                                                                 {(() => {
@@ -2863,7 +2863,7 @@ export default function TaskDetailPage() {
                                                                     setRows(newRows);
                                                                     handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
                                                             />
                                                         ) : isTime ? (
                                                             <input
@@ -2876,7 +2876,7 @@ export default function TaskDetailPage() {
                                                                     setRows(newRows);
                                                                     handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[140px]"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
                                                             />
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
@@ -2906,7 +2906,7 @@ export default function TaskDetailPage() {
                                                                          }
                                                                      }}
                                                                     placeholder={field.placeholder || `Enter ${field.label}...`}
-                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[280px] outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block"
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block"
                                                                     style={{ minHeight: '34px' }}
                                                                 />
                                                                 {value && (
