@@ -118,7 +118,7 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
-  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [dropdownStyle, setDropdownStyle] = useState({ position: 'fixed', top: '-9999px', left: '-9999px' });
   const [visibleCount, setVisibleCount] = useState(50);
 
   useEffect(() => {
@@ -310,6 +310,7 @@ export default function TaskDetailPage() {
     const [caRating, setCaRating] = useState('');
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
     const [editingFeedbackIndex, setEditingFeedbackIndex] = useState(null);
+    const [editingCheckboxes, setEditingCheckboxes] = useState({});
 
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -1409,7 +1410,7 @@ export default function TaskDetailPage() {
             return {
                 id: `dynamic_${f.label}`,
                 label: f.label,
-                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[240px]' : 'min-w-[200px]',
+                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[240px]' : (f.type === 'checkbox' ? 'min-w-[240px]' : 'min-w-[300px]'),
                 isDynamic: true,
                 field: f
             };
@@ -2176,9 +2177,9 @@ export default function TaskDetailPage() {
                                     );
 
                                     return (
-                                        <tr key={originalIndex} className="hover:bg-slate-50/30 transition group">
+                                        <tr key={originalIndex} className="hover:bg-slate-200 transition group">
                                             {/* # column with hover delete */}
-                                            <td className="px-6 py-4 text-center font-bold text-slate-400 border-r border-slate-200 bg-slate-50/40 relative">
+                                            <td className="px-4 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-200 bg-slate-50/40 relative">
                                                 <span>
                                                     {String(idx + 1).padStart(2, '0')}
                                                 </span>
@@ -2187,7 +2188,7 @@ export default function TaskDetailPage() {
                                             {activeColumns.map(col => {
                                                 if (col.id === 'form_name') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200">
                                                             <div className="flex items-center gap-2">
                                                                 <input
                                                                     type="text"
@@ -2402,7 +2403,7 @@ export default function TaskDetailPage() {
 
                                                 if (col.id === 'is_verified') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200 text-center min-w-[145px]">
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200 text-center min-w-[145px]">
                                                             {row.is_verified ? (
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     {isAdmin ? (
@@ -2503,7 +2504,7 @@ export default function TaskDetailPage() {
                                                 const isTime = field.type === 'time';
 
                                                 return (
-                                                    <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                    <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200">
                                                         {isRating ? (
                                                             <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
                                                                 {Array.from({ length: 5 }).map((_, i) => {
@@ -2746,47 +2747,110 @@ export default function TaskDetailPage() {
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-[150px]"
                                                             >
                                                                 <option value="">Select Option</option>
-                                                                {(field.options || []).map((opt, i) => {
-                                                                     const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
-                                                                     const optLbl = typeof opt === 'object' ? opt.label : opt;
-                                                                     return (
-                                                                         <option key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt} value={optVal}>
-                                                                             {optLbl}
-                                                                         </option>
-                                                                     );
-                                                                 })}
+                                                                {(() => {
+                                                                    const seen = new Set();
+                                                                    return (field.options || []).filter(opt => {
+                                                                        const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                        if (seen.has(optVal)) return false;
+                                                                        seen.add(optVal);
+                                                                        return true;
+                                                                    }).map((opt, i) => {
+                                                                        const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                        const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                                        return (
+                                                                            <option key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt} value={optVal}>
+                                                                                {optLbl}
+                                                                            </option>
+                                                                        );
+                                                                    });
+                                                                })()}
                                                             </select>
                                                         ) : isCheckbox ? (
-                                                            <div className="flex flex-wrap gap-2.5 min-w-[160px]">
-                                                                {(field.options || []).map((opt, idx) => {
-                                                                    const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
-                                                                    const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
-                                                                    const optLbl = typeof opt === 'object' ? opt.label : opt;
-                                                                    const isChecked = selectedValues.includes(optVal);
-                                                                    return (
-                                                                        <label key={typeof opt === 'object' ? (opt.value || opt.label || idx) : opt} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-650">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={isChecked}
-                                                                                onChange={(e) => {
-                                                                                    let nextVals;
-                                                                                    if (e.target.checked) {
-                                                                                        nextVals = [...selectedValues, optVal];
-                                                                                    } else {
-                                                                                        nextVals = selectedValues.filter(v => v !== optVal);
-                                                                                    }
-                                                                                    const newRows = [...rows];
-                                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                                    newRows[originalIndex].dynamic_data[field.label] = nextVals;
-                                                                                    setRows(newRows);
-                                                                                    handleSaveRows(newRows);
+                                                            <div className="flex flex-col gap-2 min-w-[200px]">
+                                                                {editingCheckboxes[`${originalIndex}-${field.label}`] ? (
+                                                                    <>
+                                                                        <div className="flex flex-wrap gap-2.5">
+                                                                            {(() => {
+                                                                                const seen = new Set();
+                                                                                return (field.options || []).filter(opt => {
+                                                                                    const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                                    if (seen.has(optVal)) return false;
+                                                                                    seen.add(optVal);
+                                                                                    return true;
+                                                                                }).map((opt, idx) => {
+                                                                                    const selectedValues = Array.isArray(value) ? value : (value ? [value] : []);
+                                                                                    const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                                    const optLbl = typeof opt === 'object' ? opt.label : opt;
+                                                                                    const isChecked = selectedValues.includes(optVal);
+                                                                                    return (
+                                                                                        <label key={typeof opt === 'object' ? (opt.value || opt.label || idx) : opt} className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-650">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                checked={isChecked}
+                                                                                                onChange={(e) => {
+                                                                                                    let nextVals;
+                                                                                                    if (e.target.checked) {
+                                                                                                        nextVals = Array.from(new Set([...selectedValues, optVal]));
+                                                                                                    } else {
+                                                                                                        nextVals = selectedValues.filter(v => v !== optVal);
+                                                                                                    }
+                                                                                                    const newRows = [...rows];
+                                                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                                    newRows[originalIndex].dynamic_data[field.label] = nextVals;
+                                                                                                    setRows(newRows);
+                                                                                                }}
+                                                                                                className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
+                                                                                            />
+                                                                                            <span>{optLbl}</span>
+                                                                                        </label>
+                                                                                    );
+                                                                                });
+                                                                            })()}
+                                                                        </div>
+                                                                        <div className="flex justify-end mt-1">
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleSaveRows(rows);
+                                                                                    setEditingCheckboxes(prev => ({ ...prev, [`${originalIndex}-${field.label}`]: false }));
                                                                                 }}
-                                                                                className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
-                                                                            />
-                                                                            <span>{optLbl}</span>
-                                                                        </label>
-                                                                    );
-                                                                })}
+                                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                                                                            >
+                                                                                Submit
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div 
+                                                                        className="flex flex-col gap-1.5 cursor-pointer group/chk"
+                                                                        onClick={() => setEditingCheckboxes(prev => ({ ...prev, [`${originalIndex}-${field.label}`]: true }))}
+                                                                    >
+                                                                        {(!value || (Array.isArray(value) && value.length === 0)) ? (
+                                                                            <span className="text-xs text-slate-400 italic">No options selected</span>
+                                                                        ) : (
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {(Array.isArray(value) ? value : [value]).map((val, idx) => {
+                                                                                    const matchedOpt = (field.options || []).find(opt => {
+                                                                                        const oVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
+                                                                                        return oVal === val;
+                                                                                    });
+                                                                                    const displayLbl = matchedOpt ? (typeof matchedOpt === 'object' ? matchedOpt.label : matchedOpt) : val;
+                                                                                    return (
+                                                                                        <span key={idx} className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 border border-indigo-100 shadow-sm">
+                                                                                            <Check size={10} className="text-indigo-500"/>
+                                                                                            {displayLbl}
+                                                                                        </span>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="opacity-0 group-hover/chk:opacity-100 transition-opacity mt-0.5">
+                                                                            <button className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 bg-white border border-indigo-100 px-2 py-0.5 rounded shadow-sm hover:bg-indigo-50 w-fit">
+                                                                                <Edit2 size={10}/> Edit
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ) : isDate ? (
                                                             <input
@@ -2816,29 +2880,34 @@ export default function TaskDetailPage() {
                                                             />
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
-                                                                <input
-                                                                     type="text"
+                                                                <textarea
+                                                                     rows={1}
                                                                      value={value || ''}
                                                                      onChange={(e) => {
                                                                          const val = e.target.value;
                                                                          const newRows = [...rows];
                                                                          if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                          newRows[originalIndex].dynamic_data[field.label] = val;
+                                                                         e.target.style.height = 'auto';
+                                                                         e.target.style.height = e.target.scrollHeight + 'px';
                                                                          setRows(newRows);
                                                                      }}
-                                                                     onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                     onFocus={(e) => {
+                                                                         setFocusedValue(e.target.value);
+                                                                         e.target.style.height = 'auto';
+                                                                         e.target.style.height = e.target.scrollHeight + 'px';
+                                                                     }}
                                                                      onBlur={(e) => {
                                                                          if (e.target.value !== focusedValue) {
                                                                              handleSaveRows(rows);
                                                                          }
+                                                                         if (!e.target.value || e.target.value.length < 50) {
+                                                                             e.target.style.height = 'auto';
+                                                                         }
                                                                      }}
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            e.target.blur();
-                                                                        }
-                                                                    }}
                                                                     placeholder={field.placeholder || `Enter ${field.label}...`}
-                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[160px] outline-none transition"
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-[280px] outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block"
+                                                                    style={{ minHeight: '34px' }}
                                                                 />
                                                                 {value && (
                                                                     <button
@@ -2854,7 +2923,7 @@ export default function TaskDetailPage() {
                                                     </td>
                                                 );
                                             })}
-                                            <td className="px-4 py-4 text-center border-l border-slate-200 min-w-[50px]">
+                                            <td className="px-3 py-2.5 text-center border-l border-b border-slate-200 min-w-[50px]">
                                                 {!isRowLocked && canDelete && (
                                                     <button
                                                         onClick={() => removeRow(originalIndex)}
@@ -2869,7 +2938,7 @@ export default function TaskDetailPage() {
                                     );
                                 })
                             )}
-                            <tr className="hover:bg-slate-50/50 transition-colors">
+                            <tr className="hover:bg-slate-200 transition-colors">
                                 <td 
                                     colSpan={2 + activeColumns.length} 
                                     className="px-10 py-4"
@@ -2960,7 +3029,7 @@ export default function TaskDetailPage() {
                                     filteredSubTasks.map((st) => {
                                         const isLocked = !isAdmin && st.is_verified;
                                         return (
-                                            <tr key={st.id} className={`group hover:bg-slate-50/30 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-indigo-50/20' : ''}`}>
+                                            <tr key={st.id} className={`group hover:bg-slate-200 transition-colors ${selectedTaskIds.includes(st.id) ? 'bg-indigo-50/20' : ''}`}>
                                                 <td key="chk" className="px-2 py-4 text-center border-r border-slate-100" style={{ minWidth: '48px', width: '48px' }}>
                                                     <input
                                                         type="checkbox"
@@ -3168,7 +3237,7 @@ export default function TaskDetailPage() {
                                         </td>
                                     </tr>
                                 )}
-                                <tr className="hover:bg-slate-50/50 transition-colors">
+                                <tr className="hover:bg-slate-200 transition-colors">
                                     <td colSpan={10} className="px-8 py-4">
                                         <button
                                             onClick={handleAddSubTask}
