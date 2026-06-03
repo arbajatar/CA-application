@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
 import CustomSelect from '../../components/ui/CustomSelect'
+import { useAuth } from '../../context/AuthContext'
 
 const EMPTY_FORM = {
     name: '',
@@ -32,6 +33,10 @@ const EMPTY_FORM = {
 }
 
 export default function ClientsPage() {
+    const { user } = useAuth()
+    const isCA = user?.role === 'ca'
+    const [isViewOnly, setIsViewOnly] = useState(false)
+
     const [clients, setClients] = useState([])
     const [meta, setMeta] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -795,8 +800,9 @@ export default function ClientsPage() {
 
     const renderClientForm = () => (
         <div className="space-y-6 px-1">
-            {/* Main Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset disabled={isViewOnly} className="space-y-6 border-none p-0 m-0">
+                {/* Main Form Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Client Name */}
                 <div>
                     <div className="flex items-center justify-between mb-1">
@@ -1358,21 +1364,51 @@ export default function ClientsPage() {
                 </div>
             </div>
 
+            </fieldset>
+
             {/* Form Footer Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                    onClick={() => { setAddOpen(false); setEditOpen(false) }}
-                    className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
-                >
-                    {saving ? 'Saving...' : (editOpen ? 'Update Client' : 'Register Client')}
-                </button>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 items-center">
+                {isViewOnly ? (
+                    <>
+                        <button
+                            onClick={() => {
+                                setIsViewOnly(false);
+                            }}
+                            className="px-6 py-2.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition active:scale-95 cursor-pointer"
+                        >
+                            Edit Details
+                        </button>
+                        <button
+                            onClick={() => { setAddOpen(false); setEditOpen(false); setIsViewOnly(false); }}
+                            className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer"
+                        >
+                            Close
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => { 
+                                if (editOpen && selected) {
+                                    setIsViewOnly(true);
+                                } else {
+                                    setAddOpen(false); 
+                                    setEditOpen(false);
+                                }
+                            }}
+                            className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
+                        >
+                            {saving ? 'Saving...' : (editOpen ? 'Update Client' : 'Register Client')}
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     )
@@ -1397,27 +1433,31 @@ export default function ClientsPage() {
                     />
 
                     {/* Import Button */}
-                    <button
-                        onClick={() => document.getElementById('excel-import-file').click()}
-                        className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
-                        title="Import clients from Excel sheet"
-                    >
-                        <FileUp size={15} /> Import Excel
-                    </button>
+                    {isCA && (
+                        <button
+                            onClick={() => document.getElementById('excel-import-file').click()}
+                            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+                            title="Import clients from Excel sheet"
+                        >
+                            <FileUp size={15} /> Import Excel
+                        </button>
+                    )}
 
                     {/* Export Button */}
-                    <button
-                        onClick={handleExportExcel}
-                        className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
-                        title="Export clients to formatted Excel"
-                    >
-                        <FileDown size={15} /> Export Excel
-                    </button>
+                    {isCA && (
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center justify-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+                            title="Export clients to formatted Excel"
+                        >
+                            <FileDown size={15} /> Export Excel
+                        </button>
+                    )}
 
                     {/* Add Client Button */}
                     <button
                         onClick={() => { setForm(EMPTY_FORM); setErrors({}); setAddOpen(true) }}
-                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial"
+                        className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 flex-1 sm:flex-initial cursor-pointer"
                     >
                         <Plus size={15} /> Register Client
                     </button>
@@ -1537,22 +1577,27 @@ export default function ClientsPage() {
                                         {/* Actions */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Tooltip content="Edit Client">
+                                                <Tooltip content="View Client">
                                                     <button
-                                                        onClick={() => openEdit(c)}
-                                                        className="p-2 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all"
+                                                        onClick={() => {
+                                                            setIsViewOnly(true);
+                                                            openEdit(c);
+                                                        }}
+                                                        className="p-2 rounded-lg bg-indigo-50/70 border border-indigo-100/40 text-[#1F5C99] hover:bg-indigo-100 hover:text-indigo-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
                                                     >
-                                                        <Pencil size={14} />
+                                                        <Eye size={14} />
                                                     </button>
                                                 </Tooltip>
-                                                <Tooltip content="Archive Client">
-                                                    <button
-                                                        onClick={() => { setSelected(c); setDeleteOpen(true) }}
-                                                        className="p-2 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </Tooltip>
+                                                {isCA && (
+                                                    <Tooltip content="Archive Client">
+                                                        <button
+                                                            onClick={() => { setSelected(c); setDeleteOpen(true) }}
+                                                            className="p-2 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </Tooltip>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -1590,10 +1635,11 @@ export default function ClientsPage() {
                 onClose={() => {
                     setAddOpen(false);
                     setEditOpen(false);
+                    setIsViewOnly(false);
                     setForm(EMPTY_FORM);
                     setErrors({});
                 }}
-                title={editOpen ? 'Update Registered Client Details' : 'Register New CA Business Client'}
+                title={isViewOnly ? `Client Details: ${form.name}` : (editOpen ? 'Update Registered Client Details' : 'Register New CA Business Client')}
                 width="max-w-4xl" // Large layout for form elements
             >
                 {renderClientForm()}

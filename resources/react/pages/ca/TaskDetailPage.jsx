@@ -268,11 +268,12 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
   );
 }
 
-export default function TaskDetailPage() {
+export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ca';
     const isStaff = user?.role === 'staff';
-    const { id } = useParams();
+    const { id: paramId } = useParams();
+    const id = propId || paramId;
     const navigate = useNavigate();
     const [task, setTask] = useState(null);
     
@@ -1566,126 +1567,128 @@ export default function TaskDetailPage() {
                 }
             `}} />
             {/* Redesigned Premium Header Block */}
-            <div className="bg-white rounded-[2rem] border border-slate-100/80 py-3.5 px-6 md:py-4.5 md:px-8 shadow-sm space-y-3 animate-fade-in relative overflow-hidden">
-                {/* Decorative background gradients for premium SaaS feel */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/20 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
+            {!hideBackHeader && (
+                <div className="bg-white rounded-[2rem] border border-slate-100/80 py-3.5 px-6 md:py-4.5 md:px-8 shadow-sm space-y-3 animate-fade-in relative overflow-hidden">
+                    {/* Decorative background gradients for premium SaaS feel */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-50/20 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20"></div>
 
-                {/* Top Row: Breadcrumbs and Info Badge */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-                    <nav className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        <Link to={isStaff ? "/staff/tasks" : "/ca/tasks"} className="hover:text-indigo-650 transition flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                            Sheets
-                        </Link>
-                        <ChevronRight size={10} className="text-slate-350" />
-                        {task.work_type && (
-                            <>
-                                <Link to={isStaff ? `/staff/tasks?work_type_id=${task.work_type.id}` : `/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
-                                    {task.work_type.name}
-                                </Link>
-                                <ChevronRight size={10} className="text-slate-350" />
-                            </>
-                        )}
-                        <span className="text-slate-800 font-extrabold max-w-[200px] truncate">{task.form_name || 'View Sheet'}</span>
-                    </nav>
-
-                    {/* Small Pulsing Glass Status Badge */}
-                    <div className="self-start sm:self-auto bg-indigo-50/50 border border-indigo-100/60 text-indigo-650 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1.5 shadow-sm">
-                        <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
-                        </span>
-                        Form Workspace
-                    </div>
-                </div>
-
-                {/* Main Row: Back Button, Title, and Action Toolbar */}
-                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pt-2 border-t border-slate-50 relative z-10">
-                    {/* Left: Sleek Back + App Icon + Title */}
-                    <div className="flex items-center gap-4 min-w-0">
-                        <button 
-                            onClick={() => navigate(isStaff ? '/staff/tasks' : '/ca/tasks')} 
-                            className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
-                            title="Back to Sheets"
-                        >
-                            <ChevronLeft size={18} />
-                        </button>
-
-                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
-                            <Layout size={18} />
-                        </div>
-
-                        <div className="min-w-0">
-                            <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight flex items-center gap-2">
-                                {isEditing ? (
-                                    <input
-                                        value={formName}
-                                        onChange={e => setFormName(e.target.value)}
-                                        className="bg-transparent border-b-2 border-indigo-600 outline-none focus:border-indigo-700 transition min-w-[280px]"
-                                        placeholder="Form Name"
-                                    />
-                                ) : (
-                                    formName
-                                )}
-                            </h1>
-                        </div>
-                    </div>
-
-                    {/* Right: Elegant action buttons bar */}
-                    <div className="flex flex-wrap items-center gap-2.5 select-none">
-                        {/* Secondary Actions Group (Colors always visible) */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button 
-                                onClick={handleExport} 
-                                className="flex items-center gap-1.5 text-emerald-750 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                            >
-                                <FileDown size={14} className="text-emerald-600" /> 
-                                <span>Export Excel</span>
-                            </button>
-                            <button 
-                                onClick={() => setIsGlobalModalOpen(true)}
-                                className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                            >
-                                <Sliders size={14} className="text-indigo-500" />
-                                <span>Global Settings</span>
-                            </button>
-                            {!isStaff && (
-                                <button 
-                                    onClick={() => {
-                                        if (!task) return;
-                                        const duplicateData = {
-                                            form_name: task.form_name,
-                                            client_id: task.client?.id,
-                                            work_type_id: task.work_type?.id,
-                                            remarks: task.remarks,
-                                            dynamic_fields: task.dynamic_fields,
-                                            created_at: task.created_at,
-                                            status: task.status,
-                                            allow_attachments: task.allow_attachments,
-                                            subtasks: (task.sub_tasks || []).map(st => ({
-                                                title: st.title,
-                                                assigned_to: st.assigned_to?.id,
-                                                priority: st.priority,
-                                                status: st.status,
-                                                due_date: st.due_date,
-                                                remarks: st.remarks
-                                            }))
-                                        };
-                                        navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                                    }}
-                                    className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                                >
-                                    <Edit2 size={14} className="text-violet-600" /> 
-                                    <span>Layout Builder</span>
-                                </button>
+                    {/* Top Row: Breadcrumbs and Info Badge */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+                        <nav className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                            <Link to={isStaff ? "/staff/tasks" : "/ca/tasks"} className="hover:text-indigo-650 transition flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                Sheets
+                            </Link>
+                            <ChevronRight size={10} className="text-slate-350" />
+                            {task.work_type && (
+                                <>
+                                    <Link to={isStaff ? `/staff/tasks?work_type_id=${task.work_type.id}` : `/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
+                                        {task.work_type.name}
+                                    </Link>
+                                    <ChevronRight size={10} className="text-slate-350" />
+                                </>
                             )}
+                            <span className="text-slate-800 font-extrabold max-w-[200px] truncate">{task.form_name || 'View Sheet'}</span>
+                        </nav>
+
+                        {/* Small Pulsing Glass Status Badge */}
+                        <div className="self-start sm:self-auto bg-indigo-50/50 border border-indigo-100/60 text-indigo-650 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1.5 shadow-sm">
+                            <span className="relative flex h-1.5 w-1.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+                            </span>
+                            Form Workspace
+                        </div>
+                    </div>
+
+                    {/* Main Row: Back Button, Title, and Action Toolbar */}
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pt-2 border-t border-slate-50 relative z-10">
+                        {/* Left: Sleek Back + App Icon + Title */}
+                        <div className="flex items-center gap-4 min-w-0">
+                            <button 
+                                onClick={() => navigate(isStaff ? '/staff/tasks' : '/ca/tasks')} 
+                                className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
+                                title="Back to Sheets"
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
+
+                            <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                                <Layout size={18} />
+                            </div>
+
+                            <div className="min-w-0">
+                                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight flex items-center gap-2">
+                                    {isEditing ? (
+                                        <input
+                                            value={formName}
+                                            onChange={e => setFormName(e.target.value)}
+                                            className="bg-transparent border-b-2 border-indigo-600 outline-none focus:border-indigo-700 transition min-w-[280px]"
+                                            placeholder="Form Name"
+                                        />
+                                    ) : (
+                                        formName
+                                    )}
+                                </h1>
+                            </div>
                         </div>
 
-                        {/* Primary action removed as requested */}
+                        {/* Right: Elegant action buttons bar */}
+                        <div className="flex flex-wrap items-center gap-2.5 select-none">
+                            {/* Secondary Actions Group (Colors always visible) */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button 
+                                    onClick={handleExport} 
+                                    className="flex items-center gap-1.5 text-emerald-750 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                >
+                                    <FileDown size={14} className="text-emerald-600" /> 
+                                    <span>Export Excel</span>
+                                </button>
+                                <button 
+                                    onClick={() => setIsGlobalModalOpen(true)}
+                                    className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                >
+                                    <Sliders size={14} className="text-indigo-500" />
+                                    <span>Global Settings</span>
+                                </button>
+                                {!isStaff && (
+                                    <button 
+                                        onClick={() => {
+                                            if (!task) return;
+                                            const duplicateData = {
+                                                form_name: task.form_name,
+                                                client_id: task.client?.id,
+                                                work_type_id: task.work_type?.id,
+                                                remarks: task.remarks,
+                                                dynamic_fields: task.dynamic_fields,
+                                                created_at: task.created_at,
+                                                status: task.status,
+                                                allow_attachments: task.allow_attachments,
+                                                subtasks: (task.sub_tasks || []).map(st => ({
+                                                    title: st.title,
+                                                    assigned_to: st.assigned_to?.id,
+                                                    priority: st.priority,
+                                                    status: st.status,
+                                                    due_date: st.due_date,
+                                                    remarks: st.remarks
+                                                }))
+                                            };
+                                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                        }}
+                                        className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                    >
+                                        <Edit2 size={14} className="text-violet-600" /> 
+                                        <span>Layout Builder</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Primary action removed as requested */}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Global Settings Modal */}
             {isGlobalModalOpen && (

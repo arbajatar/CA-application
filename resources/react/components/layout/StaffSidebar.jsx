@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, User, LogOut, ShieldCheck, Menu, Info, Globe, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Users, User, LogOut, ShieldCheck, Menu, Info, Globe, BarChart3 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
 const navItems = [
     { to: '/staff/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/staff/tasks', icon: ClipboardList, label: 'My Sheets' },
+    { to: '/staff/clients', icon: Users, label: 'Clients' },
     { to: '/staff/reports/team', icon: BarChart3, label: 'Team Report' },
     { to: '/staff/portals', icon: Globe, label: 'Portal List' },
     { to: '/staff/profile', icon: User, label: 'My Profile' },

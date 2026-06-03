@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { 
-    ClipboardList, Calendar, Users, Briefcase, Clock, 
-    FileSpreadsheet, Plus, Search, Edit3, Trash2, CheckCircle2, 
-    AlertCircle, ChevronDown, ChevronUp, UserCheck, CheckSquare, 
-    ArrowUpDown, RefreshCw, X, MessageSquare, Info,
+import { createPortal } from 'react-dom'
+import {
+    ClipboardList, Calendar, Users, Briefcase, Clock,
+    FileSpreadsheet, Plus, Search, Edit3, Trash2, CheckCircle2,
+    AlertCircle, ChevronDown, ChevronUp, UserCheck, CheckSquare,
+    ArrowUpDown, RefreshCw, X, MessageSquare, Info, Globe,
     ShieldCheck, ShieldAlert, Folder, ArrowLeft, User, ChevronRight,
-    Copy
+    Copy, PlusCircle, Key, Eye, EyeOff, ExternalLink
 } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -46,110 +47,307 @@ const parseTime24Hour = (time12) => {
 }
 
 function TimePicker12Hour({ value, onChange, label, className = "", position = "bottom" }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const containerRef = useRef(null);
+    // Parse value (e.g. "14:05")
+    const getInitialState = (val) => {
+        if (!val) return { hour: '', minute: '', ampm: 'AM' };
+        const parts = String(val).split(':');
+        if (parts.length < 2) return { hour: '', minute: '', ampm: 'AM' };
+        let h24 = parseInt(parts[0], 10);
+        let m = parts[1] || '';
+        if (isNaN(h24)) return { hour: '', minute: '', ampm: 'AM' };
+        
+        const ampm = h24 >= 12 ? 'PM' : 'AM';
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        
+        return {
+            hour: String(h12),
+            minute: m.substring(0, 2),
+            ampm
+        };
+    };
 
-    let currentHour = "10";
-    let currentMinute = "00";
-    let currentAmpm = "AM";
+    const state = getInitialState(value);
 
-    if (value) {
-        const parts = value.split(':');
-        if (parts.length >= 2) {
-            let h = parseInt(parts[0], 10);
-            const m = parts[1];
-            if (!isNaN(h)) {
-                currentAmpm = h >= 12 ? 'PM' : 'AM';
-                h = h % 12;
-                h = h ? h : 12;
-                currentHour = String(h).padStart(2, '0');
-                currentMinute = String(m).substring(0, 2);
-            }
+    const updateTime = (newHour, newMinute, newAmPm) => {
+        if (newHour === '' && newMinute === '') {
+            onChange('');
+            return;
         }
-    }
 
-    const hoursList = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-    const minutesList = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+        let h = parseInt(newHour, 10);
+        if (isNaN(h)) h = 12;
+        if (h < 1) h = 1;
+        if (h > 12) h = 12;
 
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (containerRef.current && !containerRef.current.contains(event.target)) {
-                setIsOpen(false);
-            }
+        let m = parseInt(newMinute, 10);
+        if (isNaN(m)) m = 0;
+        if (m < 0) m = 0;
+        if (m > 59) m = 59;
+
+        let h24 = h;
+        if (newAmPm === 'PM' && h < 12) h24 += 12;
+        if (newAmPm === 'AM' && h === 12) h24 = 0;
+
+        const hStr = String(h24).padStart(2, '0');
+        const mStr = String(m).padStart(2, '0');
+        onChange(`${hStr}:${mStr}`);
+    };
+
+    const handleHourChange = (e) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 2) val = val.substring(0, 2);
+        
+        if (val === '') {
+            updateTime('', state.minute, state.ampm);
+            return;
         }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
 
-    const handleSelect = (hour, minute, ampm) => {
-        let h = parseInt(hour, 10);
-        if (ampm === 'PM' && h < 12) h += 12;
-        if (ampm === 'AM' && h === 12) h = 0;
-        const formatted24 = `${String(h).padStart(2, '0')}:${minute}`;
-        onChange(formatted24);
+        let num = parseInt(val, 10);
+        if (num > 12) {
+            num = 12;
+        }
+        
+        updateTime(String(num), state.minute, state.ampm);
+    };
+
+    const handleMinuteChange = (e) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 2) val = val.substring(0, 2);
+
+        if (val === '') {
+            updateTime(state.hour, '', state.ampm);
+            return;
+        }
+
+        let num = parseInt(val, 10);
+        if (num > 59) num = 59;
+
+        updateTime(state.hour, String(num).padStart(2, '0'), state.ampm);
+    };
+
+    const handleAmPmChange = (newAmPm) => {
+        updateTime(state.hour, state.minute, newAmPm);
+    };
+
+    const handleHourBlur = () => {
+        if (state.hour) {
+            let h = parseInt(state.hour, 10);
+            if (h < 1) h = 12;
+            if (h > 12) h = 12;
+            updateTime(String(h), state.minute, state.ampm);
+        }
+    };
+
+    const handleMinuteBlur = () => {
+        if (state.minute) {
+            let m = parseInt(state.minute, 10);
+            if (m < 0) m = 0;
+            if (m > 59) m = 59;
+            updateTime(state.hour, String(m).padStart(2, '0'), state.ampm);
+        } else {
+            updateTime(state.hour, '00', state.ampm);
+        }
     };
 
     return (
-        <div className="relative" ref={containerRef}>
+        <div className="w-full">
             {label && <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">{label}</label>}
-            <div 
-                onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center justify-between px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition font-semibold text-gray-800 ${className}`}
-            >
-                <span>{`${currentHour}:${currentMinute} ${currentAmpm}`}</span>
-                <Clock size={16} className="text-gray-400" />
-            </div>
-            
-            {isOpen && (
-                <div className={`absolute left-0 ${position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'} bg-white border border-gray-100 rounded-2xl shadow-xl p-3 z-50 flex gap-2 w-64`}>
-                    {/* Hours */}
-                    <div className="flex-1 flex flex-col h-40 overflow-y-auto select-none border-r border-gray-100 pr-1">
-                        <p className="text-[10px] font-bold text-gray-400 text-center sticky top-0 bg-white pb-1">HR</p>
-                        {hoursList.map(h => (
-                            <button
-                                type="button"
-                                key={h}
-                                onClick={() => handleSelect(h, currentMinute, currentAmpm)}
-                                className={`py-1 text-xs font-semibold rounded-lg transition ${h === currentHour ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold hover:bg-[#d8e7f5]' : 'text-gray-700 hover:bg-gray-100'}`}
-                            >
-                                {h}
-                            </button>
-                        ))}
-                    </div>
-                    {/* Minutes */}
-                    <div className="flex-1 flex flex-col h-40 overflow-y-auto select-none pr-1">
-                        <p className="text-[10px] font-bold text-gray-400 text-center sticky top-0 bg-white pb-1">MIN</p>
-                        {minutesList.map(m => (
-                            <button
-                                type="button"
-                                key={m}
-                                onClick={() => handleSelect(currentHour, m, currentAmpm)}
-                                className={`py-1 text-xs font-semibold rounded-lg transition ${m === currentMinute ? 'bg-[#EEF4FB] text-[#1F5C99] font-bold hover:bg-[#d8e7f5]' : 'text-gray-700 hover:bg-gray-100'}`}
-                            >
-                                {m}
-                            </button>
-                        ))}
-                    </div>
-                    {/* AM/PM */}
-                    <div className="w-12 flex flex-col justify-center gap-1 border-l border-gray-100 pl-2">
-                        {['AM', 'PM'].map(period => (
-                            <button
-                                type="button"
-                                key={period}
-                                onClick={() => handleSelect(currentHour, currentMinute, period)}
-                                className={`py-2 text-xs font-bold rounded-lg transition ${period === currentAmpm ? 'bg-[#1F5C99] text-white hover:bg-[#154673]' : 'text-gray-600 hover:bg-gray-100'}`}
-                            >
-                                {period}
-                            </button>
-                        ))}
-                    </div>
+            <div className={`flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-[#1F5C99]/20 focus-within:border-[#1F5C99] transition ${className}`}>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={state.hour}
+                    onChange={handleHourChange}
+                    onBlur={handleHourBlur}
+                    placeholder="12"
+                    className="w-6 text-center bg-transparent border-none p-0 focus:ring-0 text-sm font-semibold text-gray-800 focus:outline-none"
+                />
+                <span className="text-gray-400 font-bold">:</span>
+                <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={state.minute}
+                    onChange={handleMinuteChange}
+                    onBlur={handleMinuteBlur}
+                    placeholder="00"
+                    className="w-6 text-center bg-transparent border-none p-0 focus:ring-0 text-sm font-semibold text-gray-800 focus:outline-none"
+                />
+                
+                <div className="flex border border-gray-200 rounded-lg overflow-hidden shrink-0 ml-auto bg-white text-[10px] font-bold">
+                    <button
+                        type="button"
+                        onClick={() => handleAmPmChange('AM')}
+                        className={`px-1.5 py-0.5 transition ${state.ampm === 'AM' ? 'bg-[#1F5C99] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        AM
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleAmPmChange('PM')}
+                        className={`px-1.5 py-0.5 transition border-l border-gray-200 ${state.ampm === 'PM' ? 'bg-[#1F5C99] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        PM
+                    </button>
                 </div>
-            )}
-            
-            {/* Folders grid */}
+            </div>
         </div>
     );
 }
+
+
+function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md', disabled = false }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const containerRef = useRef(null);
+    const dropdownRef = useRef(null);
+    const [dropdownStyle, setDropdownStyle] = useState({});
+    const [visibleCount, setVisibleCount] = useState(50);
+
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [search]);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (containerRef.current && !containerRef.current.contains(event.target) && (!dropdownRef.current || !dropdownRef.current.contains(event.target))) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (isOpen && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            if (direction === 'up') {
+                setDropdownStyle({
+                    position: 'fixed',
+                    bottom: window.innerHeight - rect.top + 8,
+                    left: rect.left,
+                    width: rect.width,
+                    zIndex: 99999
+                });
+            } else {
+                setDropdownStyle({
+                    position: 'fixed',
+                    top: rect.bottom + 8,
+                    left: rect.left,
+                    width: rect.width,
+                    zIndex: 99999
+                });
+            }
+        }
+    }, [isOpen, direction]);
+
+    useEffect(() => {
+        const handleScroll = (e) => {
+            if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
+            if (isOpen) setIsOpen(false);
+        };
+        window.addEventListener('scroll', handleScroll, true);
+        return () => window.removeEventListener('scroll', handleScroll, true);
+    }, [isOpen]);
+
+    const filteredOptions = options.filter(opt => {
+        const label = typeof opt === 'object' ? opt.label : opt;
+        return label?.toLowerCase().includes(search.toLowerCase());
+    });
+
+    const selectedOption = options.find(opt => {
+        const val = typeof opt === 'object' ? opt.value : opt;
+        return val !== undefined && val !== null && value !== undefined && value !== null && String(val) === String(value);
+    });
+
+    const getLabel = (opt) => typeof opt === 'object' ? opt.label : opt;
+    const getValue = (opt) => typeof opt === 'object' ? opt.value : opt;
+
+    return (
+        <div className="relative w-full" ref={containerRef}>
+            <div
+                className={`w-full bg-white border border-slate-200 rounded-xl px-4 outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer ${size === 'sm' ? 'py-1.5 text-xs h-[34px]' : 'py-3 text-sm'
+                    } ${disabled ? 'opacity-60 bg-slate-50 cursor-not-allowed pointer-events-none' : ''}`}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+            >
+                <span className={`truncate mr-2 ${selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}`}>
+                    {selectedOption ? getLabel(selectedOption) : placeholder}
+                </span>
+                <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${size === 'sm' ? 'w-3.5 h-3.5 shrink-0' : 'w-4 h-4 shrink-0'
+                    }`} />
+            </div>
+
+            {isOpen && createPortal(
+                <div
+                    ref={dropdownRef}
+                    style={dropdownStyle}
+                    className={`bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden ${direction === 'up' ? 'origin-bottom' : 'origin-top'
+                        }`}
+                >
+                    <div className="p-2 border-b border-slate-50">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                autoFocus
+                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-0"
+                                placeholder="Search..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div
+                        className="max-h-60 overflow-y-auto"
+                        onScroll={(e) => {
+                            const { scrollTop, scrollHeight, clientHeight } = e.target;
+                            if (scrollTop + clientHeight >= scrollHeight - 20) {
+                                setVisibleCount(prev => prev + 50);
+                            }
+                        }}
+                    >
+                        {filteredOptions.length > 0 ? (
+                            filteredOptions.slice(0, visibleCount).map((opt, i) => (
+                                <div
+                                    key={typeof opt === 'object' ? (opt.value || opt.label || i) : opt}
+                                    className={`px-4 py-2 hover:bg-slate-50 cursor-pointer transition ${size === 'sm' ? 'text-xs' : 'text-sm'
+                                        } ${value !== undefined && value !== null && String(value) === String(getValue(opt)) ? 'bg-slate-100 text-slate-900 font-bold border-l-2 border-slate-900' : 'text-slate-650 font-semibold'}`}
+                                    onClick={() => {
+                                        onChange(getValue(opt));
+                                        setIsOpen(false);
+                                    }}
+                                >
+                                    {getLabel(opt)}
+                                </div>
+                            ))
+                        ) : (
+                            <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No results found</div>
+                        )}
+
+                        {onAddNew && (
+                            <div
+                                className="p-2 border-t border-slate-50 bg-slate-50/50"
+                                onClick={() => {
+                                    onAddNew(search);
+                                    setIsOpen(false);
+                                }}
+                            >
+                                <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-800 hover:text-slate-950 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition active:scale-95">
+                                    <PlusCircle className="w-4 h-4 text-slate-900" />
+                                    {addNewLabel} {search && <span className="text-slate-400 font-normal">"{search}"</span>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
+
 
 
 
@@ -212,7 +410,7 @@ const DEFAULT_MAIN_TASKS = [
 
 export default function TeamReportPage() {
     const { user } = useAuth()
-    const isCA = user?.role === 'ca'
+    const isCA = user?.role === 'ca' || user?.role === 'staff'
 
     // Lists
     const [reports, setReports] = useState([])
@@ -377,7 +575,7 @@ export default function TeamReportPage() {
         const month = String(date.getMonth() + 1).padStart(2, '0')
         const day = String(date.getDate()).padStart(2, '0')
         const dateStr = `${year}-${month}-${day}`
-        
+
         if (!startDate || (startDate && endDate)) {
             setStartDate(dateStr)
             setEndDate('')
@@ -424,6 +622,7 @@ export default function TeamReportPage() {
     const [reviewModalOpen, setReviewModalOpen] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [newClientModalOpen, setNewClientModalOpen] = useState(false)
+    const [showPasswords, setShowPasswords] = useState(false)
     const [newWorkTypeModalOpen, setNewWorkTypeModalOpen] = useState(false)
 
     // Form states
@@ -523,7 +722,8 @@ export default function TeamReportPage() {
                 setClientGroups(groupsRes.data.data || [])
 
                 if (isCA) {
-                    const staffRes = await api.get('/ca/staff')
+                    const endpoint = user?.role === 'ca' ? '/ca/staff' : '/staff/staff-members'
+                    const staffRes = await api.get(endpoint, { params: { per_page: -1 } })
                     setStaff(staffRes.data.data || [])
                 }
             } catch (e) {
@@ -558,7 +758,7 @@ export default function TeamReportPage() {
     const getPanValidation = () => {
         const pan = (newClientForm.pan_no || '').toUpperCase()
         if (!pan) return null
-        
+
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
         if (!panRegex.test(pan)) {
             return { valid: false, msg: 'Invalid general PAN format (e.g. ABCDE1234F).' }
@@ -569,9 +769,9 @@ export default function TeamReportPage() {
             const expectedChar = typeOption.pan_char.toUpperCase()
             const fourthChar = pan.charAt(3)
             if (fourthChar !== expectedChar) {
-                return { 
-                    valid: false, 
-                    msg: `4th character of PAN must be "${expectedChar}" for type "${newClientForm.type}".` 
+                return {
+                    valid: false,
+                    msg: `4th character of PAN must be "${expectedChar}" for type "${newClientForm.type}".`
                 }
             }
         }
@@ -585,7 +785,7 @@ export default function TeamReportPage() {
     const getGstValidation = () => {
         const gst = (newClientForm.gst_number || '').trim().toUpperCase()
         if (!gst) return null
-        
+
         const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
         if (!gstRegex.test(gst)) {
             return { valid: false, msg: 'Invalid GST format (e.g. 22AAAAA0000A1Z5).' }
@@ -859,7 +1059,7 @@ export default function TeamReportPage() {
                 pan_no: (newClientForm.pan_no || '').toUpperCase(),
                 gst_number: (newClientForm.gst_number || '').toUpperCase()
             }
-            const res = await api.post(isCA ? '/ca/clients' : '/daily-reports/clients', payload)
+            const res = await api.post(user?.role === 'ca' ? '/ca/clients' : '/daily-reports/clients', payload)
             const created = res.data.data
             setClients(prev => [...prev, created])
             setLogForm(prev => ({ ...prev, client_id: created.id }))
@@ -1031,7 +1231,7 @@ export default function TeamReportPage() {
                     fontStyle: 'bold'
                 },
                 margin: { top: 25, right: 10, bottom: 15, left: 10 },
-                didParseCell: function(data) {
+                didParseCell: function (data) {
                     if (data.column.index === (isCA ? 11 : 10)) {
                         const val = data.cell.text[0];
                         if (val === 'COMPLETE') {
@@ -1058,7 +1258,7 @@ export default function TeamReportPage() {
     const handleExportExcel = async () => {
         try {
             const workbook = new ExcelJS.Workbook()
-            
+
             // Create Sheets corresponding to excel
             const sheet = workbook.addWorksheet('TEAM DAILY WORK PROGRESS REPORT')
 
@@ -1262,8 +1462,8 @@ export default function TeamReportPage() {
     const displayedReports = filterStatus ? reports.filter(r => r.status === filterStatus) : reports
     const totalHours = displayedReports.reduce((acc, curr) => acc + (curr.hours_taken || 0), 0)
     const pendingReviews = displayedReports.filter(r => !r.ca_review).length
-    const completionAvg = displayedReports.length > 0 
-        ? Math.round(displayedReports.reduce((acc, curr) => acc + (curr.pct_completion || 0), 0) / displayedReports.length) 
+    const completionAvg = displayedReports.length > 0
+        ? Math.round(displayedReports.reduce((acc, curr) => acc + (curr.pct_completion || 0), 0) / displayedReports.length)
         : 0
 
     // Status counts based on loaded reports
@@ -1284,21 +1484,21 @@ export default function TeamReportPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                    <button 
+                    <button
                         onClick={handleDownloadPDF}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-semibold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm cursor-pointer"
                     >
                         <svg className="w-3.5 h-3.5 text-red-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                         Download PDF
                     </button>
-                    <button 
+                    <button
                         onClick={handleExportExcel}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-semibold text-xs uppercase tracking-wider active:scale-95 transition shadow-sm cursor-pointer"
                     >
                         <FileSpreadsheet size={14} className="text-emerald-700" />
                         Export Excel
                     </button>
-                    <button 
+                    <button
                         onClick={openCreateModal}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f1c2e] hover:bg-[#1a304e] active:scale-95 text-white font-semibold text-xs uppercase tracking-wider transition shadow-sm cursor-pointer"
                     >
@@ -1316,16 +1516,15 @@ export default function TeamReportPage() {
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5 select-none">
                         {/* All Team Members Card */}
-                        <div 
+                        <div
                             onClick={() => {
                                 setSelectedStaffId("all");
                                 setFilterStaff("");
                             }}
-                            className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${
-                                selectedStaffId === 'all' 
-                                    ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm' 
-                                    : 'bg-white border-slate-200 hover:border-[#1F5C99] hover:shadow-md'
-                            }`}
+                            className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${selectedStaffId === 'all'
+                                ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-[#1F5C99] hover:shadow-md'
+                                }`}
                         >
                             <div className="p-1.5 rounded-lg bg-slate-100 flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0 shadow-sm">
                                 <Folder size={16} className="text-slate-650" fill="currentColor" fillOpacity={0.2} />
@@ -1371,17 +1570,16 @@ export default function TeamReportPage() {
                             const isActive = selectedStaffId === member.id;
 
                             return (
-                                <div 
+                                <div
                                     key={member.id}
                                     onClick={() => {
                                         setSelectedStaffId(member.id);
                                         setFilterStaff(member.id);
                                     }}
-                                    className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${
-                                        isActive 
-                                            ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm' 
-                                            : `bg-white ${colorClasses} hover:shadow-md`
-                                    }`}
+                                    className={`group cursor-pointer p-2 rounded-xl border transition-all duration-200 flex items-center gap-2.5 w-full ${isActive
+                                        ? 'ring-2 ring-[#1F5C99]/20 border-[#1F5C99] bg-[#EEF4FB] font-bold shadow-sm'
+                                        : `bg-white ${colorClasses} hover:shadow-md`
+                                        }`}
                                 >
                                     <div className={`p-1.5 rounded-lg ${color.bg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shrink-0 shadow-sm`}>
                                         <Folder size={16} className={color.text} fill="currentColor" fillOpacity={0.2} />
@@ -1391,8 +1589,8 @@ export default function TeamReportPage() {
                                             {member.name}
                                         </h4>
                                         <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5 truncate" title={member.custom_roles && member.custom_roles.length > 0 ? member.custom_roles.map(r => r.name).join(', ') : (member.role_label || (member.role === 'ca' ? 'CA Admin' : 'Staff'))}>
-                                            {member.custom_roles && member.custom_roles.length > 0 
-                                                ? member.custom_roles.map(r => r.name).join(', ') 
+                                            {member.custom_roles && member.custom_roles.length > 0
+                                                ? member.custom_roles.map(r => r.name).join(', ')
                                                 : member.role_label || (member.role === 'ca' ? 'CA Admin' : 'Staff')}
                                         </p>
                                     </div>
@@ -1516,11 +1714,10 @@ export default function TeamReportPage() {
                             key={c.status}
                             type="button"
                             onClick={() => setFilterStatus(c.status)}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-sm ${
-                                filterStatus === c.status
-                                    ? `${c.activeBorder} ${c.activeBg} ring-1 ${c.ring} font-bold`
-                                    : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow'
-                            }`}
+                            className={`flex items-center justify-between px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-sm ${filterStatus === c.status
+                                ? `${c.activeBorder} ${c.activeBg} ring-1 ${c.ring} font-bold`
+                                : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow'
+                                }`}
                         >
                             <div className="flex items-center gap-1.5">
                                 <span className={`w-2 h-2 rounded-full ${c.colorClass} shadow-sm`}></span>
@@ -1539,7 +1736,7 @@ export default function TeamReportPage() {
                         <Search size={14} className="text-[#1F5C99]" />
                         Search & Advanced Filters
                     </h3>
-                    <button 
+                    <button
                         onClick={() => {
                             setSearch('')
                             setFilterStaff('')
@@ -1606,23 +1803,23 @@ export default function TeamReportPage() {
                             <div className="flex items-center gap-1.5">
                                 <Calendar size={13} className="text-[#1F5C99]" />
                                 <span>
-                                    {startDate && endDate 
-                                        ? `${formatDate(startDate)} - ${formatDate(endDate)}` 
-                                        : startDate 
-                                            ? `${formatDate(startDate)} - Select End` 
+                                    {startDate && endDate
+                                        ? `${formatDate(startDate)} - ${formatDate(endDate)}`
+                                        : startDate
+                                            ? `${formatDate(startDate)} - Select End`
                                             : 'Select Date Range'}
                                 </span>
                             </div>
                             <ChevronDown size={12} className="text-gray-400" />
                         </button>
-                        
+
                         {showCustomCalendar && (
                             <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 p-3 z-50 w-64 animate-fade-in">
                                 {/* Month Header */}
                                 <div className="flex items-center justify-between mb-3">
-                                    <button 
+                                    <button
                                         type="button"
-                                        onClick={prevCalendarMonth} 
+                                        onClick={prevCalendarMonth}
                                         className="p-1 hover:bg-gray-100 rounded-md transition text-gray-600 font-bold text-xs"
                                     >
                                         &larr;
@@ -1630,15 +1827,15 @@ export default function TeamReportPage() {
                                     <h4 className="text-[11px] font-bold text-gray-800 uppercase tracking-wider">
                                         {calendarDate.toLocaleString('default', { month: 'short', year: 'numeric' })}
                                     </h4>
-                                    <button 
+                                    <button
                                         type="button"
-                                        onClick={nextCalendarMonth} 
+                                        onClick={nextCalendarMonth}
                                         className="p-1 hover:bg-gray-100 rounded-md transition text-gray-600 font-bold text-xs"
                                     >
                                         &rarr;
                                     </button>
                                 </div>
-                                
+
                                 {/* Days Header */}
                                 <div className="grid grid-cols-7 gap-1 text-center mb-1">
                                     {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
@@ -1647,14 +1844,14 @@ export default function TeamReportPage() {
                                         </span>
                                     ))}
                                 </div>
-                                
+
                                 {/* Days Grid */}
                                 <div className="grid grid-cols-7 gap-1">
                                     {calDays.map((date, i) => {
                                         const isSelected = isDateSelected(date)
                                         const isInRange = isDateInRange(date)
                                         const isToday = isDateToday(date)
-                                        
+
                                         return (
                                             <div key={i} className="flex items-center justify-center h-8">
                                                 {date ? (
@@ -1662,12 +1859,12 @@ export default function TeamReportPage() {
                                                         type="button"
                                                         onClick={() => handleCalendarDateClick(date)}
                                                         className={`w-7 h-7 flex items-center justify-center text-xs font-semibold rounded-full transition-all
-                                                            ${isSelected 
-                                                                ? 'bg-[#1F5C99] text-white shadow font-bold' 
-                                                                : isInRange 
-                                                                    ? 'bg-[#EEF4FB] text-[#1F5C99] rounded-none w-full h-7' 
-                                                                    : isToday 
-                                                                        ? 'border border-[#1F5C99] text-[#1F5C99]' 
+                                                            ${isSelected
+                                                                ? 'bg-[#1F5C99] text-white shadow font-bold'
+                                                                : isInRange
+                                                                    ? 'bg-[#EEF4FB] text-[#1F5C99] rounded-none w-full h-7'
+                                                                    : isToday
+                                                                        ? 'border border-[#1F5C99] text-[#1F5C99]'
                                                                         : 'text-gray-700 hover:bg-gray-100'
                                                             }
                                                         `}
@@ -1681,7 +1878,7 @@ export default function TeamReportPage() {
                                         )
                                     })}
                                 </div>
-                                
+
                                 {/* Action row */}
                                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-[11px]">
                                     <button
@@ -1768,8 +1965,8 @@ export default function TeamReportPage() {
                                                     </td>
                                                     {isCA && (
                                                         <td className="px-6 py-4 font-bold whitespace-nowrap">
-                                                            <select 
-                                                                value={inlineForm.user_id} 
+                                                            <select
+                                                                value={inlineForm.user_id}
                                                                 onChange={e => setInlineForm(p => ({ ...p, user_id: e.target.value }))}
                                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                             >
@@ -1779,17 +1976,17 @@ export default function TeamReportPage() {
                                                         </td>
                                                     )}
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <input 
-                                                            type="date" 
-                                                            value={inlineForm.date} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, date: e.target.value }))} 
+                                                        <input
+                                                            type="date"
+                                                            value={inlineForm.date}
+                                                            onChange={e => setInlineForm(p => ({ ...p, date: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white font-semibold"
                                                             required
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <select 
-                                                            value={inlineForm.main_task} 
+                                                        <select
+                                                            value={inlineForm.main_task}
                                                             onChange={e => setInlineForm(p => ({ ...p, main_task: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                             required
@@ -1798,18 +1995,18 @@ export default function TeamReportPage() {
                                                         </select>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <input 
-                                                            type="text" 
-                                                            value={inlineForm.sub_task} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task: e.target.value }))} 
+                                                        <input
+                                                            type="text"
+                                                            value={inlineForm.sub_task}
+                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-32 font-semibold"
                                                             placeholder="Sub Task"
                                                             required
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <select 
-                                                            value={inlineForm.duration} 
+                                                        <select
+                                                            value={inlineForm.duration}
                                                             onChange={e => setInlineForm(p => ({ ...p, duration: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                         >
@@ -1817,16 +2014,16 @@ export default function TeamReportPage() {
                                                         </select>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        <TimePicker12Hour 
-                                                            value={inlineForm.start_time} 
-                                                            onChange={val => setInlineForm(p => ({ ...p, start_time: val }))} 
+                                                        <TimePicker12Hour
+                                                            value={inlineForm.start_time}
+                                                            onChange={val => setInlineForm(p => ({ ...p, start_time: val }))}
                                                             className="!py-1 !px-2 text-xs"
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        <TimePicker12Hour 
-                                                            value={inlineForm.end_time} 
-                                                            onChange={val => setInlineForm(p => ({ ...p, end_time: val }))} 
+                                                        <TimePicker12Hour
+                                                            value={inlineForm.end_time}
+                                                            onChange={val => setInlineForm(p => ({ ...p, end_time: val }))}
                                                             className="!py-1 !px-2 text-xs"
                                                         />
                                                     </td>
@@ -1834,27 +2031,26 @@ export default function TeamReportPage() {
                                                         {calculateHours(inlineForm.start_time, inlineForm.end_time)} hrs
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <select 
-                                                            value={inlineForm.client_id || ''} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, client_id: e.target.value }))}
-                                                            className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
-                                                        >
-                                                            <option value="">Select Client</option>
-                                                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                        </select>
+                                                        <SearchableSelect
+                                                            value={inlineForm.client_id || ''}
+                                                            options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                                            placeholder="Select Client"
+                                                            onChange={val => setInlineForm(p => ({ ...p, client_id: val }))}
+                                                            size="sm"
+                                                        />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <input 
-                                                            type="text" 
-                                                            value={inlineForm.sub_task_description} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task_description: e.target.value }))} 
+                                                        <input
+                                                            type="text"
+                                                            value={inlineForm.sub_task_description}
+                                                            onChange={e => setInlineForm(p => ({ ...p, sub_task_description: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
                                                             placeholder="Description"
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <select 
-                                                            value={inlineForm.status} 
+                                                        <select
+                                                            value={inlineForm.status}
                                                             onChange={e => setInlineForm(p => ({ ...p, status: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                         >
@@ -1862,29 +2058,29 @@ export default function TeamReportPage() {
                                                         </select>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <input 
-                                                            type="number" 
-                                                            min="0" 
-                                                            max="100" 
-                                                            step="5" 
-                                                            value={inlineForm.pct_completion} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, pct_completion: parseInt(e.target.value) || 0 }))} 
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            step="5"
+                                                            value={inlineForm.pct_completion}
+                                                            onChange={e => setInlineForm(p => ({ ...p, pct_completion: parseInt(e.target.value) || 0 }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-16"
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <input 
-                                                            type="text" 
-                                                            value={inlineForm.final_remark} 
-                                                            onChange={e => setInlineForm(p => ({ ...p, final_remark: e.target.value }))} 
+                                                        <input
+                                                            type="text"
+                                                            value={inlineForm.final_remark}
+                                                            onChange={e => setInlineForm(p => ({ ...p, final_remark: e.target.value }))}
                                                             className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
                                                             placeholder="Remark"
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {isCA ? (
-                                                            <select 
-                                                                value={inlineForm.ca_review} 
+                                                            <select
+                                                                value={inlineForm.ca_review}
                                                                 onChange={e => setInlineForm(p => ({ ...p, ca_review: e.target.value }))}
                                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                             >
@@ -1897,10 +2093,10 @@ export default function TeamReportPage() {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {isCA ? (
-                                                            <input 
-                                                                type="text" 
-                                                                value={inlineForm.ca_remark} 
-                                                                onChange={e => setInlineForm(p => ({ ...p, ca_remark: e.target.value }))} 
+                                                            <input
+                                                                type="text"
+                                                                value={inlineForm.ca_remark}
+                                                                onChange={e => setInlineForm(p => ({ ...p, ca_remark: e.target.value }))}
                                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white w-40"
                                                                 placeholder="Feedback"
                                                             />
@@ -1909,44 +2105,43 @@ export default function TeamReportPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-center whitespace-nowrap sticky right-0 bg-blue-50/90 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
-                                                         <div className="flex items-center gap-2 justify-center">
-                                                             <button 
-                                                                 type="button"
-                                                                 onClick={() => handleSaveInlineEdit(report.id)} 
-                                                                 disabled={saving}
-                                                                 className="p-1.5 text-emerald-600 bg-emerald-50 border border-emerald-250/50 hover:bg-emerald-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
-                                                                 title="Save"
-                                                             >
-                                                                 <CheckCircle2 size={16} />
-                                                             </button>
-                                                             <button 
-                                                                 type="button"
-                                                                 onClick={() => {
-                                                                     setEditingRowId(null);
-                                                                     setInlineForm(null);
-                                                                     if (String(report.id).startsWith('new-')) {
-                                                                         setInlineNewRows(prev => prev.filter(r => r.id !== report.id));
-                                                                     }
-                                                                 }} 
-                                                                 className="p-1.5 text-rose-650 bg-rose-50 border border-rose-250/50 hover:bg-rose-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
-                                                                 title="Cancel"
-                                                             >
-                                                                 <X size={16} />
-                                                             </button>
-                                                         </div>
-                                                     </td>
+                                                        <div className="flex items-center gap-2 justify-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSaveInlineEdit(report.id)}
+                                                                disabled={saving}
+                                                                className="p-1.5 text-emerald-600 bg-emerald-50 border border-emerald-250/50 hover:bg-emerald-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
+                                                                title="Save"
+                                                            >
+                                                                <CheckCircle2 size={16} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingRowId(null);
+                                                                    setInlineForm(null);
+                                                                    if (String(report.id).startsWith('new-')) {
+                                                                        setInlineNewRows(prev => prev.filter(r => r.id !== report.id));
+                                                                    }
+                                                                }}
+                                                                className="p-1.5 text-rose-650 bg-rose-50 border border-rose-250/50 hover:bg-rose-100 rounded-lg transition cursor-pointer hover:scale-110 active:scale-95 shadow-sm"
+                                                                title="Cancel"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             );
                                         }
 
                                         return (
-                                            <tr 
-                                                key={report.id} 
-                                                className={`group hover:bg-slate-100 transition ${
-                                                    (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
-                                                        ? 'bg-amber-50/80 hover:bg-amber-100/90 border-l-4 border-amber-500'
-                                                        : ''
-                                                }`}
+                                            <tr
+                                                key={report.id}
+                                                className={`group hover:bg-slate-100 transition ${(pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
+                                                    ? 'bg-amber-50/80 hover:bg-amber-100/90 border-l-4 border-amber-500'
+                                                    : ''
+                                                    }`}
                                             >
                                                 <td className="px-6 py-4 text-gray-400 font-bold">{String(report.id).startsWith('new-') ? 'New' : idx + 1}</td>
                                                 {isCA && (
@@ -1988,8 +2183,8 @@ export default function TeamReportPage() {
                                                     <div className="flex flex-col items-center justify-center gap-1">
                                                         <span className="font-bold text-gray-700 text-xs">{report.pct_completion}%</span>
                                                         <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="h-full bg-emerald-500" 
+                                                            <div
+                                                                className="h-full bg-emerald-500"
                                                                 style={{ width: `${report.pct_completion}%` }}
                                                             ></div>
                                                         </div>
@@ -2041,62 +2236,61 @@ export default function TeamReportPage() {
                                                         report.ca_remark || '—'
                                                     )}
                                                 </td>
-                                                <td className={`px-6 py-4 text-center whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] transition ${
-                                                    (pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
-                                                        ? 'bg-amber-50 group-hover:bg-amber-100/90'
-                                                        : 'bg-white group-hover:bg-slate-100'
-                                                }`}>
+                                                <td className={`px-6 py-4 text-center whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] transition ${(pendingUpdates[report.id] && Object.keys(pendingUpdates[report.id]).length > 0)
+                                                    ? 'bg-amber-50 group-hover:bg-amber-100/90'
+                                                    : 'bg-white group-hover:bg-slate-100'
+                                                    }`}>
                                                     <div className="flex items-center gap-2 justify-center">
-                                                         <button 
-                                                             type="button"
-                                                             onClick={() => handleStartInlineEdit(report)}
-                                                             className="px-2 py-1 rounded bg-indigo-50 border border-indigo-150/50 hover:bg-indigo-100 text-indigo-750 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
-                                                             title="Edit Inline"
-                                                         >
-                                                             Inline Edit
-                                                         </button>
-                                                         {isCA && (
-                                                             <button 
-                                                                 type="button"
-                                                                 onClick={() => openReviewModal(report)}
-                                                                 className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-150/50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
-                                                                 title="Write Review & Comments"
-                                                             >
-                                                                 Review
-                                                             </button>
-                                                         )}
-                                                         <button 
-                                                             type="button"
-                                                             onClick={() => openEditModal(report)}
-                                                             className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-                                                             title="Edit Daily Work Log"
-                                                         >
-                                                             <Edit3 size={15} />
-                                                         </button>
-                                                         <button 
-                                                             type="button"
-                                                             onClick={() => {
-                                                                 setSelectedReport(report)
-                                                                 setDeleteModalOpen(true)
-                                                             }}
-                                                             className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-                                                             title="Delete Daily Work Log"
-                                                         >
-                                                             <Trash2 size={15} />
-                                                         </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleStartInlineEdit(report)}
+                                                            className="px-2 py-1 rounded bg-indigo-50 border border-indigo-150/50 hover:bg-indigo-100 text-indigo-750 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
+                                                            title="Edit Inline"
+                                                        >
+                                                            Inline Edit
+                                                        </button>
+                                                        {isCA && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openReviewModal(report)}
+                                                                className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-150/50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
+                                                                title="Write Review & Comments"
+                                                            >
+                                                                Review
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditModal(report)}
+                                                            className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                            title="Edit Daily Work Log"
+                                                        >
+                                                            <Edit3 size={15} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedReport(report)
+                                                                setDeleteModalOpen(true)
+                                                            }}
+                                                            className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                            title="Delete Daily Work Log"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
                                         );
                                     })
                                 )}
-                                    <tr className="bg-gray-50/50 hover:bg-slate-50 transition cursor-pointer" onClick={handleAddRowInline}>
-                                        <td colSpan={isCA ? 17 : 16} className="px-6 py-4 text-left text-[#1F5C99] font-bold text-sm">
-                                            <div className="flex items-center justify-start gap-2">
-                                                <Plus size={16} /> Add New Row Inline
-                                            </div>
-                                        </td>
-                                    </tr>
+                                <tr className="bg-gray-50/50 hover:bg-slate-50 transition cursor-pointer" onClick={handleAddRowInline}>
+                                    <td colSpan={isCA ? 17 : 16} className="px-6 py-4 text-left text-[#1F5C99] font-bold text-sm">
+                                        <div className="flex items-center justify-start gap-2">
+                                            <Plus size={16} /> Add New Row Inline
+                                        </div>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     )}
@@ -2155,7 +2349,7 @@ export default function TeamReportPage() {
                             {/* Always visible action buttons */}
                             <div className="flex items-center gap-2 select-none self-end md:self-start">
                                 {idx === notesList.length - 1 && (
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={() => handleAddNoteAfter(note.id)}
                                         className="p-2 text-white bg-[#1F5C99] hover:bg-[#154673] rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center"
@@ -2164,14 +2358,14 @@ export default function TeamReportPage() {
                                         <Plus size={14} />
                                     </button>
                                 )}
-                                <button 
-                                     type="button"
-                                     onClick={() => handleDeleteNote(note.id)}
-                                     className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
-                                     title="Delete Note"
-                                 >
-                                     <Trash2 size={14} />
-                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
+                                    title="Delete Note"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -2212,7 +2406,7 @@ export default function TeamReportPage() {
                                     className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
                                     required
                                 >
-                                    <option value={user?.id}>{user?.name} (Admin / Me)</option>
+                                    <option value={user?.id}>{user?.name}</option>
                                     {staff.map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
@@ -2228,8 +2422,8 @@ export default function TeamReportPage() {
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Main Task / Work Type</label>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => setNewWorkTypeModalOpen(true)}
                                     className="text-[10px] font-bold text-[#1F5C99] hover:underline"
                                 >
@@ -2326,15 +2520,15 @@ export default function TeamReportPage() {
                                     Name of Client <span className="text-gray-300 font-normal">(Optional)</span>
                                 </label>
                                 <div className="flex gap-3">
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setNewClientModalOpen(true)}
                                         className="text-[10px] font-bold text-[#1F5C99] hover:underline"
                                     >
                                         + Register New Client
                                     </button>
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => {
                                             setIsManualClient(!isManualClient)
                                             setLogForm(prev => ({ ...prev, client_id: '', client_name_custom: '' }))
@@ -2356,24 +2550,14 @@ export default function TeamReportPage() {
                                     className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
                                 />
                             ) : (
-                                <select
-                                    name="client_id"
+                                <SearchableSelect
                                     value={logForm.client_id}
-                                    onChange={e => {
-                                        if (e.target.value === 'ADD_NEW') {
-                                            setNewClientModalOpen(true)
-                                        } else {
-                                            handleLogFormChange(e)
-                                        }
-                                    }}
-                                    className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
-                                >
-                                    <option value="">Select Client (Optional)</option>
-                                    {clients.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                    <option value="ADD_NEW" className="text-[#1F5C99] font-bold bg-[#1F5C99]/5">+ Register New Client...</option>
-                                </select>
+                                    options={clients.map(c => ({ value: c.id, label: c.name }))}
+                                    placeholder="Select Client (Optional)"
+                                    onChange={val => setLogForm(prev => ({ ...prev, client_id: val }))}
+                                    onAddNew={() => setNewClientModalOpen(true)}
+                                    addNewLabel="+ Register New Client"
+                                />
                             )}
                         </div>
 
@@ -2572,19 +2756,20 @@ export default function TeamReportPage() {
                 open={newClientModalOpen}
                 onClose={() => setNewClientModalOpen(false)}
                 title="Register New Client"
-                width="max-w-3xl"
+                width="max-w-4xl"
             >
-                <form onSubmit={handleCreateClient} className="space-y-5">
+                <form onSubmit={handleCreateClient} className="space-y-6 px-1">
+                    {/* Main Form Fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Client Name */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name *</label>
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Client Name *</label>
                                 {newClientForm.name && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.name, 'Client Name')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2593,22 +2778,40 @@ export default function TeamReportPage() {
                             <input
                                 type="text"
                                 value={newClientForm.name}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                                placeholder="e.g. Genx Riders Pvt Ltd"
+                                onChange={e => setNewClientForm(f => ({ ...f, name: e.target.value }))}
+                                placeholder="Enter Client Name"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                                 required
                             />
+                            {formErrors.name && <p className="text-[10px] text-red-500 mt-1">{formErrors.name[0]}</p>}
+                        </div>
+
+                        {/* Client Type */}
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Type *</label>
+                            <select
+                                value={newClientForm.type}
+                                onChange={e => setNewClientForm(f => ({ ...f, type: e.target.value }))}
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
+                                required
+                            >
+                                <option value="">Select Type...</option>
+                                {clientTypes.map(t => (
+                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                ))}
+                            </select>
+                            {formErrors.type && <p className="text-[10px] text-red-500 mt-1">{formErrors.type[0]}</p>}
                         </div>
 
                         {/* Client Name As per PAN */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Name As Per PAN</label>
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Client Name As Per PAN</label>
                                 {newClientForm.name_as_per_pan && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.name_as_per_pan, 'Name As Per PAN')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2617,53 +2820,22 @@ export default function TeamReportPage() {
                             <input
                                 type="text"
                                 value={newClientForm.name_as_per_pan}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, name_as_per_pan: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                                placeholder="Exactly as printed on PAN"
+                                onChange={e => setNewClientForm(f => ({ ...f, name_as_per_pan: e.target.value }))}
+                                placeholder="Enter Name exactly as printed on PAN"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
-                        </div>
-
-                        {/* Client Type select */}
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Type *</label>
-                            <select
-                                value={newClientForm.type}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, type: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 text-gray-700 font-semibold"
-                                required
-                            >
-                                <option value="">Select Type...</option>
-                                {clientTypes.map(t => (
-                                    <option key={t.id} value={t.name}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Client Group select */}
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Client Group *</label>
-                            <select
-                                value={newClientForm.group}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, group: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 text-gray-700 font-semibold"
-                                required
-                            >
-                                <option value="">Select Group...</option>
-                                {clientGroups.map(g => (
-                                    <option key={g.id} value={g.name}>{g.name}</option>
-                                ))}
-                            </select>
+                            {formErrors.name_as_per_pan && <p className="text-[10px] text-red-500 mt-1">{formErrors.name_as_per_pan[0]}</p>}
                         </div>
 
                         {/* PAN Number */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">PAN No. *</label>
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">PAN No *</label>
                                 {newClientForm.pan_no && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.pan_no, 'PAN No')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2674,126 +2846,55 @@ export default function TeamReportPage() {
                                     type="text"
                                     maxLength={10}
                                     value={newClientForm.pan_no}
-                                    onChange={e => setNewClientForm(prev => ({ ...prev, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
-                                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 uppercase pr-8"
-                                    placeholder="e.g. ABCDE1234F"
+                                    onChange={e => setNewClientForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                    placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)"
+                                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400 uppercase pr-8"
                                     required
                                 />
                                 {panStatus && (
                                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
                                         {panStatus.valid ? (
-                                            <ShieldCheck size={16} className="text-emerald-500" />
+                                            <ShieldCheck className="text-emerald-500 w-4 h-4" />
                                         ) : (
-                                            <ShieldAlert size={16} className="text-rose-500" />
+                                            <ShieldAlert className="text-rose-500 w-4 h-4" />
                                         )}
                                     </div>
                                 )}
                             </div>
                             {panStatus && (
-                                <p className={`text-[10px] font-bold mt-0.5 ${panStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                <p className={`text-[9px] font-bold mt-1 ${panStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
                                     {panStatus.msg}
                                 </p>
                             )}
+                            {formErrors.pan_no && <p className="text-[10px] text-red-500 mt-1">{formErrors.pan_no[0]}</p>}
                         </div>
 
-                        {/* GST Number */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">GST Number</label>
-                                {newClientForm.gst_number && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(newClientForm.gst_number, 'GST Number')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
-                                    >
-                                        <Copy size={10} /> Copy
-                                    </button>
-                                )}
-                            </div>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    maxLength={15}
-                                    value={newClientForm.gst_number}
-                                    onChange={e => setNewClientForm(prev => ({ ...prev, gst_number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
-                                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 uppercase pr-8"
-                                    placeholder="e.g. 22AAAAA0000A1Z5"
-                                />
-                                {gstStatus && (
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                        {gstStatus.valid ? (
-                                            <ShieldCheck size={16} className="text-emerald-500" />
-                                        ) : (
-                                            <ShieldAlert size={16} className="text-rose-500" />
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            {gstStatus && (
-                                <p className={`text-[10px] font-bold mt-0.5 ${gstStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                    {gstStatus.msg}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Date of Birth */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Date of Birth</label>
-                                {newClientForm.dob && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const parts = newClientForm.dob.split('-')
-                                            const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}` : newClientForm.dob
-                                            handleCopy(formatted, 'Date of Birth (dd/mm/yy)')
-                                        }}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
-                                    >
-                                        <Copy size={10} /> Copy (dd/mm/yy)
-                                    </button>
-                                )}
-                            </div>
-                            <input
-                                type="date"
-                                value={newClientForm.dob}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, dob: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                            />
-                        </div>
-
-                        {/* Reference No */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Reference No.</label>
-                                {newClientForm.reference_no && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(newClientForm.reference_no, 'Reference No')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
-                                    >
-                                        <Copy size={10} /> Copy
-                                    </button>
-                                )}
-                            </div>
-                            <input
-                                type="text"
-                                value={newClientForm.reference_no}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, reference_no: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                                placeholder="Internal ref or code"
-                            />
+                        {/* Group */}
+                        <div>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Group *</label>
+                            <select
+                                value={newClientForm.group}
+                                onChange={e => setNewClientForm(f => ({ ...f, group: e.target.value }))}
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
+                                required
+                            >
+                                <option value="">Select Group...</option>
+                                {clientGroups.map(g => (
+                                    <option key={g.id} value={g.name}>{g.name}</option>
+                                ))}
+                            </select>
+                            {formErrors.group && <p className="text-[10px] text-red-500 mt-1">{formErrors.group[0]}</p>}
                         </div>
 
                         {/* Contact No */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Contact No.</label>
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Contact No</label>
                                 {newClientForm.contact && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.contact, 'Contact No')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2803,21 +2904,22 @@ export default function TeamReportPage() {
                                 type="text"
                                 maxLength={10}
                                 value={newClientForm.contact}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, contact: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                                placeholder="10-digit number"
+                                onChange={e => setNewClientForm(f => ({ ...f, contact: e.target.value.replace(/\D/g, '') }))}
+                                placeholder="10-digit mobile number"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.contact && <p className="text-[10px] text-red-500 mt-1">{formErrors.contact[0]}</p>}
                         </div>
 
-                        {/* Alternative Contact */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Alt. Contact No.</label>
+                        {/* Alternative Contact No */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Alternative Contact No</label>
                                 {newClientForm.alternative_contact && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.alternative_contact, 'Alternative Contact No')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2827,21 +2929,22 @@ export default function TeamReportPage() {
                                 type="text"
                                 maxLength={10}
                                 value={newClientForm.alternative_contact}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, alternative_contact: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
-                                placeholder="Secondary contact"
+                                onChange={e => setNewClientForm(f => ({ ...f, alternative_contact: e.target.value.replace(/\D/g, '') }))}
+                                placeholder="Alternative 10-digit number"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.alternative_contact && <p className="text-[10px] text-red-500 mt-1">{formErrors.alternative_contact[0]}</p>}
                         </div>
 
                         {/* Email Address */}
-                        <div className="space-y-1 md:col-span-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Email Address</label>
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Email ID</label>
                                 {newClientForm.email && (
                                     <button
                                         type="button"
-                                        onClick={() => handleCopy(newClientForm.email, 'Email Address')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        onClick={() => handleCopy(newClientForm.email, 'Email ID')}
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2850,21 +2953,46 @@ export default function TeamReportPage() {
                             <input
                                 type="email"
                                 value={newClientForm.email}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, email: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2"
+                                onChange={e => setNewClientForm(f => ({ ...f, email: e.target.value }))}
                                 placeholder="client@example.com"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.email && <p className="text-[10px] text-red-500 mt-1">{formErrors.email[0]}</p>}
                         </div>
 
-                        {/* Address segment */}
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">City</label>
+                        {/* Reference No */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Reference No</label>
+                                {newClientForm.reference_no && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.reference_no, 'Reference No')}
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
+                            <input
+                                type="text"
+                                value={newClientForm.reference_no}
+                                onChange={e => setNewClientForm(f => ({ ...f, reference_no: e.target.value }))}
+                                placeholder="Enter reference details"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
+                            />
+                            {formErrors.reference_no && <p className="text-[10px] text-red-500 mt-1">{formErrors.reference_no[0]}</p>}
+                        </div>
+
+                        {/* City */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">City</label>
                                 {newClientForm.city && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.city, 'City')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2873,20 +3001,22 @@ export default function TeamReportPage() {
                             <input
                                 type="text"
                                 value={newClientForm.city}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, city: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
-                                placeholder="City"
+                                onChange={e => setNewClientForm(f => ({ ...f, city: e.target.value }))}
+                                placeholder="Enter City"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.city && <p className="text-[10px] text-red-500 mt-1">{formErrors.city[0]}</p>}
                         </div>
 
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Pin Code</label>
+                        {/* Pin Code */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Pin Code</label>
                                 {newClientForm.pin_code && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.pin_code, 'Pin Code')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2894,21 +3024,24 @@ export default function TeamReportPage() {
                             </div>
                             <input
                                 type="text"
+                                maxLength={6}
                                 value={newClientForm.pin_code}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, pin_code: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
-                                placeholder="Pin Code"
+                                onChange={e => setNewClientForm(f => ({ ...f, pin_code: e.target.value.replace(/\D/g, '') }))}
+                                placeholder="6-digit postal code"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.pin_code && <p className="text-[10px] text-red-500 mt-1">{formErrors.pin_code[0]}</p>}
                         </div>
 
-                        <div className="space-y-1 md:col-span-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">State</label>
+                        {/* State */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">State</label>
                                 {newClientForm.state && (
                                     <button
                                         type="button"
                                         onClick={() => handleCopy(newClientForm.state, 'State')}
-                                        className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
                                     >
                                         <Copy size={10} /> Copy
                                     </button>
@@ -2917,80 +3050,284 @@ export default function TeamReportPage() {
                             <input
                                 type="text"
                                 value={newClientForm.state}
-                                onChange={e => setNewClientForm(prev => ({ ...prev, state: e.target.value }))}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
-                                placeholder="State"
+                                onChange={e => setNewClientForm(f => ({ ...f, state: e.target.value }))}
+                                placeholder="Enter State"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
                             />
+                            {formErrors.state && <p className="text-[10px] text-red-500 mt-1">{formErrors.state[0]}</p>}
                         </div>
 
-                        {/* Credentials */}
-                        <div className="space-y-1 md:col-span-2 pt-2">
-                            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Portal Credentials</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">E-Filing Password</label>
-                                        {newClientForm.credentials.efiling_password && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCopy(newClientForm.credentials.efiling_password, 'E-Filing Password')}
-                                                className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
-                                            >
-                                                <Copy size={10} /> Copy
-                                            </button>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={newClientForm.credentials.efiling_password}
-                                        onChange={e => setNewClientForm(prev => ({
-                                            ...prev,
-                                            credentials: {
-                                                ...prev.credentials,
-                                                efiling_password: e.target.value
-                                            }
-                                        }))}
-                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
-                                        placeholder="E-filing portal password"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">AIS & TIS Password (Auto Generated)</label>
-                                        {newClientForm.credentials.ais_tis_password && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCopy(newClientForm.credentials.ais_tis_password, 'AIS & TIS Password')}
-                                                className="text-[10px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
-                                            >
-                                                <Copy size={10} /> Copy
-                                            </button>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={newClientForm.credentials.ais_tis_password}
-                                        disabled
-                                        className="w-full px-3 py-2 text-sm bg-slate-100 border border-slate-200 text-slate-500 rounded-xl cursor-not-allowed font-mono"
-                                        placeholder="lower(PAN) + DOB"
-                                    />
-                                </div>
+                        {/* Date of Birth */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">Date Of Birth</label>
+                                {newClientForm.dob && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const parts = newClientForm.dob.split('-')
+                                            const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}` : newClientForm.dob
+                                            handleCopy(formatted, 'Date of Birth (dd/mm/yy)')
+                                        }}
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy (dd/mm/yy)
+                                    </button>
+                                )}
                             </div>
+                            <input
+                                type="date"
+                                value={newClientForm.dob || ''}
+                                onChange={e => setNewClientForm(f => ({ ...f, dob: e.target.value }))}
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
+                            />
+                            {formErrors.dob && <p className="text-[10px] text-red-500 mt-1">{formErrors.dob[0]}</p>}
+                        </div>
+
+                        {/* GST Number */}
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">GST No</label>
+                                {newClientForm.gst_number && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(newClientForm.gst_number, 'GST No')}
+                                        className="text-[9px] text-[#1F5C99] hover:underline font-bold flex items-center gap-1 transition"
+                                    >
+                                        <Copy size={10} /> Copy
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={newClientForm.gst_number || ''}
+                                    onChange={e => setNewClientForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))}
+                                    placeholder="GST Identification Number"
+                                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400 pr-8"
+                                    autoComplete="off"
+                                />
+                                {gstStatus && (
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                        {gstStatus.valid ? (
+                                            <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                                        ) : (
+                                            <ShieldAlert className="text-rose-500 w-4 h-4" />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            {gstStatus && (
+                                <p className={`text-[9px] font-bold mt-1 ${gstStatus.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {gstStatus.msg}
+                                </p>
+                            )}
+                            {formErrors.gst_number && <p className="text-[10px] text-red-500 mt-1">{formErrors.gst_number[0]}</p>}
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    {/* Status */}
+                    <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Status</label>
+                        <select
+                            value={newClientForm.status}
+                            onChange={e => setNewClientForm(f => ({ ...f, status: e.target.value }))}
+                            className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400"
+                        >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    {/* Portal Credentials Section */}
+                    <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Key className="text-indigo-500 w-4 h-4" />
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Portal Credentials (Passwords)</h4>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                            >
+                                {showPasswords ? <EyeOff size={13} /> : <Eye size={13} />}
+                                <span>{showPasswords ? 'Hide Credentials' : 'Reveal Credentials'}</span>
+                            </button>
+                        </div>
+
+                        <div className="overflow-hidden border border-slate-200/60 rounded-2xl bg-white shadow-sm">
+                            <table className="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                        <th className="px-4 py-3">Portal URL</th>
+                                        <th className="px-4 py-3">Auth Type</th>
+                                        <th className="px-4 py-3">User ID</th>
+                                        <th className="px-4 py-3">Password</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {/* EFILING row */}
+                                    <tr>
+                                        <td className="px-4 py-3 font-semibold text-slate-650">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <Globe size={13} className="text-slate-400" />
+                                                <a
+                                                    href="https://eportal.incometax.gov.in/iec/foservices/#/login"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                                                >
+                                                    WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                                                    className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                    title="Copy IT URL"
+                                                >
+                                                    <Copy size={11} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="bg-indigo-50 text-indigo-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-indigo-100">
+                                                EFILING
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 font-mono font-bold text-slate-650">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{newClientForm.pan_no ? newClientForm.pan_no : 'LINKED TO PAN'}</span>
+                                                {newClientForm.pan_no && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(newClientForm.pan_no, 'User ID (PAN)')}
+                                                        className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                        title="Copy User ID"
+                                                    >
+                                                        <Copy size={11} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="relative flex items-center">
+                                                <input
+                                                    type={showPasswords ? "text" : "password"}
+                                                    value={newClientForm.credentials.efiling_password}
+                                                    onChange={e => setNewClientForm(f => ({
+                                                        ...f,
+                                                        credentials: {
+                                                            ...f.credentials,
+                                                            efiling_password: e.target.value
+                                                        }
+                                                    }))}
+                                                    placeholder="Type manual password..."
+                                                    className="w-full pl-2 pr-8 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none text-xs font-semibold text-slate-750"
+                                                    autoComplete="new-password"
+                                                />
+                                                {newClientForm.credentials.efiling_password && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(newClientForm.credentials.efiling_password, 'E-filing Password')}
+                                                        className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                                                        title="Copy Password"
+                                                    >
+                                                        <Copy size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    {/* AIS & TIS row */}
+                                    <tr>
+                                        <td className="px-4 py-3 font-semibold text-slate-650">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <Globe size={13} className="text-slate-400" />
+                                                <a
+                                                    href="https://eportal.incometax.gov.in/iec/foservices/#/login"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                                                >
+                                                    WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopy('https://eportal.incometax.gov.in/iec/foservices/#/login', 'IT Portal URL')}
+                                                    className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                    title="Copy IT URL"
+                                                >
+                                                    <Copy size={11} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-100">
+                                                AIS & TIS
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 font-mono font-bold text-slate-650">
+                                            <div className="flex items-center gap-1.5">
+                                                <span>{newClientForm.pan_no ? newClientForm.pan_no : 'LINKED TO PAN'}</span>
+                                                {newClientForm.pan_no && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(newClientForm.pan_no, 'User ID (PAN)')}
+                                                        className="p-1 text-slate-400 hover:text-[#1F5C99] transition rounded hover:bg-slate-100"
+                                                        title="Copy User ID"
+                                                    >
+                                                        <Copy size={11} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col">
+                                                <div className="relative flex items-center">
+                                                    <input
+                                                        type={showPasswords ? "text" : "password"}
+                                                        value={newClientForm.credentials.ais_tis_password}
+                                                        disabled
+                                                        className="w-full pl-2 pr-8 py-1 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg text-xs font-semibold cursor-not-allowed"
+                                                        autoComplete="new-password"
+                                                    />
+                                                    {newClientForm.credentials.ais_tis_password && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopy(newClientForm.credentials.ais_tis_password, 'AIS/TIS Password')}
+                                                            className="absolute right-2 text-slate-400 hover:text-[#1F5C99] transition"
+                                                            title="Copy Password"
+                                                        >
+                                                            <Copy size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 mt-1">
+                                                    Auto Generated: lower(PAN) + DOB
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                         <button
                             type="button"
                             onClick={() => setNewClientModalOpen(false)}
-                            className="px-5 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-500 hover:bg-gray-50 font-bold transition"
+                            className="px-5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl text-slate-650 hover:bg-slate-50 transition"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="px-6 py-2.5 text-sm bg-[#0f1c2e] hover:bg-[#1c324e] text-white rounded-xl font-bold transition disabled:opacity-50"
+                            className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
                         >
                             {saving ? 'Registering...' : 'Register Client'}
                         </button>
@@ -3087,7 +3424,7 @@ export default function TeamReportPage() {
                 title="Add Custom Review Status"
                 width="max-w-md"
             >
-                <form 
+                <form
                     onSubmit={e => {
                         e.preventDefault()
                         setCustomReviewModalOpen(false)

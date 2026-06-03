@@ -15,6 +15,8 @@ import Spinner from '../../components/ui/Spinner'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
+import TaskDetailPage from './TaskDetailPage'
+
 
 const DEFAULT_SUB_STATUSES = [
     'Documentation pending',
@@ -170,14 +172,15 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
     useEffect(() => {
         const fetchAllSheetsList = async () => {
             try {
-                const res = await api.get('/ca/tasks', { params: { per_page: 'all' } })
+                const url = isStaff ? '/staff/tasks' : '/ca/tasks'
+                const res = await api.get(url, { params: { per_page: 'all' } })
                 setAllSheets(res.data.data || [])
             } catch (e) {
                 console.error('Failed to fetch all sheets', e)
             }
         }
         fetchAllSheetsList()
-    }, [])
+    }, [isStaff])
 
     const fetchSingleSheetDetails = useCallback(async (sheetId) => {
         if (!sheetId) {
@@ -189,7 +192,8 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
         }
         setLoading(true)
         try {
-            const res = await api.get(`/ca/tasks/${sheetId}`)
+            const url = isStaff ? `/staff/tasks/${sheetId}` : `/ca/tasks/${sheetId}`
+            const res = await api.get(url)
             const task = res.data.data
             setSheets([task])
             
@@ -212,7 +216,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [isStaff])
 
     const exportSummarySheet = async () => {
         try {
@@ -437,7 +441,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                             { value: '', label: 'Select Sheet' },
                             ...allSheets.map(sheet => ({
                                 value: sheet.id,
-                                label: `${sheet.client?.name || '—'} - ${sheet.form_name || `Sheet #${sheet.id}`}`
+                                label: sheet.form_name || `Sheet #${sheet.id}`
                             }))
                         ]}
                         widthClass="w-full sm:w-80"
@@ -453,243 +457,9 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
                 </div>
             )}
 
-            {/* Global Summary Cards (Previous Feature - Now acts as filter) */}
-            {selectedSheetId && globalSummary && (
-                <div className="grid grid-cols-6 gap-4 mb-8 animate-fade-in">
-                    <SummaryCard
-                        icon={FileText} iconBg="bg-gray-50" iconColor="text-gray-500"
-                        label="Global Tasks" value={globalSummary.total}
-                        sub="All tasks of this sheet"
-                        active={globalFilter === ''} onClick={() => handleGlobalFilterClick('')}
-                    />
-                    <SummaryCard
-                        icon={CircleDashed} iconBg="bg-yellow-50" iconColor="text-yellow-500"
-                        label="Pending" value={globalSummary.pending}
-                        sub="Waiting to start"
-                        active={globalFilter === 'pending'} onClick={() => handleGlobalFilterClick('pending')}
-                    />
-                    <SummaryCard
-                        icon={Clock} iconBg="bg-blue-50" iconColor="text-blue-500"
-                        label="In Progress" value={globalSummary.work_in_progress}
-                        sub="Currently active"
-                        active={globalFilter === 'work_in_progress'} onClick={() => handleGlobalFilterClick('work_in_progress')}
-                    />
-                    <SummaryCard
-                        icon={CheckCircle2} iconBg="bg-green-50" iconColor="text-green-500"
-                        label="Complete" value={globalSummary.complete}
-                        sub="Finalized tasks"
-                        active={globalFilter === 'complete'} onClick={() => handleGlobalFilterClick('complete')}
-                    />
-                    <SummaryCard
-                        icon={Circle} iconBg="bg-red-50" iconColor="text-red-500"
-                        label="Not To Be Done" value={globalSummary.not_to_be_done}
-                        sub="Excluded tasks"
-                        active={globalFilter === 'not_to_be_done'} onClick={() => handleGlobalFilterClick('not_to_be_done')}
-                    />
-                    <SummaryCard
-                        icon={SlidersHorizontal} iconBg="bg-slate-50" iconColor="text-slate-500"
-                        label="Other" value={globalSummary.other}
-                        sub="Other status"
-                        active={globalFilter === 'other'} onClick={() => handleGlobalFilterClick('other')}
-                    />
-                </div>
-            )}
-
-            {/* Sheet-wise detailed list (Current Feature - combined) */}
             {selectedSheetId && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in">
-                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
-                        <h3 className="text-sm font-bold text-gray-800">Sheet Details</h3>
-                        <button
-                            onClick={exportSummarySheet}
-                            className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
-                        >
-                            <Download size={15} /> Export Sheet
-                        </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                        {loading ? <Spinner /> : (
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                        <th className="px-6 py-3.5 text-left w-12"></th>
-                                        <th className="px-6 py-3.5 text-left">Client</th>
-                                        <th className="px-6 py-3.5 text-left">Sheet/Task Form</th>
-                                        <th className="px-6 py-3.5 text-left">Allocated To</th>
-                                        <th className="px-6 py-3.5 text-left">Due Date</th>
-                                        <th className="px-6 py-3.5 text-left">Tasks Summary (Click to expand)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {displayedSheets.length === 0 ? (
-                                        <tr><td colSpan={6} className="text-center py-12 text-gray-400">No sheets found matching the active filter.</td></tr>
-                                    ) : displayedSheets.map(sheet => {
-                                        const isExpanded = expandedTaskId === sheet.id
-                                        const sheetSubtasks = sheet.sub_tasks || []
-                                        const filteredSubtasks = sheetSubtasks.filter(st => {
-                                            if (expandedFilter === 'all') return true
-                                            if (expandedFilter === 'pending') return st.status === 'pending'
-                                            if (expandedFilter === 'work_in_progress') return st.status === 'work_in_progress'
-                                            if (expandedFilter === 'complete') return st.status === 'complete'
-                                            if (expandedFilter === 'not_to_be_done') return st.status === 'not_to_be_done'
-                                            if (expandedFilter === 'other') return st.status === 'other'
-                                            return false
-                                        })
-
-                                        return (
-                                            <>
-                                                <tr key={sheet.id} className={`hover:bg-gray-50/80 transition ${isExpanded ? 'bg-blue-50/10' : ''}`}>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <button
-                                                            onClick={() => handlePillClick(sheet.id, isExpanded ? expandedFilter : 'all')}
-                                                            className="text-gray-400 hover:text-blue-500 transition"
-                                                        >
-                                                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                                        </button>
-                                                    </td>
-                                                    <td className="px-6 py-4 font-semibold text-gray-800">{sheet.client?.name || '—'}</td>
-                                                    <td className="px-6 py-4 text-gray-700 font-medium">
-                                                        <div className="flex items-center gap-2">
-                                                            <span>{sheet.form_name || '—'}</span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    navigate(isStaff ? `/staff/tasks/${sheet.id}` : `/ca/tasks/${sheet.id}`)
-                                                                }}
-                                                                className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
-                                                                title="View Details"
-                                                            >
-                                                                <Eye size={15} />
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-gray-600">{sheet.allocated_to?.name ?? 'Unassigned'}</td>
-                                                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sheet.due_date)}</td>
-                                                    <td className="px-6 py-4">
-                                                        <SheetSubtaskPills
-                                                            subTasks={sheetSubtasks}
-                                                            expandedFilter={isExpanded ? expandedFilter : null}
-                                                            onPillClick={(filter) => handlePillClick(sheet.id, filter)}
-                                                        />
-                                                    </td>
-                                                </tr>
-
-                                                {/* Expanded Subtask Details */}
-                                                {isExpanded && (
-                                                    <tr className="bg-gray-50/50">
-                                                        <td colSpan={6} className="p-0 border-t border-b border-gray-150">
-                                                            <div className="px-8 py-5 space-y-4">
-                                                                <div className="flex items-center justify-between">
-                                                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                                                        Detailed Tasks ({expandedFilter} status):
-                                                                    </h4>
-                                                                    <span className="text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md">
-                                                                        {filteredSubtasks.length} tasks
-                                                                    </span>
-                                                                </div>
-
-                                                                {filteredSubtasks.length === 0 ? (
-                                                                    <div className="text-xs text-gray-400 py-3 text-center bg-white rounded-xl border border-gray-100">
-                                                                        No tasks match this status filter.
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-visible">
-                                                                        <table className="w-full text-xs">
-                                                                            <thead>
-                                                                                <tr className="bg-[#1F5C99] text-white font-bold uppercase text-[10px] tracking-wider border-b border-[#154673]">
-                                                                                    <th className="px-4 py-2.5 text-left min-w-[200px] rounded-tl-xl">Task Title</th>
-                                                                                    <th className="px-4 py-2.5 text-left">Assigned To</th>
-                                                                                    <th className="px-4 py-2.5 text-left">Priority</th>
-                                                                                    <th className="px-4 py-2.5 text-left">Due Date</th>
-                                                                                    <th className="px-4 py-2.5 text-left">Status</th>
-                                                                                    <th className="px-4 py-2.5 text-left rounded-tr-xl">Sub Status</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody className="divide-y divide-gray-50 bg-white">
-                                                                                {filteredSubtasks.map(st => (
-                                                                                    <tr key={st.id} className="hover:bg-gray-50/50 transition">
-                                                                                        {/* Read-only Subtask Title */}
-                                                                                        <td className="px-4 py-3 font-semibold text-gray-700">{st.title}</td>
-                                                                                        {/* Read-only Assignee */}
-                                                                                        <td className="px-4 py-3 text-gray-600">{st.assigned_to?.name || 'Unassigned'}</td>
-                                                                                        {/* Read-only Priority Badge */}
-                                                                                        <td className="px-4 py-3">
-                                                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border
-                                                                                                ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' :
-                                                                                                    st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                                                                                                        'bg-green-50 text-green-700 border-green-100'}
-                                                                                            `}>
-                                                                                                {st.priority_label}
-                                                                                            </span>
-                                                                                        </td>
-                                                                                        {/* Read-only Due Date */}
-                                                                                        <td className="px-4 py-3 text-gray-500">{formatDate(st.due_date)}</td>
-                                                                                        {/* Interactive Status Edit on Click */}
-                                                                                        <td className="px-4 py-3">
-                                                                                            {(() => {
-                                                                                                const isLocked = isStaff && st.is_verified;
-                                                                                                return isLocked ? (
-                                                                                                    <div className="inline-block" title="Locked (Verified)">
-                                                                                                        <StatusBadge status={st.status} />
-                                                                                                    </div>
-                                                                                                ) : editingSubTaskId === st.id ? (
-                                                                                                    <select
-                                                                                                        value={st.status}
-                                                                                                        autoFocus
-                                                                                                        onBlur={() => setEditingSubTaskId(null)}
-                                                                                                        onChange={async (e) => {
-                                                                                                            const newStatus = e.target.value
-                                                                                                            await handleUpdateSubTask(sheet.id, st.id, { status: newStatus })
-                                                                                                            setEditingSubTaskId(null)
-                                                                                                        }}
-                                                                                                        className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
-                                                                                                    >
-                                                                                                        <option value="complete">Complete</option>
-                                                                                                        <option value="work_in_progress">Work In Progress</option>
-                                                                                                        <option value="pending">Pending</option>
-                                                                                                        <option value="not_to_be_done">Not To Be Done</option>
-                                                                                                        <option value="other">Other</option>
-                                                                                                    </select>
-                                                                                                ) : (
-                                                                                                    <div
-                                                                                                        onClick={() => setEditingSubTaskId(st.id)}
-                                                                                                        className="cursor-pointer hover:opacity-80 transition inline-block animate-fade-in"
-                                                                                                    >
-                                                                                                        <StatusBadge status={st.status} />
-                                                                                                    </div>
-                                                                                                );
-                                                                                            })()}
-                                                                                        </td>
-                                                                                        <td className="px-4 py-3">
-                                                                                            {(() => {
-                                                                                                const isLocked = isStaff && st.is_verified;
-                                                                                                return (
-                                                                                                    <SubStatusPicker
-                                                                                                        value={st.sub_status}
-                                                                                                        onChange={(newVal) => handleUpdateSubTask(sheet.id, st.id, { sub_status: newVal })}
-                                                                                                        options={getSubStatusOptions(sheet)}
-                                                                                                        disabled={isLocked}
-                                                                                                    />
-                                                                                                );
-                                                                                            })()}
-                                                                                        </td>
-                                                                                    </tr>
-                                                                                ))}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
+                <div className="animate-fade-in">
+                    <TaskDetailPage id={selectedSheetId} hideBackHeader={true} />
                 </div>
             )}
         </div>
@@ -1717,17 +1487,15 @@ export default function DashboardPage() {
                     >
                         <CalendarDays size={15} /> Calendar View
                     </button>
-                    {!isStaff && (
-                        <button
-                            onClick={() => setActiveTab('summary')}
-                            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === 'summary'
-                                ? 'bg-[#1F5C99] text-white shadow-sm'
-                                : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
-                                }`}
-                        >
-                            <Activity size={15} /> Summary
-                        </button>
-                    )}
+                    <button
+                        onClick={() => setActiveTab('summary')}
+                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === 'summary'
+                            ? 'bg-[#1F5C99] text-white shadow-sm'
+                            : 'text-slate-650 hover:text-[#1F5C99] hover:bg-slate-100/85'
+                            }`}
+                    >
+                        <Activity size={15} /> Summary
+                    </button>
                 </div>
             </div>
 
@@ -1739,20 +1507,18 @@ export default function DashboardPage() {
                     </div>
 
                     {/* View Task Summary Banner */}
-                    {!isStaff && (
-                        <button
-                            onClick={() => setActiveTab('summary')}
-                            className="group w-full flex items-center gap-4 cursor-pointer select-none"
-                        >
-                            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
-                            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1F5C99]/25 bg-gradient-to-r from-[#EEF5FF] to-[#E8F1FC] group-hover:from-[#dceeff] group-hover:to-[#d0e6ff] group-hover:border-[#1F5C99]/50 group-hover:shadow-sm group-hover:shadow-blue-100 transition-all duration-200 shrink-0">
-                                <Activity size={12} className="text-[#1F5C99]" />
-                                <span className="text-xs font-bold text-[#1F5C99] tracking-wide whitespace-nowrap">View Task Summary</span>
-                                <span className="text-[#1F5C99]/60 text-sm font-bold leading-none group-hover:translate-x-0.5 transition-transform duration-200">→</span>
-                            </div>
-                            <div className="flex-1 h-px bg-gradient-to-l from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
-                        </button>
-                    )}
+                    <button
+                        onClick={() => setActiveTab('summary')}
+                        className="group w-full flex items-center gap-4 cursor-pointer select-none"
+                    >
+                        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
+                        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#1F5C99]/25 bg-gradient-to-r from-[#EEF5FF] to-[#E8F1FC] group-hover:from-[#dceeff] group-hover:to-[#d0e6ff] group-hover:border-[#1F5C99]/50 group-hover:shadow-sm group-hover:shadow-blue-100 transition-all duration-200 shrink-0">
+                            <Activity size={12} className="text-[#1F5C99]" />
+                            <span className="text-xs font-bold text-[#1F5C99] tracking-wide whitespace-nowrap">View Task Summary</span>
+                            <span className="text-[#1F5C99]/60 text-sm font-bold leading-none group-hover:translate-x-0.5 transition-transform duration-200">→</span>
+                        </div>
+                        <div className="flex-1 h-px bg-gradient-to-l from-transparent via-[#1F5C99]/20 to-[#1F5C99]/40 group-hover:via-[#1F5C99]/35 group-hover:to-[#1F5C99]/60 transition-all duration-300" />
+                    </button>
 
                     {/* All Tasks */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100">

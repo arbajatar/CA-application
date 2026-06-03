@@ -66,6 +66,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-reports/client-groups', [ClientController::class, 'groups']);
     Route::get('/daily-reports/work-types', [WorkTypeController::class, 'index']);
 
+    // Clients routes accessible by both CA and Staff (Read, Create, Update)
+    Route::middleware('role:ca,staff')->prefix('ca')->group(function () {
+        Route::get('/clients/pan-numbers', [ClientController::class, 'panNumbers']);
+        Route::get('/clients', [ClientController::class, 'index']);
+        Route::post('/clients', [ClientController::class, 'store']);
+        Route::get('/clients/{client}', [ClientController::class, 'show']);
+        Route::put('/clients/{client}', [ClientController::class, 'update']);
+        Route::patch('/clients/{client}', [ClientController::class, 'update']);
+        Route::get('/client-types', [ClientController::class, 'types']);
+        Route::post('/client-types', [ClientController::class, 'storeType']);
+        Route::put('/client-types/{type}', [ClientController::class, 'updateType']);
+        Route::get('/client-groups', [ClientController::class, 'groups']);
+        Route::post('/client-groups', [ClientController::class, 'storeGroup']);
+        Route::put('/client-groups/{group}', [ClientController::class, 'updateGroup']);
+    });
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 
@@ -76,17 +92,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard/work-type-subtasks', [DashboardController::class, 'workTypeSubtasks']);
         Route::get('/dashboard/calendar-tasks', [DashboardController::class, 'calendarTasks']);
 
-        // Clients
-        Route::get('/clients/pan-numbers', [ClientController::class, 'panNumbers']);
+        // Clients (Admin Only Operations)
         Route::post('/clients/bulk-store', [ClientController::class, 'bulkStore']);
-        Route::apiResource('/clients', ClientController::class);
-        Route::get('/client-types', [ClientController::class, 'types']);
-        Route::post('/client-types', [ClientController::class, 'storeType']);
-        Route::put('/client-types/{type}', [ClientController::class, 'updateType']);
+        Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
         Route::delete('/client-types/{type}', [ClientController::class, 'destroyType']);
-        Route::get('/client-groups', [ClientController::class, 'groups']);
-        Route::post('/client-groups', [ClientController::class, 'storeGroup']);
-        Route::put('/client-groups/{group}', [ClientController::class, 'updateGroup']);
         Route::delete('/client-groups/{group}', [ClientController::class, 'destroyGroup']);
         // Recycle Bin
         Route::get('/recycle-bin/clients', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexClients']);

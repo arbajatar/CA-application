@@ -52,8 +52,15 @@ class TaskController extends Controller
                         );
                 })
             )
-            ->latest()
-            ->paginate($request->get('per_page', 15));
+            ->latest();
+
+        $perPage = $request->get('per_page', 15);
+        if ($perPage === 'all') {
+            $tasks = $tasks->get();
+            return TaskResource::collection($tasks);
+        }
+
+        $tasks = $tasks->paginate(min((int)$perPage, 1000));
 
         return TaskResource::collection($tasks);
     }
