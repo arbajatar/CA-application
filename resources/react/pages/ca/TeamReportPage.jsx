@@ -48,152 +48,16 @@ const parseTime24Hour = (time12) => {
 }
 
 function TimePicker12Hour({ value, onChange, label, className = "", position = "bottom" }) {
-    // Parse value (e.g. "14:05")
-    const getInitialState = (val) => {
-        if (!val) return { hour: '', minute: '', ampm: 'AM' };
-        const parts = String(val).split(':');
-        if (parts.length < 2) return { hour: '', minute: '', ampm: 'AM' };
-        let h24 = parseInt(parts[0], 10);
-        let m = parts[1] || '';
-        if (isNaN(h24)) return { hour: '', minute: '', ampm: 'AM' };
-        
-        const ampm = h24 >= 12 ? 'PM' : 'AM';
-        let h12 = h24 % 12;
-        if (h12 === 0) h12 = 12;
-        
-        return {
-            hour: String(h12),
-            minute: m.substring(0, 2),
-            ampm
-        };
-    };
-
-    const state = getInitialState(value);
-
-    const updateTime = (newHour, newMinute, newAmPm) => {
-        if (newHour === '' && newMinute === '') {
-            onChange('');
-            return;
-        }
-
-        let h = parseInt(newHour, 10);
-        if (isNaN(h)) h = 12;
-        if (h < 1) h = 1;
-        if (h > 12) h = 12;
-
-        let m = parseInt(newMinute, 10);
-        if (isNaN(m)) m = 0;
-        if (m < 0) m = 0;
-        if (m > 59) m = 59;
-
-        let h24 = h;
-        if (newAmPm === 'PM' && h < 12) h24 += 12;
-        if (newAmPm === 'AM' && h === 12) h24 = 0;
-
-        const hStr = String(h24).padStart(2, '0');
-        const mStr = String(m).padStart(2, '0');
-        onChange(`${hStr}:${mStr}`);
-    };
-
-    const handleHourChange = (e) => {
-        let val = e.target.value.replace(/\D/g, '');
-        if (val.length > 2) val = val.substring(0, 2);
-        
-        if (val === '') {
-            updateTime('', state.minute, state.ampm);
-            return;
-        }
-
-        let num = parseInt(val, 10);
-        if (num > 12) {
-            num = 12;
-        }
-        
-        updateTime(String(num), state.minute, state.ampm);
-    };
-
-    const handleMinuteChange = (e) => {
-        let val = e.target.value.replace(/\D/g, '');
-        if (val.length > 2) val = val.substring(0, 2);
-
-        if (val === '') {
-            updateTime(state.hour, '', state.ampm);
-            return;
-        }
-
-        let num = parseInt(val, 10);
-        if (num > 59) num = 59;
-
-        updateTime(state.hour, String(num).padStart(2, '0'), state.ampm);
-    };
-
-    const handleAmPmChange = (newAmPm) => {
-        updateTime(state.hour, state.minute, newAmPm);
-    };
-
-    const handleHourBlur = () => {
-        if (state.hour) {
-            let h = parseInt(state.hour, 10);
-            if (h < 1) h = 12;
-            if (h > 12) h = 12;
-            updateTime(String(h), state.minute, state.ampm);
-        }
-    };
-
-    const handleMinuteBlur = () => {
-        if (state.minute) {
-            let m = parseInt(state.minute, 10);
-            if (m < 0) m = 0;
-            if (m > 59) m = 59;
-            updateTime(state.hour, String(m).padStart(2, '0'), state.ampm);
-        } else {
-            updateTime(state.hour, '00', state.ampm);
-        }
-    };
-
     return (
         <div className="w-full">
             {label && <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">{label}</label>}
-            <div className={`flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-[#1F5C99]/20 focus-within:border-[#1F5C99] transition ${className}`}>
-                <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={state.hour}
-                    onChange={handleHourChange}
-                    onBlur={handleHourBlur}
-                    placeholder="12"
-                    className="w-6 text-center bg-transparent border-none p-0 focus:ring-0 text-sm font-semibold text-gray-800 focus:outline-none"
-                />
-                <span className="text-gray-400 font-bold">:</span>
-                <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={state.minute}
-                    onChange={handleMinuteChange}
-                    onBlur={handleMinuteBlur}
-                    placeholder="00"
-                    className="w-6 text-center bg-transparent border-none p-0 focus:ring-0 text-sm font-semibold text-gray-800 focus:outline-none"
-                />
-                
-                <div className="flex border border-gray-200 rounded-lg overflow-hidden shrink-0 ml-auto bg-white text-[10px] font-bold">
-                    <button
-                        type="button"
-                        onClick={() => handleAmPmChange('AM')}
-                        className={`px-1.5 py-0.5 transition ${state.ampm === 'AM' ? 'bg-[#1F5C99] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        AM
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleAmPmChange('PM')}
-                        className={`px-1.5 py-0.5 transition border-l border-gray-200 ${state.ampm === 'PM' ? 'bg-[#1F5C99] text-white' : 'text-gray-500 hover:bg-gray-50'}`}
-                    >
-                        PM
-                    </button>
-                </div>
-            </div>
+            <input
+                type="time"
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                className={`w-full bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition ${className.replace('!py-1 !px-2 text-xs', '')}`}
+                style={className.includes('!py-1') ? { padding: '4px 8px', fontSize: '12px' } : {}}
+            />
         </div>
     );
 }
