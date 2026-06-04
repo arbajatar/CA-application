@@ -943,6 +943,45 @@ export default function TaskBuilderPage() {
   };
 
   const removeField = (id) => {
+    const fieldToRemove = formSchema.find(f => f.id === id);
+    if (!fieldToRemove) return;
+
+    if (location.state?.isEditing && location.state?.duplicateData) {
+      const data = location.state.duplicateData;
+      const label = fieldToRemove.label;
+      let hasData = false;
+
+      if (data.dynamic_fields) {
+        const val = data.dynamic_fields[label];
+        if (val !== undefined && val !== null && val !== '') {
+          if (Array.isArray(val)) {
+            if (val.length > 0) hasData = true;
+          } else {
+            hasData = true;
+          }
+        }
+
+        if (!hasData && Array.isArray(data.dynamic_fields.multi_rows)) {
+          for (const row of data.dynamic_fields.multi_rows) {
+            const rowVal = row[label];
+            if (rowVal !== undefined && rowVal !== null && rowVal !== '') {
+              if (Array.isArray(rowVal)) {
+                if (rowVal.length > 0) { hasData = true; break; }
+              } else {
+                hasData = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (hasData) {
+        showToast(`Cannot delete "${label}" because it contains data in this sheet.`);
+        return;
+      }
+    }
+
     setFormSchema(prev => prev.filter(f => f.id !== id));
     if (activeFieldId === id) setActiveFieldId(null);
     setSelectedFields(prev => prev.filter(fid => fid !== id));
@@ -954,11 +993,66 @@ export default function TaskBuilderPage() {
   };
 
   const handleConfirmBulkDelete = () => {
-    setFormSchema(prev => prev.filter(f => !selectedFields.includes(f.id)));
+    let undeletableLabels = [];
+    let fieldsToRemove = [];
+
+    if (location.state?.isEditing && location.state?.duplicateData) {
+      const data = location.state.duplicateData;
+      
+      for (const id of selectedFields) {
+        const fieldToRemove = formSchema.find(f => f.id === id);
+        if (!fieldToRemove) continue;
+
+        const label = fieldToRemove.label;
+        let hasData = false;
+
+        if (data.dynamic_fields) {
+          const val = data.dynamic_fields[label];
+          if (val !== undefined && val !== null && val !== '') {
+            if (Array.isArray(val)) {
+              if (val.length > 0) hasData = true;
+            } else {
+              hasData = true;
+            }
+          }
+
+          if (!hasData && Array.isArray(data.dynamic_fields.multi_rows)) {
+            for (const row of data.dynamic_fields.multi_rows) {
+              const rowVal = row[label];
+              if (rowVal !== undefined && rowVal !== null && rowVal !== '') {
+                if (Array.isArray(rowVal)) {
+                  if (rowVal.length > 0) { hasData = true; break; }
+                } else {
+                  hasData = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (hasData) {
+          undeletableLabels.push(label);
+        } else {
+          fieldsToRemove.push(id);
+        }
+      }
+    } else {
+      fieldsToRemove = [...selectedFields];
+    }
+
+    if (undeletableLabels.length > 0) {
+      showToast(`Cannot delete: ${undeletableLabels.join(', ')} (Data exists)`);
+    }
+
+    if (fieldsToRemove.length > 0) {
+      setFormSchema(prev => prev.filter(f => !fieldsToRemove.includes(f.id)));
+      showToast(`${fieldsToRemove.length} fields removed`);
+    }
+    
     setSelectedFields([]);
     setActiveFieldId(null);
     setDeleteBulkOpen(false);
-    showToast(`${selectedFields.length} fields removed`);
   };
 
   const toggleSelectField = (id) => {
