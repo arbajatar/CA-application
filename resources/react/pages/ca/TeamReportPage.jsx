@@ -711,8 +711,8 @@ export default function TeamReportPage() {
         const loadDependencies = async () => {
             try {
                 const [clientsRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
-                    api.get('/daily-reports/clients'),
-                    api.get('/daily-reports/work-types'),
+                    api.get(user?.role === 'ca' ? '/ca/clients' : '/daily-reports/clients', { params: { per_page: 10000 } }),
+                    api.get(user?.role === 'ca' ? '/ca/work-types' : '/daily-reports/work-types', { params: { per_page: 10000 } }),
                     api.get('/daily-reports/client-types'),
                     api.get('/daily-reports/client-groups')
                 ])
@@ -1915,35 +1915,35 @@ export default function TeamReportPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">#</th>
-                                    {isCA && <th className="px-6 py-3.5 text-left whitespace-nowrap">Team Member</th>}
-                                    <th onClick={() => handleSort('date')} className="px-6 py-3.5 text-left whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '48px', width: '48px' }}>#</th>
+                                    {isCA && <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '200px', width: '200px' }}>Team Member</th>}
+                                    <th onClick={() => handleSort('date')} className="px-6 py-3.5 text-left whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors" style={{ minWidth: '120px', width: '120px' }}>
                                         <div className="flex items-center gap-1.5">
                                             Date <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Main Task / Work Type</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Sub Task</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Duration</th>
-                                    <th className="px-6 py-3.5 text-center whitespace-nowrap">Start Time</th>
-                                    <th className="px-6 py-3.5 text-center whitespace-nowrap">End Time</th>
-                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '220px', width: '220px' }}>Main Task / Work Type</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '220px', width: '220px' }}>Sub Task</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>Duration</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>Start Time</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>End Time</th>
+                                    <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors" style={{ minWidth: '100px', width: '100px' }}>
                                         <div className="flex items-center gap-1.5 justify-end">
                                             Hours <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Client</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Sub Task Description</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Status</th>
-                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-3.5 text-center whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors">
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '300px', width: '300px' }}>Client</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '320px', width: '320px' }}>Sub Task Description</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '160px', width: '160px' }}>Status</th>
+                                    <th onClick={() => handleSort('pct_completion')} className="px-6 py-3.5 text-center whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors" style={{ minWidth: '100px', width: '100px' }}>
                                         <div className="flex items-center gap-1.5 justify-center">
                                             % Done <ArrowUpDown size={11} className="text-blue-100" />
                                         </div>
                                     </th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">Final Remark</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">CA Review</th>
-                                    <th className="px-6 py-3.5 text-left whitespace-nowrap">CA Remark</th>
-                                    <th className="px-6 py-3.5 text-center whitespace-nowrap sticky right-0 bg-[#1F5C99] z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white">Actions</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '260px', width: '260px' }}>Final Remark</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '200px', width: '200px' }}>CA Review</th>
+                                    <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '260px', width: '260px' }}>CA Remark</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap sticky right-0 bg-[#1F5C99] z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white" style={{ minWidth: '80px', width: '80px' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">

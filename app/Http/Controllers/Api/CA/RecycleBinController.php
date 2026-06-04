@@ -166,4 +166,62 @@ class RecycleBinController extends Controller
             'message' => 'Sheet/Task permanently deleted.',
         ]);
     }
+
+    public function bulkRestore(Request $request, $type): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer'
+        ]);
+        $ids = $request->input('ids');
+
+        if ($type === 'clients') {
+            foreach ($ids as $id) {
+                $this->restoreClient($id);
+            }
+        } elseif ($type === 'tasks') {
+            foreach ($ids as $id) {
+                $this->restoreTask($id);
+            }
+        } elseif ($type === 'work-types') {
+            foreach ($ids as $id) {
+                $this->restoreWorkType($id);
+            }
+        } else {
+            return response()->json(['message' => 'Invalid type.'], 400);
+        }
+
+        return response()->json([
+            'message' => count($ids) . ' items successfully restored.',
+        ]);
+    }
+
+    public function bulkForceDelete(Request $request, $type): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer'
+        ]);
+        $ids = $request->input('ids');
+
+        if ($type === 'clients') {
+            foreach ($ids as $id) {
+                $this->forceDeleteClient($id);
+            }
+        } elseif ($type === 'tasks') {
+            foreach ($ids as $id) {
+                $this->forceDeleteTask($id);
+            }
+        } elseif ($type === 'work-types') {
+            foreach ($ids as $id) {
+                $this->forceDeleteWorkType($id);
+            }
+        } else {
+            return response()->json(['message' => 'Invalid type.'], 400);
+        }
+
+        return response()->json([
+            'message' => count($ids) . ' items permanently deleted.',
+        ]);
+    }
 }

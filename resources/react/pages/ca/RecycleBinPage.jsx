@@ -5,8 +5,12 @@ import api from '../../api/axios'
 import Spinner from '../../components/ui/Spinner'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
+import { useAuth } from '../../context/AuthContext'
 
 export default function RecycleBinPage() {
+    const { user } = useAuth()
+    const isCA = user?.role === 'ca'
+
     const [activeTab, setActiveTab] = useState('clients') // 'clients' | 'tasks'
     const [clients, setClients] = useState([])
     const [tasks, setTasks] = useState([])
@@ -17,7 +21,10 @@ export default function RecycleBinPage() {
     // Confirmation states
     const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false)
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+    const [confirmBulkRestoreOpen, setConfirmBulkRestoreOpen] = useState(false)
+    const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false)
     const [selectedItem, setSelectedItem] = useState(null)
+    const [selectedItems, setSelectedItems] = useState([])
     const [actionLoading, setActionLoading] = useState(false)
 
     const fetchDeletedClients = useCallback(async () => {
@@ -117,6 +124,52 @@ export default function RecycleBinPage() {
         }
     }
 
+    const handleBulkRestore = async () => {
+        if (selectedItems.length === 0) return
+        setActionLoading(true)
+        try {
+            const res = await api.post(`/ca/recycle-bin/${activeTab}/bulk-restore`, { ids: selectedItems })
+            toast.success(res.data.message || 'Restored successfully')
+            setConfirmBulkRestoreOpen(false)
+            setSelectedItems([])
+            loadData()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to restore items')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const handleBulkDeletePermanently = async () => {
+        if (selectedItems.length === 0) return
+        setActionLoading(true)
+        try {
+            const res = await api.post(`/ca/recycle-bin/${activeTab}/bulk-force-delete`, { ids: selectedItems })
+            toast.success(res.data.message || 'Deleted permanently')
+            setConfirmBulkDeleteOpen(false)
+            setSelectedItems([])
+            loadData()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to permanently delete items')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const handleSelectAll = (e, items) => {
+        if (e.target.checked) {
+            setSelectedItems(items.map(item => item.id))
+        } else {
+            setSelectedItems([])
+        }
+    }
+
+    const handleSelectRow = (id) => {
+        setSelectedItems(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        )
+    }
+
     // Filter items based on search query
     const filteredClients = clients.filter(c => 
         c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -172,7 +225,7 @@ export default function RecycleBinPage() {
                 {/* Tabs */}
                 <div className="lg:col-span-6 flex gap-2">
                     <button
-                        onClick={() => { setActiveTab('clients'); setSearchQuery(''); }}
+                        onClick={() => { setActiveTab('clients'); setSearchQuery(''); setSelectedItems([]); }}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
                             activeTab === 'clients'
                                 ? 'bg-[#EEF4FB] text-[#1F5C99]'
@@ -186,7 +239,7 @@ export default function RecycleBinPage() {
                         </span>
                     </button>
                     <button
-                        onClick={() => { setActiveTab('tasks'); setSearchQuery(''); }}
+                        onClick={() => { setActiveTab('tasks'); setSearchQuery(''); setSelectedItems([]); }}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
                             activeTab === 'tasks'
                                 ? 'bg-[#EEF4FB] text-[#1F5C99]'
@@ -200,7 +253,7 @@ export default function RecycleBinPage() {
                         </span>
                     </button>
                     <button
-                        onClick={() => { setActiveTab('work-types'); setSearchQuery(''); }}
+                        onClick={() => { setActiveTab('work-types'); setSearchQuery(''); setSelectedItems([]); }}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
                             activeTab === 'work-types'
                                 ? 'bg-[#EEF4FB] text-[#1F5C99]'
@@ -228,6 +281,27 @@ export default function RecycleBinPage() {
                 </div>
             </div>
 
+            {/* Action Buttons for Bulk Delete/Restore */}
+            {isCA && selectedItems.length > 0 && (
+                <div className="flex items-center justify-between bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                    <span className="text-sm font-bold text-slate-700">{selectedItems.length} item(s) selected</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setConfirmBulkRestoreOpen(true)}
+                            className="flex items-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition"
+                        >
+                            <RotateCcw size={14} /> Restore Selected
+                        </button>
+                        <button
+                            onClick={() => setConfirmBulkDeleteOpen(true)}
+                            className="flex items-center gap-2 bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition"
+                        >
+                            <Trash2 size={14} /> Permanently Delete
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* List Table Content */}
             <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden min-h-[400px] flex flex-col justify-between">
                 {loading ? (
@@ -251,6 +325,16 @@ export default function RecycleBinPage() {
                             <table className="w-full text-xs text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                                        {isCA && (
+                                            <th className="px-6 py-4 w-12">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                    checked={filteredClients.length > 0 && selectedItems.length === filteredClients.length}
+                                                    onChange={(e) => handleSelectAll(e, filteredClients)}
+                                                />
+                                            </th>
+                                        )}
                                         <th className="px-6 py-4">Client Name</th>
                                         <th className="px-6 py-4">PAN Number</th>
                                         <th className="px-6 py-4">Type / Group</th>
@@ -262,6 +346,16 @@ export default function RecycleBinPage() {
                                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                                     {filteredClients.map((client) => (
                                         <tr key={client.id} className="hover:bg-slate-50/50 transition">
+                                            {isCA && (
+                                                <td className="px-6 py-4">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                        checked={selectedItems.includes(client.id)}
+                                                        onChange={() => handleSelectRow(client.id)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-800">{client.name}</div>
                                                 {client.name_as_per_pan && (
@@ -334,6 +428,16 @@ export default function RecycleBinPage() {
                             <table className="w-full text-xs text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                                        {isCA && (
+                                            <th className="px-6 py-4 w-12">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                    checked={filteredTasks.length > 0 && selectedItems.length === filteredTasks.length}
+                                                    onChange={(e) => handleSelectAll(e, filteredTasks)}
+                                                />
+                                            </th>
+                                        )}
                                         <th className="px-6 py-4">Client Name</th>
                                         <th className="px-6 py-4">Work Type / Form</th>
                                         <th className="px-6 py-4">Particulars</th>
@@ -345,6 +449,16 @@ export default function RecycleBinPage() {
                                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                                     {filteredTasks.map((task) => (
                                         <tr key={task.id} className="hover:bg-slate-50/50 transition">
+                                            {isCA && (
+                                                <td className="px-6 py-4">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                        checked={selectedItems.includes(task.id)}
+                                                        onChange={() => handleSelectRow(task.id)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-800">{task.client_name}</div>
                                             </td>
@@ -407,6 +521,16 @@ export default function RecycleBinPage() {
                             <table className="w-full text-xs text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                                        {isCA && (
+                                            <th className="px-6 py-4 w-12">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                    checked={filteredWorkTypes.length > 0 && selectedItems.length === filteredWorkTypes.length}
+                                                    onChange={(e) => handleSelectAll(e, filteredWorkTypes)}
+                                                />
+                                            </th>
+                                        )}
                                         <th className="px-6 py-4">Folder / Work Type Name</th>
                                         <th className="px-6 py-4">Deleted At</th>
                                         <th className="px-6 py-4 text-right">Actions</th>
@@ -415,6 +539,16 @@ export default function RecycleBinPage() {
                                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                                     {filteredWorkTypes.map((wt) => (
                                         <tr key={wt.id} className="hover:bg-slate-50/50 transition">
+                                            {isCA && (
+                                                <td className="px-6 py-4">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                        checked={selectedItems.includes(wt.id)}
+                                                        onChange={() => handleSelectRow(wt.id)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-800 flex items-center gap-2">
                                                     <Folder className="w-4 h-4 text-[#1F5C99]" />
@@ -476,6 +610,28 @@ export default function RecycleBinPage() {
                 title={`PERMANENTLY DELETE ${activeTab === 'clients' ? 'Client' : activeTab === 'tasks' ? 'Sheet/Task' : 'Folder'}`}
                 message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge "${selectedItem?.name || selectedItem?.client_name}" and all associated data, sheets, and tasks from the database forever.`}
                 confirmLabel="Delete Permanently"
+                danger
+                loading={actionLoading}
+            />
+
+            {/* Bulk Confirmations */}
+            <ConfirmDialog
+                open={confirmBulkRestoreOpen}
+                onClose={() => !actionLoading && setConfirmBulkRestoreOpen(false)}
+                onConfirm={handleBulkRestore}
+                title={`Restore ${selectedItems.length} Items`}
+                message={`Are you sure you want to restore ${selectedItems.length} selected items?`}
+                confirmLabel="Restore Data"
+                loading={actionLoading}
+            />
+
+            <ConfirmDialog
+                open={confirmBulkDeleteOpen}
+                onClose={() => !actionLoading && setConfirmBulkDeleteOpen(false)}
+                onConfirm={handleBulkDeletePermanently}
+                title={`PERMANENTLY DELETE ${selectedItems.length} ITEMS`}
+                message={`CRITICAL WARNING: This action CANNOT BE UNDONE. This will permanently purge ${selectedItems.length} selected items from the database forever.`}
+                confirmLabel={`Delete ${selectedItems.length} Items`}
                 danger
                 loading={actionLoading}
             />

@@ -39,6 +39,7 @@ export default function ClientsPage() {
 
     const [selectedClients, setSelectedClients] = useState([])
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+    const [isParsingExcel, setIsParsingExcel] = useState(false)
 
     const [clients, setClients] = useState([])
     const [meta, setMeta] = useState(null)
@@ -543,6 +544,7 @@ export default function ClientsPage() {
         const file = e.target.files?.[0]
         if (!file) return
 
+        setIsParsingExcel(true)
         try {
             const XLSX = await import('xlsx')
             const reader = new FileReader()
@@ -734,12 +736,15 @@ export default function ClientsPage() {
                 } catch (e) {
                     console.error(e)
                     toast.error('Error reading details from selected sheet.')
+                } finally {
+                    setIsParsingExcel(false)
                 }
             }
             reader.readAsArrayBuffer(file)
         } catch (e) {
             console.error(e)
             toast.error('Failed to import file.')
+            setIsParsingExcel(false)
         } finally {
             e.target.value = ''
         }
@@ -1259,14 +1264,13 @@ export default function ClientsPage() {
                         <Key className="text-indigo-500 w-4 h-4" />
                         <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Portal Credentials (Passwords)</h4>
                     </div>
-                    <button
-                        type="button"
+                    <div role="button"
                         onClick={() => setShowPasswords(!showPasswords)}
-                        className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1"
+                        className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1 cursor-pointer"
                     >
                         {showPasswords ? <EyeOff size={13} /> : <Eye size={13} />}
                         <span>{showPasswords ? 'Hide Credentials' : 'Reveal Credentials'}</span>
-                    </button>
+                    </div>
                 </div>
 
                 <div className="overflow-hidden border border-slate-200/60 rounded-2xl bg-white shadow-sm">
@@ -1479,7 +1483,17 @@ export default function ClientsPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
+            {/* Header / Actions Area */}
+            {isParsingExcel && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+                    <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center max-w-sm w-full mx-4">
+                        <Spinner size="xl" />
+                        <h3 className="mt-4 text-sm font-bold text-slate-800">Reading Excel File...</h3>
+                        <p className="text-xs text-slate-500 text-center mt-1">Please wait while we parse and validate your spreadsheet data. This might take a moment for large files.</p>
+                    </div>
+                </div>
+            )}
+            
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Client Registry</h1>
@@ -1597,14 +1611,16 @@ export default function ClientsPage() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50/20">
-                                <th className="px-6 py-4 text-left w-12">
-                                    <input 
-                                        type="checkbox" 
-                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                        checked={filteredClients.length > 0 && selectedClients.length === filteredClients.length}
-                                        onChange={handleSelectAll}
-                                    />
-                                </th>
+                                {isCA && (
+                                    <th className="px-6 py-4 text-left w-12">
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            checked={filteredClients.length > 0 && selectedClients.length === filteredClients.length}
+                                            onChange={handleSelectAll}
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-6 py-4 text-left">Client Name</th>
                                 <th className="px-6 py-4 text-left">PAN No</th>
                                 <th className="px-6 py-4 text-left">Type & Group</th>
@@ -1623,14 +1639,16 @@ export default function ClientsPage() {
                                 ) : filteredClients.map(c => (
                                     <tr key={c.id} className="hover:bg-slate-50/30 transition">
                                         {/* Checkbox */}
-                                        <td className="px-6 py-4">
-                                            <input 
-                                                type="checkbox" 
-                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                                checked={selectedClients.includes(c.id)}
-                                                onChange={() => handleSelectRow(c.id)}
-                                            />
-                                        </td>
+                                        {isCA && (
+                                            <td className="px-6 py-4">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                    checked={selectedClients.includes(c.id)}
+                                                    onChange={() => handleSelectRow(c.id)}
+                                                />
+                                            </td>
+                                        )}
                                         {/* Client Name & City */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">

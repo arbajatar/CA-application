@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, PlusCircle } from 'lucide-react';
 
@@ -7,8 +7,10 @@ export default function SearchableSelect({ value, options, placeholder, onChange
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
   const [dropdownStyle, setDropdownStyle] = useState({ position: 'fixed', top: '-9999px', left: '-9999px' });
   const [visibleCount, setVisibleCount] = useState(50);
+  const openTimeRef = useRef(0);
 
   useEffect(() => {
     setVisibleCount(50);
@@ -24,7 +26,7 @@ export default function SearchableSelect({ value, options, placeholder, onChange
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isOpen && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
         if (direction === 'up') {
@@ -44,11 +46,18 @@ export default function SearchableSelect({ value, options, placeholder, onChange
                 zIndex: 99999
             });
         }
+        
+        if (inputRef.current) {
+            setTimeout(() => {
+                if (inputRef.current) inputRef.current.focus({ preventScroll: true });
+            }, 10);
+        }
     }
   }, [isOpen, direction]);
 
   useEffect(() => {
     const handleScroll = (e) => { 
+        if (Date.now() - openTimeRef.current < 150) return;
         // ignore scroll inside the dropdown itself
         if (dropdownRef.current && dropdownRef.current.contains(e.target)) return;
         if (isOpen) setIsOpen(false); 
@@ -56,6 +65,14 @@ export default function SearchableSelect({ value, options, placeholder, onChange
     window.addEventListener('scroll', handleScroll, true);
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [isOpen]);
+
+  const handleToggleOpen = () => {
+    if (disabled) return;
+    if (!isOpen) {
+      openTimeRef.current = Date.now();
+    }
+    setIsOpen(!isOpen);
+  };
 
   const filteredOptions = options.filter(opt => {
     const label = typeof opt === 'object' ? opt.label : opt;
@@ -76,7 +93,7 @@ export default function SearchableSelect({ value, options, placeholder, onChange
         className={`w-full bg-white border border-slate-200 rounded-xl px-4 outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer ${
           size === 'sm' ? 'py-1.5 text-xs h-[38px]' : 'py-3 text-sm'
         } ${disabled ? 'opacity-60 bg-slate-50 cursor-not-allowed pointer-events-none' : ''}`}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={handleToggleOpen}
       >
         <span className={`truncate mr-2 ${selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}`}>
           {selectedOption ? getLabel(selectedOption) : placeholder}
@@ -99,7 +116,7 @@ export default function SearchableSelect({ value, options, placeholder, onChange
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                autoFocus
+                ref={inputRef}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border-none rounded-lg text-sm focus:ring-0"
                 placeholder="Search..."
                 value={search}

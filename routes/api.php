@@ -99,6 +99,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/client-types/{type}', [ClientController::class, 'destroyType']);
         Route::delete('/client-groups/{group}', [ClientController::class, 'destroyGroup']);
         // Recycle Bin
+        Route::post('/recycle-bin/{type}/bulk-restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'bulkRestore']);
+        Route::post('/recycle-bin/{type}/bulk-force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'bulkForceDelete']);
+        
         Route::get('/recycle-bin/clients', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexClients']);
         Route::post('/recycle-bin/clients/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreClient']);
         Route::delete('/recycle-bin/clients/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteClient']);
