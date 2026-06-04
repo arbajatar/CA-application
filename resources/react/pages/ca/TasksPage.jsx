@@ -1111,9 +1111,6 @@ export default function TasksPage() {
                     <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors">
                         {task.form_name || 'Unnamed Sheet'}
                     </h4>
-                    <p className="text-[10px] text-slate-500 font-semibold truncate">
-                        {task.client?.name || '—'}
-                    </p>
                 </div>
             </div>
         </Tooltip>
@@ -1199,7 +1196,7 @@ export default function TasksPage() {
                     <p className="text-sm font-medium text-slate-500 mt-1">Monitor, assign, and manage all office work entries.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <input
+                    {/* <input
                         type="file"
                         ref={fileInputRef}
                         onChange={handleImport}
@@ -1212,7 +1209,7 @@ export default function TasksPage() {
                         className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 disabled:opacity-50"
                     >
                         Import Data
-                    </button>
+                    </button> */}
                     <button onClick={() => navigate('/ca/tasks/builder', { state: { workTypeId: currentFolder && currentFolder !== 'all' ? currentFolder : '' } })}
                         className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 w-full sm:w-auto">
                         <Plus size={15} /> Create New Sheet
@@ -1302,14 +1299,9 @@ export default function TasksPage() {
                     const baseColumns = [
                         { id: 'form_name', label: 'Sheet Name' },
                         { id: 'work_type', label: 'Work Type' },
-                        { id: 'assigned_to', label: 'Assigned To' },
                         { id: 'date_inward', label: 'Create Date' },
-                        { id: 'client', label: 'Client Name' },
-                        { id: 'mobile', label: 'Phone Number' },
                         { id: 'status', label: 'Sheet Status' },
                         { id: 'remarks', label: 'Remark' },
-                        { id: 'ca_feedback', label: 'CA Feedback', isDynamic: true, fieldName: 'CA Feedback' },
-                        { id: 'ca_rating', label: 'CA Rating', isDynamic: true, fieldName: 'CA Rating' },
                     ];
 
                     let activeColumns = [];
@@ -1436,24 +1428,6 @@ export default function TasksPage() {
                                         onChange={e => { setStatus(e.target.value); setPage(1) }}
                                         options={statuses}
                                         widthClass="min-w-[125px] shrink-0"
-                                    />
-                                    <CustomSelect
-                                        value={clientId}
-                                        onChange={e => { setClientId(e.target.value); setPage(1) }}
-                                        options={[
-                                            { value: '', label: 'All Clients' },
-                                            ...(clients || []).map(c => ({ value: c.id, label: c.name }))
-                                        ]}
-                                        widthClass="min-w-[125px] lg:max-w-[150px] shrink-0"
-                                    />
-                                    <CustomSelect
-                                        value={staffId}
-                                        onChange={e => { setStaffId(e.target.value); setPage(1) }}
-                                        options={[
-                                            { value: '', label: 'All Staff' },
-                                            ...(staff || []).map(s => ({ value: s.id, label: s.name }))
-                                        ]}
-                                        widthClass="min-w-[125px] lg:max-w-[150px] shrink-0"
                                     />
                                     {currentFolder === 'all' && (
                                         <CustomSelect
