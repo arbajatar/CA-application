@@ -581,6 +581,20 @@ export default function TaskBuilderPage() {
       static: true,
       section: 1
     },
+    {
+      id: 'is_task_billable',
+      type: 'checkbox',
+      icon: 'CheckSquare',
+      color: '#f59e0b',
+      label: 'Is Task Billable?',
+      placeholder: 'Select Yes or No',
+      value: '',
+      options: ['Yes', 'No'],
+      checkType: 'singlecheck',
+      required: false,
+      static: false,
+      section: 1
+    },
 
     // SECTION 2: Task Assignment Section
     {
@@ -2773,7 +2787,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-1">
               {isLive || field.static ? (
-                <span className={`text-[10px] font-black uppercase tracking-wider ${field.static ? 'text-slate-800' : 'text-slate-700'}`}>
+                <span className={`text-sm font-black uppercase tracking-wider text-black`}>
                   {field.label}
                 </span>
               ) : (
@@ -2782,7 +2796,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                   value={field.label}
                   onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
                   onChange={(e) => onUpdate('label', e.target.value)}
-                  className="text-[10px] font-black uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500/60 outline-none text-slate-800 focus:bg-white px-1.5 py-0.5 rounded transition w-full"
+                  className="text-sm font-black uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500/60 outline-none text-black focus:bg-white px-1.5 py-0.5 rounded transition w-full"
                   placeholder="Field Label"
                   size={Math.max(field.label.length || 0, 10)}
                 />
@@ -2867,7 +2881,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
 }
 
 function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
-  const baseClass = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-slate-800 focus:ring-4 focus:ring-slate-200/50 transition-all";
+  const baseClass = "w-full bg-slate-50 border-2 border-slate-600 text-black font-semibold rounded-xl px-4 py-3 text-sm outline-none focus:border-black focus:ring-4 focus:ring-slate-300/50 transition-all placeholder:text-slate-600";
 
   switch (field.type) {
     case 'text': {
