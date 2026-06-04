@@ -1641,8 +1641,8 @@ export default function TeamReportPage() {
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '220px', width: '220px' }}>Main Task / Work Type</th>
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '220px', width: '220px' }}>Sub Task</th>
                                     <th className="px-6 py-3.5 text-left whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>Duration</th>
-                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>Start Time</th>
-                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '120px', width: '120px' }}>End Time</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '160px', width: '160px' }}>Start Time</th>
+                                    <th className="px-6 py-3.5 text-center whitespace-nowrap" style={{ minWidth: '160px', width: '160px' }}>End Time</th>
                                     <th onClick={() => handleSort('hours_taken')} className="px-6 py-3.5 text-right whitespace-nowrap cursor-pointer bg-[#1F5C99] hover:bg-[#154673] transition-colors" style={{ minWidth: '100px', width: '100px' }}>
                                         <div className="flex items-center gap-1.5 justify-end">
                                             Hours <ArrowUpDown size={11} className="text-blue-100" />
