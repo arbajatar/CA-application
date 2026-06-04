@@ -94,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Clients (Admin Only Operations)
         Route::post('/clients/bulk-store', [ClientController::class, 'bulkStore']);
+        Route::post('/clients/bulk-delete', [ClientController::class, 'bulkDelete']);
         Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
         Route::delete('/client-types/{type}', [ClientController::class, 'destroyType']);
         Route::delete('/client-groups/{group}', [ClientController::class, 'destroyGroup']);

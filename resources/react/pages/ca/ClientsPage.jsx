@@ -37,6 +37,9 @@ export default function ClientsPage() {
     const isCA = user?.role === 'ca'
     const [isViewOnly, setIsViewOnly] = useState(false)
 
+    const [selectedClients, setSelectedClients] = useState([])
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
     const [clients, setClients] = useState([])
     const [meta, setMeta] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -45,6 +48,7 @@ export default function ClientsPage() {
     const [filterType, setFilterType] = useState('')
     const [filterGroup, setFilterGroup] = useState('')
     const [page, setPage] = useState(1)
+    const [perPage, setPerPage] = useState(150)
 
     const [addOpen, setAddOpen] = useState(false)
     const [editOpen, setEditOpen] = useState(false)
@@ -96,7 +100,7 @@ export default function ClientsPage() {
                     search,
                     status,
                     page,
-                    per_page: 15
+                    per_page: perPage
                 }
             })
             setClients(res.data.data)
@@ -104,7 +108,7 @@ export default function ClientsPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, status, page])
+    }, [search, status, page, perPage])
 
     useEffect(() => {
         fetchLookups()
@@ -236,14 +240,43 @@ export default function ClientsPage() {
         setSaving(true)
         try {
             await api.delete(`/ca/clients/${selected.id}`)
-            toast.success('Client archived successfully')
+            toast.success('Client archived successfully.')
             setDeleteOpen(false)
             fetchClients()
-        } catch (e) {
-            toast.error(e.response?.data?.message || 'Failed to archive client')
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to archive client.')
         } finally {
             setSaving(false)
         }
+    }
+
+    const handleBulkDelete = async () => {
+        setSaving(true)
+        try {
+            const res = await api.post('/ca/clients/bulk-delete', { client_ids: selectedClients })
+            toast.success(res.data.message || 'Clients archived successfully.')
+            setBulkDeleteOpen(false)
+            setSelectedClients([])
+            fetchClients()
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to archive clients.')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            setSelectedClients(clients.map(c => c.id))
+        } else {
+            setSelectedClients([])
+        }
+    }
+
+    const handleSelectRow = (id) => {
+        setSelectedClients(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        )
     }
 
     const openEdit = (c) => {
@@ -312,18 +345,33 @@ export default function ClientsPage() {
 
     // Excel Exporter logic using ExcelJS
     const handleExportExcel = async () => {
-        if (clients.length === 0) {
-            toast.error('No client records to export.')
-            return
-        }
-
         try {
+            setSaving(true)
+            toast.loading('Fetching all matching clients for export...', { id: 'export-toast' })
+            
+            const res = await api.get('/ca/clients', {
+                params: {
+                    search,
+                    status,
+                    page: 1,
+                    per_page: 100000 // High number to fetch all
+                }
+            })
+            const exportClients = res.data.data;
+
+            if (exportClients.length === 0) {
+                toast.dismiss('export-toast')
+                toast.error('No client records to export.')
+                setSaving(false)
+                return
+            }
             const ExcelJS = await import('exceljs')
             const workbook = new ExcelJS.Workbook()
             const worksheet = workbook.addWorksheet('Clients Register')
 
             const headers = [
                 { name: 'SR NO', key: 'sr_no' },
+                { name: 'ID', key: 'id' },
                 { name: 'Client Name', key: 'name' },
                 { name: 'Name as per PAN', key: 'name_as_per_pan' },
                 { name: 'PAN No', key: 'pan_no' },
@@ -338,10 +386,13 @@ export default function ClientsPage() {
                 { name: 'Pin Code', key: 'pin_code' },
                 { name: 'State', key: 'state' },
                 { name: 'GST No', key: 'gst_number' },
-                { name: 'Status', key: 'status' }
+                { name: 'Status', key: 'status' },
+                { name: 'Income Tax User ID', key: 'it_user_id' },
+                { name: 'E-Filing Password', key: 'efiling_password' },
+                { name: 'AIS/TIS Password', key: 'ais_tis_password' }
             ]
 
-            worksheet.mergeCells('A1:P1')
+            worksheet.mergeCells('A1:T1')
             const titleCell = worksheet.getCell('A1')
             titleCell.value = 'Clients Registry'
             titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
@@ -352,7 +403,7 @@ export default function ClientsPage() {
             }
             titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
 
-            worksheet.mergeCells('A2:P2')
+            worksheet.mergeCells('A2:T2')
             const dateCell = worksheet.getCell('A2')
             dateCell.value = `Generated at: ${new Date().toLocaleString()}`
             dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
@@ -401,7 +452,7 @@ export default function ClientsPage() {
 
             // Write details rows
             let srNo = 1
-            clients.forEach(c => {
+            exportClients.forEach(c => {
                 let formattedDob = '—'
                 if (c.dob) {
                     const parts = c.dob.split('-')
@@ -414,6 +465,7 @@ export default function ClientsPage() {
 
                 const rowValues = [
                     srNo++,
+                    c.id,
                     c.name,
                     c.name_as_per_pan || '—',
                     c.pan_no || '—',
@@ -428,7 +480,10 @@ export default function ClientsPage() {
                     c.pin_code || '—',
                     c.state || '—',
                     c.gst_number || '—',
-                    c.status.toUpperCase()
+                    c.status.toUpperCase(),
+                    c.pan_no || '—', // Income Tax User ID is usually PAN
+                    c.credentials?.efiling_password || '—',
+                    c.credentials?.ais_tis_password || '—'
                 ]
                 const row = worksheet.addRow(rowValues)
                 row.height = 22
@@ -458,19 +513,28 @@ export default function ClientsPage() {
                 column.width = Math.max(maxLen + 5, 12)
             })
 
-            // Trigger direct download
+            // Save file
             const buffer = await workbook.xlsx.writeBuffer()
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+            
+            // Create object URL and download
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `Clients_Register_${new Date().toISOString().split('T')[0]}.xlsx`
+            a.download = `Clients_Registry_Export_${new Date().toISOString().split('T')[0]}.xlsx`
+            document.body.appendChild(a)
             a.click()
             window.URL.revokeObjectURL(url)
-            toast.success('Client List exported successfully')
-        } catch (e) {
-            console.error(e)
-            toast.error('Failed to export clients list.')
+            document.body.removeChild(a)
+
+            toast.dismiss('export-toast')
+            toast.success(`Successfully exported ${exportClients.length} clients!`)
+        } catch (error) {
+            console.error('Export error:', error)
+            toast.dismiss('export-toast')
+            toast.error('Failed to export registry to Excel')
+        } finally {
+            setSaving(false)
         }
     }
 
@@ -553,7 +617,7 @@ export default function ClientsPage() {
                         const rawType = String(rowData[idxType] || '').trim()
                         const rawDob = String(rowData[idxDob] || '').trim()
 
-                        const isDuplicate = existingPans.has(rawPan)
+                        const isUpdate = existingPans.has(rawPan)
 
                         // Parse date properly from excel serial or string formats
                         let dobStr = ''
@@ -659,7 +723,7 @@ export default function ClientsPage() {
                                 efiling_password: idxEfilingPwd !== -1 ? String(rowData[idxEfilingPwd] || '').trim() : '',
                                 ais_tis_password: aisTisPassword
                             },
-                            isDuplicate,
+                            isUpdate,
                             validationError
                         })
                     }
@@ -754,8 +818,8 @@ export default function ClientsPage() {
                 }
             }
 
-            // Re-evaluate database duplication check
-            row.isDuplicate = existingPansRef.current ? existingPansRef.current.has(row.pan_no) : false
+            // Re-evaluate database duplication check (now update check)
+            row.isUpdate = existingPansRef.current ? existingPansRef.current.has(row.pan_no) : false
 
             updated[idx] = row
             return updated
@@ -763,7 +827,7 @@ export default function ClientsPage() {
     }
 
     const handleConfirmImport = async () => {
-        const validRows = previewRows.filter(r => !r.isDuplicate && !r.validationError)
+        const validRows = previewRows.filter(r => !r.validationError)
         if (validRows.length === 0) {
             toast.error('No valid rows found in sheet to import. Resolve errors first.')
             return
@@ -1443,6 +1507,16 @@ export default function ClientsPage() {
                         </button>
                     )}
 
+                    {/* Bulk Delete Button */}
+                    {isCA && selectedClients.length > 0 && (
+                        <button
+                            onClick={() => setBulkDeleteOpen(true)}
+                            className="flex items-center justify-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition duration-200 active:scale-95 flex-1 sm:flex-initial cursor-pointer"
+                        >
+                            <Trash2 size={15} /> Delete Selected ({selectedClients.length})
+                        </button>
+                    )}
+
                     {/* Export Button */}
                     {isCA && (
                         <button
@@ -1514,28 +1588,49 @@ export default function ClientsPage() {
                     />
                 </div>
 
-                <div className="overflow-x-auto">
-                    {loading ? <Spinner /> : (
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50/20">
-                                    <th className="px-6 py-4 text-left">Client Name</th>
-                                    <th className="px-6 py-4 text-left">PAN No</th>
-                                    <th className="px-6 py-4 text-left">Type & Group</th>
-                                    <th className="px-6 py-4 text-left">Contact Info</th>
-                                    <th className="px-6 py-4 text-center">Status</th>
-                                    <th className="px-6 py-4 text-center">Actions</th>
-                                </tr>
-                            </thead>
+                <div className="overflow-x-auto min-h-[400px] relative">
+                    {loading && (
+                        <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                            <Spinner />
+                        </div>
+                    )}
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 bg-slate-50/20">
+                                <th className="px-6 py-4 text-left w-12">
+                                    <input 
+                                        type="checkbox" 
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={filteredClients.length > 0 && selectedClients.length === filteredClients.length}
+                                        onChange={handleSelectAll}
+                                    />
+                                </th>
+                                <th className="px-6 py-4 text-left">Client Name</th>
+                                <th className="px-6 py-4 text-left">PAN No</th>
+                                <th className="px-6 py-4 text-left">Type & Group</th>
+                                <th className="px-6 py-4 text-left">Contact Info</th>
+                                <th className="px-6 py-4 text-center">Status</th>
+                                <th className="px-6 py-4 text-center">Actions</th>
+                            </tr>
+                        </thead>
                             <tbody className="divide-y divide-slate-50 text-slate-700">
                                 {filteredClients.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="text-center py-12 text-slate-400 font-bold">
+                                        <td colSpan={7} className="text-center py-12 text-slate-400 font-bold">
                                             No clients registered matching search criteria.
                                         </td>
                                     </tr>
                                 ) : filteredClients.map(c => (
                                     <tr key={c.id} className="hover:bg-slate-50/30 transition">
+                                        {/* Checkbox */}
+                                        <td className="px-6 py-4">
+                                            <input 
+                                                type="checkbox" 
+                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                checked={selectedClients.includes(c.id)}
+                                                onChange={() => handleSelectRow(c.id)}
+                                            />
+                                        </td>
                                         {/* Client Name & City */}
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
@@ -1604,12 +1699,28 @@ export default function ClientsPage() {
                                 ))}
                             </tbody>
                         </table>
-                    )}
                 </div>
 
                 {meta && meta.last_page > 1 && (
                     <div className="flex items-center justify-between px-6 py-4 border-t border-slate-50 bg-slate-50/30">
-                        <p className="text-xs font-semibold text-slate-400">Showing {meta.from}–{meta.to} of {meta.total} registered clients</p>
+                        <div className="flex items-center gap-4">
+                            <p className="text-xs font-semibold text-slate-400">Showing {meta.from}–{meta.to} of {meta.total} registered clients</p>
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-semibold text-slate-400">Per page:</label>
+                                <select 
+                                    value={perPage} 
+                                    onChange={(e) => {
+                                        setPerPage(Number(e.target.value));
+                                        setPage(1);
+                                    }}
+                                    className="bg-white border border-slate-200 text-slate-600 text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                >
+                                    <option value={150}>150</option>
+                                    <option value={200}>200</option>
+                                    <option value={250}>250</option>
+                                </select>
+                            </div>
+                        </div>
                         <div className="flex gap-2">
                             <button
                                 disabled={page === 1}
@@ -1655,6 +1766,18 @@ export default function ClientsPage() {
                 title="Archive Registered Client"
                 message={`Are you sure you want to archive "${selected?.name}"? All future sheet logs will reference archived state.`}
                 confirmLabel="Archive Client"
+            />
+
+            {/* Bulk Archive Confirm Dialog */}
+            <ConfirmDialog
+                open={bulkDeleteOpen}
+                onClose={() => setBulkDeleteOpen(false)}
+                onConfirm={handleBulkDelete}
+                danger
+                loading={saving}
+                title="Bulk Archive Clients"
+                message={`Are you sure you want to archive ${selectedClients.length} selected clients?`}
+                confirmLabel={`Archive ${selectedClients.length} Clients`}
             />
 
             {/* Dropdown Lookups: ADD NEW TYPE Sub-modal */}
@@ -1731,20 +1854,26 @@ export default function ClientsPage() {
                                 <span>Parsed {previewRows.length} total rows from Excel sheet</span>
                             </h4>
                             <p className="text-xs font-semibold text-slate-400">
-                                Rows highlighted in **Red** are duplicate PAN numbers already registered in the system or contain format errors and will be skipped.
+                                Rows highlighted in <span className="text-sky-600 font-bold">Blue</span> represent existing clients and will be updated. Rows in <span className="text-rose-600 font-bold">Red</span> contain format errors and will be skipped.
                             </p>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="text-right">
-                                <span className="text-[10px] font-black text-slate-400 block uppercase">Valid Rows</span>
+                            <div className="text-right border-r pr-4 border-slate-200">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase">New Valid Rows</span>
                                 <span className="text-lg font-black text-emerald-600">
-                                    {previewRows.filter(r => !r.isDuplicate && !r.validationError).length}
+                                    {previewRows.filter(r => !r.isUpdate && !r.validationError).length}
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase font-bold text-sky-600">Updates</span>
+                                <span className="text-lg font-black text-sky-600">
+                                    {previewRows.filter(r => r.isUpdate && !r.validationError).length}
                                 </span>
                             </div>
                             <div className="text-right border-l pl-4 border-slate-200">
                                 <span className="text-[10px] font-black text-slate-400 block uppercase font-bold text-rose-600">Skipped Rows</span>
                                 <span className="text-lg font-black text-rose-600">
-                                    {previewRows.filter(r => r.isDuplicate || r.validationError).length}
+                                    {previewRows.filter(r => r.validationError).length}
                                 </span>
                             </div>
                         </div>
@@ -1776,22 +1905,23 @@ export default function ClientsPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {previewRows.map((row, idx) => {
-                                    const hasErr = row.isDuplicate || row.validationError
+                                    const hasErr = row.validationError
+                                    const isUpdate = row.isUpdate && !hasErr
                                     return (
                                         <tr
                                             key={idx}
-                                            className={`transition ${hasErr ? 'bg-rose-50/50 hover:bg-rose-50' : 'hover:bg-slate-50/30'}`}
+                                            className={`transition ${hasErr ? 'bg-rose-50/50 hover:bg-rose-50' : isUpdate ? 'bg-sky-50/50 hover:bg-sky-50' : 'hover:bg-slate-50/30'}`}
                                         >
                                             {/* Status Badge */}
                                             <td className="px-4 py-3 min-w-[150px]">
                                                 <div className="flex flex-col gap-1">
-                                                    {row.isDuplicate ? (
+                                                    {row.validationError ? (
                                                         <span className="inline-flex items-center gap-1 bg-rose-100 border border-rose-200 text-rose-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                                                            <AlertTriangle size={11} /> Duplicate PAN
-                                                        </span>
-                                                    ) : row.validationError ? (
-                                                        <span className="inline-flex items-center gap-1 bg-amber-100 border border-amber-200 text-amber-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
                                                             <AlertTriangle size={11} /> Format Error
+                                                        </span>
+                                                    ) : row.isUpdate ? (
+                                                        <span className="inline-flex items-center gap-1 bg-sky-100 border border-sky-200 text-sky-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                            <CheckCircle2 size={11} /> Update
                                                         </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
@@ -1995,7 +2125,7 @@ export default function ClientsPage() {
                         </button>
                         <button
                             onClick={handleConfirmImport}
-                            disabled={saving || previewRows.filter(r => !r.isDuplicate && !r.validationError).length === 0}
+                            disabled={saving || previewRows.filter(r => !r.validationError).length === 0}
                             className="px-6 py-2.5 text-xs font-bold bg-[#1F5C99] text-white rounded-xl hover:bg-[#154675] disabled:opacity-60 transition"
                         >
                             {saving ? 'Importing...' : 'Confirm & Save Valid Clients'}

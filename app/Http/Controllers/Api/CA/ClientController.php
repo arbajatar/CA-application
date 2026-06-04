@@ -58,6 +58,21 @@ class ClientController extends Controller
         return response()->json(['message' => 'Client archived successfully.']);
     }
 
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $request->validate([
+            'client_ids' => 'required|array',
+            'client_ids.*' => 'integer|exists:clients,id'
+        ]);
+
+        $ids = $request->input('client_ids');
+        
+        Client::whereIn('id', $ids)->update(['status' => ClientStatus::Inactive->value]);
+        Client::whereIn('id', $ids)->delete();
+
+        return response()->json(['message' => count($ids) . ' clients archived successfully.']);
+    }
+
     public function types(): JsonResponse
     {
         return response()->json(['data' => \App\Models\ClientType::all()]);
@@ -144,34 +159,35 @@ class ClientController extends Controller
 
         $imported = 0;
         foreach ($request->input('clients') as $c) {
-            // Make sure the PAN number is unique before creating
             $pan = strtoupper($c['pan_no']);
-            if (Client::where('pan_no', $pan)->exists()) {
-                continue; // Skip duplicates defensively
-            }
+            
+            // Extract the credentials, merging with defaults
+            $credentials = $c['credentials'] ?? [
+                'efiling_password' => '',
+                'ais_tis_password' => ''
+            ];
 
-            // Create client record
-            Client::create([
-                'name' => $c['name'],
-                'name_as_per_pan' => $c['name_as_per_pan'] ?? null,
-                'pan_no' => $pan,
-                'type' => $c['type'],
-                'group' => $c['group'],
-                'contact' => $c['contact'] ?? null,
-                'alternative_contact' => $c['alternative_contact'] ?? null,
-                'email' => $c['email'] ?? null,
-                'reference_no' => $c['reference_no'] ?? null,
-                'dob' => !empty($c['dob']) ? $c['dob'] : null,
-                'city' => $c['city'] ?? null,
-                'pin_code' => $c['pin_code'] ?? null,
-                'state' => $c['state'] ?? null,
-                'gst_number' => $c['gst_number'] ?? null,
-                'status' => 'active',
-                'credentials' => $c['credentials'] ?? [
-                    'efiling_password' => '',
-                    'ais_tis_password' => ''
+            // Use updateOrCreate to either create a new client or update existing one matching the PAN
+            Client::updateOrCreate(
+                ['pan_no' => $pan], // Match by PAN
+                [
+                    'name' => $c['name'],
+                    'name_as_per_pan' => $c['name_as_per_pan'] ?? null,
+                    'type' => $c['type'],
+                    'group' => $c['group'],
+                    'contact' => $c['contact'] ?? null,
+                    'alternative_contact' => $c['alternative_contact'] ?? null,
+                    'email' => $c['email'] ?? null,
+                    'reference_no' => $c['reference_no'] ?? null,
+                    'dob' => !empty($c['dob']) ? $c['dob'] : null,
+                    'city' => $c['city'] ?? null,
+                    'pin_code' => $c['pin_code'] ?? null,
+                    'state' => $c['state'] ?? null,
+                    'gst_number' => $c['gst_number'] ?? null,
+                    'status' => 'active',
+                    'credentials' => $credentials
                 ]
-            ]);
+            );
             $imported++;
         }
 
