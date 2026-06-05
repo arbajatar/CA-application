@@ -100,6 +100,8 @@ export default function ClientsPage() {
                 params: {
                     search,
                     status,
+                    group: filterGroup,
+                    type: filterType,
                     page,
                     per_page: perPage
                 }
@@ -109,7 +111,7 @@ export default function ClientsPage() {
         } finally {
             setLoading(false)
         }
-    }, [search, status, page, perPage])
+    }, [search, status, filterGroup, filterType, page, perPage])
 
     useEffect(() => {
         fetchLookups()
@@ -354,6 +356,8 @@ export default function ClientsPage() {
                 params: {
                     search,
                     status,
+                    group: filterGroup,
+                    type: filterType,
                     page: 1,
                     per_page: 100000 // High number to fetch all
                 }
@@ -851,12 +855,8 @@ export default function ClientsPage() {
         }
     }
 
-    // Client-side search and dropdown list filtering
-    const filteredClients = clients.filter(c => {
-        const matchesGroup = !filterGroup || c.group === filterGroup
-        const matchesType = !filterType || c.type === filterType
-        return matchesGroup && matchesType
-    })
+    // Clients are now filtered server-side
+    const filteredClients = clients;
 
     const handleCopy = (text, fieldName) => {
         if (!text) return

@@ -19,6 +19,8 @@ class ClientController extends Controller
     {
         $clients = Client::query()
             ->when($request->filled('status'), fn($q) => $q->where('status', ClientStatus::from($request->status)))
+            ->when($request->filled('group'), fn($q) => $q->where('group', $request->input('group')))
+            ->when($request->filled('type'), fn($q) => $q->where('type', $request->input('type')))
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
                     ->orWhere('contact', 'like', '%' . $request->search . '%');
