@@ -259,7 +259,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [sortField, setSortField] = useState(null);
     const [sortDirection, setSortDirection] = useState('default'); // 'default' | 'asc' | 'desc'
     const [dynamicFilters, setDynamicFilters] = useState({});
-    const [showColumnFilters, setShowColumnFilters] = useState(true);
+    const [showColumnFilters, setShowColumnFilters] = useState(false);
 
     const handleSort = (fieldId) => {
         if (sortField !== fieldId) {
