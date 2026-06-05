@@ -747,6 +747,7 @@ export default function TaskBuilderPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toastState, setToastState] = useState({ show: false, message: '' });
   const [saving, setSaving] = useState(false);
+  const [deletedFields, setDeletedFields] = useState([]);
 
   const isDuplicating = !!location.state?.duplicateData;
   const hasInitializedRef = useRef(false);
@@ -910,6 +911,12 @@ export default function TaskBuilderPage() {
     setTimeout(() => setToastState({ show: false, message: '' }), 3000);
   };
 
+  const restoreField = (field) => {
+    setFormSchema(prev => [...prev, field]);
+    setDeletedFields(prev => prev.filter(f => f.id !== field.id));
+    showToast(`Field "${field.label}" restored`);
+  };
+
   const addField = (type, atIndex = null) => {
     const id = 'f_' + Date.now();
     const newField = {
@@ -985,6 +992,7 @@ export default function TaskBuilderPage() {
     }
 
     setFormSchema(prev => prev.filter(f => f.id !== id));
+    setDeletedFields(prev => [...prev, fieldToRemove]);
     if (activeFieldId === id) setActiveFieldId(null);
     setSelectedFields(prev => prev.filter(fid => fid !== id));
   };
@@ -1048,7 +1056,9 @@ export default function TaskBuilderPage() {
     }
 
     if (fieldsToRemove.length > 0) {
+      const removedList = formSchema.filter(f => fieldsToRemove.includes(f.id));
       setFormSchema(prev => prev.filter(f => !fieldsToRemove.includes(f.id)));
+      setDeletedFields(prev => [...prev, ...removedList]);
       showToast(`${fieldsToRemove.length} fields removed`);
     }
     
@@ -1935,57 +1945,79 @@ export default function TaskBuilderPage() {
                   {/* Field list */}
                   <div ref={sidebarRef} id="fieldsList" className={`p-4 ${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : 'space-y-4'}`}>
                     {isSidebarOpen ? (
-                      // Categorized rendering
-                      [
-                        {
-                          name: "Inputs & Text Fields",
-                          fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink']
-                        },
-                        {
-                          name: "Choices & Calendar",
-                          fields: ['dropdown', 'checkbox', 'labels', 'date', 'time']
-                        },
-                        {
-                          name: "Status & Progress",
-                          fields: ['progress_auto', 'progress_manual']
-                        }
-                      ].map((grp) => {
-                        let btnBgClass = '';
-                        
-                        if (grp.name === "Inputs & Text Fields") {
-                          btnBgClass = 'bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/60 hover:border-blue-200 text-blue-700 hover:shadow-blue-500/5';
-                        } else if (grp.name === "Choices & Calendar") {
-                          btnBgClass = 'bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/60 hover:border-amber-200 text-amber-700 hover:shadow-amber-500/5';
-                        } else {
-                          btnBgClass = 'bg-emerald-50/20 border-emerald-100/50 hover:bg-emerald-50/60 hover:border-emerald-200 text-emerald-700 hover:shadow-emerald-500/5';
-                        }
+                      <>
+                        {[
+                          {
+                            name: "Inputs & Text Fields",
+                            fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink']
+                          },
+                          {
+                            name: "Choices & Calendar",
+                            fields: ['dropdown', 'checkbox', 'labels', 'date', 'time']
+                          },
+                          {
+                            name: "Status & Progress",
+                            fields: ['progress_auto', 'progress_manual']
+                          }
+                        ].map((grp) => {
+                          let btnBgClass = '';
+                          
+                          if (grp.name === "Inputs & Text Fields") {
+                            btnBgClass = 'bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/60 hover:border-blue-200 text-blue-700 hover:shadow-blue-500/5';
+                          } else if (grp.name === "Choices & Calendar") {
+                            btnBgClass = 'bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/60 hover:border-amber-200 text-amber-700 hover:shadow-amber-500/5';
+                          } else {
+                            btnBgClass = 'bg-emerald-50/20 border-emerald-100/50 hover:bg-emerald-50/60 hover:border-emerald-200 text-emerald-700 hover:shadow-emerald-500/5';
+                          }
 
-                        return (
-                          <div key={grp.name} className="space-y-2">
-                            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
-                              {grp.name}
-                            </div>
-                            {grp.fields.map(fieldId => {
-                              const type = FIELD_TYPES.find(f => f.id === fieldId);
-                              if (!type) return null;
-                              return (
-                                <div
-                                  key={type.id}
-                                  className={`field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border cursor-grab hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left ${btnBgClass}`}
-                                  data-type={type.id}
-                                  onClick={() => addField(type)}
-                                >
-                                  <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
-                                    {React.createElement(IconMap[type.icon], { size: 14 })}
+                          return (
+                            <div key={grp.name} className="space-y-2 mb-4">
+                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
+                                {grp.name}
+                              </div>
+                              {grp.fields.map(fieldId => {
+                                const type = FIELD_TYPES.find(f => f.id === fieldId);
+                                if (!type) return null;
+                                return (
+                                  <div
+                                    key={type.id}
+                                    className={`field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border cursor-grab hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left ${btnBgClass}`}
+                                    data-type={type.id}
+                                    onClick={() => addField(type)}
+                                  >
+                                    <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
+                                      {React.createElement(IconMap[type.icon], { size: 14 })}
+                                    </div>
+                                    <span className="text-xs font-black text-slate-700">{type.name}</span>
+                                    <Plus className="w-3.5 h-3.5 text-slate-400 ml-auto shrink-0" />
                                   </div>
-                                  <span className="text-xs font-black text-slate-700">{type.name}</span>
-                                  <Plus className="w-3.5 h-3.5 text-slate-400 ml-auto shrink-0" />
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+
+                        {deletedFields.length > 0 && (
+                          <div className="space-y-2 mt-6 pt-4 border-t border-dashed border-slate-200">
+                            <div className="text-[9px] font-black uppercase tracking-wider text-rose-500">
+                              Retrieve Deleted Fields
+                            </div>
+                            {deletedFields.map(field => (
+                              <button
+                                key={field.id}
+                                onClick={() => restoreField(field)}
+                                className="flex items-center gap-2 py-2 px-3 rounded-xl border border-rose-100 bg-rose-50/30 hover:bg-rose-50 hover:border-rose-200 text-rose-700 transition w-full text-left font-semibold active:scale-95 duration-150 cursor-pointer"
+                              >
+                                <div className="w-6 h-6 flex items-center justify-center rounded-lg bg-white border border-rose-100 shadow-sm shrink-0 text-rose-500">
+                                  {React.createElement(IconMap[field.icon || 'Type'], { size: 12 })}
                                 </div>
-                              );
-                            })}
+                                <span className="text-xs truncate max-w-[120px]">{field.label}</span>
+                                <Plus className="w-3.5 h-3.5 text-rose-400 ml-auto shrink-0" />
+                              </button>
+                            ))}
                           </div>
-                        );
-                      })
+                        )}
+                      </>
                     ) : (
                       // Collapsed icon list
                       FIELD_TYPES.map(type => (
@@ -2930,7 +2962,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                 <input
                   type="text"
                   value={field.label}
-                  onFocus={() => { if (!field.labelTouched) { onUpdate('label', ''); onUpdate('labelTouched', true); } }}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => onUpdate('label', e.target.value)}
                   className="text-sm font-black uppercase tracking-wider bg-transparent border-b border-transparent focus:border-indigo-500/60 outline-none text-black focus:bg-white px-1.5 py-0.5 rounded transition w-full"
                   placeholder="Field Label"
@@ -2946,7 +2978,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                 <input
                   type="text"
                   value={field.placeholder}
-                  onFocus={() => { if (!field.placeholderTouched) { onUpdate('placeholder', ''); onUpdate('placeholderTouched', true); } }}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => onUpdate('placeholder', e.target.value)}
                   className="text-[9px] font-medium text-slate-400 italic bg-transparent border-b border-transparent focus:border-indigo-500/40 outline-none focus:bg-white px-1.5 py-0.5 rounded transition w-full mt-0.5"
                   placeholder="Custom Placeholder..."
@@ -3082,6 +3114,32 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
               }
             }}
           />
+        );
+      }
+      if (field.id === 'static_ca_rating') {
+        const currentRating = parseInt(field.value || '0');
+        return (
+          <div className="flex items-center gap-1 text-amber-500 text-base leading-none py-1.5 select-none">
+            {Array.from({ length: 5 }).map((_, i) => {
+              const starNum = i + 1;
+              const isFilled = starNum <= currentRating;
+              return (
+                <button 
+                  key={i} 
+                  type="button"
+                  onClick={() => {
+                    const nextVal = currentRating === starNum ? '0' : String(starNum);
+                    onUpdate('value', nextVal);
+                  }}
+                  className={`transition-all hover:scale-125 text-lg ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                  title={`Rate ${starNum} Stars`}
+                >
+                  ★
+                </button>
+              );
+            })}
+            <span className="text-xs font-extrabold text-slate-400 ml-1.5 uppercase tracking-wide">({field.value || '0'}/5)</span>
+          </div>
         );
       }
       return (

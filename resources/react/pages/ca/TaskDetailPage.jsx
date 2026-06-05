@@ -74,39 +74,36 @@ const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColo
 
     if (iconColor.includes('blue') || iconColor.includes('indigo')) {
         inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0F7FF] border-blue-100 text-slate-750 hover:border-blue-300';
-        activeClass = 'active-card-blue ring-4 ring-blue-500/5 shadow-lg shadow-blue-500/5 scale-[1.02]';
+        activeClass = 'active-card-blue ring-2 ring-blue-500/10 shadow shadow-blue-500/5 scale-[1.01]';
     } else if (iconColor.includes('amber') || iconColor.includes('yellow')) {
         inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFFBEB] border-amber-100 text-slate-750 hover:border-amber-300';
-        activeClass = 'active-card-amber ring-4 ring-amber-500/5 shadow-lg shadow-amber-500/5 scale-[1.02]';
+        activeClass = 'active-card-amber ring-2 ring-amber-500/10 shadow shadow-amber-500/5 scale-[1.01]';
     } else if (iconColor.includes('green') || iconColor.includes('emerald')) {
         inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0FDF4] border-emerald-100 text-slate-750 hover:border-emerald-300';
-        activeClass = 'active-card-emerald ring-4 ring-emerald-500/5 shadow-lg shadow-emerald-500/5 scale-[1.02]';
+        activeClass = 'active-card-emerald ring-2 ring-emerald-500/10 shadow shadow-emerald-500/5 scale-[1.01]';
     } else if (iconColor.includes('red') || iconColor.includes('rose')) {
         inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFF5F5] border-red-100 text-slate-750 hover:border-red-300';
-        activeClass = 'active-card-rose ring-4 ring-red-500/5 shadow-lg shadow-rose-500/5 scale-[1.02]';
+        activeClass = 'active-card-rose ring-2 ring-red-500/10 shadow shadow-rose-500/5 scale-[1.01]';
     } else {
         inactiveBgClass = 'bg-gradient-to-br from-white to-[#F8FAFC] border-slate-200 text-slate-750 hover:border-slate-400';
-        activeClass = 'active-card-slate ring-4 ring-slate-500/5 shadow-lg shadow-slate-500/5 scale-[1.02]';
+        activeClass = 'active-card-slate ring-2 ring-slate-500/10 shadow shadow-slate-500/5 scale-[1.01]';
     }
+
+    const dotColor = iconColor.replace('text-', 'bg-');
 
     return (
         <div 
             onClick={onClick}
-            className={`rounded-xl p-3 transition-all duration-300 flex flex-col gap-2.5 cursor-pointer select-none border
+            className={`rounded-full px-3.5 py-1.5 transition-all duration-300 flex items-center justify-between gap-4 cursor-pointer select-none border text-[10px] font-black uppercase tracking-wider
                 ${active 
                     ? `${activeClass} -translate-y-0.5` 
-                    : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
+                    : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow`}`}
         >
-            <div className="flex items-center justify-between gap-2">
-                <div className={`p-1.5 rounded-lg transition-colors ${iconBg}`}>
-                    <Icon size={16} className={iconColor} />
-                </div>
-                <span className="text-2xl font-black text-slate-900 tracking-tight">{String(value || 0).padStart(2, '0')}</span>
+            <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                <span className="text-slate-800 tracking-wide font-black truncate" title={label}>{label}</span>
             </div>
-            <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wider truncate text-slate-900 animate-fade-in" title={label}>{label}</p>
-                <p className={`text-[9px] font-extrabold mt-0.5 truncate ${subColor || 'text-slate-405'}`} title={sub}>{sub}</p>
-            </div>
+            <span className={`text-xs font-black shrink-0 ${iconColor}`}>{value || 0}</span>
         </div>
     );
 };
@@ -138,6 +135,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [incomingPreviewFile, setIncomingPreviewFile] = useState(null);
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
     const [selectedSubStatusFilter, setSelectedSubStatusFilter] = useState(null);
+    const [sheetSearch, setSheetSearch] = useState('');
+    const [sheetStatusFilter, setSheetStatusFilter] = useState('');
+    const [sheetWorkTypeFilter, setSheetWorkTypeFilter] = useState('');
+    const [showMainStatusFilters, setShowMainStatusFilters] = useState(false);
+    const [showSubStatusFilters, setShowSubStatusFilters] = useState(false);
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
     const [notesList, setNotesList] = useState([]);
     const notesKey = `task_notes_sheet_${id}`;
@@ -246,6 +248,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [schema, setSchema] = useState([]); // Array of field objects
     const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
     const [newTaskData, setNewTaskData] = useState({});
+    const [editingRows, setEditingRows] = useState({});
+    const [viewingRowIndex, setViewingRowIndex] = useState(null);
+    const [modalEditable, setModalEditable] = useState(false);
 
     // Column Drag & Drop and Sorting/Filtering States
     const [customColumnOrder, setCustomColumnOrder] = useState(null);
@@ -644,6 +649,20 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
             }
         });
+    };
+
+    const duplicateRow = (index) => {
+        const rowToDuplicate = rows[index];
+        const duplicatedRow = {
+            ...rowToDuplicate,
+            is_verified: false,
+            attachments: [],
+            dynamic_data: { ...(rowToDuplicate.dynamic_data || {}) }
+        };
+        const updatedRows = [...rows];
+        updatedRows.splice(index + 1, 0, duplicatedRow);
+        setRows(updatedRows);
+        handleSaveRows(updatedRows, 'Row duplicated successfully');
     };
 
     const handleUpdateGlobal = async () => {
@@ -1299,46 +1318,43 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const baseColumns = schema.length > 0 ? [
         ...schema.map(f => {
             if (f.id === 'static_form_name') {
-                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[260px]' };
+                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[220px]' };
             }
             if (f.id === 'static_client_name') {
-                return { id: 'client', label: 'Client', minWidth: 'min-w-[300px]' };
+                return { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' };
             }
             if (f.id === 'static_work_type') {
-                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[260px]' };
+                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' };
             }
             if (f.id === 'static_assignee') {
-                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[260px]' };
+                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[180px]' };
             }
             if (f.id === 'static_created_date') {
-                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[180px]' };
+                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[160px]' };
             }
             if (f.id === 'static_sheet_status') {
-                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[240px]' };
+                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[160px]' };
             }
             if (f.id === 'static_sub_status') {
-                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[320px]' };
+                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' };
+            }
+            if (f.id === 'static_remarks') {
+                return { id: 'remarks', label: 'Remarks', minWidth: 'min-w-[220px]' };
             }
             return {
                 id: `dynamic_${f.label}`,
                 label: f.label,
-                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[320px]' : (f.type === 'checkbox' ? 'min-w-[320px]' : 'min-w-[360px]'),
+                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[180px]' : (f.type === 'checkbox' ? 'min-w-[180px]' : 'min-w-[200px]'),
                 isDynamic: true,
                 field: f
             };
-        }),
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[180px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[180px]' }
+        }).filter(Boolean),
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[130px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[130px]' }
     ] : [
-        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[260px]' },
-        { id: 'client', label: 'Client', minWidth: 'min-w-[300px]' },
-        { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[260px]' },
-        { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[260px]' },
-        { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[180px]' },
-        { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[240px]' },
-        { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[320px]' },
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[180px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[180px]' }
+        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[220px]' },
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[130px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[130px]' }
     ];
 
     let activeColumns = [];
@@ -1360,12 +1376,49 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         if (col.id === 'date_allocated') return { key: 'date_allocated', label: 'Create Date', isStatic: true };
         if (col.id === 'status') return { key: 'status', label: 'Sheet Status', isStatic: true };
         if (col.id === 'sub_status') return { key: 'sub_status', label: 'Sub Status', isStatic: true };
+        if (col.id === 'attachments') return { key: 'attachments', label: 'Attachments', isStatic: true };
+        if (col.id === 'is_verified') return { key: 'is_verified', label: 'Verification', isStatic: true };
         if (col.isDynamic) return { key: col.label, label: col.label, isStatic: false, type: col.field?.type, options: col.field?.options };
         return null;
     }).filter(Boolean);
 
     const filteredRows = rows.filter(row => {
-        if (selectedStatusFilter && row.status?.toLowerCase() !== selectedStatusFilter.toLowerCase()) return false;
+        if (selectedStatusFilter) {
+            const rowStatus = row.status?.toLowerCase();
+            if (selectedStatusFilter === 'pending') {
+                if (rowStatus !== 'pending' && rowStatus !== 'assigned' && rowStatus) return false;
+            } else {
+                if (rowStatus !== selectedStatusFilter) return false;
+            }
+        }
+        if (sheetStatusFilter) {
+            const rowStatus = row.status?.toLowerCase();
+            if (sheetStatusFilter === 'pending') {
+                if (rowStatus !== 'pending' && rowStatus !== 'assigned' && rowStatus) return false;
+            } else {
+                if (rowStatus !== sheetStatusFilter) return false;
+            }
+        }
+        if (sheetWorkTypeFilter && String(row.work_type_id) !== String(sheetWorkTypeFilter)) {
+            return false;
+        }
+        if (sheetSearch) {
+            const query = sheetSearch.toLowerCase();
+            const clientName = clients.find(c => String(c.id) === String(row.client_id))?.name || '';
+            const workTypeName = workTypes.find(wt => String(wt.id) === String(row.work_type_id))?.name || '';
+            const assigneeName = staff.find(s => String(s.id) === String(row.allocated_to))?.name || '';
+            const formName = row.form_name || '';
+            const statusLabel = row.status || '';
+            const subStatusLabel = row.sub_status || row.dynamic_data?.['Sub Status'] || row.dynamic_data?.['static_sub_status'] || '';
+            
+            const matchesStatic = [clientName, workTypeName, assigneeName, formName, statusLabel, subStatusLabel]
+                .some(val => val.toLowerCase().includes(query));
+                
+            const matchesDynamic = Object.values(row.dynamic_data || {})
+                .some(val => (val || '').toString().toLowerCase().includes(query));
+                
+            if (!matchesStatic && !matchesDynamic) return false;
+        }
         if (selectedSubStatusFilter) {
             const rowSubStatus = row.sub_status || row.dynamic_data?.['Sub Status'] || row.dynamic_data?.['static_sub_status'];
             if (selectedSubStatusFilter === 'Unassigned') {
@@ -1487,24 +1540,24 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     {/* Top Row: Breadcrumbs and Info Badge */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
                         <nav className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            <Link to={isStaff ? "/staff/tasks" : "/ca/tasks"} className="hover:text-indigo-650 transition flex items-center gap-1">
+                            <Link to={isStaff ? "/staff/tasks" : "/ca/tasks"} className="hover:text-indigo-655 transition flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                                 Sheets
                             </Link>
-                            <ChevronRight size={10} className="text-slate-350" />
+                            <ChevronRight size={10} className="text-slate-355" />
                             {task.work_type && (
                                 <>
-                                    <Link to={isStaff ? `/staff/tasks?work_type_id=${task.work_type.id}` : `/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-650 transition">
+                                    <Link to={isStaff ? `/staff/tasks?work_type_id=${task.work_type.id}` : `/ca/tasks?work_type_id=${task.work_type.id}`} className="hover:text-indigo-655 transition">
                                         {task.work_type.name}
                                     </Link>
-                                    <ChevronRight size={10} className="text-slate-350" />
+                                    <ChevronRight size={10} className="text-slate-355" />
                                 </>
                             )}
                             <span className="text-slate-800 font-extrabold max-w-[200px] truncate">{task.form_name || 'View Sheet'}</span>
                         </nav>
 
                         {/* Small Pulsing Glass Status Badge */}
-                        <div className="self-start sm:self-auto bg-indigo-50/50 border border-indigo-100/60 text-indigo-650 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1.5 shadow-sm">
+                        <div className="self-start sm:self-auto bg-indigo-50/50 border border-indigo-100/60 text-indigo-655 px-3 py-1 rounded-full text-[9px] font-extrabold tracking-widest uppercase flex items-center gap-1.5 shadow-sm">
                             <span className="relative flex h-1.5 w-1.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
@@ -1529,8 +1582,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 <Layout size={18} />
                             </div>
 
-                            <div className="min-w-0">
-                                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight flex items-center gap-2">
+                            <div className="min-w-0 flex flex-wrap items-center gap-4">
+                                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight shrink-0">
                                     {isEditing ? (
                                         <input
                                             value={formName}
@@ -1542,6 +1595,26 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                         formName
                                     )}
                                 </h1>
+                                <div className="flex items-center gap-2 select-none">
+                                    <button
+                                        onClick={() => setShowMainStatusFilters(!showMainStatusFilters)}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm ${showMainStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-350 text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <span>Main Status Filters</span>
+                                        <div className="w-5 h-5 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded-md">
+                                            <Plus size={12} className={`transition-transform duration-200 ${showMainStatusFilters ? 'rotate-45' : ''}`} />
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => setShowSubStatusFilters(!showSubStatusFilters)}
+                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm ${showSubStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-350 text-slate-700 hover:bg-slate-50'}`}
+                                    >
+                                        <span>Sub Status Filters</span>
+                                        <div className="w-5 h-5 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded-md">
+                                            <Plus size={12} className={`transition-transform duration-200 ${showSubStatusFilters ? 'rotate-45' : ''}`} />
+                                        </div>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1551,7 +1624,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             <div className="flex flex-wrap items-center gap-2">
                                 <button 
                                     onClick={handleExport} 
-                                    className="flex items-center gap-1.5 text-emerald-750 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                    className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
                                 >
                                     <FileDown size={14} className="text-emerald-600" /> 
                                     <span>Export Excel</span>
@@ -1589,7 +1662,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             };
                                             navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
                                         }}
-                                        className="flex items-center gap-1.5 text-violet-750 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
+                                        className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
                                     >
                                         <Edit2 size={14} className="text-violet-600" /> 
                                         <span>Layout Builder</span>
@@ -1621,7 +1694,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             </div>
                             <button 
                                 onClick={() => setIsGlobalModalOpen(false)} 
-                                className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400 hover:text-slate-600"
+                                className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400 hover:text-slate-655"
                             >
                                 <X size={20} />
                             </button>
@@ -1631,7 +1704,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {/* Global Status */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2 text-slate-400">
+                                    <div className="flex items-center gap-2 text-slate-450">
                                         <Circle size={14} />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Global Status</span>
                                     </div>
@@ -1650,7 +1723,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                 {/* Allow Attachments Toggle */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2 text-slate-400">
+                                    <div className="flex items-center gap-2 text-slate-450">
                                         <Zap size={14} className="text-indigo-500" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Attachment Option</span>
                                     </div>
@@ -1671,7 +1744,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                 {/* Allow Sub-Tasks Checklist Toggle */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2 text-slate-400">
+                                    <div className="flex items-center gap-2 text-slate-455">
                                         <CheckSquare size={14} className="text-indigo-500" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Checklist Option</span>
                                     </div>
@@ -1692,7 +1765,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                 {/* Allow Sheet Notes Toggle */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2 text-slate-400">
+                                    <div className="flex items-center gap-2 text-slate-455">
                                         <FileText size={14} className="text-indigo-500" />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Notes Option</span>
                                     </div>
@@ -1713,7 +1786,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                 {/* Global Remarks */}
                                 <div className="space-y-3 md:col-span-2">
-                                    <div className="flex items-center gap-2 text-slate-400">
+                                    <div className="flex items-center gap-2 text-slate-450">
                                         <AlignLeft size={14} />
                                         <span className="text-[10px] font-black uppercase tracking-widest">Global Remarks</span>
                                     </div>
@@ -1734,7 +1807,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                         <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
                                         <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Roles & Permissions Configuration</h3>
                                     </div>
-                                    <p className="text-xs text-slate-400 font-semibold mb-4">
+                                    <p className="text-xs text-slate-450 font-semibold mb-4">
                                         Configure which roles can access this sheet. If no roles are configured, all staff members will have full access.
                                     </p>
 
@@ -1823,7 +1896,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                         </div>
                                     ) : (
                                         <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                            <p className="text-xs text-slate-400 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
+                                            <p className="text-xs text-slate-450 font-semibold">No role permissions configured. This sheet will be open to all staff.</p>
                                         </div>
                                     )}
                                 </div>
@@ -1841,7 +1914,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             <button
                                 onClick={handleUpdateGlobal}
                                 disabled={saving}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-750 text-white px-5 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-755 text-white px-5 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
                             >
                                 <Save size={14} />
                                 {saving ? 'Saving...' : 'Save Settings'}
@@ -1852,157 +1925,214 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             )}
 
             {/* Subtask Stats Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3 animate-fade-in">
-                {[
-                    { label: 'Pending', count: rows.filter(r => r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'assigned' || !r.status).length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
-                    { label: 'Work In Progress', count: rows.filter(r => r.status?.toLowerCase() === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
-                    { label: 'Complete', count: rows.filter(r => r.status?.toLowerCase() === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
-                    { label: 'Not To Be Done', count: rows.filter(r => r.status?.toLowerCase() === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
-                    { label: 'Other', count: rows.filter(r => r.status?.toLowerCase() === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
-                    { label: 'Total Sheets', count: rows.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All rows of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
-                ].map((card, i) => (
-                    <SummaryCard 
-                        key={i} 
-                        icon={card.icon}
-                        iconBg={card.iconBg}
-                        iconColor={card.iconColor}
-                        label={card.label}
-                        value={card.count}
-                        sub={card.sub}
-                        subColor={card.subColor}
-                        active={card.active}
-                        onClick={() => {
-                            if (card.filterVal === null) {
-                                setSelectedStatusFilter(null);
-                            } else {
-                                setSelectedStatusFilter(prev => prev === card.filterVal ? null : card.filterVal);
-                            }
-                        }}
-                    />
-                ))}
-            </div>
+            {showMainStatusFilters && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full animate-fade-in">
+                    {[
+                        { label: 'Pending', count: rows.filter(r => r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'assigned' || !r.status).length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
+                        { label: 'Work In Progress', count: rows.filter(r => r.status?.toLowerCase() === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
+                        { label: 'Complete', count: rows.filter(r => r.status?.toLowerCase() === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
+                        { label: 'Not To Be Done', count: rows.filter(r => r.status?.toLowerCase() === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
+                        { label: 'Other', count: rows.filter(r => r.status?.toLowerCase() === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
+                        { label: 'Total Sheets', count: rows.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All rows of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
+                    ].map((card, i) => (
+                        <SummaryCard 
+                            key={i} 
+                            icon={card.icon}
+                            iconBg={card.iconBg}
+                            iconColor={card.iconColor}
+                            label={card.label}
+                            value={card.count}
+                            sub={card.sub}
+                            subColor={card.subColor}
+                            active={card.active}
+                            onClick={() => {
+                                if (card.filterVal === null) {
+                                    setSelectedStatusFilter(null);
+                                } else {
+                                    setSelectedStatusFilter(prev => prev === card.filterVal ? null : card.filterVal);
+                                }
+                            }}
+                        />
+                    ))}
+                </div>
+            )}
 
             {/* Sub-status Filter Cards */}
-            <div className="space-y-4 animate-fade-in mt-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Filter by Sub Status</span>
-                        {(selectedStatusFilter || selectedSubStatusFilter) && (
-                            <button 
-                                onClick={() => {
-                                    setSelectedStatusFilter(null);
-                                    setSelectedSubStatusFilter(null);
-                                }}
-                                className="text-[10px] font-extrabold text-indigo-650 hover:text-indigo-850 transition"
-                            >
-                                • Clear all filters
-                            </button>
-                        )}
+            {showSubStatusFilters && (
+                <div className="space-y-4 animate-fade-in mt-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest">Filter by Sub Status</span>
+                            {(selectedStatusFilter || selectedSubStatusFilter) && (
+                                <button 
+                                    onClick={() => {
+                                        setSelectedStatusFilter(null);
+                                        setSelectedSubStatusFilter(null);
+                                    }}
+                                    className="text-[10px] font-extrabold text-indigo-655 hover:text-indigo-855 transition"
+                                >
+                                    • Clear all filters
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full">
+                        {[
+                            { label: 'All Sub Statuses', count: rows.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
+                            { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
+                            ...subStatusOptions.map(opt => {
+                                const lowerOpt = opt.toLowerCase();
+                                let icon = SlidersHorizontal;
+                                let iconBg = 'bg-indigo-50';
+                                let iconColor = 'text-indigo-500';
+                                let sub = 'Custom workflow status';
+                                let subColor = 'text-indigo-500 font-semibold';
+                                
+                                if (lowerOpt.includes('complete') || lowerOpt.includes('done')) {
+                                    icon = CheckCircle2;
+                                    iconBg = 'bg-green-50';
+                                    iconColor = 'text-green-500';
+                                    sub = 'Completed workflow';
+                                    subColor = 'text-green-500 font-semibold';
+                                } else if (lowerOpt.includes('approv') || lowerOpt.includes('verify') || lowerOpt.includes('check')) {
+                                    icon = Clock;
+                                    iconBg = 'bg-amber-50';
+                                    iconColor = 'text-amber-500';
+                                    sub = 'Awaiting verification';
+                                    subColor = 'text-amber-500 font-semibold';
+                                } else if (lowerOpt.includes('document') || lowerOpt.includes('pending') || lowerOpt.includes('paper')) {
+                                    icon = FileText;
+                                    iconBg = 'bg-blue-50';
+                                    iconColor = 'text-blue-500';
+                                    sub = 'Needs documents';
+                                    subColor = 'text-blue-500 font-semibold';
+                                }
+                                
+                                return {
+                                    label: opt,
+                                    count: getSubStatusCount(opt),
+                                    value: opt,
+                                    icon,
+                                    iconBg,
+                                    iconColor,
+                                    sub,
+                                    subColor
+                                };
+                            })
+                        ].map((card, i) => {
+                            const isActive = (card.value === null && !selectedSubStatusFilter) || (selectedSubStatusFilter === card.value);
+                            return (
+                                <SummaryCard 
+                                    key={i}
+                                    icon={card.icon}
+                                    iconBg={card.iconBg}
+                                    iconColor={card.iconColor}
+                                    label={card.label}
+                                    value={card.count}
+                                    sub={card.sub}
+                                    subColor={card.subColor}
+                                    active={isActive}
+                                    onClick={() => {
+                                        setSelectedSubStatusFilter(prev => prev === card.value ? null : card.value);
+                                    }}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 p-3 -m-3">
-                    {[
-                        { label: 'All Sub Statuses', count: rows.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
-                        { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
-                        ...subStatusOptions.map(opt => {
-                            const lowerOpt = opt.toLowerCase();
-                            let icon = SlidersHorizontal;
-                            let iconBg = 'bg-indigo-50';
-                            let iconColor = 'text-indigo-500';
-                            let sub = 'Custom workflow status';
-                            let subColor = 'text-indigo-500 font-semibold';
-                            
-                            if (lowerOpt.includes('complete') || lowerOpt.includes('done')) {
-                                icon = CheckCircle2;
-                                iconBg = 'bg-green-50';
-                                iconColor = 'text-green-500';
-                                sub = 'Completed workflow';
-                                subColor = 'text-green-500 font-semibold';
-                            } else if (lowerOpt.includes('approv') || lowerOpt.includes('verify') || lowerOpt.includes('check')) {
-                                icon = Clock;
-                                iconBg = 'bg-amber-50';
-                                iconColor = 'text-amber-500';
-                                sub = 'Awaiting verification';
-                                subColor = 'text-amber-500 font-semibold';
-                            } else if (lowerOpt.includes('document') || lowerOpt.includes('pending') || lowerOpt.includes('paper')) {
-                                icon = FileText;
-                                iconBg = 'bg-blue-50';
-                                iconColor = 'text-blue-500';
-                                sub = 'Needs documents';
-                                subColor = 'text-blue-500 font-semibold';
-                            }
-                            
-                            return {
-                                label: opt,
-                                count: getSubStatusCount(opt),
-                                value: opt,
-                                icon,
-                                iconBg,
-                                iconColor,
-                                sub,
-                                subColor
-                            };
-                        })
-                    ].map((card, i) => {
-                        const isActive = (card.value === null && !selectedSubStatusFilter) || (selectedSubStatusFilter === card.value);
-                        return (
-                            <SummaryCard 
-                                key={i}
-                                icon={card.icon}
-                                iconBg={card.iconBg}
-                                iconColor={card.iconColor}
-                                label={card.label}
-                                value={card.count}
-                                sub={card.sub}
-                                subColor={card.subColor}
-                                active={isActive}
-                                onClick={() => {
-                                    setSelectedSubStatusFilter(prev => prev === card.value ? null : card.value);
-                                }}
-                            />
-                        );
-                    })}
-                </div>
-            </div>            {/* Sheet Information Table (Excel/Spreadsheet style row) */}
+            )}
+            {/* Sheet Information Table (Excel/Spreadsheet style row) */}
             <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-6 md:p-8 space-y-6 animate-fade-in mt-6">
-                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
-                            <FileText size={16} />
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-slate-100 w-full">
+                    {/* Title block */}
+                    <div className="flex items-center gap-3 shrink-0">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                            <FileText size={18} />
                         </div>
-                        <div>
-                            <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Sheet Information</h2>
-                            <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Spreadsheet metadata & custom variables</p>
+                        <div className="shrink-0">
+                            <h2 className="text-lg font-black text-slate-900 uppercase tracking-wider">Sheet Information</h2>
+                            <p className="text-xs text-slate-405 font-bold tracking-wide mt-0.5">Spreadsheet metadata & custom variables</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => {
-                                setNewTaskData({
-                                    form_name: task?.form_name || '',
-                                    client_id: task?.client?.id || '',
-                                    work_type_id: task?.work_type?.id || '',
-                                    allocated_to: task?.allocated_to || '',
-                                    date_allocated: task?.date_allocated || '',
-                                    status: task?.status || 'assigned',
-                                    sub_status: task?.sub_status || ''
-                                });
-                                setIsAddTaskModalOpen(true);
-                            }}
-                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                        >
-                            <Plus size={14} />
-                            <span>Add Task</span>
-                        </button>
-                        {allFields.length > 0 && (
-                            <button
-                                onClick={() => setShowColumnFilters(!showColumnFilters)}
-                                className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border ${showColumnFilters ? 'bg-[#1F5C99] text-white border-[#1F5C99]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                    
+                    {/* Filters & Actions inline block */}
+                    <div className="flex flex-1 flex-col sm:flex-row items-center gap-3 w-full">
+                        {/* Search Input (flex-1 to take remaining space) */}
+                        <div className="relative flex-1 w-full">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input 
+                                type="text" 
+                                placeholder="Search in this sheet..." 
+                                value={sheetSearch}
+                                onChange={e => setSheetSearch(e.target.value)}
+                                className="pl-9 pr-9 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-650 w-full transition font-semibold text-slate-700 shadow-sm" 
+                            />
+                            {sheetSearch && (
+                                <button
+                                    onClick={() => setSheetSearch('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-655 transition"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Dropdowns & Buttons */}
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto shrink-0">
+                            <select
+                                value={sheetStatusFilter}
+                                onChange={e => setSheetStatusFilter(e.target.value)}
+                                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-755 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-655 focus:outline-none w-full sm:w-[130px] h-[36px] shadow-sm cursor-pointer"
                             >
-                                <Sliders size={14} /> 
-                                <span>Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}</span>
+                                <option value="">All Status</option>
+                                <option value="complete">Complete</option>
+                                <option value="work_in_progress">Work In Progress</option>
+                                <option value="pending">Pending</option>
+                                <option value="not_to_be_done">Not To Be Done</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <select
+                                value={sheetWorkTypeFilter}
+                                onChange={e => setSheetWorkTypeFilter(e.target.value)}
+                                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-755 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-655 focus:outline-none w-full sm:w-[150px] h-[36px] shadow-sm cursor-pointer"
+                            >
+                                <option value="">All Work Types</option>
+                                {workTypes.map(wt => (
+                                    <option key={wt.id} value={wt.id}>{wt.name}</option>
+                                ))}
+                            </select>
+                            
+                            <button
+                                onClick={() => {
+                                    setViewingRowIndex(null);
+                                    setModalEditable(true);
+                                    setNewTaskData({
+                                        form_name: task?.form_name || '',
+                                        client_id: task?.client?.id || '',
+                                        work_type_id: task?.work_type?.id || '',
+                                        allocated_to: task?.allocated_to || '',
+                                        date_allocated: task?.date_allocated || '',
+                                        status: task?.status || 'assigned',
+                                        sub_status: task?.sub_status || ''
+                                    });
+                                    setIsAddTaskModalOpen(true);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                            >
+                                <Plus size={13} />
+                                <span>Add Task</span>
                             </button>
-                        )}
+
+                            {allFields.length > 0 && (
+                                <button
+                                    onClick={() => setShowColumnFilters(!showColumnFilters)}
+                                    className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border ${showColumnFilters ? 'bg-[#1F5C99] text-white border-[#1F5C99]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                                >
+                                    <Sliders size={13} /> 
+                                    <span>Column Filters</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -2059,10 +2189,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
                 )}
 
-                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm">
+                <div className="overflow-x-auto border border-slate-350 rounded-2xl shadow-sm">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
+                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[12px] font-black uppercase tracking-widest">
                                 <th className="px-6 py-4 text-center border-r border-[#154673] w-16 text-white bg-[#1F5C99]">#</th>
                                 {activeColumns.map((col, idx) => {
                                     const handleColumnDrop = (targetIdx) => {
@@ -2128,10 +2258,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                         </th>
                                     );
                                 })}
-                                <th className="w-12 px-2 py-4 text-center border-l border-[#154673]"></th>
+                                <th className="w-[180px] min-w-[180px] px-4 py-4 text-center border-l border-[#154673] sticky right-0 z-20 bg-[#1F5C99] shadow-[-4px_0_8px_rgba(0,0,0,0.05)] text-[12px] font-black">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-150 text-slate-700 text-xs">
+                        <tbody className="divide-y divide-slate-350 text-slate-700 text-xs">
                             {sortedRows.length === 0 ? (
                                 <tr>
                                     <td 
@@ -2152,10 +2282,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                         (isStaff && String(row.allocated_to) !== String(user.id))
                                     );
 
+                                    const isRowEditable = !isRowLocked && !!editingRows[originalIndex];
+
                                     return (
-                                        <tr key={originalIndex} className="hover:bg-slate-200 transition group">
+                                        <tr key={originalIndex} className={`transition group ${
+                                            editingRows[originalIndex] 
+                                                ? 'bg-blue-50/40 hover:bg-blue-100/50 border-y-2 border-indigo-250' 
+                                                : 'hover:bg-slate-200'
+                                        }`}>
                                             {/* # column with hover delete */}
-                                            <td className="px-4 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-200 bg-slate-50/40 relative">
+                                            <td className="px-4 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50/40 relative">
                                                 <span>
                                                     {String(idx + 1).padStart(2, '0')}
                                                 </span>
@@ -2164,32 +2300,30 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             {activeColumns.map(col => {
                                                 if (col.id === 'form_name') {
                                                     return (
-                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200">
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350">
                                                             <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    disabled={isRowLocked}
-                                                                    value={row.form_name || ''}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        const newRows = [...rows];
-                                                                        newRows[originalIndex].form_name = val;
-                                                                        setRows(newRows);
-                                                                    }}
-                                                                    onFocus={(e) => setFocusedValue(e.target.value)}
-                                                                    onBlur={(e) => {
-                                                                        if (e.target.value !== focusedValue) {
-                                                                            handleSaveRows(rows);
-                                                                        }
-                                                                    }}
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') {
-                                                                            e.target.blur();
-                                                                        }
-                                                                    }}
-                                                                    placeholder="Sheet Name..."
-                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                                />
+                                                                 <input
+                                                                     type="text"
+                                                                     disabled={!isRowEditable}
+                                                                     value={row.form_name || ''}
+                                                                     onChange={(e) => {
+                                                                         const val = e.target.value;
+                                                                         const newRows = [...rows];
+                                                                         newRows[originalIndex].form_name = val;
+                                                                         setRows(newRows);
+                                                                     }}
+                                                                     onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                     onBlur={(e) => {
+                                                                         // No auto-save on blur
+                                                                     }}
+                                                                     onKeyDown={(e) => {
+                                                                         if (e.key === 'Enter') {
+                                                                             e.target.blur();
+                                                                         }
+                                                                     }}
+                                                                     placeholder="Sheet Name..."
+                                                                     className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                 />
                                                             </div>
                                                         </td>
                                                     );
@@ -2197,10 +2331,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'client') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200 min-w-[220px]">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 min-w-[220px]">
                                                             <SearchableSelect
                                                                 value={row.client_id || ''}
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 options={clients.map(c => {
                                                                     return { value: c.id, label: c.name };
                                                                 })}
@@ -2209,7 +2343,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     const newRows = [...rows];
                                                                     newRows[originalIndex].client_id = val || null;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
                                                                 size="sm"
                                                                 direction={originalIndex > 3 ? 'up' : 'down'}
@@ -2220,16 +2353,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'work_type') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
                                                             <select
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 value={row.work_type_id || ''}
                                                                 onChange={(e) => {
                                                                     const val = e.target.value;
                                                                     const newRows = [...rows];
                                                                     newRows[originalIndex].work_type_id = val || null;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
@@ -2242,16 +2374,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'assigned_to') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
                                                             <select
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 value={row.allocated_to || ''}
                                                                 onChange={(e) => {
                                                                     const val = e.target.value;
                                                                     const newRows = [...rows];
                                                                     newRows[originalIndex].allocated_to = val || null;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
@@ -2264,10 +2395,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'date_allocated') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
                                                             <input
                                                                 type="date"
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 value={row.date_allocated || ''}
                                                                 onChange={(e) => {
                                                                     const val = e.target.value;
@@ -2277,9 +2408,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                 }}
                                                                 onFocus={(e) => setFocusedValue(e.target.value)}
                                                                 onBlur={(e) => {
-                                                                    if (e.target.value !== focusedValue) {
-                                                                        handleSaveRows(rows);
-                                                                    }
+                                                                    // No auto-save on blur
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
@@ -2289,16 +2418,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'status') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
                                                             <select
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 value={row.status || ''}
                                                                 onChange={(e) => {
                                                                     const val = e.target.value;
                                                                     const newRows = [...rows];
                                                                     newRows[originalIndex].status = val;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
@@ -2316,16 +2444,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'sub_status') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-slate-200">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
                                                             <select
-                                                                disabled={isRowLocked}
+                                                                disabled={!isRowEditable}
                                                                 value={row.sub_status || ''}
                                                                 onChange={(e) => {
                                                                     const val = e.target.value;
                                                                     const newRows = [...rows];
                                                                     newRows[originalIndex].sub_status = val || null;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             >
@@ -2338,9 +2465,29 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     );
                                                 }
 
+                                                if (col.id === 'remarks') {
+                                                    return (
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350 min-w-[250px]">
+                                                            <textarea
+                                                                rows={1}
+                                                                disabled={!isRowEditable}
+                                                                value={row.remarks || ''}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    const newRows = [...rows];
+                                                                    newRows[originalIndex].remarks = val;
+                                                                    setRows(newRows);
+                                                                }}
+                                                                placeholder="Enter remarks..."
+                                                                className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                            />
+                                                        </td>
+                                                    );
+                                                }
+
                                                 if (col.id === 'attachments') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-5 text-center" style={{ minWidth: '120px', width: '120px' }}>
+                                                        <td key={col.id} className="px-6 py-5 text-center border-r border-b border-slate-350" style={{ minWidth: '120px', width: '120px' }}>
                                                             <div className="flex items-center justify-center gap-1.5">
                                                                 <button
                                                                     type="button"
@@ -2361,7 +2508,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     <Eye size={12} />
                                                                     <span>{(row.attachments || []).length} Files</span>
                                                                 </button>
-                                                                {!isRowLocked && (
+                                                                {!isRowLocked && isRowEditable && (
                                                                     <label className="inline-flex items-center justify-center p-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-slate-500 hover:text-indigo-655 transition cursor-pointer" title="Upload multiple files">
                                                                         <Plus size={12} />
                                                                         <input
@@ -2379,7 +2526,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'is_verified') {
                                                     return (
-                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200 text-center min-w-[145px]">
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350 text-center min-w-[145px]">
                                                             {row.is_verified ? (
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     {isAdmin ? (
@@ -2480,7 +2627,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 const isTime = field.type === 'time';
 
                                                 return (
-                                                    <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-200">
+                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350">
                                                         {isRating ? (
                                                             <div className="flex items-center gap-0.5 text-amber-500 text-base leading-none">
                                                                 {Array.from({ length: 5 }).map((_, i) => {
@@ -2490,14 +2637,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                         <button 
                                                                             key={i} 
                                                                             type="button"
+                                                                            disabled={!isRowEditable}
                                                                             onClick={() => {
                                                                                 const newRows = [...rows];
                                                                                 if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                                newRows[originalIndex].dynamic_data['CA Rating'] = String(starNum);
+                                                                                const currentRating = parseInt(newRows[originalIndex].dynamic_data['CA Rating'] || '0');
+                                                                                newRows[originalIndex].dynamic_data['CA Rating'] = currentRating === starNum ? '0' : String(starNum);
                                                                                 setRows(newRows);
-                                                                                handleSaveRows(newRows);
                                                                             }}
-                                                                            className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                                                                            className={`transition-all hover:scale-125 ${isFilled ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'} disabled:cursor-not-allowed disabled:opacity-60`}
                                                                             title={`Rate ${starNum} Stars`}
                                                                         >
                                                                             ★
@@ -2508,7 +2656,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                             </div>
                                                         ) : isFeedback ? (
                                                             <div className="flex items-center gap-2 group/edit-inline w-full">
-                                                                {editingFeedbackIndex === originalIndex ? (
+                                                                {editingFeedbackIndex === originalIndex && isRowEditable ? (
                                                                     <div className="flex items-center gap-2 w-full min-w-[200px]">
                                                                         <input 
                                                                             type="text" 
@@ -2520,7 +2668,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                 if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                                 newRows[originalIndex].dynamic_data['CA Feedback'] = inlineFeedbackValue;
                                                                                 setRows(newRows);
-                                                                                handleSaveRows(newRows);
                                                                             }}
                                                                             onKeyDown={e => {
                                                                                 if (e.key === 'Enter') {
@@ -2529,7 +2676,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                     if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                                     newRows[originalIndex].dynamic_data['CA Feedback'] = inlineFeedbackValue;
                                                                                     setRows(newRows);
-                                                                                    handleSaveRows(newRows);
                                                                                 }
                                                                             }}
                                                                             autoFocus
@@ -2539,14 +2685,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                 ) : (
                                                                     <div 
                                                                         onClick={() => {
+                                                                            if (!isRowEditable) return;
                                                                             setInlineFeedbackValue(value || '');
                                                                             setEditingFeedbackIndex(originalIndex);
                                                                         }}
-                                                                        className="cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group min-w-[150px]"
-                                                                        title="Click to Edit Feedback"
+                                                                        className={`cursor-pointer hover:bg-slate-50 px-2 py-1 -ml-2 rounded-lg transition-all flex items-center gap-2 text-slate-700 min-h-[28px] group min-w-[150px] ${!isRowEditable ? 'pointer-events-none opacity-80' : ''}`}
+                                                                        title={isRowEditable ? "Click to Edit Feedback" : ""}
                                                                     >
-                                                                        <span>{value || <span className="text-slate-300 italic font-medium">Click to add feedback...</span>}</span>
-                                                                        <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />
+                                                                        <span>{value || <span className="text-slate-300 italic font-medium">{isRowEditable ? 'Click to add feedback...' : 'No feedback'}</span>}</span>
+                                                                        {isRowEditable && <Edit2 size={12} className="text-slate-300 group-hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100" />}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -2561,7 +2708,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
                                                                     if (pct >= 40 && pct < 90) {
                                                                         gradient = 'from-blue-500 to-indigo-600';
-                                                                        badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-650';
+                                                                        badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-655';
                                                                     } else if (pct >= 90) {
                                                                         gradient = 'from-emerald-500 to-teal-500';
                                                                         badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
@@ -2624,14 +2771,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                         badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
                                                                     }
 
-                                                                    const handleManualSave = (val) => {
-                                                                        const newRows = [...rows];
-                                                                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                        newRows[originalIndex].dynamic_data[field.label] = String(val);
-                                                                        setRows(newRows);
-                                                                        handleSaveRows(newRows);
-                                                                    };
-
                                                                     return (
                                                                         <>
                                                                             <div className="flex items-center justify-between gap-2">
@@ -2649,6 +2788,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                     min="0" 
                                                                                     max="100" 
                                                                                     value={parsedVal}
+                                                                                    disabled={!isRowEditable}
                                                                                     onChange={(e) => {
                                                                                         const val = e.target.value;
                                                                                         const newRows = [...rows];
@@ -2656,9 +2796,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                         newRows[originalIndex].dynamic_data[field.label] = String(val);
                                                                                         setRows(newRows);
                                                                                     }}
-                                                                                    onMouseUp={(e) => handleManualSave(e.target.value)}
-                                                                                    onTouchEnd={(e) => handleManualSave(e.target.value)}
-                                                                                    className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20"
+                                                                                    className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20 disabled:cursor-not-allowed disabled:opacity-60"
                                                                                     style={{
                                                                                         background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
                                                                                     }}
@@ -2666,45 +2804,48 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                             </div>
 
                                                                             {/* Quick adjust pills */}
-                                                                            <div className="flex gap-1 mt-1 justify-between select-none">
-                                                                                {[-10, 10, 50, 100].map(adjust => {
-                                                                                    let pillLabel = adjust > 0 ? `+${adjust}%` : `${adjust}%`;
-                                                                                    if (adjust === 50) pillLabel = "50%";
-                                                                                    if (adjust === 100) pillLabel = "100%";
-                                                                                    
-                                                                                    return (
-                                                                                        <button
-                                                                                            key={adjust}
-                                                                                            type="button"
-                                                                                            onClick={() => {
-                                                                                                let nextVal = parsedVal;
-                                                                                                if (adjust === -10 || adjust === 10) {
-                                                                                                    nextVal = Math.min(100, Math.max(0, parsedVal + adjust));
-                                                                                                } else {
-                                                                                                    nextVal = adjust;
-                                                                                                }
-                                                                                                const newRows = [...rows];
-                                                                                                if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                                                newRows[originalIndex].dynamic_data[field.label] = String(nextVal);
-                                                                                                setRows(newRows);
-                                                                                                handleManualSave(nextVal);
-                                                                                            }}
-                                                                                            className="text-[8px] font-black tracking-widest uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200/50 hover:border-slate-350 text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded-md transition duration-150 active:scale-90"
-                                                                                        >
-                                                                                            {pillLabel}
-                                                                                        </button>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
+                                                                            {isRowEditable && (
+                                                                                <div className="flex gap-1 mt-1 justify-between select-none animate-in fade-in duration-200">
+                                                                                    {[-10, 10, 50, 100].map(adjust => {
+                                                                                        let pillLabel = adjust > 0 ? `+${adjust}%` : `${adjust}%`;
+                                                                                        if (adjust === 50) pillLabel = "50%";
+                                                                                        if (adjust === 100) pillLabel = "100%";
+                                                                                        
+                                                                                        return (
+                                                                                            <button
+                                                                                                key={adjust}
+                                                                                                type="button"
+                                                                                                onClick={() => {
+                                                                                                    let nextVal = parsedVal;
+                                                                                                    if (adjust === -10 || adjust === 10) {
+                                                                                                        nextVal = Math.min(100, Math.max(0, parsedVal + adjust));
+                                                                                                    } else {
+                                                                                                        nextVal = adjust;
+                                                                                                    }
+                                                                                                    const newRows = [...rows];
+                                                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                                                    newRows[originalIndex].dynamic_data[field.label] = String(nextVal);
+                                                                                                    setRows(newRows);
+                                                                                                }}
+                                                                                                className="text-[8px] font-black tracking-widest uppercase bg-slate-50 hover:bg-slate-100 border border-slate-200/50 hover:border-slate-350 text-slate-500 hover:text-slate-700 px-1.5 py-0.5 rounded-md transition duration-150 active:scale-90"
+                                                                                            >
+                                                                                                {pillLabel}
+                                                                                            </button>
+                                                                                        );
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
 
                                                                             <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 mt-1 select-none">
                                                                                 <span className="flex items-center gap-0.5 font-extrabold text-slate-400">
                                                                                     <Clock size={9} className="text-slate-350" />
                                                                                     Updated: Just now
                                                                                 </span>
-                                                                                <span className="text-[8px] font-black uppercase text-indigo-500/80 tracking-wider">
-                                                                                    Adjustable
-                                                                                </span>
+                                                                                {isRowEditable && (
+                                                                                    <span className="text-[8px] font-black uppercase text-indigo-500/80 tracking-wider">
+                                                                                        Adjustable
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
                                                                         </>
                                                                     );
@@ -2713,14 +2854,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         ) : isDropdown ? (
                                                             <select
                                                                 value={value || ''}
+                                                                disabled={!isRowEditable}
                                                                 onChange={(e) => {
                                                                     const newRows = [...rows];
                                                                     if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                     newRows[originalIndex].dynamic_data[field.label] = e.target.value;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:cursor-not-allowed"
                                                             >
                                                                 <option value="">Select Option</option>
                                                                 {(() => {
@@ -2743,7 +2884,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                             </select>
                                                         ) : isCheckbox ? (
                                                             <div className="flex flex-col gap-2 min-w-[200px]">
-                                                                {editingCheckboxes[`${originalIndex}-${field.label}`] ? (
+                                                                {editingCheckboxes[`${originalIndex}-${field.label}`] && isRowEditable ? (
                                                                     <>
                                                                         <div className="flex flex-wrap gap-2.5">
                                                                             {(() => {
@@ -2775,7 +2916,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                                     newRows[originalIndex].dynamic_data[field.label] = nextVals;
                                                                                                     setRows(newRows);
                                                                                                 }}
-                                                                                                className="w-3.5 h-3.5 rounded text-indigo-650 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
+                                                                                                className="w-3.5 h-3.5 rounded text-indigo-655 focus:ring-indigo-500/20 border-slate-300 cursor-pointer"
                                                                                             />
                                                                                             <span>{optLbl}</span>
                                                                                         </label>
@@ -2787,7 +2928,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                             <button 
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    handleSaveRows(rows);
                                                                                     setEditingCheckboxes(prev => ({ ...prev, [`${originalIndex}-${field.label}`]: false }));
                                                                                 }}
                                                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
@@ -2798,8 +2938,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     </>
                                                                 ) : (
                                                                     <div 
-                                                                        className="flex flex-col gap-1.5 cursor-pointer group/chk"
-                                                                        onClick={() => setEditingCheckboxes(prev => ({ ...prev, [`${originalIndex}-${field.label}`]: true }))}
+                                                                        className={`flex flex-col gap-1.5 ${isRowEditable ? 'cursor-pointer group/chk' : 'opacity-80'}`}
+                                                                        onClick={() => {
+                                                                            if (!isRowEditable) return;
+                                                                            setEditingCheckboxes(prev => ({ ...prev, [`${originalIndex}-${field.label}`]: true }));
+                                                                        }}
                                                                     >
                                                                         {(!value || (Array.isArray(value) && value.length === 0)) ? (
                                                                             <span className="text-xs text-slate-400 italic">No options selected</span>
@@ -2820,11 +2963,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                                 })}
                                                                             </div>
                                                                         )}
-                                                                        <div className="opacity-0 group-hover/chk:opacity-100 transition-opacity mt-0.5">
-                                                                            <button className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 bg-white border border-indigo-100 px-2 py-0.5 rounded shadow-sm hover:bg-indigo-50 w-fit">
-                                                                                <Edit2 size={10}/> Edit
-                                                                            </button>
-                                                                        </div>
+                                                                        {isRowEditable && (
+                                                                            <div className="opacity-0 group-hover/chk:opacity-100 transition-opacity mt-0.5 animate-in fade-in duration-150">
+                                                                                <button className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 bg-white border border-indigo-100 px-2 py-0.5 rounded shadow-sm hover:bg-indigo-50 w-fit">
+                                                                                    <Edit2 size={10}/> Edit
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -2832,33 +2977,34 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                             <input
                                                                 type="date"
                                                                 value={value || ''}
+                                                                disabled={!isRowEditable}
                                                                 onChange={(e) => {
                                                                     const newRows = [...rows];
                                                                     if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                     newRows[originalIndex].dynamic_data[field.label] = e.target.value;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
                                                         ) : isTime ? (
                                                             <input
                                                                 type="time"
                                                                 value={value || ''}
+                                                                disabled={!isRowEditable}
                                                                 onChange={(e) => {
                                                                     const newRows = [...rows];
                                                                     if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                     newRows[originalIndex].dynamic_data[field.label] = e.target.value;
                                                                     setRows(newRows);
-                                                                    handleSaveRows(newRows);
                                                                 }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full"
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
                                                                 <textarea
                                                                      rows={1}
                                                                      value={value || ''}
+                                                                     disabled={!isRowEditable}
                                                                      onChange={(e) => {
                                                                          const val = e.target.value;
                                                                          const newRows = [...rows];
@@ -2874,15 +3020,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                          e.target.style.height = e.target.scrollHeight + 'px';
                                                                      }}
                                                                      onBlur={(e) => {
-                                                                         if (e.target.value !== focusedValue) {
-                                                                             handleSaveRows(rows);
-                                                                         }
+                                                                         // No auto-save on blur
                                                                          if (!e.target.value || e.target.value.length < 50) {
                                                                              e.target.style.height = 'auto';
                                                                          }
                                                                      }}
                                                                     placeholder={field.placeholder || `Enter ${field.label}...`}
-                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block"
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                                     style={{ minHeight: '34px' }}
                                                                 />
                                                                 {value && (
@@ -2899,17 +3043,100 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     </td>
                                                 );
                                             })}
-                                            <td className="px-3 py-2.5 text-center border-l border-b border-slate-200 min-w-[50px]">
-                                                {!isRowLocked && canDelete && (
+                                            <td className={`px-4 py-2 text-center border-l border-b border-slate-350 sticky right-0 z-10 shadow-[-4px_0_8px_rgba(0,0,0,0.05)] transition-colors min-w-[180px] w-[180px] ${
+                                                editingRows[originalIndex] 
+                                                    ? 'bg-[#F0F7FF] group-hover:bg-[#E0EFFF]' 
+                                                    : 'bg-white group-hover:bg-slate-200'
+                                            }`}>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    {/* View button */}
                                                     <button
-                                                        onClick={() => removeRow(originalIndex)}
-                                                        className="inline-flex items-center justify-center text-rose-500 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 rounded-lg p-1.5 transition-all font-bold cursor-pointer"
-                                                        title="Delete Row"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setNewTaskData({ ...row });
+                                                            setViewingRowIndex(originalIndex);
+                                                            setModalEditable(false);
+                                                            setIsAddTaskModalOpen(true);
+                                                        }}
+                                                        className="p-1.5 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                        title="View Row Details"
                                                     >
-                                                        <Trash2 size={16} />
+                                                        <Eye size={14} />
                                                     </button>
-                                                )}
-                                            </td>
+
+                                                    {/* Edit / Submit toggle button */}
+                                                    {!isRowLocked && (
+                                                        editingRows[originalIndex] ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={async () => {
+                                                                    const row = rows[originalIndex];
+                                                                    if (!row.form_name) {
+                                                                        toast.error(`Please enter a Sheet Name for Row ${originalIndex + 1}`);
+                                                                        return;
+                                                                    }
+                                                                    if (!row.work_type_id) {
+                                                                        toast.error(`Please select a Work Type for Row ${originalIndex + 1}`);
+                                                                        return;
+                                                                    }
+                                                                    for (const field of schema) {
+                                                                        if (field.static) continue;
+                                                                        if (field.required) {
+                                                                            const val = row.dynamic_data?.[field.label];
+                                                                            if (val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
+                                                                                toast.error(`Please fill out required field "${field.label}" for Row ${originalIndex + 1}`);
+                                                                                return;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    setEditingRows(prev => {
+                                                                        const copy = { ...prev };
+                                                                        delete copy[originalIndex];
+                                                                        return copy;
+                                                                    });
+                                                                    await handleSaveRows(rows, 'Row updated successfully');
+                                                                }}
+                                                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-xl transition duration-150 active:scale-90 cursor-pointer animate-pulse"
+                                                                title="Submit Changes"
+                                                            >
+                                                                <Check size={14} />
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingRows(prev => ({ ...prev, [originalIndex]: true }));
+                                                                }}
+                                                                className="p-1.5 bg-blue-50/50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                                title="Edit Inline"
+                                                            >
+                                                                <Edit2 size={14} />
+                                                            </button>
+                                                        )
+                                                    )}
+
+                                                    {/* Duplicate button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => duplicateRow(originalIndex)}
+                                                        className="p-1.5 bg-emerald-50/40 hover:bg-emerald-100/60 text-emerald-650 border border-emerald-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                        title="Duplicate Row"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </button>
+
+                                                    {/* Delete button */}
+                                                    {!isRowLocked && canDelete && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeRow(originalIndex)}
+                                                            className="p-1.5 bg-rose-50/50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                            title="Delete Row"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>                   </td>
                                         </tr>
                                     );
                                 })
@@ -3708,10 +3935,21 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 staff={staff}
                 newTaskData={newTaskData}
                 setNewTaskData={setNewTaskData}
+                isViewMode={viewingRowIndex !== null}
+                isEditable={modalEditable}
+                setIsEditable={setModalEditable}
                 onSave={(newRow) => {
-                    const updatedRows = [...rows, newRow];
-                    setRows(updatedRows);
-                    handleSaveRows(updatedRows, 'Row added successfully via Add Task');
+                    if (viewingRowIndex !== null) {
+                        const updatedRows = [...rows];
+                        updatedRows[viewingRowIndex] = newRow;
+                        setRows(updatedRows);
+                        handleSaveRows(updatedRows, 'Row updated successfully');
+                        setViewingRowIndex(null);
+                    } else {
+                        const updatedRows = [...rows, newRow];
+                        setRows(updatedRows);
+                        handleSaveRows(updatedRows, 'Row added successfully via Add Task');
+                    }
                 }}
             />
 

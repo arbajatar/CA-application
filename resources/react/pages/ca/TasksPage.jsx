@@ -1767,7 +1767,10 @@ export default function TasksPage() {
                                                                                         <button
                                                                                             key={starI}
                                                                                             type="button"
-                                                                                            onClick={() => handleBulkDynamicFieldChange(t.id, 'CA Rating', String(starVal), t.dynamic_fields)}
+                                                                                            onClick={() => {
+                                                                                                const nextVal = ratingNum === starVal ? '0' : String(starVal);
+                                                                                                handleBulkDynamicFieldChange(t.id, 'CA Rating', nextVal, t.dynamic_fields);
+                                                                                            }}
                                                                                             className={`transition-all hover:scale-125 text-sm ${isSelected ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
                                                                                         >
                                                                                             ★
