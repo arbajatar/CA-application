@@ -139,6 +139,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
     const [selectedSubStatusFilter, setSelectedSubStatusFilter] = useState(null);
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
+    const [notesList, setNotesList] = useState([]);
+    const notesKey = `task_notes_sheet_${id}`;
+
+    useEffect(() => {
+        const saved = localStorage.getItem(notesKey);
+        try {
+            const parsed = saved ? JSON.parse(saved) : [];
+            setNotesList(parsed.length > 0 ? parsed : [{ id: 'init', text: '', timestamp: new Date().toLocaleString() }]);
+        } catch {
+            setNotesList([{ id: 'init', text: '', timestamp: new Date().toLocaleString() }]);
+        }
+    }, [notesKey]);
 
     const handleCopy = (text) => {
         if (!text) {
@@ -183,6 +195,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [selectedRoleId, setSelectedRoleId] = useState('');
     const [sheetPermissions, setSheetPermissions] = useState([]);
     const [allowAttachments, setAllowAttachments] = useState(false);
+    const [allowChecklist, setAllowChecklist] = useState(true);
+    const [allowNotes, setAllowNotes] = useState(true);
 
     const handleAddRolePermission = () => {
         if (!selectedRoleId) {
@@ -286,6 +300,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setWorkTypes(workTypesRes.data.data || workTypesRes.data || []);
             setSheetPermissions(data.permissions || []);
             setAllowAttachments(!!data.allow_attachments);
+            setAllowChecklist(!!data.allow_checklist);
+            setAllowNotes(!!data.allow_notes);
 
             let rolesData = [];
             if (!isStaff) {
@@ -645,7 +661,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 remarks: globalRemarks,
                 dynamic_fields: updatedDynamicFields,
                 permissions: sheetPermissions,
-                allow_attachments: allowAttachments
+                allow_attachments: allowAttachments,
+                allow_checklist: allowChecklist,
+                allow_notes: allowNotes
             });
 
             setTask(prev => ({
@@ -654,7 +672,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 remarks: globalRemarks,
                 dynamic_fields: updatedDynamicFields,
                 permissions: sheetPermissions,
-                allow_attachments: allowAttachments
+                allow_attachments: allowAttachments,
+                allow_checklist: allowChecklist,
+                allow_notes: allowNotes
             }));
             toast.success('Global controls updated successfully');
             setIsGlobalModalOpen(false);
@@ -725,6 +745,41 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             toast.error(e.response?.data?.message || 'Failed to save changes');
         }
     };
+
+    const handleSaveNotesList = (newList) => {
+        setNotesList(newList);
+        localStorage.setItem(notesKey, JSON.stringify(newList));
+    };
+
+    const handleUpdateNoteText = (noteId, text) => {
+        const updated = notesList.map(n => n.id === noteId ? { ...n, text } : n);
+        handleSaveNotesList(updated);
+    };
+
+    const handleAddNoteAfter = (noteId) => {
+        const idx = notesList.findIndex(n => n.id === noteId);
+        const newNote = {
+            id: `note-${Date.now()}`,
+            text: '',
+            timestamp: new Date().toLocaleString()
+        };
+        const updated = [...notesList];
+        if (noteId === 'init' || notesList.length === 0) {
+            handleSaveNotesList([newNote]);
+        } else {
+            updated.splice(idx + 1, 0, newNote);
+            handleSaveNotesList(updated);
+        }
+    };
+
+    const handleDeleteNote = (noteId) => {
+        let updated = notesList.filter(n => n.id !== noteId);
+        if (updated.length === 0) {
+            updated = [{ id: `note-${Date.now()}`, text: '', timestamp: new Date().toLocaleString() }];
+        }
+        handleSaveNotesList(updated);
+    };
+
     const handleAddSubTask = async () => {
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
@@ -1521,6 +1576,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 created_at: task.created_at,
                                                 status: task.status,
                                                 allow_attachments: task.allow_attachments,
+                                                allow_checklist: task.allow_checklist,
+                                                allow_notes: task.allow_notes,
                                                 subtasks: (task.sub_tasks || []).map(st => ({
                                                     title: st.title,
                                                     assigned_to: st.assigned_to?.id,
@@ -1606,6 +1663,48 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 type="checkbox"
                                                 checked={allowAttachments}
                                                 onChange={(e) => setAllowAttachments(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Allow Sub-Tasks Checklist Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <CheckSquare size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Checklist Option</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setAllowChecklist(!allowChecklist)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Allow checklist
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={allowChecklist}
+                                                onChange={(e) => setAllowChecklist(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Allow Sheet Notes Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                        <FileText size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Notes Option</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setAllowNotes(!allowNotes)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Allow notes
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={allowNotes}
+                                                onChange={(e) => setAllowNotes(e.target.checked)}
                                             />
                                             <span className="slider"></span>
                                         </label>
@@ -2835,8 +2934,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             </div>
 
             {/* Tasks Section */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mt-6 animate-fade-in">
-                <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {task?.allow_checklist && (
+                <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mt-6 animate-fade-in">
+                    <div className="px-6 py-5 md:px-8 md:py-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
                             <CheckSquare size={16} />
@@ -3127,9 +3227,82 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             </tbody>
                         </table>
                     </div>
-
+                </div>
             </div>
-        </div>
+            )}
+
+            {/* Sheet Notes Section */}
+            {task?.allow_notes && (
+                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden mt-6 animate-fade-in">
+                    <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-[#1F5C99] to-[#154673] text-white shadow-md shadow-[#1F5C99]/10">
+                                <FileText size={16} />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Sheet Notes</h2>
+                                <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Collaborative notes for this task sheet</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="p-6">
+                        <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto pr-1">
+                            {notesList.map((note, idx) => (
+                                <div key={note.id} className="flex flex-col md:flex-row md:items-start gap-4 py-4 first:pt-0 last:pb-0">
+                                    {/* Date/Time badge */}
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-gray-50 px-2.5 py-1.5 rounded-xl select-none w-fit">
+                                        <Calendar size={13} className="text-[#1F5C99]" />
+                                        <span>{note.timestamp}</span>
+                                    </div>
+
+                                    {/* Auto-growing Textarea to wrap text naturally */}
+                                    <textarea
+                                        value={note.text}
+                                        onChange={e => {
+                                            handleUpdateNoteText(note.id, e.target.value);
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = e.target.scrollHeight + 'px';
+                                        }}
+                                        placeholder="Write your observation/note here... (Saved automatically)"
+                                        rows={1}
+                                        className="flex-1 bg-gray-50 border border-slate-200 focus:border-[#1F5C99] outline-none focus:ring-2 focus:ring-[#1F5C99]/15 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-slate-450 font-semibold resize-none h-auto min-h-[38px] transition"
+                                        style={{ height: 'auto' }}
+                                        ref={el => {
+                                            if (el) {
+                                                el.style.height = 'auto';
+                                                el.style.height = el.scrollHeight + 'px';
+                                            }
+                                        }}
+                                    />
+                                    
+                                    {/* Always visible action buttons */}
+                                    <div className="flex items-center gap-2 select-none self-end md:self-start">
+                                        {idx === notesList.length - 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleAddNoteAfter(note.id)}
+                                                className="p-2 text-white bg-[#1F5C99] hover:bg-[#154673] rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center"
+                                                title="Add Note Row"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteNote(note.id)}
+                                            className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
+                                            title="Delete Note"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Unified Management Sidebar */}
             {isSidebarOpen && (

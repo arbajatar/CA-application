@@ -121,6 +121,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/tasks/import', [TaskController::class, 'import']);
         Route::post('/tasks/upload-file', [TaskController::class, 'uploadFile']);
         Route::apiResource('/tasks', TaskController::class);
+        
+        // Task Notes
+        Route::post('/tasks/{task}/notes', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'store']);
+        Route::patch('/task-notes/{taskNote}', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'update']);
+        Route::delete('/task-notes/{taskNote}', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'destroy']);
+
         Route::post('/tasks/{task}/sub-tasks', [CASubTaskController::class, 'store']);
         Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'update']);
         Route::delete('/tasks/{task}/sub-tasks/{sub_task}', [CASubTaskController::class, 'destroy']);

@@ -31,6 +31,8 @@ class Task extends Model
         'feedback',
         'entry_date',
         'allow_attachments',
+        'allow_checklist',
+        'allow_notes',
     ];
 
     protected function casts(): array
@@ -45,6 +47,8 @@ class Task extends Model
             'due_date' => 'date',
             'entry_date' => 'date',
             'allow_attachments' => 'boolean',
+            'allow_checklist' => 'boolean',
+            'allow_notes' => 'boolean',
         ];
     }
 
@@ -82,6 +86,11 @@ class Task extends Model
     public function permissions()
     {
         return $this->hasMany(SheetPermission::class);
+    }
+
+    public function notes()
+    {
+        return $this->hasMany(TaskNote::class)->latest();
     }
 
     // ── Scopes ─────────────────────────────────────────────────────

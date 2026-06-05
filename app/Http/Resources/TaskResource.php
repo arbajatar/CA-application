@@ -41,6 +41,8 @@ class TaskResource extends JsonResource
             'feedback' => $this->feedback,
             'entry_date' => $this->entry_date?->toDateString(),
             'allow_attachments' => (bool)$this->allow_attachments,
+            'allow_checklist' => (bool)$this->allow_checklist,
+            'allow_notes' => (bool)$this->allow_notes,
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),

@@ -81,6 +81,8 @@ class TaskController extends Controller
             'feedback' => $request->feedback,
             'entry_date' => $request->entry_date,
             'allow_attachments' => $request->boolean('allow_attachments', false),
+            'allow_checklist' => $request->boolean('allow_checklist', true),
+            'allow_notes' => $request->boolean('allow_notes', true),
         ]);
 
         // Handle detailed subtasks assignment
@@ -126,7 +128,7 @@ class TaskController extends Controller
     public function show(Task $task): JsonResponse
     {
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo', 'permissions.role'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo', 'permissions.role', 'notes.author'])),
         ]);
     }
 

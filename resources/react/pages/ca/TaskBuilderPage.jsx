@@ -740,6 +740,8 @@ export default function TaskBuilderPage() {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [sheetPermissions, setSheetPermissions] = useState([]);
   const [allowAttachments, setAllowAttachments] = useState(false);
+  const [allowChecklist, setAllowChecklist] = useState(true);
+  const [allowNotes, setAllowNotes] = useState(true);
   const [selectedFields, setSelectedFields] = useState([]);
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
@@ -1215,6 +1217,8 @@ export default function TaskBuilderPage() {
           remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Updated via Task Builder',
           permissions: formattedPermissions,
           allow_attachments: !!allowAttachments,
+          allow_checklist: !!allowChecklist,
+          allow_notes: !!allowNotes,
         });
         showToast('Sheet layout updated successfully!');
       } else {
@@ -1224,6 +1228,8 @@ export default function TaskBuilderPage() {
           remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
           permissions: formattedPermissions,
           allow_attachments: !!allowAttachments,
+          allow_checklist: !!allowChecklist,
+          allow_notes: !!allowNotes,
         });
         showToast('Sheet created successfully!');
       }
@@ -1494,6 +1500,12 @@ export default function TaskBuilderPage() {
       if (data.allow_attachments !== undefined) {
         setAllowAttachments(!!data.allow_attachments);
       }
+      if (data.allow_checklist !== undefined) {
+        setAllowChecklist(!!data.allow_checklist);
+      }
+      if (data.allow_notes !== undefined) {
+        setAllowNotes(!!data.allow_notes);
+      }
 
       showToast(location.state?.isEditing ? 'Form layout loaded for editing.' : 'Sheet data loaded for duplication.');
     }
@@ -1735,6 +1747,36 @@ export default function TaskBuilderPage() {
                         type="checkbox"
                         checked={allowAttachments}
                         onChange={(e) => setAllowAttachments(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">Allow Sub-Tasks Checklist</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">Enable a checklist feature on this sheet to break down work into sub-tasks.</p>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={allowChecklist}
+                        onChange={(e) => setAllowChecklist(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">Allow Sheet Notes</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">Provide a collaboration space for staff to add internal notes to this sheet.</p>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={allowNotes}
+                        onChange={(e) => setAllowNotes(e.target.checked)}
                       />
                       <span className="slider"></span>
                     </label>
