@@ -14,7 +14,6 @@ class UpdateTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id' => ['sometimes', 'nullable', 'exists:clients,id'],
             'work_type_id' => ['sometimes', 'nullable', 'exists:work_types,id'],
             'form_name' => ['sometimes', 'string'],
             'date_inward' => ['sometimes', 'nullable', 'date'],

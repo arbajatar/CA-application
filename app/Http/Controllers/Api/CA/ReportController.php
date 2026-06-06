@@ -22,12 +22,27 @@ class ReportController extends Controller
         // 1. Fetch Tasks (Sheets)
         $tasksQuery = Task::with(['client', 'workType', 'assignedTo'])
             ->when($clientId, fn($q) => $q->where('client_id', $clientId))
-            ->when($staffId, fn($q) => $q->where('allocated_to', $staffId))
+            ->when($staffId, function ($q) use ($staffId) {
+                $q->where(function ($sub) use ($staffId) {
+                    $sub->where('allocated_to', $staffId)
+                        ->orWhereNotNull('dynamic_fields');
+                });
+            })
             ->when($status, fn($q) => $q->where('status', $status))
             ->when($startDate, fn($q) => $q->whereDate('created_at', '>=', $startDate))
             ->when($endDate, fn($q) => $q->whereDate('created_at', '<=', $endDate));
 
-        $tasks = $tasksQuery->latest()->get()->map(function($task) {
+        $tasks = $tasksQuery->latest()->get();
+        if ($staffId) {
+            $staffUser = \App\Models\User::find($staffId);
+            if ($staffUser) {
+                $tasks = $tasks->filter(function($task) use ($staffUser) {
+                    return \App\Http\Controllers\Api\Staff\TaskController::doesUserHaveAccessToTask($task, $staffUser);
+                });
+            }
+        }
+
+        $tasks = $tasks->map(function($task) {
             $start = $task->created_at;
             $end = $task->date_completed ? Carbon::parse($task->date_completed) : null;
             
@@ -111,13 +126,28 @@ class ReportController extends Controller
 
         $tasksQuery = Task::with(['client', 'workType', 'assignedTo', 'subTasks.assignedTo'])
             ->when($clientId, fn($q) => $q->where('client_id', $clientId))
-            ->when($staffId, fn($q) => $q->where('allocated_to', $staffId))
+            ->when($staffId, function ($q) use ($staffId) {
+                $q->where(function ($sub) use ($staffId) {
+                    $sub->where('allocated_to', $staffId)
+                        ->orWhereNotNull('dynamic_fields');
+                });
+            })
             ->when($status, fn($q) => $q->where('status', $status))
             ->when($workTypeId, fn($q) => $q->where('work_type_id', $workTypeId))
             ->when($startDate, fn($q) => $q->whereDate('created_at', '>=', $startDate))
             ->when($endDate, fn($q) => $q->whereDate('created_at', '<=', $endDate));
 
-        $tasks = $tasksQuery->latest()->get()->map(function($task) {
+        $tasks = $tasksQuery->latest()->get();
+        if ($staffId) {
+            $staffUser = \App\Models\User::find($staffId);
+            if ($staffUser) {
+                $tasks = $tasks->filter(function($task) use ($staffUser) {
+                    return \App\Http\Controllers\Api\Staff\TaskController::doesUserHaveAccessToTask($task, $staffUser);
+                });
+            }
+        }
+
+        $tasks = $tasks->map(function($task) {
             return [
                 'id' => $task->id,
                 'name' => $task->form_name,

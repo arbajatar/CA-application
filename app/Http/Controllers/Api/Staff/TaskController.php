@@ -15,11 +15,54 @@ use App\Helpers\UploadHelper;
 
 class TaskController extends Controller
 {
+    public static function doesUserMatchRowAllocation($row, $user)
+    {
+        $type = $row['allocated_type'] ?? 'user';
+        $val = $row['allocated_to'] ?? null;
+
+        if ($type === 'user') {
+            return (string)$val === (string)$user->id;
+        }
+        if ($type === 'users') {
+            return is_array($val) && in_array((string)$user->id, array_map('strval', $val));
+        }
+        if ($type === 'role') {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            return in_array((string)$val, array_map('strval', $roleIds));
+        }
+        return false;
+    }
+
+    public static function doesUserHaveAccessToTask($task, $user)
+    {
+        if ($task->allocated_to === $user->id) {
+            return true;
+        }
+
+        if ($task->dynamic_fields && isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])) {
+            foreach ($task->dynamic_fields['multi_rows'] as $row) {
+                if (self::doesUserMatchRowAllocation($row, $user)) {
+                    return true;
+                }
+            }
+        }
+
+        if ($task->subTasks()->where('assigned_to', $user->id)->exists()) {
+            return true;
+        }
+
+        return false;
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
-        $tasks = $user->assignedTasks()
-            ->with(['client', 'workType', 'assignedTo', 'permissions.role'])
+        $tasksQuery = Task::with(['client', 'workType', 'assignedTo', 'permissions.role'])
+            ->where(function ($query) use ($user) {
+                $query->where('allocated_to', $user->id)
+                      ->orWhereNotNull('dynamic_fields')
+                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id));
+            })
             ->where(function ($query) use ($user) {
                 $query->whereDoesntHave('permissions')
                     ->orWhereHas('permissions', function ($pq) use ($user) {
@@ -54,30 +97,41 @@ class TaskController extends Controller
             )
             ->latest();
 
+        $allTasks = $tasksQuery->get();
+
+        $filteredTasks = $allTasks->filter(function ($task) use ($user) {
+            return self::doesUserHaveAccessToTask($task, $user);
+        });
+
         $perPage = $request->get('per_page', 15);
         if ($perPage === 'all') {
-            $tasks = $tasks->get();
-            return TaskResource::collection($tasks);
+            return TaskResource::collection($filteredTasks);
         }
 
-        $tasks = $tasks->paginate(min((int)$perPage, 1000));
+        $perPage = min((int)$perPage, 1000);
+        $page = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
+        $paginatedItems = $filteredTasks->forPage($page, $perPage)->values();
+        
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedItems,
+            $filteredTasks->count(),
+            $perPage,
+            $page,
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
 
-        return TaskResource::collection($tasks);
+        return TaskResource::collection($paginated);
     }
 
     public function show(Request $request, Task $task): JsonResponse
     {
         $user = $request->user();
-        $isAllocated = $task->allocated_to === $user->id;
-        $hasAssignedSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
 
-        // Ensure staff can only view tasks allocated to them OR tasks where they have an assigned subtask
-        if (!$isAllocated && !$hasAssignedSubtask) {
+        if (!self::doesUserHaveAccessToTask($task, $user)) {
             return response()->json(['message' => 'You do not have access to this task.'], 403);
         }
 
         // Check read permission
-        $user = $request->user();
         if ($task->permissions()->exists()) {
             $roleIds = $user->roles()->pluck('roles.id')->toArray();
             $hasReadAccess = $task->permissions()
@@ -210,14 +264,42 @@ class TaskController extends Controller
     {
         $user = $request->user();
 
-        // Check parent task write permission
-        $perms = (new TaskResource($task))->getUserPermissions($user);
-        if (!$perms['can_write']) {
-            return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+        // Check parent task write permission or staff role
+        if ($user->role->value === 'staff' || !$perms['can_write']) {
+            if ($request->has('dynamic_fields')) {
+                $oldRows = $task->dynamic_fields['multi_rows'] ?? [];
+                $newRows = $request->input('dynamic_fields.multi_rows') ?? [];
+
+                $length = max(count($oldRows), count($newRows));
+                for ($i = 0; $i < $length; $i++) {
+                    $oldRow = $oldRows[$i] ?? null;
+                    $newRow = $newRows[$i] ?? null;
+
+                    if ($oldRow != $newRow) {
+                        // If it's a new row, it must be allocated to the user
+                        if (!$oldRow) {
+                            if (!self::doesUserMatchRowAllocation($newRow, $user)) {
+                                return response()->json(['message' => 'You can only add rows allocated to yourself.'], 403);
+                            }
+                        }
+                        // If it's an existing row, it must have been allocated to the user
+                        else {
+                            if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
+                                return response()->json(['message' => 'You do not have permission to modify rows assigned to other staff.'], 403);
+                            }
+
+                            if ($newRow && !self::doesUserMatchRowAllocation($newRow, $user)) {
+                                return response()->json(['message' => 'You cannot assign your row to another staff member.'], 403);
+                            }
+                        }
+                    }
+                }
+            } else {
+                return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+            }
         }
 
         $validated = $request->validate([
-            'client_id' => ['sometimes', 'nullable', 'exists:clients,id'],
             'work_type_id' => ['sometimes', 'nullable', 'exists:work_types,id'],
             'form_name' => ['sometimes', 'string'],
             'date_inward' => ['sometimes', 'nullable', 'date'],

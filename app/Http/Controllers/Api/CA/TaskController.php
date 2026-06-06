@@ -23,7 +23,15 @@ class TaskController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = Task::with(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])
-            ->when($request->filled('staff_id'), fn($q) => $q->where('allocated_to', $request->staff_id))
+            ->when($request->filled('staff_id'), function ($q) use ($request) {
+                $staffId = $request->staff_id;
+                $q->where(function ($sub) use ($staffId) {
+                    $sub->where('allocated_to', $staffId)
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['allocated_to' => $staffId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['allocated_to' => (string)$staffId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['allocated_to' => (int)$staffId]);
+                });
+            })
             ->when($request->filled('status'), fn($q) => $q->where('status', TaskStatus::from($request->status)))
             ->when($request->filled('work_type_id'), fn($q) => $q->where('work_type_id', $request->work_type_id))
             ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->client_id))
@@ -66,7 +74,6 @@ class TaskController extends Controller
         $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Pending;
 
         $task = Task::create([
-            'client_id' => $request->client_id,
             'work_type_id' => $request->work_type_id,
             'form_name' => $request->form_name,
             'date_inward' => $request->date_inward,

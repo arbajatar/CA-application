@@ -54,6 +54,7 @@ export default function TasksPage() {
     const [saving, setSaving] = useState(false)
     const [errors, setErrors] = useState({})
     const [duplicateOpen, setDuplicateOpen] = useState(false)
+    const [duplicateSheetName, setDuplicateSheetName] = useState('')
     const [currentFolder, setCurrentFolder] = useState(() => {
         const params = new URLSearchParams(location.search);
         return params.get('work_type_id') || (params.get('staff_id') ? 'all' : null);
@@ -365,15 +366,6 @@ export default function TasksPage() {
     useEffect(() => { fetchTasks() }, [fetchTasks])
 
 
-    const handleReassign = async () => {
-        setSaving(true); setErrors({})
-        try {
-            await api.patch(`/ca/tasks/${selected.id}/reassign`, { allocated_to: form.allocated_to })
-            setReassignOpen(false); fetchTasks(); if (currentFolder) fetchSummary();
-        } catch (e) {
-            setErrors(e.response?.data?.errors ?? { message: 'Reassignment failed' })
-        } finally { setSaving(false) }
-    }
 
     const handleDelete = async () => {
         setSaving(true)
@@ -727,7 +719,6 @@ export default function TasksPage() {
                 { key: 'form_name', label: 'Sheet Name', isStatic: true },
                 { key: 'client_name', label: 'Client Name', isStatic: true },
                 { key: 'client_contact', label: 'Mobile', isStatic: true },
-                { key: 'assigned_to', label: 'Assigned To', isStatic: true },
                 { key: 'date_inward', label: 'Create Date', isStatic: true },
                 { key: 'status', label: 'Sheet Status', isStatic: true },
                 { key: 'task_particular', label: 'Task / Particular', isStatic: true },
@@ -770,7 +761,6 @@ export default function TasksPage() {
                 { id: 'client', label: 'Client' },
                 { id: 'mobile', label: 'Mobile' },
                 { id: 'work_type', label: 'Work Type' },
-                { id: 'assigned_to', label: 'Assigned To' },
                 { id: 'date_inward', label: 'Create Date' },
                 { id: 'status', label: 'Sheet Status' },
                 { id: 'task_particular', label: 'Task / Particular' },
@@ -794,7 +784,6 @@ export default function TasksPage() {
                 { header: 'Sheet ID', key: 'sheet_id' },
                 { header: 'Sheet Name', key: 'form_name' },
                 { header: 'Work Type', key: 'work_type' },
-                { header: 'Assigned To', key: 'assigned_to' },
                 { header: 'Create Date', key: 'date_allocated' },
                 { header: 'Client Name', key: 'client_name' },
                 { header: 'Phone Number', key: 'mobile' },
@@ -927,20 +916,51 @@ export default function TasksPage() {
         }
     };
 
+    const openDuplicateModal = (task) => {
+        setSelected(task);
+        setDuplicateSheetName(`${task.form_name} (Copy)`);
+        setDuplicateOpen(true);
+    };
+
     const handleDuplicate = async (withData) => {
+        setDuplicateOpen(false);
         setSaving(true);
         try {
             // Fetch FULL task details to get dynamic fields and subtasks
             const res = await api.get(`/ca/tasks/${selected.id}`);
             const fullTask = res.data.data;
 
-            // Prepare pre-filled data for TaskBuilder
-            const duplicateData = {
-                form_name: withData ? fullTask.form_name : '',
-                client_id: withData ? fullTask.client.id : '',
-                work_type_id: withData ? fullTask.work_type.id : '',
-                remarks: withData ? fullTask.remarks : '',
-                // If without data, we still keep the custom field structure (schema) but clear their values
+            const newName = duplicateSheetName;
+            const trimmedName = (newName || '').trim();
+            if (!trimmedName) {
+                toast.error("Sheet Name cannot be empty.");
+                setSaving(false);
+                return;
+            }
+
+            const payload = {
+                form_name: trimmedName,
+                client_id: withData ? (fullTask.client?.id || null) : null,
+                work_type_id: fullTask.work_type?.id || null,
+                date_inward: new Date().toISOString().split('T')[0],
+                allocated_to: withData ? (fullTask.allocated_to?.id || null) : null,
+                date_allocated: withData ? (fullTask.date_allocated || null) : null,
+                due_date: withData ? (fullTask.due_date || null) : null,
+                status: 'pending', // Always start new sheet as pending
+                remarks: withData ? (fullTask.remarks || '') : '',
+                task_particular: withData ? (fullTask.task_particular || '') : '',
+                sub_status: withData ? (fullTask.sub_status || '') : '',
+                feedback: withData ? (fullTask.feedback || '') : '',
+                entry_date: withData ? (fullTask.entry_date || null) : null,
+                allow_attachments: !!fullTask.allow_attachments,
+                allow_checklist: !!fullTask.allow_checklist,
+                allow_notes: !!fullTask.allow_notes,
+                permissions: (fullTask.permissions || []).map(p => ({
+                    role_id: Number(p.role_id),
+                    can_read: !!p.can_read,
+                    can_write: !!p.can_write,
+                    can_delete: !!p.can_delete
+                })),
                 dynamic_fields: withData ? fullTask.dynamic_fields : {
                     ...(fullTask.dynamic_fields || {}),
                     multi_rows: [],
@@ -954,17 +974,18 @@ export default function TasksPage() {
                     title: st.title,
                     assigned_to: withData ? st.assigned_to?.id : null,
                     priority: withData ? st.priority : 'medium',
-                    status: 'assigned', // Always reset status for new task
+                    status: 'pending', // Reset status for new task
                     due_date: withData ? st.due_date : null,
                     remarks: withData ? st.remarks : ''
                 }))
             };
 
-            setDuplicateOpen(false);
-            navigate('/ca/tasks/builder', { state: { duplicateData } });
+            await api.post('/ca/tasks', payload);
+            toast.success('Sheet duplicated successfully!');
+            fetchTasks();
         } catch (err) {
             console.error('Duplication Error:', err);
-            toast.error('Failed to load sheet details for duplication');
+            toast.error('Failed to duplicate sheet');
         } finally {
             setSaving(false);
         }
@@ -1219,16 +1240,7 @@ export default function TasksPage() {
 
             {currentFolder && (
                 <>
-                    {/* Summary Cards */}
-                    {summaryLoading ? (
-                        <div className="flex items-center justify-center py-6"><Spinner /></div>
-                    ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4 mb-2 animate-fade-in">
-                            {summaryCards.map((c, idx) => (
-                                <SummaryCard key={idx} {...c} />
-                            ))}
-                        </div>
-                    )}
+
 
                     {/* Small Sheet Cards Grid */}
                     {tasks && tasks.length > 0 && (
@@ -1298,9 +1310,6 @@ export default function TasksPage() {
                     // Fixed columns — show only the specified sheet management fields
                     const baseColumns = [
                         { id: 'form_name', label: 'Sheet Name' },
-                        { id: 'work_type', label: 'Work Type' },
-                        { id: 'date_inward', label: 'Create Date' },
-                        { id: 'status', label: 'Sheet Status' },
                         { id: 'remarks', label: 'Remark' },
                     ];
 
@@ -1440,15 +1449,6 @@ export default function TasksPage() {
                                             widthClass="min-w-[145px] lg:max-w-[150px] shrink-0"
                                         />
                                     )}
-                                    {allFields.length > 0 && (
-                                        <button
-                                            onClick={() => setShowColumnFilters(!showColumnFilters)}
-                                            className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold transition rounded-xl shadow-sm h-[38px] whitespace-nowrap border ${showColumnFilters ? 'bg-[#1F5C99] text-white border-[#1F5C99]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
-                                        >
-                                            <Sliders size={16} /> Column Filters {Object.values(dynamicFilters).filter(Boolean).length > 0 && `(${Object.values(dynamicFilters).filter(Boolean).length})`}
-                                        </button>
-                                    )}
-
                                     <button
                                         onClick={handleExport}
                                         disabled={saving}
@@ -1458,59 +1458,6 @@ export default function TasksPage() {
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Dynamic Column Filters Panel */}
-                            {showColumnFilters && allFields.length > 0 && (
-                                <div className="bg-slate-50 border-b border-gray-100 px-4 sm:px-6 py-4 flex flex-col gap-3">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-extrabold text-slate-800 tracking-wide flex items-center gap-2">
-                                            <Sliders size={15} className="text-[#1F5C99]" />
-                                            Scrollable Column Filters ({currentFolder === 'all' ? 'All Folders' : workTypes.find(wt => wt.id === currentFolder)?.name})
-                                        </h4>
-                                        {Object.values(dynamicFilters).filter(Boolean).length > 0 && (
-                                            <button
-                                                onClick={() => setDynamicFilters({})}
-                                                className="text-xs font-bold text-red-500 hover:text-red-700 transition"
-                                            >
-                                                Clear All Filters
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-4 overflow-x-auto pb-3 pt-1 px-1 no-scrollbar scroll-smooth">
-                                        {allFields.map(field => (
-                                            <div key={field.key} className="relative min-w-[200px] shrink-0 bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-[#1F5C99]/30 transition">
-                                                <Tooltip content={field.label} position="bottom">
-                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 truncate cursor-help">
-                                                        {field.label}
-                                                        {field.isStatic && <span className="ml-1.5 text-[9px] font-semibold text-[#1F5C99] bg-[#1F5C99]/5 px-1 py-0.5 rounded">System</span>}
-                                                    </label>
-                                                </Tooltip>
-                                                <div className="relative">
-                                                    <input
-                                                        type="text"
-                                                        placeholder={`Search ${field.label}...`}
-                                                        value={dynamicFilters[field.key] || ''}
-                                                        onChange={e => setDynamicFilters(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                                        className="w-full pl-3 pr-8 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
-                                                    />
-                                                    {dynamicFilters[field.key] && (
-                                                        <button
-                                                            onClick={() => setDynamicFilters(prev => {
-                                                                const copy = { ...prev };
-                                                                delete copy[field.key];
-                                                                return copy;
-                                                            })}
-                                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Table */}
                             <div className="overflow-x-auto">
@@ -1830,12 +1777,9 @@ export default function TasksPage() {
                                                                 <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all"><Pencil size={15} /></button>
                                                             </Tooltip>
                                                             <Tooltip content="Duplicate Sheet">
-                                                                <button onClick={() => { setSelected(t); setDuplicateOpen(true) }} className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all">
+                                                                <button onClick={() => openDuplicateModal(t)} className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all">
                                                                     <Copy size={15} />
                                                                 </button>
-                                                            </Tooltip>
-                                                            <Tooltip content="Reassign Staff">
-                                                                <button onClick={() => openReassign(t)} className="p-1.5 rounded-lg bg-violet-50/70 border border-violet-100/40 text-violet-600 hover:bg-violet-100 hover:text-violet-800 hover:scale-110 active:scale-95 transition-all"><UserRoundCog size={15} /></button>
                                                             </Tooltip>
                                                             <Tooltip content="Delete Sheet" position="left">
                                                                 <button onClick={() => { setSelected(t); setDeleteOpen(true) }} className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-650 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all"><Trash2 size={15} /></button>
@@ -1885,30 +1829,7 @@ export default function TasksPage() {
                 })()}
             </div>
 
-            {/* Reassign Modal */}
-            <Modal open={reassignOpen} onClose={() => setReassignOpen(false)} title="Reassign Sheet" width="max-w-sm">
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-500">Reassign <span className="font-semibold text-gray-700">{selected?.client?.name}</span> — {selected?.work_type?.name}</p>
-                    <div className="space-y-1">
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Assign To</label>
-                        <select value={form.allocated_to} onChange={e => setForm(f => ({ ...f, allocated_to: e.target.value }))}
-                            className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition">
-                            <option value="">Select staff</option>
-                            {(staff || [])
-                                .filter(s => s.is_active)
-                                .map(s => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name}
-                                    </option>
-                                ))}
-                        </select>
-                    </div>
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button onClick={() => setReassignOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-                        <button onClick={handleReassign} disabled={saving} className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition">{saving ? 'Saving...' : 'Reassign'}</button>
-                    </div>
-                </div>
-            </Modal>
+
 
 
             {/* Delete Confirm */}
@@ -1928,10 +1849,21 @@ export default function TasksPage() {
                         <div className="flex gap-3">
                             <div className="flex-1">
                                 <h3 className="text-sm font-bold text-emerald-900 mb-1">
-                                    Duplicate sheet for <span className="font-bold underline">{selected?.client?.name}</span>
+                                    Duplicate sheet: <span className="font-bold underline">{selected?.form_name}</span>
                                 </h3>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">New Sheet Name</label>
+                        <input
+                            type="text"
+                            value={duplicateSheetName}
+                            onChange={e => setDuplicateSheetName(e.target.value)}
+                            placeholder="Enter new sheet name..."
+                            className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-semibold"
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">

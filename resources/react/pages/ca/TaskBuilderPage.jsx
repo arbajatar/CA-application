@@ -691,19 +691,6 @@ export default function TaskBuilderPage() {
       section: 2
     },
     {
-      id: 'static_client_name',
-      type: 'dropdown',
-      icon: 'ChevronDown',
-      color: '#3b82f6',
-      label: 'Client',
-      placeholder: 'Select client (optional)',
-      options: [],
-      value: '',
-      required: false,
-      static: true,
-      section: 2
-    },
-    {
       id: 'static_ca_feedback',
       type: 'longtext',
       icon: 'AlignLeft',
@@ -1165,7 +1152,6 @@ export default function TaskBuilderPage() {
 
     const staticFields = {
       form_name: formSchema.find(f => f.id === 'static_form_name')?.value,
-      client_id: normalizeValue(formSchema.find(f => f.id === 'static_client_name')?.value),
       work_type_id: normalizeValue(formSchema.find(f => f.id === 'static_work_type')?.value),
       allocated_to: normalizeValue(formSchema.find(f => f.id === 'static_assignee')?.value),
       date_inward: normalizeValue(formSchema.find(f => f.id === 'static_created_date')?.value),
@@ -1398,9 +1384,6 @@ export default function TaskBuilderPage() {
         setClientGroups(groupsRes.data.data || []);
 
         setFormSchema(prev => prev.map(field => {
-          if (field.id === 'static_client_name') {
-            return { ...field, options: clientsRes.data.data.map(c => ({ value: c.id, label: c.name })) };
-          }
           if (field.id === 'static_work_type') {
             return { ...field, options: workTypesRes.data.data.map(w => ({ value: w.id, label: w.name })) };
           }
@@ -1439,7 +1422,6 @@ export default function TaskBuilderPage() {
             
             // Map the primary static values from data
             if (f.id === 'static_form_name') value = data.form_name || '';
-            else if (f.id === 'static_client_name') value = data.client_id || '';
             else if (f.id === 'static_work_type') value = data.work_type_id || '';
             else if (f.id === 'static_assignee') value = data.allocated_to || '';
             else if (f.id === 'static_remarks') value = data.remarks || '';
@@ -1469,7 +1451,6 @@ export default function TaskBuilderPage() {
 
         let updated = staticOnly.map(field => {
           if (field.id === 'static_form_name') return { ...field, value: data.form_name || '' };
-          if (field.id === 'static_client_name') return { ...field, value: data.client_id || '' };
           if (field.id === 'static_work_type') return { ...field, value: data.work_type_id || '' };
           if (field.id === 'static_assignee') return { ...field, value: data.allocated_to || '' };
           if (field.id === 'static_remarks') return { ...field, value: data.remarks || '' };

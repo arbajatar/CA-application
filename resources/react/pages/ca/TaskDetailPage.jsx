@@ -115,6 +115,24 @@ const IconMap = {
 
 
 
+const doesStaffMatchRow = (row, currentUser) => {
+    if (!currentUser) return false;
+    const type = row.allocated_type || 'user';
+    const val = row.allocated_to;
+
+    if (type === 'user') {
+        return String(val) === String(currentUser.id);
+    }
+    if (type === 'users') {
+        return Array.isArray(val) && val.map(String).includes(String(currentUser.id));
+    }
+    if (type === 'role') {
+        const userRoleIds = Array.isArray(currentUser.role_ids) ? currentUser.role_ids.map(String) : [];
+        return userRoleIds.includes(String(val));
+    }
+    return false;
+};
+
 export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const { user } = useAuth();
     const isAdmin = user?.role === 'ca';
@@ -176,6 +194,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [isEditingFeedbackInline, setIsEditingFeedbackInline] = useState(false);
     const [editingFeedbackIndex, setEditingFeedbackIndex] = useState(null);
     const [editingCheckboxes, setEditingCheckboxes] = useState({});
+
+    // Row Assignment Modal States
+    const [assigningRowIndex, setAssigningRowIndex] = useState(null);
+    const [assigningType, setAssigningType] = useState('user');
+    const [assigningTo, setAssigningTo] = useState('');
 
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
@@ -538,9 +561,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             };
 
             const payload = {
-                client_id: firstRow.client_id || task.client?.id || null,
-                work_type_id: firstRow.work_type_id || task.work_type?.id || null,
-                allocated_to: firstRow.allocated_to || task.allocated_to?.id || null,
+                client_id: (task.client && typeof task.client === 'object') ? task.client.id : (task.client_id ? Number(task.client_id) : null),
+                work_type_id: (task.work_type && typeof task.work_type === 'object') ? task.work_type.id : (task.work_type_id ? Number(task.work_type_id) : null),
+                allocated_to: (task.allocated_to && typeof task.allocated_to === 'object') ? task.allocated_to.id : (task.allocated_to ? Number(task.allocated_to) : null),
                 date_allocated: firstRow.date_allocated || task.date_allocated || null,
                 form_name: firstRow.form_name || task.form_name || '',
                 status: task.status,
@@ -1036,6 +1059,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 path: res.data.path
             });
             setRows(newRows);
+            if (viewingRowIndex === rowIndex) {
+                setNewTaskData(prev => ({
+                    ...prev,
+                    attachments: newRows[rowIndex].attachments
+                }));
+            }
             await handleSaveRows(newRows);
 
             setAttachmentsModal(prev => {
@@ -1075,6 +1104,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         newRows[rowIndex].attachments = newRows[rowIndex].attachments.filter(att => att.path !== filePath);
                     }
                     setRows(newRows);
+                    if (viewingRowIndex === rowIndex) {
+                        setNewTaskData(prev => ({
+                            ...prev,
+                            attachments: newRows[rowIndex].attachments || []
+                        }));
+                    }
                     await handleSaveRows(newRows);
 
                     setAttachmentsModal(prev => {
@@ -2279,7 +2314,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     const isRowLocked = !isAdmin && (
                                         row.is_verified || 
                                         !canWrite || 
-                                        (isStaff && String(row.allocated_to) !== String(user.id))
+                                        (isStaff && !doesStaffMatchRow(row, user))
                                     );
 
                                     const isRowEditable = !isRowLocked && !!editingRows[originalIndex];
@@ -2373,22 +2408,23 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 }
 
                                                 if (col.id === 'assigned_to') {
+                                                    const allocType = row.allocated_type || 'user';
+                                                    let displayVal = 'Unassigned';
+                                                    if (allocType === 'user' && row.allocated_to) {
+                                                        const sMember = staff.find(s => String(s.id) === String(row.allocated_to));
+                                                        displayVal = sMember ? sMember.name : 'Unassigned';
+                                                    } else if (allocType === 'users' && Array.isArray(row.allocated_to)) {
+                                                        const names = row.allocated_to
+                                                            .map(id => staff.find(s => String(s.id) === String(id))?.name)
+                                                            .filter(Boolean);
+                                                        displayVal = names.length > 0 ? names.join(', ') : 'Unassigned';
+                                                    } else if (allocType === 'role' && row.allocated_to) {
+                                                        const roleObj = availableRoles.find(r => String(r.id) === String(row.allocated_to));
+                                                        displayVal = roleObj ? `Dept: ${roleObj.name}` : 'Unassigned';
+                                                    }
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
-                                                            <select
-                                                                disabled={!isRowEditable}
-                                                                value={row.allocated_to || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].allocated_to = val || null;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            >
-                                                                <option value="">— Select Assigned To —</option>
-                                                                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                            </select>
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 text-xs font-bold text-slate-700">
+                                                            {displayVal}
                                                         </td>
                                                     );
                                                 }
@@ -2508,7 +2544,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     <Eye size={12} />
                                                                     <span>{(row.attachments || []).length} Files</span>
                                                                 </button>
-                                                                {!isRowLocked && isRowEditable && (
+                                                                {!isRowLocked && (
                                                                     <label className="inline-flex items-center justify-center p-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-slate-500 hover:text-indigo-655 transition cursor-pointer" title="Upload multiple files">
                                                                         <Plus size={12} />
                                                                         <input
@@ -3063,6 +3099,22 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     >
                                                         <Eye size={14} />
                                                     </button>
+
+                                                    {/* Assign button */}
+                                                    {!isRowLocked && isAdmin && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAssigningRowIndex(originalIndex);
+                                                                setAssigningType(row.allocated_type || 'user');
+                                                                setAssigningTo(row.allocated_to || (row.allocated_type === 'users' ? [] : ''));
+                                                            }}
+                                                            className="p-1.5 bg-blue-50/50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                            title="Assign Row to Staff"
+                                                        >
+                                                            <UserPlus size={14} />
+                                                        </button>
+                                                    )}
 
                                                     {/* Edit / Submit toggle button */}
                                                     {!isRowLocked && (
@@ -3926,6 +3978,140 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 danger={confirmState.danger}
                 loading={confirmState.loading}
             />
+
+            {/* Assign Staff Modal */}
+            {assigningRowIndex !== null && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-md overflow-hidden transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95 duration-200">
+                        {/* Header */}
+                        <div className="px-6 py-5 bg-gradient-to-r from-indigo-50/50 to-slate-50 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Assign Row Task</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Row #{assigningRowIndex + 1} — {rows[assigningRowIndex]?.form_name || 'Untitled'}</p>
+                            </div>
+                            <button
+                                onClick={() => setAssigningRowIndex(null)}
+                                className="p-1.5 hover:bg-slate-200/60 text-slate-400 hover:text-slate-600 rounded-xl transition duration-150 active:scale-95 cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-6 space-y-5">
+                            {/* Type Selector */}
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Assignment Mode</label>
+                                <select
+                                    value={assigningType}
+                                    onChange={(e) => {
+                                        const type = e.target.value;
+                                        setAssigningType(type);
+                                        setAssigningTo(type === 'users' ? [] : '');
+                                    }}
+                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 transition focus:outline-none cursor-pointer w-full"
+                                >
+                                    <option value="user">Single Staff Member</option>
+                                    <option value="users">Multiple Staff Members</option>
+                                    <option value="role">Department (Role)</option>
+                                </select>
+                            </div>
+
+                            {/* Single User Selector */}
+                            {assigningType === 'user' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Staff Member</label>
+                                    <select
+                                        value={assigningTo || ''}
+                                        onChange={(e) => setAssigningTo(e.target.value)}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 transition focus:outline-none cursor-pointer w-full"
+                                    >
+                                        <option value="">— Select Staff —</option>
+                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Multiple Users Selector */}
+                            {assigningType === 'users' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Staff Members</label>
+                                    <div className="border border-slate-200 rounded-2xl p-3 max-h-[160px] overflow-y-auto bg-slate-50 space-y-1.5">
+                                        {staff.map(s => {
+                                            const currentList = Array.isArray(assigningTo) ? assigningTo : [];
+                                            const isChecked = currentList.map(String).includes(String(s.id));
+                                            return (
+                                                <label key={s.id} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-100/80 p-1.5 rounded-xl transition">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            let list = [...currentList];
+                                                            if (checked) {
+                                                                if (!list.map(String).includes(String(s.id))) {
+                                                                    list.push(s.id);
+                                                                }
+                                                            } else {
+                                                                list = list.filter(id => String(id) !== String(s.id));
+                                                            }
+                                                            setAssigningTo(list);
+                                                        }}
+                                                        className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                                                    />
+                                                    <span>{s.name}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Department/Role Selector */}
+                            {assigningType === 'role' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Department</label>
+                                    <select
+                                        value={assigningTo || ''}
+                                        onChange={(e) => setAssigningTo(e.target.value)}
+                                        className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 transition focus:outline-none cursor-pointer w-full"
+                                    >
+                                        <option value="">— Select Department —</option>
+                                        {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setAssigningRowIndex(null)}
+                                className="px-4 py-2 border border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-700 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const newRows = [...rows];
+                                    newRows[assigningRowIndex].allocated_type = assigningType;
+                                    newRows[assigningRowIndex].allocated_to = assigningTo;
+                                    newRows[assigningRowIndex].date_allocated = new Date().toISOString().split('T')[0];
+                                    setRows(newRows);
+                                    setAssigningRowIndex(null);
+                                    await handleSaveRows(newRows, 'Row allocation updated successfully');
+                                }}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer shadow-md shadow-indigo-100 hover:shadow-lg"
+                            >
+                                Save Assignment
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <AddTaskModal
                 isOpen={isAddTaskModalOpen}
                 onClose={() => setIsAddTaskModalOpen(false)}
@@ -3938,6 +4124,66 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 isViewMode={viewingRowIndex !== null}
                 isEditable={modalEditable}
                 setIsEditable={setModalEditable}
+                isAdmin={isAdmin}
+                isStaff={isStaff}
+                task={task}
+                canEdit={viewingRowIndex !== null ? !(!isAdmin && (
+                    rows[viewingRowIndex]?.is_verified || 
+                    !canWrite || 
+                    (isStaff && !doesStaffMatchRow(rows[viewingRowIndex], user))
+                )) : true}
+                onUploadAttachment={async (fileList) => {
+                    if (viewingRowIndex !== null) {
+                        await handleUploadMultipleRowAttachments(viewingRowIndex, fileList);
+                        setNewTaskData(prev => ({
+                            ...prev,
+                            attachments: rows[viewingRowIndex]?.attachments || []
+                        }));
+                    }
+                }}
+                onDeleteAttachment={async (idx, filePath) => {
+                    if (viewingRowIndex !== null) {
+                        await handleDeleteRowAttachment(viewingRowIndex, filePath);
+                        setNewTaskData(prev => ({
+                            ...prev,
+                            attachments: rows[viewingRowIndex]?.attachments?.filter(att => att.path !== filePath) || []
+                        }));
+                    }
+                }}
+                onToggleVerification={async () => {
+                    if (viewingRowIndex !== null) {
+                        const targetRow = rows[viewingRowIndex];
+                        const nextVerified = !targetRow?.is_verified;
+                        
+                        setConfirmState({
+                            open: true,
+                            title: nextVerified ? 'Verify & Lock Row' : 'Unverify & Unlock Row',
+                            message: nextVerified 
+                                ? 'Are you sure you want to verify and lock this sheet row? Once verified, staff members cannot modify its details.'
+                                : 'Are you sure you want to unverify and unlock this sheet row? This will allow the assigned staff member to edit it again.',
+                            confirmLabel: nextVerified ? 'Verify & Lock' : 'Unverify & Unlock',
+                            danger: !nextVerified,
+                            onConfirm: async () => {
+                                setConfirmState(prev => ({ ...prev, loading: true }));
+                                try {
+                                    const newRows = [...rows];
+                                    newRows[viewingRowIndex].is_verified = nextVerified;
+                                    setRows(newRows);
+                                    await handleSaveRows(newRows);
+                                    setNewTaskData(prev => ({
+                                        ...prev,
+                                        is_verified: nextVerified
+                                    }));
+                                    toast.success(nextVerified ? "Row verified and locked successfully!" : "Row unverified and unlocked successfully!");
+                                } catch (err) {
+                                    toast.error(nextVerified ? "Failed to verify row" : "Failed to unverify row");
+                                } finally {
+                                    setConfirmState({ open: false });
+                                }
+                            }
+                        });
+                    }
+                }}
                 onSave={(newRow) => {
                     if (viewingRowIndex !== null) {
                         const updatedRows = [...rows];

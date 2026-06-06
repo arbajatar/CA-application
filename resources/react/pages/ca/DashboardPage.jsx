@@ -459,7 +459,7 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
 
             {selectedSheetId && (
                 <div className="animate-fade-in">
-                    <TaskDetailPage id={selectedSheetId} hideBackHeader={true} />
+                    <TaskDetailPage id={selectedSheetId} hideBackHeader={false} />
                 </div>
             )}
         </div>
@@ -988,7 +988,7 @@ function CalendarView() {
 
                                     return (
                                         <>
-                                            <tr key={t.id} className="hover:bg-gray-50/50 transition">
+                                            <tr key={t.unique_id || t.id} className="hover:bg-gray-50/50 transition">
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-700">
                                                     <div className="flex items-center gap-2">
@@ -1594,7 +1594,7 @@ export default function DashboardPage() {
                                         {tasks?.length === 0 ? (
                                             <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
-                                            <tr key={t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                                            <tr key={t.unique_id || t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
                                                 <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>

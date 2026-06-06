@@ -14,7 +14,6 @@ class StoreTaskRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id' => ['nullable', 'exists:clients,id'],
             'work_type_id' => ['nullable', 'exists:work_types,id'],
             'form_name' => ['required', 'string'],
             'date_inward' => ['nullable', 'date'],

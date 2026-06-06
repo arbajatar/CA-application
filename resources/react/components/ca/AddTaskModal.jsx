@@ -15,11 +15,18 @@ export default function AddTaskModal({
     onSave,
     isViewMode = false,
     isEditable = false,
-    setIsEditable
+    setIsEditable,
+    canEdit = true,
+    isAdmin = false,
+    isStaff = false,
+    task = null,
+    onUploadAttachment,
+    onDeleteAttachment,
+    onToggleVerification
 }) {
     if (!isOpen) return null;
 
-    const isCurrentlyEditable = !isViewMode || isEditable;
+    const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -45,8 +52,12 @@ export default function AddTaskModal({
                 <div className="p-6 overflow-y-auto flex-1 bg-white">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {allFields.map(field => {
-                            const isFullWidth = ['client_id', 'remarks', 'form_name', 'task_particular', 'feedback'].includes(field.key) || 
+                            if (field.key === 'allocated_to') return null;
+                            const isFullWidth = ['client_id', 'remarks', 'form_name', 'task_particular', 'feedback', 'attachments', 'is_verified'].includes(field.key) || 
                                                (field.label && (field.label.toLowerCase().includes('remarks') || field.label.toLowerCase().includes('name') || field.label.toLowerCase().includes('text') || field.label.toLowerCase().includes('particular')));
+                            const isDate = field.type === 'date' || field.key === 'date_allocated';
+                            const isTime = field.type === 'time';
+                            
                             return (
                                 <div key={field.key} className={`space-y-1.5 ${isFullWidth ? 'md:col-span-2' : ''}`}>
                                     <label className="text-xs font-bold text-slate-700">{field.label}</label>
@@ -69,16 +80,6 @@ export default function AddTaskModal({
                                         >
                                             <option value="">— Select Work Type —</option>
                                             {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                        </select>
-                                    ) : field.key === 'allocated_to' ? (
-                                        <select
-                                            value={newTaskData.allocated_to || ''}
-                                            onChange={(e) => setNewTaskData({...newTaskData, allocated_to: e.target.value})}
-                                            disabled={!isCurrentlyEditable}
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                                        >
-                                            <option value="">— Select Assigned To —</option>
-                                            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                         </select>
                                     ) : field.key === 'status' ? (
                                         <select
@@ -107,11 +108,42 @@ export default function AddTaskModal({
                                                 <option key={opt} value={opt}>{opt}</option>
                                             ))}
                                         </select>
-                                    ) : field.key === 'date_allocated' ? (
+                                    ) : isDate ? (
                                         <input
                                             type="date"
-                                            value={newTaskData.date_allocated || ''}
-                                            onChange={(e) => setNewTaskData({...newTaskData, date_allocated: e.target.value})}
+                                            value={
+                                                field.isStatic 
+                                                ? (newTaskData[field.key] || '') 
+                                                : (newTaskData.dynamic_data?.[field.key] || '')
+                                            }
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (field.isStatic) {
+                                                    setNewTaskData({ ...newTaskData, [field.key]: val });
+                                                } else {
+                                                    setNewTaskData({
+                                                        ...newTaskData,
+                                                        dynamic_data: {
+                                                            ...(newTaskData.dynamic_data || {}),
+                                                            [field.key]: val
+                                                        }
+                                                    });
+                                                }
+                                            }}
+                                            disabled={!isCurrentlyEditable}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        />
+                                    ) : isTime ? (
+                                        <input
+                                            type="time"
+                                            value={newTaskData.dynamic_data?.[field.key] || ''}
+                                            onChange={(e) => setNewTaskData({
+                                                ...newTaskData,
+                                                dynamic_data: {
+                                                    ...(newTaskData.dynamic_data || {}),
+                                                    [field.key]: e.target.value
+                                                }
+                                            })}
                                             disabled={!isCurrentlyEditable}
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
@@ -124,6 +156,83 @@ export default function AddTaskModal({
                                             placeholder="Sheet Name..."
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
+                                    ) : field.key === 'attachments' ? (
+                                        <div className="space-y-2 border border-slate-100 p-4 rounded-2xl bg-slate-50/50">
+                                            {(!newTaskData.attachments || newTaskData.attachments.length === 0) ? (
+                                                <p className="text-xs text-slate-400 italic">No attachments uploaded</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                                                    {newTaskData.attachments.map((file, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/60 shadow-sm gap-2">
+                                                            <span className="text-xs font-bold text-slate-700 truncate flex-1" title={file.name}>{file.name}</span>
+                                                            <div className="flex items-center gap-1">
+                                                                <a href={file.url} download={file.name} target="_blank" rel="noopener noreferrer" className="p-1.5 text-indigo-650 hover:bg-indigo-50 rounded-lg transition" title="Download">
+                                                                    <Plus size={12} className="rotate-45 text-indigo-600" />
+                                                                </a>
+                                                                {isCurrentlyEditable && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => onDeleteAttachment && onDeleteAttachment(idx, file.path)}
+                                                                        className="p-1.5 text-rose-650 hover:bg-rose-50 rounded-lg transition"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <X size={12} className="text-rose-600" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {isCurrentlyEditable && (
+                                                <label className="flex items-center justify-center gap-2 p-2 bg-white hover:bg-slate-50 border border-dashed border-slate-300 hover:border-indigo-500 rounded-xl text-xs font-bold text-slate-655 hover:text-indigo-650 cursor-pointer transition shadow-sm">
+                                                    <Plus size={14} />
+                                                    <span>Upload Attachment</span>
+                                                    <input
+                                                        type="file"
+                                                        multiple
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            if (e.target.files.length > 0 && onUploadAttachment) {
+                                                                onUploadAttachment(e.target.files);
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+                                    ) : field.key === 'is_verified' ? (
+                                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-150">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-750 uppercase tracking-tight">Verification Status</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+                                                    {newTaskData.is_verified ? 'Verified & Locked' : 'Unlocked'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                {isAdmin ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onToggleVerification && onToggleVerification()}
+                                                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                                                            newTaskData.is_verified 
+                                                                ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100' 
+                                                                : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                                                        }`}
+                                                    >
+                                                        {newTaskData.is_verified ? 'Unverify & Unlock' : 'Verify & Lock'}
+                                                    </button>
+                                                ) : (
+                                                    <span className={`px-3 py-1.5 text-xs font-bold rounded-xl border select-none ${
+                                                        newTaskData.is_verified 
+                                                            ? 'bg-rose-50 border-rose-200 text-rose-600' 
+                                                            : 'bg-green-50 border-green-200 text-green-700'
+                                                    }`}>
+                                                        {newTaskData.is_verified ? 'Locked' : 'Unlocked'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     ) : field.type === 'checkbox' ? (
                                         field.options && field.options.length > 0 ? (
                                             <div className="flex flex-col gap-2 mt-2">
@@ -153,7 +262,7 @@ export default function AddTaskModal({
                                                                 }}
                                                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 disabled:opacity-60 disabled:cursor-not-allowed"
                                                             />
-                                                            <span className="text-sm text-slate-700 font-medium">{optLabel}</span>
+                                                            <span className="text-sm text-slate-705 font-medium">{optLabel}</span>
                                                         </label>
                                                     );
                                                 })}
@@ -231,6 +340,58 @@ export default function AddTaskModal({
                                                 return <option key={i} value={optVal}>{optLabel}</option>;
                                             })}
                                         </select>
+                                    ) : field.type === 'progress_auto' ? (
+                                        <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50/50 border border-slate-100">
+                                            {(() => {
+                                                const totalSub = task?.sub_tasks?.length || 0;
+                                                const completeSub = task?.sub_tasks?.filter(st => st.status === 'complete').length || 0;
+                                                const pct = totalSub > 0 ? Math.round((completeSub / totalSub) * 100) : 0;
+                                                return (
+                                                    <>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto Progress</span>
+                                                            <span className="text-xs font-black text-indigo-650">{pct}%</span>
+                                                        </div>
+                                                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                                                        </div>
+                                                        <p className="text-[9px] text-slate-400 font-bold">{completeSub}/{totalSub} Checklist Tasks Complete</p>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    ) : field.type === 'progress_manual' ? (
+                                        <div className="space-y-2 p-3 rounded-2xl bg-slate-50/50 border border-slate-150">
+                                            {(() => {
+                                                const value = newTaskData.dynamic_data?.[field.key] ?? '0';
+                                                const parsedVal = Math.min(100, Math.max(0, parseInt(value) || 0));
+                                                return (
+                                                    <>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Manual Progress</span>
+                                                            <span className="text-xs font-black text-indigo-650">{parsedVal}%</span>
+                                                        </div>
+                                                        <input
+                                                            type="range"
+                                                            min="0"
+                                                            max="100"
+                                                            value={parsedVal}
+                                                            disabled={!isCurrentlyEditable}
+                                                            onChange={(e) => {
+                                                                setNewTaskData({
+                                                                    ...newTaskData,
+                                                                    dynamic_data: {
+                                                                        ...(newTaskData.dynamic_data || {}),
+                                                                        [field.key]: e.target.value
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-50"
+                                                        />
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
                                     ) : (
                                         <input
                                             type="text"
@@ -253,11 +414,11 @@ export default function AddTaskModal({
                 <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
+                        className="px-5 py-2.5 text-sm font-bold text-slate-650 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors"
                     >
                         {isViewMode && !isEditable ? 'Close' : 'Cancel'}
                     </button>
-                    {isViewMode && !isEditable ? (
+                    {isViewMode && !isEditable && canEdit ? (
                         <button
                             type="button"
                             onClick={() => setIsEditable(true)}
@@ -265,7 +426,7 @@ export default function AddTaskModal({
                         >
                             <Edit2 size={16} /> Edit Information
                         </button>
-                    ) : (
+                    ) : isViewMode && !isEditable ? null : (
                         <button
                             onClick={() => {
                                 if (!newTaskData.form_name) {
