@@ -2652,7 +2652,7 @@ export default function TeamReportPage() {
                         {/* PAN Number */}
                         <div>
                             <div className="flex items-center justify-between mb-1">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">PAN No *</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 !mb-0">PAN No</label>
                                 {newClientForm.pan_no && (
                                     <button
                                         type="button"
@@ -2671,7 +2671,6 @@ export default function TeamReportPage() {
                                     onChange={e => setNewClientForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
                                     placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)"
                                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold text-slate-700 placeholder-slate-400 uppercase pr-8"
-                                    required
                                 />
                                 {panStatus && (
                                     <div className="absolute right-2 top-1/2 -translate-y-1/2">

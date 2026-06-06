@@ -20,12 +20,13 @@ class StoreClientRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'name_as_per_pan' => ['nullable', 'string', 'max:255'],
             'pan_no' => [
-                'required',
+                'nullable',
                 'string',
                 'size:10',
                 'regex:/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i',
                 Rule::unique('clients', 'pan_no'),
                 function ($attribute, $value, $fail) {
+                    if (empty($value)) return;
                     $type = request()->input('type');
                     if (!$type) return;
 

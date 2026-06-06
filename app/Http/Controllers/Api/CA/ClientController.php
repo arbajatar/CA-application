@@ -154,14 +154,14 @@ class ClientController extends Controller
         $request->validate([
             'clients' => 'required|array',
             'clients.*.name' => 'required|string|max:255',
-            'clients.*.pan_no' => 'required|string|max:10',
+            'clients.*.pan_no' => 'nullable|string|max:10',
             'clients.*.type' => 'required|string|max:255',
             'clients.*.group' => 'required|string|max:255',
         ]);
 
         $imported = 0;
         foreach ($request->input('clients') as $c) {
-            $pan = strtoupper($c['pan_no']);
+            $pan = !empty($c['pan_no']) ? strtoupper($c['pan_no']) : null;
             
             // Extract the credentials, merging with defaults
             $credentials = $c['credentials'] ?? [
@@ -169,27 +169,34 @@ class ClientController extends Controller
                 'ais_tis_password' => ''
             ];
 
-            // Use updateOrCreate to either create a new client or update existing one matching the PAN
-            Client::updateOrCreate(
-                ['pan_no' => $pan], // Match by PAN
-                [
-                    'name' => $c['name'],
-                    'name_as_per_pan' => $c['name_as_per_pan'] ?? null,
-                    'type' => $c['type'],
-                    'group' => $c['group'],
-                    'contact' => $c['contact'] ?? null,
-                    'alternative_contact' => $c['alternative_contact'] ?? null,
-                    'email' => $c['email'] ?? null,
-                    'reference_no' => $c['reference_no'] ?? null,
-                    'dob' => !empty($c['dob']) ? $c['dob'] : null,
-                    'city' => $c['city'] ?? null,
-                    'pin_code' => $c['pin_code'] ?? null,
-                    'state' => $c['state'] ?? null,
-                    'gst_number' => $c['gst_number'] ?? null,
-                    'status' => 'active',
-                    'credentials' => $credentials
-                ]
-            );
+            $data = [
+                'name' => $c['name'],
+                'name_as_per_pan' => $c['name_as_per_pan'] ?? null,
+                'type' => $c['type'],
+                'group' => $c['group'],
+                'contact' => $c['contact'] ?? null,
+                'alternative_contact' => $c['alternative_contact'] ?? null,
+                'email' => $c['email'] ?? null,
+                'reference_no' => $c['reference_no'] ?? null,
+                'dob' => !empty($c['dob']) ? $c['dob'] : null,
+                'city' => $c['city'] ?? null,
+                'pin_code' => $c['pin_code'] ?? null,
+                'state' => $c['state'] ?? null,
+                'gst_number' => $c['gst_number'] ?? null,
+                'status' => 'active',
+                'credentials' => $credentials
+            ];
+
+            if ($pan) {
+                // Use updateOrCreate to either create a new client or update existing one matching the PAN
+                Client::updateOrCreate(
+                    ['pan_no' => $pan], // Match by PAN
+                    $data
+                );
+            } else {
+                // If there's no PAN, we create a new client directly
+                Client::create($data);
+            }
             $imported++;
         }
 

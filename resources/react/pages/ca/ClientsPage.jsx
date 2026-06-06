@@ -219,7 +219,7 @@ export default function ClientsPage() {
         try {
             const payload = {
                 ...form,
-                pan_no: form.pan_no.toUpperCase() // Save always capitalized
+                pan_no: (form.pan_no || '').toUpperCase() // Save always capitalized
             }
             if (editOpen) {
                 await api.put(`/ca/clients/${selected.id}`, payload)
@@ -615,15 +615,15 @@ export default function ClientsPage() {
                     const rows = []
                     for (let i = headerRowIndex + 1; i < json.length; i++) {
                         const rowData = json[i]
-                        if (rowData.length === 0 || !rowData[idxName] || !rowData[idxPan]) {
+                        if (rowData.length === 0 || !rowData[idxName]) {
                             continue // Skip completely empty rows
                         }
 
-                        const rawPan = String(rowData[idxPan] || '').trim().toUpperCase()
+                        const rawPan = idxPan !== -1 ? String(rowData[idxPan] || '').trim().toUpperCase() : ''
                         const rawType = String(rowData[idxType] || '').trim()
                         const rawDob = String(rowData[idxDob] || '').trim()
 
-                        const isUpdate = existingPans.has(rawPan)
+                        const isUpdate = rawPan ? existingPans.has(rawPan) : false
 
                         // Parse date properly from excel serial or string formats
                         let dobStr = ''
@@ -657,14 +657,16 @@ export default function ClientsPage() {
                         // Local validation check
                         let validationError = ''
                         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-                        if (!panRegex.test(rawPan)) {
-                            validationError = 'Invalid general PAN format.'
-                        } else {
-                            const typeOption = types.find(t => t.name.toLowerCase() === rawType.toLowerCase())
-                            if (typeOption && typeOption.pan_char) {
-                                const expectedChar = typeOption.pan_char.toUpperCase()
-                                if (rawPan.charAt(3) !== expectedChar) {
-                                    validationError = `PAN character 4 must be "${expectedChar}" for type "${rawType}".`
+                        if (rawPan) {
+                            if (!panRegex.test(rawPan)) {
+                                validationError = 'Invalid general PAN format.'
+                            } else {
+                                const typeOption = types.find(t => t.name.toLowerCase() === rawType.toLowerCase())
+                                if (typeOption && typeOption.pan_char) {
+                                    const expectedChar = typeOption.pan_char.toUpperCase()
+                                    if (rawPan.charAt(3) !== expectedChar) {
+                                        validationError = `PAN character 4 must be "${expectedChar}" for type "${rawType}".`
+                                    }
                                 }
                             }
                         }
@@ -778,16 +780,16 @@ export default function ClientsPage() {
             // Re-run validation
             let validationError = ''
             const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-            if (!row.pan_no) {
-                validationError = 'PAN No is required.'
-            } else if (!panRegex.test(row.pan_no)) {
-                validationError = 'Invalid general PAN format.'
-            } else {
-                const typeOption = types.find(t => t.name.toLowerCase() === (row.type || '').toLowerCase())
-                if (typeOption && typeOption.pan_char) {
-                    const expectedChar = typeOption.pan_char.toUpperCase()
-                    if (row.pan_no.charAt(3) !== expectedChar) {
-                        validationError = `PAN character 4 must be "${expectedChar}" for type "${row.type}".`
+            if (row.pan_no) {
+                if (!panRegex.test(row.pan_no)) {
+                    validationError = 'Invalid general PAN format.'
+                } else {
+                    const typeOption = types.find(t => t.name.toLowerCase() === (row.type || '').toLowerCase())
+                    if (typeOption && typeOption.pan_char) {
+                        const expectedChar = typeOption.pan_char.toUpperCase()
+                        if (row.pan_no.charAt(3) !== expectedChar) {
+                            validationError = `PAN character 4 must be "${expectedChar}" for type "${row.type}".`
+                        }
                     }
                 }
             }
@@ -828,7 +830,7 @@ export default function ClientsPage() {
             }
 
             // Re-evaluate database duplication check (now update check)
-            row.isUpdate = existingPansRef.current ? existingPansRef.current.has(row.pan_no) : false
+            row.isUpdate = (row.pan_no && existingPansRef.current) ? existingPansRef.current.has(row.pan_no) : false
 
             updated[idx] = row
             return updated
@@ -946,7 +948,7 @@ export default function ClientsPage() {
                 {/* PAN Number with Validation Indicator */}
                 <div>
                     <div className="flex items-center justify-between mb-1">
-                        <label className={labelCls + " !mb-0"}>PAN No *</label>
+                        <label className={labelCls + " !mb-0"}>PAN No</label>
                         {form.pan_no && (
                             <button
                                 type="button"

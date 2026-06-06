@@ -1314,7 +1314,7 @@ export default function TaskBuilderPage() {
     try {
       const payload = {
         ...clientForm,
-        pan_no: clientForm.pan_no.toUpperCase() // Save always capitalized
+        pan_no: (clientForm.pan_no || '').toUpperCase() // Save always capitalized
       };
       const res = await api.post('/ca/clients', payload);
       setAddClientOpen(false);
@@ -2296,7 +2296,7 @@ export default function TaskBuilderPage() {
             {/* PAN Number with Validation Indicator */}
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">PAN No *</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block !mb-0">PAN No</label>
                 {clientForm.pan_no && (
                   <button
                     type="button"

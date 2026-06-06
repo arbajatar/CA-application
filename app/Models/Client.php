@@ -39,6 +39,11 @@ class Client extends Model
         ];
     }
 
+    public function setPanNoAttribute($value)
+    {
+        $this->attributes['pan_no'] = !empty($value) ? strtoupper($value) : null;
+    }
+
     public function tasks()
     {
         return $this->hasMany(Task::class);
