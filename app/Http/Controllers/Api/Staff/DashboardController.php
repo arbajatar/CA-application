@@ -225,24 +225,42 @@ class DashboardController extends Controller
                 }
 
                 // Resolve Client and Work Type
-                $clientObj = $clientId ? $clients->get($clientId) : null;
-                $workTypeObj = $workTypeId ? $workTypes->get($workTypeId) : null;
+                $clientObj = ($clientId && is_scalar($clientId)) ? $clients->get($clientId) : null;
+                $workTypeObj = ($workTypeId && is_scalar($workTypeId)) ? $workTypes->get($workTypeId) : null;
+
+                // If data is array but type is user, treat it as users
+                if ($allocType === 'user' && is_array($allocatedToVal)) {
+                    $allocType = 'users';
+                }
 
                 // Resolve Assigned Name
                 $allocatedName = 'Unassigned';
-                if ($allocType === 'user' && $allocatedToVal) {
+                if ($allocType === 'user' && $allocatedToVal && is_scalar($allocatedToVal)) {
                     $uObj = $users->get($allocatedToVal);
                     $allocatedName = $uObj ? $uObj->name : 'Unassigned';
                 } elseif ($allocType === 'users' && is_array($allocatedToVal)) {
                     $names = [];
                     foreach ($allocatedToVal as $uid) {
-                        $uObj = $users->get($uid);
-                        if ($uObj) $names[] = $uObj->name;
+                        if (is_scalar($uid)) {
+                            $uObj = $users->get($uid);
+                            if ($uObj) $names[] = $uObj->name;
+                        }
                     }
                     $allocatedName = !empty($names) ? implode(', ', $names) : 'Unassigned';
                 } elseif ($allocType === 'role' && $allocatedToVal) {
-                    $rObj = $roles->get($allocatedToVal);
-                    $allocatedName = $rObj ? 'Dept: ' . $rObj->name : 'Unassigned';
+                    if (is_array($allocatedToVal)) {
+                        $names = [];
+                        foreach ($allocatedToVal as $rid) {
+                            if (is_scalar($rid)) {
+                                $rObj = $roles->get($rid);
+                                if ($rObj) $names[] = 'Dept: ' . $rObj->name;
+                            }
+                        }
+                        $allocatedName = !empty($names) ? implode(', ', $names) : 'Unassigned';
+                    } else if (is_scalar($allocatedToVal)) {
+                        $rObj = $roles->get($allocatedToVal);
+                        $allocatedName = $rObj ? 'Dept: ' . $rObj->name : 'Unassigned';
+                    }
                 }
 
                 // Apply Search

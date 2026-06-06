@@ -20,7 +20,13 @@ class TaskController extends Controller
         $type = $row['allocated_type'] ?? 'user';
         $val = $row['allocated_to'] ?? null;
 
+        // If data is array but type is user, treat it as users
+        if (is_array($val) && $type === 'user') {
+            $type = 'users';
+        }
+
         if ($type === 'user') {
+            if (is_array($val)) return false; // Fallback just in case
             return (string)$val === (string)$user->id;
         }
         if ($type === 'users') {
@@ -28,6 +34,9 @@ class TaskController extends Controller
         }
         if ($type === 'role') {
             $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            if (is_array($val)) {
+                return count(array_intersect(array_map('strval', $roleIds), array_map('strval', $val))) > 0;
+            }
             return in_array((string)$val, array_map('strval', $roleIds));
         }
         return false;
