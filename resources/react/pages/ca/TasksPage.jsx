@@ -10,6 +10,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
 import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
+import { exportToExcel } from '../../utils/excelExport'
 
 
 const EMPTY_FORM = {
@@ -682,7 +683,6 @@ export default function TasksPage() {
     const handleExport = async () => {
         setSaving(true);
         try {
-            const ExcelJS = await import('exceljs');
             const res = await api.get('/ca/tasks', {
                 params: {
                     search,
@@ -700,9 +700,6 @@ export default function TasksPage() {
                 toast.error('No tasks found to export');
                 return;
             }
-
-            const workbook = new ExcelJS.Workbook();
-            const worksheet = workbook.addWorksheet('Sheet Export');
 
             // 1. Identify dynamic headers
             const allDynamicHeadersSet = new Set();
@@ -755,159 +752,30 @@ export default function TasksPage() {
                 return;
             }
 
-            // 2. Define columns dynamically using activeColumns
-            const baseColumns = [
-                { id: 'form_name', label: 'Sheet Name' },
-                { id: 'client', label: 'Client' },
-                { id: 'mobile', label: 'Mobile' },
-                { id: 'work_type', label: 'Work Type' },
-                { id: 'date_inward', label: 'Create Date' },
-                { id: 'status', label: 'Sheet Status' },
-                { id: 'task_particular', label: 'Task / Particular' },
-                ...dynamicHeaders.map(h => ({ id: `dynamic_${h}`, label: h, isDynamic: true, fieldName: h })),
-                { id: 'remarks', label: 'Remarks' }
-            ];
+            const headers = ['SR NO', 'Sheet Name', 'Work Type', 'Remark'];
+            const rows = filteredExportTasks.map((task, idx) => [
+                String(idx + 1).padStart(2, '0'),
+                task.form_name || '',
+                task.work_type?.name || '',
+                task.remarks || ''
+            ]);
 
-            let activeColumns = [];
-            if (customColumnOrder) {
-                const baseIds = baseColumns.map(c => c.id);
-                const ordered = customColumnOrder.filter(id => baseIds.includes(id));
-                const missing = baseIds.filter(id => !ordered.includes(id));
-                const finalIds = [...ordered, ...missing];
-                activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
-            } else {
-                activeColumns = baseColumns;
-            }
+            const folderName = currentFolder === 'all'
+                ? 'All_Sheets'
+                : (workTypes.find(w => w.id == currentFolder)?.name || 'Sheets');
 
-            const exportedColumns = [
-                { header: 'SR NO', key: 'sr_no' },
-                { header: 'Sheet ID', key: 'sheet_id' },
-                { header: 'Sheet Name', key: 'form_name' },
-                { header: 'Work Type', key: 'work_type' },
-                { header: 'Create Date', key: 'date_allocated' },
-                { header: 'Client Name', key: 'client_name' },
-                { header: 'Phone Number', key: 'mobile' },
-                { header: 'Sheet Status', key: 'status' },
-                { header: 'Remark', key: 'remarks' },
-                { header: 'CA Feedback', key: 'ca_feedback' },
-                { header: 'CA Remark', key: 'ca_remark' }
-            ];
-
-            worksheet.mergeCells('A1:L1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = 'Tasks Register'
-            titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:L2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            // Skip row 3
-
-            // Write headers row
-            const headerRow = worksheet.getRow(4);
-            headerRow.values = exportedColumns.map(c => c.header);
-            headerRow.height = 28;
-
-            headerRow.eachCell((cell) => {
-                cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' } // Dark blue
-                };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                };
-            });
-
-            // 4. Add data rows
-            const formatVal = (val) => {
-                if (Array.isArray(val)) return val.join(', ');
-                if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-                return val || '';
-            };
-
-            let srNo = 1;
-            filteredExportTasks.forEach(task => {
-                const rowValues = [
-                    srNo++,
-                    task.id || '',
-                    task.form_name || '',
-                    task.work_type?.name || '',
-                    task.allocated_to?.name || '',
-                    formatDate(task.date_inward || task.date_allocated),
-                    task.client?.name || '',
-                    task.client?.contact || '',
-                    task.status_label || task.status,
-                    task.remarks || '',
-                    formatVal(task.dynamic_fields?.['CA Feedback']),
-                    formatVal(task.dynamic_fields?.['CA Rating'] || task.dynamic_fields?.['CA Remark'] || '')
-                ];
-                worksheet.addRow(rowValues);
-            });
-
-            // 5. Style data rows and Auto-size columns
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 4) {
-                    row.eachCell((cell) => {
-                        cell.font = { name: 'Segoe UI', size: 10 };
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
-                        };
-                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-                    });
-                }
-            });
-
-            // Automatic column resizing
-            worksheet.columns.forEach(column => {
-                let maxLength = 0;
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    if (cell.row > 3) {
-                        const columnLength = cell.value ? cell.value.toString().length : 10;
-                        if (columnLength > maxLength) {
-                            maxLength = columnLength;
-                        }
+            await exportToExcel({
+                filename: `${folderName.replace(/\s+/g, '_')}_export_${new Date().toISOString().split('T')[0]}.xlsx`,
+                sheets: [
+                    {
+                        sheetName: 'Sheet Export',
+                        title: `${folderName} Register`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers,
+                        rows
                     }
-                });
-                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);
+                ]
             });
-
-            // 6. Generate and Download
-            const buffer = await workbook.xlsx.writeBuffer();
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sheet_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-
-            toast.success('Sheet exported successfully');
         } catch (err) {
             console.error('Export Error:', err);
             toast.error('Failed to export sheet');

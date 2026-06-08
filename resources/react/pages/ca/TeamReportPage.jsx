@@ -18,6 +18,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import CustomSelect from '../../components/ui/CustomSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 import { formatDate } from '../../utils/dateHelper'
+import { exportToExcel } from '../../utils/excelExport'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -1079,57 +1080,11 @@ export default function TeamReportPage() {
     // Excel Export with Professional formatting matching Workbook sheet exactly
     const handleExportExcel = async () => {
         try {
-            const workbook = new ExcelJS.Workbook()
+            const activeStaffMember = staff.find(member => member.id === selectedStaffId);
+            const staffName = activeStaffMember ? activeStaffMember.name : "All Team Members";
 
-            // Create Sheets corresponding to excel
-            const sheet = workbook.addWorksheet('TEAM DAILY WORK PROGRESS REPORT')
-
-            // Enable gridlines
-            sheet.views = [{ showGridLines: true }]
-
-            // Style definitions
-            // Style definitions
-            const titleFill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' } // Standard blue
-            }
-
-            const titleFont = {
-                name: 'Segoe UI',
-                size: 14,
-                bold: true,
-                color: { argb: 'FFFFFFFF' }
-            }
-
-            const bodyFont = {
-                name: 'Segoe UI',
-                size: 10
-            }
-
-            // Title Block
-            sheet.mergeCells('A1:O1')
-            const titleCell = sheet.getCell('A1')
-            titleCell.value = 'TEAM DAILY WORK PROGRESS REPORT'
-            titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
-            titleCell.fill = titleFill
-            titleCell.font = titleFont
-
-            // Metadata row
-            sheet.mergeCells('A2:O2')
-            const dateCell = sheet.getCell('A2')
-            dateCell.value = `Generated At: ${new Date().toLocaleString()}`
-            dateCell.alignment = { horizontal: 'center', vertical: 'middle' }
-            dateCell.fill = titleFill
-            dateCell.font = { name: 'Segoe UI', size: 10, italic: true, color: { argb: 'FFFFFFFF' } }
-
-            sheet.getRow(1).height = 30
-            sheet.getRow(2).height = 20
-
-            // Skip row 3
-
-            // Column Header Block
-            const headers = [
+            const reportHeaders = [
+                'SR NO',
                 'TEAM MEMBER NAME',
                 'DATE',
                 'MAIN TASK',
@@ -1145,129 +1100,59 @@ export default function TeamReportPage() {
                 'FINAL REMARK',
                 'CA REVIEW',
                 'CA REMARK'
-            ]
+            ];
 
-            const headerRow = sheet.getRow(4)
-            headerRow.height = 28
+            const reportRows = displayedReports.map((item, index) => [
+                index + 1,
+                item.user_name || '—',
+                formatDate(item.date),
+                item.main_task || '—',
+                item.sub_task || '—',
+                item.duration || '—',
+                item.start_time || '—',
+                item.end_time || '—',
+                item.hours_taken || 0,
+                item.client_name || '—',
+                item.sub_task_description || '—',
+                (item.status || '').toUpperCase(),
+                `${item.pct_completion || 0}%`,
+                item.final_remark || '—',
+                item.ca_review || 'PENDING',
+                item.ca_remark || '—'
+            ]);
 
-            headers.forEach((h, idx) => {
-                const cell = headerRow.getCell(idx + 1) // Start from Col A (index 1)
-                cell.value = h
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' } // Dark blue
-                }
-                cell.font = {
-                    name: 'Segoe UI',
-                    size: 11,
-                    bold: true,
-                    color: { argb: 'FFFFFFFF' }
-                }
-                cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-                cell.border = {
-                    top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                    bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                    left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
-                    right: { style: 'thin', color: { argb: 'FFD9D9D9' } }
-                }
-            })
+            const notesRows = notesList
+                .filter(note => note.text && note.text.trim() !== '')
+                .map((note, index) => [
+                    index + 1,
+                    note.text,
+                    note.timestamp || ''
+                ]);
 
-            // Populate rows
-            displayedReports.forEach((item, rIdx) => {
-                const rowNum = 5 + rIdx
-                const row = sheet.getRow(rowNum)
-                row.height = 22
-
-                const values = [
-                    item.user_name,
-                    item.date,
-                    item.main_task,
-                    item.sub_task || '—',
-                    item.duration || '—',
-                    item.start_time || '—',
-                    item.end_time || '—',
-                    item.hours_taken || 0,
-                    item.client_name,
-                    item.sub_task_description || '—',
-                    item.status.toUpperCase(),
-                    (item.pct_completion || 0) / 100, // For percentage styling
-                    item.final_remark || '—',
-                    item.ca_review || 'PENDING',
-                    item.ca_remark || '—'
+            await exportToExcel({
+                filename: `DAILY_WORK_PROGRESS_REPORT_${new Date().toISOString().substring(0, 10)}.xlsx`,
+                sheets: [
+                    {
+                        sheetName: "Tasks",
+                        title: `Daily Tasks and Progress Reports - ${staffName}`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: reportHeaders,
+                        rows: reportRows.length > 0 ? reportRows : [[1, "No activities logged", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]]
+                    },
+                    {
+                        sheetName: "Notes",
+                        title: `Report Registry Notes - ${staffName}`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ["SR NO", "Note Content", "Timestamp"],
+                        rows: notesRows.length > 0 ? notesRows : [[1, "No notes added", ""]]
+                    }
                 ]
-
-                values.forEach((val, cIdx) => {
-                    const cell = row.getCell(cIdx + 1)
-                    cell.value = val
-                    cell.font = bodyFont
-                    cell.border = {
-                        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
-                    }
-                    cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
-
-                    // Formatting specifics
-                    if (cIdx === 1) { // Date
-                        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-                    } else if (cIdx === 7) { // Hours
-                        cell.numFmt = '0.00" HRS"'
-                        cell.alignment = { horizontal: 'right', vertical: 'middle' }
-                    } else if (cIdx === 11) { // % Completion
-                        cell.numFmt = '0%'
-                        cell.alignment = { horizontal: 'right', vertical: 'middle' }
-                    } else if (cIdx === 10) { // Status Badge Accent
-                        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-                        if (val === 'COMPLETE') {
-                            cell.font = { ...bodyFont, bold: true, color: { argb: 'FF2E7D32' } }
-                        } else if (val === 'WORK_IN_PROGRESS') {
-                            cell.font = { ...bodyFont, bold: true, color: { argb: 'FF1565C0' } }
-                        } else {
-                            cell.font = { ...bodyFont, color: { argb: 'FF757575' } }
-                        }
-                    } else if (cIdx === 13) { // CA Review accent
-                        cell.alignment = { horizontal: 'center', vertical: 'middle' }
-                        if (val && val !== 'PENDING') {
-                            cell.font = { ...bodyFont, bold: true, color: { argb: 'FF2E7D32' } }
-                        }
-                    }
-                })
-            })
-
-            // Auto-adjust Column widths
-            sheet.columns.forEach((col, idx) => {
-                let maxLen = 12
-                sheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
-                    if (rowNum < 4) return // Skip title block
-                    const cellVal = row.getCell(idx + 1).value
-                    if (cellVal) {
-                        const len = String(cellVal).length
-                        if (len > maxLen) maxLen = len
-                    }
-                })
-                col.width = Math.min(maxLen + 4, 30) // Cap max width at 30 to avoid giant rows
-            })
-
-            // Generate buffer
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `DAILY_WORK_PROGRESS_REPORT_${new Date().toISOString().substring(0, 10)}.xlsx`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            window.URL.revokeObjectURL(url)
-
-            toast.success('Professional Progress Report exported successfully!')
+            });
         } catch (err) {
-            console.error(err)
-            toast.error('Failed to export Excel report')
+            console.error('Export Error:', err);
+            toast.error('Failed to export Excel report');
         }
-    }
+    };
 
     // Dynamic work types + default tasks list (avoiding duplicates)
     const combinedMainTasks = [

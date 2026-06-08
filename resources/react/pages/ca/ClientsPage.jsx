@@ -9,6 +9,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
 import CustomSelect from '../../components/ui/CustomSelect'
 import { useAuth } from '../../context/AuthContext'
+import { exportToExcel } from '../../utils/excelExport'
 
 const EMPTY_FORM = {
     name: '',
@@ -370,94 +371,32 @@ export default function ClientsPage() {
                 setSaving(false)
                 return
             }
-            const ExcelJS = await import('exceljs')
-            const workbook = new ExcelJS.Workbook()
-            const worksheet = workbook.addWorksheet('Clients Register')
 
             const headers = [
-                { name: 'SR NO', key: 'sr_no' },
-                { name: 'ID', key: 'id' },
-                { name: 'Client Name', key: 'name' },
-                { name: 'Name as per PAN', key: 'name_as_per_pan' },
-                { name: 'PAN No', key: 'pan_no' },
-                { name: 'Type', key: 'type' },
-                { name: 'Group', key: 'group' },
-                { name: 'Contact No', key: 'contact' },
-                { name: 'Alternative Contact', key: 'alternative_contact' },
-                { name: 'Email ID', key: 'email' },
-                { name: 'Reference No', key: 'reference_no' },
-                { name: 'Date of Birth', key: 'dob' },
-                { name: 'City', key: 'city' },
-                { name: 'Pin Code', key: 'pin_code' },
-                { name: 'State', key: 'state' },
-                { name: 'GST No', key: 'gst_number' },
-                { name: 'Status', key: 'status' },
-                { name: 'Income Tax User ID', key: 'it_user_id' },
-                { name: 'E-Filing Password', key: 'efiling_password' },
-                { name: 'AIS/TIS Password', key: 'ais_tis_password' }
+                'SR NO',
+                'ID',
+                'Client Name',
+                'Name as per PAN',
+                'PAN No',
+                'Type',
+                'Group',
+                'Contact No',
+                'Alternative Contact',
+                'Email ID',
+                'Reference No',
+                'Date of Birth',
+                'City',
+                'Pin Code',
+                'State',
+                'GST No',
+                'Status',
+                'Income Tax User ID',
+                'E-Filing Password',
+                'AIS/TIS Password'
             ]
 
-            worksheet.mergeCells('A1:T1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = 'Clients Registry'
-            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:T2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            // Skip row 3
-
-            // Write header row
-            const headerRow = worksheet.getRow(4)
-            headerRow.values = headers.map(h => h.name)
-            headerRow.height = 28
-
-            // Style headers with dark blue background & White text
-            headerRow.eachCell(cell => {
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' }
-                }
-                cell.font = {
-                    name: 'Segoe UI',
-                    size: 11,
-                    bold: true,
-                    color: { argb: 'FFFFFFFF' }
-                }
-                cell.alignment = {
-                    vertical: 'middle',
-                    horizontal: 'center',
-                    wrapText: true
-                }
-                cell.border = {
-                    top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-                    right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
-                }
-            })
-
-            // Write details rows
             let srNo = 1
-            exportClients.forEach(c => {
+            const rows = exportClients.map(c => {
                 let formattedDob = '—'
                 if (c.dob) {
                     const parts = c.dob.split('-')
@@ -468,7 +407,7 @@ export default function ClientsPage() {
                     }
                 }
 
-                const rowValues = [
+                return [
                     srNo++,
                     c.id,
                     c.name,
@@ -490,50 +429,22 @@ export default function ClientsPage() {
                     c.credentials?.efiling_password || '—',
                     c.credentials?.ais_tis_password || '—'
                 ]
-                const row = worksheet.addRow(rowValues)
-                row.height = 22
-                row.eachCell(cell => {
-                    cell.font = { name: 'Segoe UI', size: 10 }
-                    cell.alignment = { vertical: 'middle', horizontal: 'left' }
-                    cell.border = {
-                        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                        right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
-                    }
-                })
             })
-
-            // Mathematical Auto-fit columns
-            worksheet.columns.forEach(column => {
-                let maxLen = 0
-                column.eachCell({ includeEmpty: true }, cell => {
-                    if (cell.row > 3) {
-                        const val = cell.value ? cell.value.toString() : ''
-                        if (val.length > maxLen) {
-                            maxLen = val.length
-                        }
-                    }
-                })
-                column.width = Math.max(maxLen + 5, 12)
-            })
-
-            // Save file
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            
-            // Create object URL and download
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `Clients_Registry_Export_${new Date().toISOString().split('T')[0]}.xlsx`
-            document.body.appendChild(a)
-            a.click()
-            window.URL.revokeObjectURL(url)
-            document.body.removeChild(a)
 
             toast.dismiss('export-toast')
-            toast.success(`Successfully exported ${exportClients.length} clients!`)
+
+            await exportToExcel({
+                filename: `Clients_Registry_Export_${new Date().toISOString().split('T')[0]}.xlsx`,
+                sheets: [
+                    {
+                        sheetName: "Clients Register",
+                        title: "Clients Registry Details",
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers,
+                        rows
+                    }
+                ]
+            });
         } catch (error) {
             console.error('Export error:', error)
             toast.dismiss('export-toast')

@@ -15,6 +15,7 @@ import Spinner from '../../components/ui/Spinner'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import CustomSelect from '../../components/ui/CustomSelect'
 import { formatDate } from '../../utils/dateHelper'
+import { exportToExcel } from '../../utils/excelExport'
 import TaskDetailPage from './TaskDetailPage'
 
 
@@ -218,127 +219,36 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
         }
     }, [isStaff])
 
+
+
+
     const exportSummarySheet = async () => {
-        try {
-            const ExcelJS = await import('exceljs')
-            if (sheets.length === 0) {
-                toast.error('No sheet details to export')
-                return
-            }
-            const sheet = sheets[0]
-
-            const workbook = new ExcelJS.Workbook()
-            const worksheet = workbook.addWorksheet('Sheet Tasks')
-
-            worksheet.mergeCells('A1:F1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = `Sheet Tasks Report: ${sheet.client?.name || '—'} - ${sheet.form_name || '—'}`
-            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:F2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            worksheet.addRow([])
-            worksheet.addRow(['Client Name:', sheet.client?.name || '—', 'Form Name:', sheet.form_name || '—'])
-            worksheet.addRow(['Allocated To:', sheet.allocated_to?.name || 'Unassigned', 'Due Date:', formatDate(sheet.due_date)])
-            
-            const styleMetaCell = (cell) => {
-                cell.font = { bold: true, size: 10, color: { argb: 'FF333333' } }
-            }
-            styleMetaCell(worksheet.getCell('A4'))
-            styleMetaCell(worksheet.getCell('C4'))
-            styleMetaCell(worksheet.getCell('A5'))
-            styleMetaCell(worksheet.getCell('C5'))
-
-            worksheet.addRow([])
-
-            const headers = ['Task Title', 'Assigned To', 'Priority', 'Due Date', 'Status', 'Sub Status']
-            worksheet.getRow(7).values = headers
-            const headerRow = worksheet.getRow(7)
-            headerRow.height = 25
-            headerRow.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' }
-                }
-                cell.alignment = { vertical: 'middle', horizontal: 'center' }
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                }
-            })
-
-            const subTasks = sheet.sub_tasks || []
-            subTasks.forEach((st) => {
-                worksheet.addRow([
-                    st.title,
-                    st.assigned_to?.name || 'Unassigned',
-                    st.priority_label || st.priority,
-                    formatDate(st.due_date),
-                    st.status,
-                    st.sub_status || '—'
-                ])
-            })
-
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 7) {
-                    row.eachCell((cell) => {
-                        cell.border = {
-                            top: { style: 'thin' },
-                            left: { style: 'thin' },
-                            bottom: { style: 'thin' },
-                            right: { style: 'thin' }
-                        }
-                        cell.alignment = { vertical: 'middle' }
-                    })
-                }
-            })
-
-            worksheet.columns.forEach(column => {
-                let maxLength = 0
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    const columnLength = cell.value ? cell.value.toString().length : 10
-                    if (columnLength > maxLength) {
-                        maxLength = columnLength
-                    }
-                })
-                column.width = maxLength < 12 ? 12 : maxLength + 2
-            })
-
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `sheet_${sheet.id}_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
-            a.click()
-            window.URL.revokeObjectURL(url)
-            toast.success('Sheet details exported successfully')
-        } catch (err) {
-            console.error('Export Error:', err)
-            toast.error('Failed to export sheet details')
+        if (sheets.length === 0) {
+            toast.error('No sheet details to export')
+            return
         }
+        const sheet = sheets[0]
+        const subTasks = sheet.sub_tasks || []
+
+        await exportToExcel({
+            filename: `sheet_${sheet.id}_tasks_${new Date().toISOString().split('T')[0]}.xlsx`,
+            sheets: [
+                {
+                    sheetName: 'Sheet Tasks',
+                    title: `Sheet Tasks Report: ${sheet.client?.name || '—'} - ${sheet.form_name || '—'}`,
+                    subtitle: `Allocated to: ${sheet.allocated_to?.name || 'Unassigned'} | Due Date: ${formatDate(sheet.due_date)}`,
+                    headers: ['Task Title', 'Assigned To', 'Priority', 'Due Date', 'Status', 'Sub Status'],
+                    rows: subTasks.map(st => [
+                        st.title,
+                        st.assigned_to?.name || 'Unassigned',
+                        st.priority_label || st.priority,
+                        formatDate(st.due_date),
+                        st.status,
+                        st.sub_status || '—'
+                    ])
+                }
+            ]
+        })
     }
 
     const handleGlobalFilterClick = (filterType) => {
@@ -755,112 +665,34 @@ function CalendarView({ staffData = [] }) {
     const flatDueRows = getFlatDueRows()
 
     const exportCalendarTasks = async () => {
-        try {
-            const ExcelJS = await import('exceljs')
-            if (flatDueRows.length === 0) {
-                toast.error('No tasks found to export')
-                return
-            }
-
-            const workbook = new ExcelJS.Workbook()
-            const worksheet = workbook.addWorksheet('Calendar Tasks')
-
-            worksheet.mergeCells('A1:F1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = rangeEnd 
-                ? `Due Tasks (${formatDate(rangeStart)} to ${formatDate(rangeEnd)})`
-                : `Due Tasks (${formatDate(rangeStart)})`
-            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:F2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            const headers = ['Client', 'Sheet/Task Form', 'Work Type', 'Allocated To', 'Due Date', 'Status']
-            worksheet.getRow(4).values = headers
-            const headerRow = worksheet.getRow(4)
-            headerRow.height = 25
-            headerRow.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' }
-                }
-                cell.alignment = { vertical: 'middle', horizontal: 'center' }
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                }
-            })
-
-            flatDueRows.forEach((item) => {
-                worksheet.addRow([
-                    item.clientName,
-                    item.formName,
-                    item.workTypeName,
-                    item.allocatedToName,
-                    formatDate(item.dueDate),
-                    item.status
-                ])
-            })
-
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 4) {
-                    row.eachCell((cell) => {
-                        cell.border = {
-                            top: { style: 'thin' },
-                            left: { style: 'thin' },
-                            bottom: { style: 'thin' },
-                            right: { style: 'thin' }
-                        }
-                        cell.alignment = { vertical: 'middle', wrapText: true }
-                    })
-                }
-            })
-
-            worksheet.columns.forEach(column => {
-                let maxLength = 0
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    const columnLength = cell.value ? cell.value.toString().length : 10
-                    if (columnLength > maxLength) {
-                        maxLength = columnLength
-                    }
-                })
-                column.width = maxLength < 10 ? 10 : (maxLength > 60 ? 60 : maxLength + 2)
-            })
-
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `calendar_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
-            a.click()
-            window.URL.revokeObjectURL(url)
-            toast.success('Calendar tasks exported successfully')
-        } catch (err) {
-            console.error('Export Error:', err)
-            toast.error('Failed to export tasks')
+        if (flatDueRows.length === 0) {
+            toast.error('No tasks found to export')
+            return
         }
+
+        const titleText = rangeEnd 
+            ? `Due Tasks (${formatDate(rangeStart)} to ${formatDate(rangeEnd)})`
+            : `Due Tasks (${formatDate(rangeStart)})`
+
+        await exportToExcel({
+            filename: `calendar_tasks_${new Date().toISOString().split('T')[0]}.xlsx`,
+            sheets: [
+                {
+                    sheetName: 'Calendar Tasks',
+                    title: titleText,
+                    subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                    headers: ['Client', 'Sheet/Task Form', 'Work Type', 'Allocated To', 'Due Date', 'Status'],
+                    rows: flatDueRows.map(item => [
+                        item.clientName,
+                        item.formName,
+                        item.workTypeName,
+                        item.allocatedToName,
+                        formatDate(item.dueDate),
+                        item.status
+                    ])
+                }
+            ]
+        })
     }
 
     return (
@@ -1183,7 +1015,6 @@ export default function DashboardPage() {
 
     const exportAllTasks = async () => {
         try {
-            const ExcelJS = await import('exceljs')
             const prefix = isStaff ? '/staff' : '/ca'
             const res = await api.get(`${prefix}/dashboard/tasks`, {
                 params: {
@@ -1200,215 +1031,58 @@ export default function DashboardPage() {
                 return
             }
 
-            const workbook = new ExcelJS.Workbook()
-            const worksheet = workbook.addWorksheet('All Tasks')
-
-            worksheet.mergeCells('A1:H1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = 'All Tasks Report'
-            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:H2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            const headers = ['SR NO', 'Client', 'Work Type', 'Allocated To', 'Inward Date', 'Allocated Date', 'Completed Date', 'Status']
-            worksheet.getRow(4).values = headers
-            const headerRow = worksheet.getRow(4)
-            headerRow.height = 25
-            headerRow.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' }
-                }
-                cell.alignment = { vertical: 'middle', horizontal: 'center' }
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                }
-            })
-
-            allTasks.forEach((t, i) => {
-                const rowData = [
-                    String(i + 1).padStart(2, '0'),
-                    t.client?.name || '—',
-                    t.work_type?.name || '—',
-                    t.allocated_to?.name ?? 'Unassigned',
-                    formatDate(t.date_inward),
-                    formatDate(t.date_allocated),
-                    formatDate(t.date_completed),
-                    t.status_label || t.status
-                ]
-                worksheet.addRow(rowData)
-            })
-
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 4) {
-                    row.eachCell((cell) => {
-                        cell.border = {
-                            top: { style: 'thin' },
-                            left: { style: 'thin' },
-                            bottom: { style: 'thin' },
-                            right: { style: 'thin' }
-                        }
-                        cell.alignment = { vertical: 'middle', wrapText: true }
-                    })
-                }
-            })
-
-            worksheet.columns.forEach(column => {
-                let maxLength = 0
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    const columnLength = cell.value ? cell.value.toString().length : 10
-                    if (columnLength > maxLength) {
-                        maxLength = columnLength
+            await exportToExcel({
+                filename: `all_tasks_${new Date().toISOString().split('T')[0]}.xlsx`,
+                sheets: [
+                    {
+                        sheetName: 'All Tasks',
+                        title: 'All Tasks Report',
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ['SR NO', 'Client', 'Work Type', 'Sheet Name', 'Allocated To', 'Due Date', 'Status'],
+                        rows: allTasks.map((t, i) => [
+                            String(i + 1).padStart(2, '0'),
+                            t.client?.name || '—',
+                            t.work_type?.name || '—',
+                            t.form_name || '—',
+                            t.allocated_to?.name ?? 'Unassigned',
+                            formatDate(t.due_date),
+                            t.status_label || t.status
+                        ])
                     }
-                })
-                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2)
+                ]
             })
-
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `all_tasks_${new Date().toISOString().split('T')[0]}.xlsx`
-            a.click()
-            window.URL.revokeObjectURL(url)
-            toast.success('Tasks exported successfully')
         } catch (err) {
             console.error('Export Error:', err)
-            toast.close()
             toast.error('Failed to export tasks')
         }
     }
 
     const exportStaffSummary = async () => {
-        try {
-            const ExcelJS = await import('exceljs')
-            if (staffData.length === 0) {
-                toast.error('No staff summary to export')
-                return
-            }
-
-            const workbook = new ExcelJS.Workbook()
-            const worksheet = workbook.addWorksheet('Staff Summary')
-
-            worksheet.mergeCells('A1:G1')
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = 'Staff-wise Task Summary'
-            titleCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells('A2:G2')
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            const headers = ['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total']
-            worksheet.getRow(4).values = headers
-            const headerRow = worksheet.getRow(4)
-            headerRow.height = 25
-            headerRow.eachCell((cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' }
-                }
-                cell.alignment = { vertical: 'middle', horizontal: 'center' }
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                }
-            })
-
-            staffData.forEach((s) => {
-                worksheet.addRow([
-                    s.name,
-                    s.pending || 0,
-                    s.work_in_progress || 0,
-                    s.complete || 0,
-                    s.not_to_be_done || 0,
-                    s.other || 0,
-                    s.total || 0
-                ])
-            })
-
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 4) {
-                    row.eachCell((cell) => {
-                        cell.border = {
-                            top: { style: 'thin' },
-                            left: { style: 'thin' },
-                            bottom: { style: 'thin' },
-                            right: { style: 'thin' }
-                        }
-                        cell.alignment = { vertical: 'middle' }
-                    })
-                }
-            })
-
-            worksheet.columns.forEach(column => {
-                let maxLength = 0
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    const columnLength = cell.value ? cell.value.toString().length : 10
-                    if (columnLength > maxLength) {
-                        maxLength = columnLength
-                    }
-                })
-                column.width = maxLength < 12 ? 12 : maxLength + 2
-            })
-
-            const buffer = await workbook.xlsx.writeBuffer()
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-            const url = window.URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `staff_summary_${new Date().toISOString().split('T')[0]}.xlsx`
-            a.click()
-            window.URL.revokeObjectURL(url)
-            toast.success('Staff summary exported successfully')
-        } catch (err) {
-            console.error('Export Error:', err)
-            toast.error('Failed to export staff summary')
+        if (staffData.length === 0) {
+            toast.error('No staff summary to export')
+            return
         }
+
+        await exportToExcel({
+            filename: `staff_summary_${new Date().toISOString().split('T')[0]}.xlsx`,
+            sheets: [
+                {
+                    sheetName: 'Staff Summary',
+                    title: 'Staff-wise Task Summary',
+                    subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                    headers: ['Staff Name', 'Pending', 'Work In Progress', 'Complete', 'Not To Be Done', 'Other', 'Total'],
+                    rows: staffData.map(s => [
+                        s.name,
+                        s.pending || 0,
+                        s.work_in_progress || 0,
+                        s.complete || 0,
+                        s.not_to_be_done || 0,
+                        s.other || 0,
+                        s.total || 0
+                    ])
+                }
+            ]
+        })
     }
 
     useEffect(() => {

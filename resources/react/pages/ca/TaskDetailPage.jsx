@@ -5,7 +5,7 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, Eye, Copy, ChevronRight, Globe,
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, FileUp, Eye, Copy, ChevronRight, Globe,
     PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import api from '../../api/axios';
@@ -20,6 +20,9 @@ import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
 import AddTaskModal from '../../components/ca/AddTaskModal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
+import { exportToExcel } from '../../utils/excelExport';
+import Modal from '../../components/ui/Modal';
+
 
 
 const DEFAULT_SUB_STATUSES = [
@@ -159,6 +162,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [showMainStatusFilters, setShowMainStatusFilters] = useState(false);
     const [showSubStatusFilters, setShowSubStatusFilters] = useState(false);
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
+    const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
+    const [previewRows, setPreviewRows] = useState([]);
     const [notesList, setNotesList] = useState([]);
     const notesKey = `task_notes_sheet_${id}`;
 
@@ -395,8 +400,17 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             if (data.dynamic_fields?.schema) {
                 setSchema(data.dynamic_fields.schema);
                 let loadedRows = data.dynamic_fields.multi_rows || [];
+                let needsSave = false;
+                loadedRows = loadedRows.map((r, idx) => {
+                    if (!r.row_id && !r.id) needsSave = true;
+                    return {
+                        ...r,
+                        row_id: r.row_id || r.id || `row_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`
+                    };
+                });
                 if (loadedRows.length === 0) {
                     const initialRow = {
+                        row_id: `row_${Date.now()}_0_${Math.random().toString(36).substr(2, 5)}`,
                         form_name: data.form_name || '',
                         client_id: data.client?.id || '',
                         work_type_id: data.work_type?.id || '',
@@ -406,8 +420,40 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         dynamic_data: topLevelData
                     };
                     loadedRows = [initialRow];
+                    needsSave = true;
                 }
                 setRows(loadedRows);
+                if (needsSave) {
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    const firstRow = loadedRows[0] || {};
+                    const firstRowData = {};
+                    if (firstRow.dynamic_data) {
+                        Object.keys(firstRow.dynamic_data).forEach(k => {
+                            firstRowData[k.trim()] = firstRow.dynamic_data[k];
+                        });
+                    }
+                    const cleanDynamicFields = {};
+                    ['schema', 'field_names', 'field_types'].forEach(k => {
+                        if (data.dynamic_fields?.[k] !== undefined) {
+                            cleanDynamicFields[k] = data.dynamic_fields[k];
+                        }
+                    });
+                    const nextDynamicFields = {
+                        ...cleanDynamicFields,
+                        ...firstRowData,
+                        multi_rows: loadedRows
+                    };
+                    const payload = {
+                        client_id: (data.client && typeof data.client === 'object') ? data.client.id : (data.client_id ? Number(data.client_id) : null),
+                        work_type_id: (data.work_type && typeof data.work_type === 'object') ? data.work_type.id : (data.work_type_id ? Number(data.work_type_id) : null),
+                        allocated_to: (data.allocated_to && typeof data.allocated_to === 'object') ? data.allocated_to.id : (data.allocated_to ? Number(data.allocated_to) : null),
+                        date_allocated: firstRow.date_allocated || data.date_allocated || null,
+                        form_name: firstRow.form_name || data.form_name || '',
+                        status: data.status,
+                        dynamic_fields: nextDynamicFields
+                    };
+                    api.patch(`${apiPrefix}/tasks/${id}`, payload).catch(err => console.error("Quiet save failed", err));
+                }
             } else {
                 // Migration logic for old structure
                 const fieldNames = data.dynamic_fields?.field_names || Object.keys(data.dynamic_fields || {}).filter(k => !['multi_rows', 'field_names', 'field_types'].includes(k));
@@ -424,8 +470,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 setSchema(initialSchema);
 
                 let loadedRows = data.dynamic_fields?.multi_rows || [];
+                let needsSave = false;
+                loadedRows = loadedRows.map((r, idx) => {
+                    if (!r.row_id && !r.id) needsSave = true;
+                    return {
+                        ...r,
+                        row_id: r.row_id || r.id || `row_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                        dynamic_data: mergeDynamicData(r.dynamic_data, topLevelData)
+                    };
+                });
                 if (loadedRows.length === 0) {
                     const initialRow = {
+                        row_id: `row_${Date.now()}_0_${Math.random().toString(36).substr(2, 5)}`,
                         client_id: data.client?.id || '',
                         work_type_id: data.work_type?.id || '',
                         allocated_to: data.allocated_to?.id || '',
@@ -434,13 +490,37 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         dynamic_data: topLevelData
                     };
                     loadedRows = [initialRow];
-                } else {
-                    loadedRows = loadedRows.map((r) => ({
-                        ...r,
-                        dynamic_data: mergeDynamicData(r.dynamic_data, topLevelData)
-                    }));
+                    needsSave = true;
                 }
                 setRows(loadedRows);
+                if (needsSave) {
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    const firstRow = loadedRows[0] || {};
+                    const firstRowData = {};
+                    if (firstRow.dynamic_data) {
+                        Object.keys(firstRow.dynamic_data).forEach(k => {
+                            firstRowData[k.trim()] = firstRow.dynamic_data[k];
+                        });
+                    }
+                    const cleanDynamicFields = {
+                        schema: initialSchema
+                    };
+                    const nextDynamicFields = {
+                        ...cleanDynamicFields,
+                        ...firstRowData,
+                        multi_rows: loadedRows
+                    };
+                    const payload = {
+                        client_id: (data.client && typeof data.client === 'object') ? data.client.id : (data.client_id ? Number(data.client_id) : null),
+                        work_type_id: (data.work_type && typeof data.work_type === 'object') ? data.work_type.id : (data.work_type_id ? Number(data.work_type_id) : null),
+                        allocated_to: (data.allocated_to && typeof data.allocated_to === 'object') ? data.allocated_to.id : (data.allocated_to ? Number(data.allocated_to) : null),
+                        date_allocated: firstRow.date_allocated || data.date_allocated || null,
+                        form_name: firstRow.form_name || data.form_name || '',
+                        status: data.status,
+                        dynamic_fields: nextDynamicFields
+                    };
+                    api.patch(`${apiPrefix}/tasks/${id}`, payload).catch(err => console.error("Quiet save migration failed", err));
+                }
             }
         } catch (e) {
             console.error(e);
@@ -1132,197 +1212,304 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
     const handleExport = async () => {
         try {
-            const ExcelJS = await import('exceljs');
-            const workbook = new ExcelJS.Workbook();
-            const worksheet = workbook.addWorksheet("Comprehensive Sheet Export");
-
-            // Enable gridlines
-            worksheet.views = [{ showGridLines: true }];
-
-            // 1. Extract Dynamic Fields (excluding system keys)
-            const dynamicFieldEntries = Object.entries(task.dynamic_fields || {}).filter(([label]) =>
-                !['schema', 'multi_rows', 'field_names', 'field_types'].includes(label)
-            );
-            const dynamicHeaders = dynamicFieldEntries.map(([label]) => label);
-
-            // 2. Define Comprehensive Headers
-            const headers = [
-                "SR NO",
-                "Sheet ID",
-                "Client Name",
-                "Mobile No",
-                "Work Type",
-                "Form Name",
-                "Date Allocated",
-                "Global Status",
-                "Global Remarks",
-                ...dynamicHeaders,
-                "Task ID",
-                "Task Name",
-                "Assignee",
-                "Priority",
-                "Task Status",
-                "Due Date",
-                "Task Remarks"
-            ];
-
-            const getColLetter = (colIdx) => {
-                let temp = colIdx
-                let letter = ''
-                while (temp > 0) {
-                    let modulo = (temp - 1) % 26
-                    letter = String.fromCharCode(65 + modulo) + letter
-                    temp = Math.floor((temp - modulo) / 26)
-                }
-                return letter
-            }
-            const endColLetter = getColLetter(headers.length)
-
-            worksheet.mergeCells(`A1:${endColLetter}1`)
-            const titleCell = worksheet.getCell('A1')
-            titleCell.value = `Sheet Complete Export: ${task.client?.name || 'Sheet'} - ${task.form_name || ''}`
-            titleCell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 14 }
-            titleCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.mergeCells(`A2:${endColLetter}2`)
-            const dateCell = worksheet.getCell('A2')
-            dateCell.value = `Generated at: ${new Date().toLocaleString()}`
-            dateCell.font = { name: 'Segoe UI', italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-            dateCell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FF1F5C99' }
-            }
-            dateCell.alignment = { vertical: 'middle', horizontal: 'center' }
-
-            worksheet.getRow(1).height = 30
-            worksheet.getRow(2).height = 20
-
-            // Skip row 3
-
-            // Write headers row
-            const headerRow = worksheet.getRow(4);
-            headerRow.values = headers;
-            headerRow.height = 28;
-
-            headerRow.eachCell((cell) => {
-                cell.font = { name: 'Segoe UI', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: 'FF154673' } // Dark blue
-                };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                };
-            });
-
-            // 3. Helper for value formatting
             const formatVal = (val) => {
                 if (Array.isArray(val)) return val.join(', ');
                 if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-                return val || 'N/A';
+                return val || '';
             };
 
-            // 4. Shared Task-Level Data for every row
-            const baseData = [
-                task.id || '',
-                task.client?.name || 'N/A',
-                task.client?.contact || 'N/A',
-                task.work_type?.name || 'N/A',
-                task.form_name || 'N/A',
-                formatDate(task.date_allocated),
-                globalStatus || 'N/A',
-                globalRemarks || '',
-                ...dynamicFieldEntries.map(([, val]) => formatVal(val))
+            const dynamicFields = schema.filter(f => !f.id.startsWith('static_'));
+
+            const sheetInfoHeaders = [
+                'SR NO',
+                'Row ID',
+                'Sheet Name',
+                'Client',
+                'Work Type',
+                'Assigned To',
+                'Create Date',
+                'Sheet Status',
+                'Sub Status',
+                ...dynamicFields.map(f => f.label),
+                'Remarks'
             ];
 
-            // 5. Generate Rows (one per subtask)
-            if (task.sub_tasks && task.sub_tasks.length > 0) {
-                task.sub_tasks.forEach((st, index) => {
-                    worksheet.addRow([
-                        index + 1,
-                        ...baseData,
-                        st.id || '',
-                        st.title,
-                        st.assigned_to?.name || 'Unassigned',
-                        st.priority,
-                        st.status_label || st.status,
-                        formatDate(st.due_date),
-                        st.remarks || ''
-                    ]);
-                });
-            } else {
-                // Row for task with no subtasks
-                worksheet.addRow([
-                    1,
-                    ...baseData,
-                    '',
-                    'No Tasks',
-                    'N/A',
-                    'N/A',
-                    'N/A',
-                    'N/A',
-                    'N/A'
+            const sheetInfoRows = rows.map((r, index) => {
+                const clientName = clients.find(c => c.id === r.client_id || c.id === task.client?.id)?.name || 'N/A';
+                const workTypeName = workTypes.find(w => w.id === r.work_type_id || w.id === task.work_type?.id)?.name || 'N/A';
+                const assignedToName = staff.find(s => s.id === r.allocated_to || s.id === task.allocated_to?.id)?.name || 'Unassigned';
+                const dynamicData = r.dynamic_data || {};
+
+                return [
+                    index + 1,
+                    r.row_id || '',
+                    r.form_name || task.form_name || '',
+                    clientName,
+                    workTypeName,
+                    assignedToName,
+                    formatDate(r.date_allocated || task.date_allocated),
+                    r.status || 'assigned',
+                    r.sub_status || '—',
+                    ...dynamicFields.map(f => formatVal(dynamicData[f.label])),
+                    r.remarks || ''
+                ];
+            });
+
+            const taskChecklistRows = (task.sub_tasks || []).map((st, index) => [
+                index + 1,
+                st.id || '',
+                st.title || '',
+                st.assigned_to?.name || 'Unassigned',
+                st.priority || '',
+                st.status_label || st.status || '',
+                formatDate(st.due_date),
+                st.remarks || ''
+            ]);
+
+            const notesRows = notesList
+                .filter(note => note.text && note.text.trim() !== '')
+                .map((note, index) => [
+                    index + 1,
+                    note.text,
+                    note.timestamp || ''
                 ]);
-            }
 
-            // 6. Style data rows
-            worksheet.eachRow((row, rowNumber) => {
-                if (rowNumber > 4) {
-                    row.eachCell((cell) => {
-                        cell.font = { name: 'Segoe UI', size: 10 };
-                        cell.border = {
-                            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-                            right: { style: 'thin', color: { argb: 'FFE5E7EB' } }
-                        };
-                        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-                    });
-                }
-            });
+            const cleanFilename = (str) => {
+                return (str || '')
+                    .replace(/[^a-zA-Z0-9_\-]/g, '_')
+                    .replace(/_+/g, '_')
+                    .replace(/^_+|_+$/g, '');
+            };
 
-            // 7. Automatic column resizing
-            worksheet.columns.forEach(column => {
-                let maxLength = 0;
-                column.eachCell({ includeEmpty: true }, (cell) => {
-                    if (cell.row > 3) {
-                        const columnLength = cell.value ? cell.value.toString().length : 10;
-                        if (columnLength > maxLength) {
-                            maxLength = columnLength;
-                        }
+            const sheetNamePart = cleanFilename(task.form_name);
+            const clientNamePart = cleanFilename(task.client?.name) || 'Sheet';
+            const datePart = new Date().toISOString().substring(0, 10);
+            
+            const exportFilename = sheetNamePart 
+                ? `${sheetNamePart}_${clientNamePart}_Complete_Export_${datePart}.xlsx`
+                : `${clientNamePart}_Complete_Export_${datePart}.xlsx`;
+
+            await exportToExcel({
+                filename: exportFilename,
+                sheets: [
+                    {
+                        sheetName: "Sheet Information",
+                        title: `Sheet Info: ${task.client?.name || 'Sheet'} - ${task.form_name || ''}`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: sheetInfoHeaders,
+                        rows: sheetInfoRows
+                    },
+                    {
+                        sheetName: "Tasks Checklists",
+                        title: "Tasks Checklists / Subtasks",
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ["SR NO", "Task ID", "Task Name", "Assignee", "Priority", "Status", "Due Date", "Remarks"],
+                        rows: taskChecklistRows.length > 0 ? taskChecklistRows : [[1, "", "No tasks checklists", "", "", "", "", ""]]
+                    },
+                    {
+                        sheetName: "Sheet Notes",
+                        title: "Sheet Notes Registry",
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ["SR NO", "Note Content", "Timestamp"],
+                        rows: notesRows.length > 0 ? notesRows : [[1, "No notes added", ""]]
                     }
-                });
-                column.width = maxLength < 10 ? 10 : (maxLength > 50 ? 50 : maxLength + 2);
+                ]
             });
-
-            // 8. Generate and download
-            const buffer = await workbook.xlsx.writeBuffer();
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${task.client?.name || 'Sheet'}_Complete_Export_${new Date().toISOString().substring(0, 10)}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            toast.success('Comprehensive Excel export completed');
         } catch (err) {
             console.error('Export Error:', err);
             toast.error('Failed to export sheet details');
         }
     };
+
+    const handleImportExcel = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const loadingToast = toast.loading('Reading Excel sheets...');
+        try {
+            const XLSX = await import('xlsx');
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0]; // Tab 1: Sheet Information
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (json.length < 5) {
+                        toast.error('Excel file must contain header row and data rows.', { id: loadingToast });
+                        return;
+                    }
+
+                    // Locate header row: row 4 (index 3) is where headers are written
+                    const headers = json[3].map(h => String(h || '').trim());
+                    const idxRowId = headers.indexOf('Row ID');
+                    const idxSheetName = headers.indexOf('Sheet Name');
+                    const idxClientName = headers.indexOf('Client');
+                    const idxWorkType = headers.indexOf('Work Type');
+                    const idxAssignedTo = headers.indexOf('Assigned To');
+                    const idxCreateDate = headers.indexOf('Create Date');
+                    const idxStatus = headers.indexOf('Sheet Status');
+                    const idxSubStatus = headers.indexOf('Sub Status');
+                    const idxRemarks = headers.indexOf('Remarks');
+
+                    if (idxSheetName === -1) {
+                        toast.error('Could not find mandatory "Sheet Name" column in Excel.', { id: loadingToast });
+                        return;
+                    }
+
+                    // Find dynamic fields in the headers
+                    const dynamicFields = schema.filter(f => !f.id.startsWith('static_'));
+                    const dynamicFieldIndices = dynamicFields.map(f => ({
+                        field: f,
+                        index: headers.indexOf(f.label)
+                    })).filter(item => item.index !== -1);
+
+                    const importedRows = [];
+                    for (let i = 4; i < json.length; i++) {
+                        const rowData = json[i];
+                        if (!rowData || rowData.length === 0 || !rowData[idxSheetName]) continue;
+
+                        const rowId = idxRowId !== -1 ? String(rowData[idxRowId] || '').trim() : '';
+                        const form_name = String(rowData[idxSheetName] || '').trim();
+                        
+                        // Look up client
+                        const clientName = idxClientName !== -1 ? String(rowData[idxClientName] || '').trim() : '';
+                        const matchedClient = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
+                        const client_id = matchedClient ? matchedClient.id : (task.client?.id || '');
+
+                        // Look up work type
+                        const workTypeName = idxWorkType !== -1 ? String(rowData[idxWorkType] || '').trim() : '';
+                        const matchedWorkType = workTypes.find(w => w.name.toLowerCase() === workTypeName.toLowerCase());
+                        const work_type_id = matchedWorkType ? matchedWorkType.id : (task.work_type?.id || '');
+
+                        // Look up assigned staff
+                        const assignedToName = idxAssignedTo !== -1 ? String(rowData[idxAssignedTo] || '').trim() : '';
+                        const matchedStaff = staff.find(s => s.name.toLowerCase() === assignedToName.toLowerCase());
+                        const allocated_to = matchedStaff ? matchedStaff.id : (task.allocated_to?.id || '');
+
+                        const date_allocated = idxCreateDate !== -1 ? String(rowData[idxCreateDate] || '').trim() : (task.date_allocated || '');
+                        const status = idxStatus !== -1 ? String(rowData[idxStatus] || '').trim().toLowerCase() : 'assigned';
+                        const sub_status = idxSubStatus !== -1 ? String(rowData[idxSubStatus] || '').trim() : '';
+                        const remarks = idxRemarks !== -1 ? String(rowData[idxRemarks] || '').trim() : '';
+
+                        // Extract dynamic fields
+                        const dynamic_data = {};
+                        dynamicFieldIndices.forEach(item => {
+                            dynamic_data[item.field.label] = rowData[item.index] !== undefined ? rowData[item.index] : '';
+                        });
+
+                        const existingRow = rowId ? rows.find(r => String(r.row_id) === String(rowId)) : null;
+                        const isUpdate = !!existingRow;
+
+                        // Check which fields changed
+                        const changedFields = [];
+                        if (existingRow) {
+                            if (form_name !== (existingRow.form_name || '')) changedFields.push('Sheet Name');
+                            
+                            const existingClientName = clients.find(c => c.id === existingRow.client_id)?.name || 'N/A';
+                            if (clientName && clientName.toLowerCase() !== existingClientName.toLowerCase()) changedFields.push('Client');
+                            
+                            const existingWorkTypeName = workTypes.find(w => w.id === existingRow.work_type_id)?.name || 'N/A';
+                            if (workTypeName && workTypeName.toLowerCase() !== existingWorkTypeName.toLowerCase()) changedFields.push('Work Type');
+                            
+                            const existingStaffName = staff.find(s => s.id === existingRow.allocated_to)?.name || 'Unassigned';
+                            if (assignedToName && assignedToName.toLowerCase() !== existingStaffName.toLowerCase()) changedFields.push('Assigned To');
+                            
+                            if (status.toLowerCase() !== (existingRow.status || 'assigned').toLowerCase()) changedFields.push('Sheet Status');
+                            if (sub_status !== (existingRow.sub_status || '')) changedFields.push('Sub Status');
+                            if (remarks !== (existingRow.remarks || '')) changedFields.push('Remarks');
+
+                            dynamicFieldIndices.forEach(item => {
+                                const newVal = dynamic_data[item.field.label];
+                                const oldVal = existingRow.dynamic_data?.[item.field.label] || '';
+                                if (String(newVal) !== String(oldVal)) {
+                                    changedFields.push(item.field.label);
+                                }
+                            });
+                        }
+
+                        importedRows.push({
+                            row_id: rowId,
+                            form_name,
+                            client_id,
+                            client_name: clientName,
+                            work_type_id,
+                            work_type_name: workTypeName,
+                            allocated_to,
+                            assigned_to_name: assignedToName,
+                            date_allocated,
+                            status,
+                            sub_status,
+                            remarks,
+                            dynamic_data,
+                            isUpdate,
+                            changedFields
+                        });
+                    }
+
+                    setPreviewRows(importedRows);
+                    setIsImportPreviewOpen(true);
+                    toast.success('Excel spreadsheet parsed successfully!', { id: loadingToast });
+                } catch (e) {
+                    console.error(e);
+                    toast.error('Failed to parse sheet data.', { id: loadingToast });
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (e) {
+            console.error(e);
+            toast.error('Failed to read Excel file.', { id: loadingToast });
+        } finally {
+            e.target.value = '';
+        }
+    };
+
+    const handleConfirmImport = async () => {
+        const loadingToast = toast.loading('Saving imported rows...');
+        try {
+            const updatedRows = [...rows];
+            previewRows.forEach(importedRow => {
+                const matchedIndex = importedRow.row_id ? updatedRows.findIndex(r => String(r.row_id) === String(importedRow.row_id)) : -1;
+                
+                const cleanRowData = {
+                    row_id: importedRow.row_id,
+                    form_name: importedRow.form_name,
+                    client_id: importedRow.client_id,
+                    work_type_id: importedRow.work_type_id,
+                    allocated_to: importedRow.allocated_to,
+                    date_allocated: importedRow.date_allocated,
+                    status: importedRow.status,
+                    sub_status: importedRow.sub_status,
+                    remarks: importedRow.remarks,
+                    dynamic_data: importedRow.dynamic_data
+                };
+
+                if (matchedIndex !== -1) {
+                    updatedRows[matchedIndex] = {
+                        ...updatedRows[matchedIndex],
+                        ...cleanRowData
+                    };
+                } else {
+                    const newId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                    updatedRows.push({
+                        ...cleanRowData,
+                        row_id: newId
+                    });
+                }
+            });
+
+            setRows(updatedRows);
+            await handleSaveRows(updatedRows, 'Imported Excel sheet successfully!');
+            setIsImportPreviewOpen(false);
+            toast.success('Excel import completed successfully!', { id: loadingToast });
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to save imported rows.', { id: loadingToast });
+        }
+    };
+
 
     if (loading || !task) return <div className="flex-1 flex items-center justify-center"><Spinner /></div>;
     const selectedField = schema.find(f => f.id === activeFieldId);
@@ -1602,110 +1789,118 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
 
                     {/* Main Row: Back Button, Title, and Action Toolbar */}
-                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pt-2 border-t border-slate-50 relative z-10">
+                    <div className="flex flex-row items-center justify-between gap-2.5 pt-2 border-t border-slate-50 relative z-10 w-full overflow-x-auto no-scrollbar">
                         {/* Left: Sleek Back + App Icon + Title */}
-                        <div className="flex items-center gap-4 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 shrink-0">
                             <button 
                                 onClick={() => navigate(isStaff ? '/staff/tasks' : '/ca/tasks')} 
-                                className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
+                                className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
                                 title="Back to Sheets"
                             >
-                                <ChevronLeft size={18} />
+                                <ChevronLeft size={16} />
                             </button>
 
-                            <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
-                                <Layout size={18} />
+                            <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/10 shrink-0">
+                                <Layout size={15} />
                             </div>
 
-                            <div className="min-w-0 flex flex-wrap items-center gap-4">
-                                <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-tight shrink-0">
-                                    {isEditing ? (
-                                        <input
-                                            value={formName}
-                                            onChange={e => setFormName(e.target.value)}
-                                            className="bg-transparent border-b-2 border-indigo-600 outline-none focus:border-indigo-700 transition min-w-[280px]"
-                                            placeholder="Form Name"
-                                        />
-                                    ) : (
-                                        formName
-                                    )}
-                                </h1>
-                                <div className="flex items-center gap-2 select-none">
-                                    <button
-                                        onClick={() => setShowMainStatusFilters(!showMainStatusFilters)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm ${showMainStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-350 text-slate-700 hover:bg-slate-50'}`}
-                                    >
-                                        <span>Main Status Filters</span>
-                                        <div className="w-5 h-5 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded-md">
-                                            <Plus size={12} className={`transition-transform duration-200 ${showMainStatusFilters ? 'rotate-45' : ''}`} />
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => setShowSubStatusFilters(!showSubStatusFilters)}
-                                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm ${showSubStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-350 text-slate-700 hover:bg-slate-50'}`}
-                                    >
-                                        <span>Sub Status Filters</span>
-                                        <div className="w-5 h-5 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded-md">
-                                            <Plus size={12} className={`transition-transform duration-200 ${showSubStatusFilters ? 'rotate-45' : ''}`} />
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
+                            <h1 className="text-sm md:text-base font-black text-slate-900 tracking-tight leading-tight shrink-0">
+                                {isEditing ? (
+                                    <input
+                                        value={formName}
+                                        onChange={e => setFormName(e.target.value)}
+                                        className="bg-transparent border-b border-indigo-600 outline-none focus:border-indigo-700 transition min-w-[150px] text-sm md:text-base font-black"
+                                        placeholder="Form Name"
+                                    />
+                                ) : (
+                                    formName
+                                )}
+                            </h1>
                         </div>
 
-                        {/* Right: Elegant action buttons bar */}
-                        <div className="flex flex-wrap items-center gap-2.5 select-none">
-                            {/* Secondary Actions Group (Colors always visible) */}
-                            <div className="flex flex-wrap items-center gap-2">
-                                <button 
-                                    onClick={handleExport} 
-                                    className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                                >
-                                    <FileDown size={14} className="text-emerald-600" /> 
-                                    <span>Export Excel</span>
-                                </button>
-                                <button 
-                                    onClick={() => setIsGlobalModalOpen(true)}
-                                    className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                                >
-                                    <Sliders size={14} className="text-indigo-500" />
-                                    <span>Global Settings</span>
-                                </button>
-                                {!isStaff && (
-                                    <button 
-                                        onClick={() => {
-                                            if (!task) return;
-                                            const duplicateData = {
-                                                form_name: task.form_name,
-                                                client_id: task.client?.id,
-                                                work_type_id: task.work_type?.id,
-                                                remarks: task.remarks,
-                                                dynamic_fields: task.dynamic_fields,
-                                                created_at: task.created_at,
-                                                status: task.status,
-                                                allow_attachments: task.allow_attachments,
-                                                allow_checklist: task.allow_checklist,
-                                                allow_notes: task.allow_notes,
-                                                subtasks: (task.sub_tasks || []).map(st => ({
-                                                    title: st.title,
-                                                    assigned_to: st.assigned_to?.id,
-                                                    priority: st.priority,
-                                                    status: st.status,
-                                                    due_date: st.due_date,
-                                                    remarks: st.remarks
-                                                }))
-                                            };
-                                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                                        }}
-                                        className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 duration-200"
-                                    >
-                                        <Edit2 size={14} className="text-violet-600" /> 
-                                        <span>Layout Builder</span>
-                                    </button>
-                                )}
-                            </div>
+                        {/* Right: Elegant action buttons bar & filters in one line */}
+                        <div className="flex items-center gap-2 shrink-0 select-none">
+                            {/* Status filters buttons (decreased size) */}
+                            <button
+                                onClick={() => setShowMainStatusFilters(!showMainStatusFilters)}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm shrink-0 ${showMainStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                <span>Main Status</span>
+                                <div className="w-4 h-4 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded">
+                                    <Plus size={10} className={`transition-transform duration-200 ${showMainStatusFilters ? 'rotate-45' : ''}`} />
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setShowSubStatusFilters(!showSubStatusFilters)}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm shrink-0 ${showSubStatusFilters ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                <span>Sub Status</span>
+                                <div className="w-4 h-4 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded">
+                                    <Plus size={10} className={`transition-transform duration-200 ${showSubStatusFilters ? 'rotate-45' : ''}`} />
+                                </div>
+                            </button>
 
-                            {/* Primary action removed as requested */}
+                            <div className="h-5 w-[1px] bg-slate-200 mx-1 shrink-0"></div>
+
+                            {/* Export / Import / Settings / Layout (decreased size) */}
+                            <button 
+                                onClick={handleExport} 
+                                className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                            >
+                                <FileDown size={12} className="text-emerald-600" /> 
+                                <span>Export Excel</span>
+                            </button>
+                            <label 
+                                className="flex items-center gap-1.5 text-indigo-755 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 cursor-pointer shrink-0"
+                            >
+                                <FileUp size={12} className="text-indigo-600" />
+                                <span>Import Excel</span>
+                                <input 
+                                    type="file" 
+                                    accept=".xlsx, .xls" 
+                                    onChange={handleImportExcel} 
+                                    className="hidden" 
+                                />
+                            </label>
+                            <button 
+                                onClick={() => setIsGlobalModalOpen(true)}
+                                className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                            >
+                                <Sliders size={12} className="text-indigo-500" />
+                                <span>Global Settings</span>
+                            </button>
+                            {!isStaff && (
+                                <button 
+                                    onClick={() => {
+                                        if (!task) return;
+                                        const duplicateData = {
+                                            form_name: task.form_name,
+                                            client_id: task.client?.id,
+                                            work_type_id: task.work_type?.id,
+                                            remarks: task.remarks,
+                                            dynamic_fields: task.dynamic_fields,
+                                            created_at: task.created_at,
+                                            status: task.status,
+                                            allow_attachments: task.allow_attachments,
+                                            allow_checklist: task.allow_checklist,
+                                            allow_notes: task.allow_notes,
+                                            subtasks: (task.sub_tasks || []).map(st => ({
+                                                title: st.title,
+                                                assigned_to: st.assigned_to?.id,
+                                                priority: st.priority,
+                                                status: st.status,
+                                                due_date: st.due_date,
+                                                remarks: st.remarks
+                                            }))
+                                        };
+                                        navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                    }}
+                                    className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                >
+                                    <Edit2 size={12} className="text-violet-600" /> 
+                                    <span>Layout Builder</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -3985,6 +4180,131 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 danger={confirmState.danger}
                 loading={confirmState.loading}
             />
+
+            {/* Excel Import Preview Modal */}
+            <Modal
+                open={isImportPreviewOpen}
+                onClose={() => setIsImportPreviewOpen(false)}
+                title="Excel Import Registry Preview"
+                width="max-w-7xl"
+            >
+                <div className="space-y-6">
+                    {/* Header Summary Banner */}
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                                <CheckCircle2 className="text-indigo-600 w-5 h-5" />
+                                <span>Parsed {previewRows.length} total rows from Excel sheet</span>
+                            </h4>
+                            <p className="text-xs font-semibold text-slate-400">
+                                Rows highlighted in <span className="text-sky-600 font-bold">Blue</span> represent existing rows that will be updated. Modified cells will be highlighted in <span className="text-amber-600 font-bold bg-amber-50 px-1 py-0.5 rounded">Orange</span>. Rows in <span className="text-emerald-600 font-bold">Green</span> represent new rows to be inserted.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="text-right border-r pr-4 border-slate-200">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase">New Rows</span>
+                                <span className="text-lg font-black text-emerald-600">
+                                    {previewRows.filter(r => !r.isUpdate).length}
+                                </span>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] font-black text-slate-400 block uppercase font-bold text-sky-600">Updates</span>
+                                <span className="text-lg font-black text-sky-600">
+                                    {previewRows.filter(r => r.isUpdate).length}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Preview Table */}
+                    <div className="overflow-x-auto border border-slate-200/60 rounded-3xl bg-white shadow-sm max-h-[55vh]">
+                        <table className="w-full text-xs text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100 sticky top-0 z-10">
+                                    <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3">Sheet Name</th>
+                                    <th className="px-4 py-3">Client</th>
+                                    <th className="px-4 py-3">Work Type</th>
+                                    <th className="px-4 py-3">Assigned To</th>
+                                    <th className="px-4 py-3">Create Date</th>
+                                    <th className="px-4 py-3">Sheet Status</th>
+                                    <th className="px-4 py-3">Sub Status</th>
+                                    {schema.filter(f => !f.id.startsWith('static_')).map(f => (
+                                        <th key={f.label} className="px-4 py-3">{f.label}</th>
+                                    ))}
+                                    <th className="px-4 py-3">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {previewRows.map((row, idx) => {
+                                    const isUpdate = row.isUpdate;
+                                    
+                                    const renderCell = (fieldLabel, value) => {
+                                        const isChanged = row.changedFields?.includes(fieldLabel);
+                                        return (
+                                            <td 
+                                                key={fieldLabel}
+                                                className={`px-4 py-3 transition-colors ${isChanged ? 'bg-amber-100/65 font-bold text-amber-900 border border-amber-300/50' : ''}`}
+                                            >
+                                                {value || '—'}
+                                            </td>
+                                        );
+                                    };
+
+                                    return (
+                                        <tr
+                                            key={idx}
+                                            className={`transition ${isUpdate ? 'bg-sky-50/50 hover:bg-sky-50' : 'bg-emerald-50/20 hover:bg-emerald-50/45'}`}
+                                        >
+                                            {/* Status Badge */}
+                                            <td className="px-4 py-3 min-w-[120px]">
+                                                {isUpdate ? (
+                                                    <span className="inline-flex items-center gap-1 bg-sky-100 border border-sky-200 text-sky-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                        <Edit2 size={10} /> Update
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                                                        <Plus size={10} /> New Row
+                                                    </span>
+                                                )}
+                                            </td>
+                                            {renderCell('Sheet Name', row.form_name)}
+                                            {renderCell('Client', row.client_name)}
+                                            {renderCell('Work Type', row.work_type_name)}
+                                            {renderCell('Assigned To', row.assigned_to_name)}
+                                            {renderCell('Create Date', formatDate(row.date_allocated))}
+                                            {renderCell('Sheet Status', row.status)}
+                                            {renderCell('Sub Status', row.sub_status)}
+                                            {schema.filter(f => !f.id.startsWith('static_')).map(f => 
+                                                renderCell(f.label, row.dynamic_data?.[f.label])
+                                            )}
+                                            {renderCell('Remarks', row.remarks)}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Bottom Action Footer */}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => setIsImportPreviewOpen(false)}
+                            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmImport}
+                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md shadow-indigo-100 cursor-pointer"
+                        >
+                            Confirm Import
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Assign Staff Modal */}
             {assigningRowIndex !== null && (
