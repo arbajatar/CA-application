@@ -466,16 +466,30 @@ function WorkTypeSubtaskSummary({ workTypes, staff = [] }) {
     )
 }
 
-function CalendarView() {
+function CalendarView({ staffData = [] }) {
     const { user } = useAuth()
     const isStaff = user?.role === 'staff'
     const navigate = useNavigate()
     const [currentDate, setCurrentDate] = useState(new Date())
     const [tasks, setTasks] = useState([])
+    const [clients, setClients] = useState([])
     const [loading, setLoading] = useState(false)
     const [rangeStart, setRangeStart] = useState(null)
     const [rangeEnd, setRangeEnd] = useState(null)
     const [quickFilter, setQuickFilter] = useState('')
+
+    useEffect(() => {
+        const fetchClients = async () => {
+            try {
+                const prefix = user?.role === 'staff' ? '/daily-reports' : '/ca'
+                const res = await api.get(`${prefix}/clients`, { params: { per_page: 10000 } })
+                setClients(res.data.data || [])
+            } catch (e) {
+                console.error(e)
+            }
+        }
+        fetchClients()
+    }, [user])
 
     const fetchTasks = useCallback(async () => {
         setLoading(true)
@@ -522,11 +536,7 @@ function CalendarView() {
         return `${year}-${month}-${day}`
     }
 
-    const parseLocalDate = (dateStr) => {
-        if (!dateStr) return null
-        const [year, month, day] = dateStr.split('-').map(Number)
-        return new Date(year, month - 1, day)
-    }
+
 
     const handleUpdateSubTask = async (taskId, subTaskId, updatedData) => {
         try {
@@ -576,12 +586,42 @@ function CalendarView() {
         }
     }
 
+    const parseToComparisonDateStr = (dateStr) => {
+        if (!dateStr) return null;
+        // support DD-MM-YYYY or YYYY-MM-DD
+        if (dateStr.includes('-')) {
+            const parts = dateStr.split('-');
+            if (parts[0].length === 4) {
+                // YYYY-MM-DD
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2].length === 4) {
+                // DD-MM-YYYY -> YYYY-MM-DD
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+        return dateStr;
+    }
+
+    const parseLocalDate = (dateStr) => {
+        if (!dateStr) return null
+        const normalized = parseToComparisonDateStr(dateStr);
+        if (!normalized) return null;
+        const [year, month, day] = normalized.split('-').map(Number)
+        return new Date(year, month - 1, day)
+    }
+
     const getTasksForDate = (date) => {
         if (!date) return []
         const dateStr = getLocalDateString(date)
         return tasks.filter(t =>
-            (t.due_date === dateStr && t.status !== 'complete') ||
-            t.sub_tasks?.some(st => st.due_date === dateStr && st.status !== 'complete')
+            (parseToComparisonDateStr(t.due_date) === dateStr && t.status !== 'complete') ||
+            t.sub_tasks?.some(st => parseToComparisonDateStr(st.due_date) === dateStr && st.status !== 'complete') ||
+            (t.dynamic_fields?.multi_rows && Array.isArray(t.dynamic_fields.multi_rows) &&
+             t.dynamic_fields.multi_rows.some(row => {
+                 if (!row || row.status === 'complete') return false;
+                 const dVal = row.due_date || row.dynamic_data?.['Due Date'] || row.dynamic_data?.due_date;
+                 return parseToComparisonDateStr(dVal) === dateStr;
+             }))
         )
     }
 
@@ -591,8 +631,14 @@ function CalendarView() {
         if (!end) {
             const startStr = getLocalDateString(start)
             return tasks.filter(t =>
-                (t.due_date === startStr && t.status !== 'complete') ||
-                t.sub_tasks?.some(st => st.due_date === startStr && st.status !== 'complete')
+                (parseToComparisonDateStr(t.due_date) === startStr && t.status !== 'complete') ||
+                t.sub_tasks?.some(st => parseToComparisonDateStr(st.due_date) === startStr && st.status !== 'complete') ||
+                (t.dynamic_fields?.multi_rows && Array.isArray(t.dynamic_fields.multi_rows) &&
+                 t.dynamic_fields.multi_rows.some(row => {
+                     if (!row || row.status === 'complete') return false;
+                     const dVal = row.due_date || row.dynamic_data?.['Due Date'] || row.dynamic_data?.due_date;
+                     return parseToComparisonDateStr(dVal) === startStr;
+                 }))
             )
         }
 
@@ -609,17 +655,109 @@ function CalendarView() {
                 const stTime = stDate ? stDate.getTime() : null
                 return stTime && stTime >= startTime && stTime <= endTime && st.status !== 'complete'
             })
+            const hasDueDynamicRowInRange = t.dynamic_fields?.multi_rows && Array.isArray(t.dynamic_fields.multi_rows) &&
+                t.dynamic_fields.multi_rows.some(row => {
+                    if (!row || row.status === 'complete') return false
+                    const dVal = row.due_date || row.dynamic_data?.['Due Date'] || row.dynamic_data?.due_date;
+                    if (!dVal) return false
+                    const rowDate = parseLocalDate(dVal)
+                    const rowTime = rowDate ? rowDate.getTime() : null
+                    return rowTime && rowTime >= startTime && rowTime <= endTime
+                })
 
-            return hasDueSheetInRange || hasDueSubTaskInRange
+            return hasDueSheetInRange || hasDueSubTaskInRange || hasDueDynamicRowInRange
         })
     }
 
     const selectedTasks = rangeStart ? getTasksForDateRange(rangeStart, rangeEnd) : []
 
+    const getFlatDueRows = () => {
+        const flat = []
+        selectedTasks.forEach(t => {
+            // Check if the parent task/sheet itself is due
+            const sheetDue = (() => {
+                if (!t.due_date || t.status === 'complete') return false
+                const tDate = parseLocalDate(t.due_date)
+                const tTime = tDate ? tDate.getTime() : null
+                if (!rangeEnd) {
+                    return tTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                }
+                const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
+                return tTime >= startTime && tTime <= endTime
+            })()
+
+            if (sheetDue) {
+                flat.push({
+                    type: 'task',
+                    id: t.id,
+                    clientName: t.client?.name || '—',
+                    formName: t.form_name || '—',
+                    workTypeName: t.work_type?.name || '—',
+                    allocatedToName: t.allocated_to?.name ?? 'Unassigned',
+                    dueDate: t.due_date,
+                    status: t.status_label || t.status,
+                    task: t
+                })
+            }
+
+            // Check if any dynamic rows are due
+            const dueDynamicRows = t.dynamic_fields?.multi_rows?.filter(row => {
+                if (!row || row.status === 'complete') return false
+                const dVal = row.due_date || row.dynamic_data?.['Due Date'] || row.dynamic_data?.due_date;
+                if (!dVal) return false
+                const rowDate = parseLocalDate(dVal)
+                const rowTime = rowDate ? rowDate.getTime() : null
+                if (!rangeEnd) {
+                    return rowTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                }
+                const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
+                const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
+                return rowTime >= startTime && rowTime <= endTime
+            }) || []
+
+            dueDynamicRows.forEach(row => {
+                const dVal = row.due_date || row.dynamic_data?.['Due Date'] || row.dynamic_data?.due_date;
+                const clientName = clients.find(c => String(c.id) === String(row.client_id))?.name || t.client?.name || '—';
+                const assigneeName = (() => {
+                    const type = row.allocated_type || 'user'
+                    const to = row.allocated_to
+                    if (type === 'user' && to) {
+                        const found = staffData.find(s => String(s.id) === String(to))
+                        return found ? found.name : 'Staff #' + to
+                    }
+                    if (type === 'users' && Array.isArray(to)) {
+                        return to.map(uid => {
+                            const found = staffData.find(s => String(s.id) === String(uid))
+                            return found ? found.name : 'Staff #' + uid
+                        }).join(', ')
+                    }
+                    return 'Unassigned'
+                })()
+
+                flat.push({
+                    type: 'dynamic_row',
+                    id: t.id,
+                    clientName: clientName,
+                    formName: row.form_name || t.form_name || '—',
+                    workTypeName: t.work_type?.name || '—',
+                    allocatedToName: assigneeName,
+                    dueDate: dVal,
+                    status: row.status,
+                    task: t,
+                    row: row
+                })
+            })
+        })
+        return flat
+    }
+
+    const flatDueRows = getFlatDueRows()
+
     const exportCalendarTasks = async () => {
         try {
             const ExcelJS = await import('exceljs')
-            if (selectedTasks.length === 0) {
+            if (flatDueRows.length === 0) {
                 toast.error('No tasks found to export')
                 return
             }
@@ -627,7 +765,7 @@ function CalendarView() {
             const workbook = new ExcelJS.Workbook()
             const worksheet = workbook.addWorksheet('Calendar Tasks')
 
-            worksheet.mergeCells('A1:G1')
+            worksheet.mergeCells('A1:F1')
             const titleCell = worksheet.getCell('A1')
             titleCell.value = rangeEnd 
                 ? `Due Tasks (${formatDate(rangeStart)} to ${formatDate(rangeEnd)})`
@@ -640,7 +778,7 @@ function CalendarView() {
             }
             titleCell.alignment = { vertical: 'middle', horizontal: 'center' }
 
-            worksheet.mergeCells('A2:G2')
+            worksheet.mergeCells('A2:F2')
             const dateCell = worksheet.getCell('A2')
             dateCell.value = `Generated at: ${new Date().toLocaleString()}`
             dateCell.font = { italic: true, color: { argb: 'FFFFFFFF' }, size: 10 }
@@ -654,7 +792,7 @@ function CalendarView() {
             worksheet.getRow(1).height = 30
             worksheet.getRow(2).height = 20
 
-            const headers = ['Client', 'Sheet/Task Form', 'Work Type', 'Allocated To', 'Due Date', 'Status', 'Tasks Summary / Details']
+            const headers = ['Client', 'Sheet/Task Form', 'Work Type', 'Allocated To', 'Due Date', 'Status']
             worksheet.getRow(4).values = headers
             const headerRow = worksheet.getRow(4)
             headerRow.height = 25
@@ -674,19 +812,14 @@ function CalendarView() {
                 }
             })
 
-            selectedTasks.forEach((t) => {
-                const subtasksSummaryText = t.sub_tasks && t.sub_tasks.length > 0
-                    ? t.sub_tasks.map(st => `• [${st.status}] ${st.title} (${st.assigned_to?.name || 'Unassigned'})`).join('\n')
-                    : 'No Tasks'
-
+            flatDueRows.forEach((item) => {
                 worksheet.addRow([
-                    t.client?.name || '—',
-                    t.form_name || '—',
-                    t.work_type?.name || '—',
-                    t.allocated_to?.name ?? 'Unassigned',
-                    formatDate(t.due_date),
-                    t.status_label || t.status,
-                    subtasksSummaryText
+                    item.clientName,
+                    item.formName,
+                    item.workTypeName,
+                    item.allocatedToName,
+                    formatDate(item.dueDate),
+                    item.status
                 ])
             })
 
@@ -936,7 +1069,7 @@ function CalendarView() {
                         </div>
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
-                                {selectedTasks.length} Tasks
+                                {flatDueRows.length} Tasks
                             </span>
                             <button
                                 onClick={exportCalendarTasks}
@@ -959,152 +1092,22 @@ function CalendarView() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 bg-white">
-                                {selectedTasks.length === 0 ? (
+                                {flatDueRows.length === 0 ? (
                                     <tr><td colSpan={6} className="text-center py-8 text-gray-400">No tasks due within selected range.</td></tr>
-                                ) : selectedTasks.map(t => {
-                                    const sheetDue = (() => {
-                                        if (!t.due_date || t.status === 'complete') return false
-                                        const tDate = parseLocalDate(t.due_date)
-                                        const tTime = tDate ? tDate.getTime() : null
-                                        if (!rangeEnd) {
-                                            return tTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
-                                        }
-                                        const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
-                                        const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
-                                        return tTime >= startTime && tTime <= endTime
-                                    })()
-
-                                    const dueSubTasks = t.sub_tasks?.filter(st => {
-                                        if (!st.due_date || st.status === 'complete') return false
-                                        const stDate = parseLocalDate(st.due_date)
-                                        const stTime = stDate ? stDate.getTime() : null
-                                        if (!rangeEnd) {
-                                            return stTime === new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
-                                        }
-                                        const startTime = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), rangeStart.getDate()).getTime()
-                                        const endTime = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate()).getTime()
-                                        return stTime >= startTime && stTime <= endTime
-                                    }) || []
-
+                                ) : flatDueRows.map((item, idx) => {
                                     return (
-                                        <>
-                                            <tr key={t.unique_id || t.id} className="hover:bg-gray-50/50 transition">
-                                                <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
-                                                <td className="px-6 py-4 text-gray-700">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium">{t.form_name || '—'}</span>
-                                                        <button
-                                                             onClick={(e) => {
-                                                                 e.stopPropagation()
-                                                                 navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)
-                                                             }}
-                                                             className="text-blue-600 bg-blue-50/70 border border-blue-100/40 hover:bg-blue-100 hover:text-blue-800 rounded-lg hover:scale-110 active:scale-95 transition-all p-1"
-                                                             title="View Details"
-                                                         >
-                                                             <Eye size={15} />
-                                                         </button>
-                                                        {sheetDue && (
-                                                            <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold border border-red-100 uppercase tracking-wider shrink-0">
-                                                                Sheet Due
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
-                                                <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
-                                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.due_date)}</td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <StatusBadge status={t.status} />
-                                                        {dueSubTasks.length > 0 && (
-                                                            <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-bold border border-green-100 uppercase tracking-wider">
-                                                                {dueSubTasks.length} Subtasks Due
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-
-                                            {/* Specific Subtasks Due on this selected date */}
-                                            {dueSubTasks.length > 0 && (
-                                                <tr className="bg-gray-50/50">
-                                                    <td colSpan={6} className="px-10 py-3 border-t border-b border-gray-100">
-                                                        <div className="space-y-2">
-                                                            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                                Due Subtasks:
-                                                            </h4>
-                                                            <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
-                                                                <table className="w-full text-xs">
-                                                                    <thead>
-                                                                        <tr className="text-[10px] font-bold text-white uppercase tracking-wider bg-[#1F5C99] border-b border-[#154673]">
-                                                                            <th className="px-4 py-2.5 text-left">Subtask</th>
-                                                                            <th className="px-4 py-2.5 text-left">Assignee</th>
-                                                                            <th className="px-4 py-2.5 text-left">Priority</th>
-                                                                            <th className="px-4 py-2.5 text-left">Due Date</th>
-                                                                            <th className="px-4 py-2.5 text-left">Status (Click to update)</th>
-                                                                            <th className="px-4 py-2.5 text-left">Sub Status</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-gray-50 bg-white">
-                                                                        {dueSubTasks.map(st => (
-                                                                            <tr key={st.id} className="hover:bg-gray-50/50 transition">
-                                                                                <td className="px-4 py-2 text-gray-700 font-medium">{st.title}</td>
-                                                                                <td className="px-4 py-2 text-gray-600">{st.assigned_to?.name || 'Unassigned'}</td>
-                                                                                <td className="px-4 py-2">
-                                                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border
-                                                                                        ${st.priority === 'high' ? 'bg-red-50 text-red-700 border-red-100' :
-                                                                                            st.priority === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                                                                                                'bg-green-50 text-green-700 border-green-100'}
-                                                                                    `}>
-                                                                                        {st.priority_label}
-                                                                                    </span>
-                                                                                </td>
-                                                                                <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{formatDate(st.due_date)}</td>
-                                                                                <td className="px-4 py-2">
-                                                                                    {(() => {
-                                                                                        const isLocked = isStaff && st.is_verified;
-                                                                                        return isLocked ? (
-                                                                                            <div className="inline-block" title="Locked (Verified)">
-                                                                                                <StatusBadge status={st.status} />
-                                                                                            </div>
-                                                                                        ) : (
-                                                                                            <select
-                                                                                                value={st.status}
-                                                                                                onChange={e => handleUpdateSubTask(t.id, st.id, { status: e.target.value })}
-                                                                                                className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
-                                                                                            >
-                                                                                                <option value="complete">Complete</option>
-                                                                                                <option value="work_in_progress">Work In Progress</option>
-                                                                                                <option value="pending">Pending</option>
-                                                                                                <option value="not_to_be_done">Not To Be Done</option>
-                                                                                                <option value="other">Other</option>
-                                                                                            </select>
-                                                                                        );
-                                                                                    })()}
-                                                                                </td>
-                                                                                <td className="px-4 py-2">
-                                                                                    {(() => {
-                                                                                        const isLocked = isStaff && st.is_verified;
-                                                                                        return (
-                                                                                            <SubStatusPicker
-                                                                                                value={st.sub_status}
-                                                                                                onChange={(newVal) => handleUpdateSubTask(t.id, st.id, { sub_status: newVal })}
-                                                                                                options={getSubStatusOptions(t)}
-                                                                                                disabled={isLocked}
-                                                                                            />
-                                                                                        );
-                                                                                    })()}
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </>
+                                        <tr 
+                                            key={idx} 
+                                            className="hover:bg-gray-100 transition cursor-pointer" 
+                                            onClick={() => navigate(isStaff ? `/staff/tasks/${item.id}` : `/ca/tasks/${item.id}`)}
+                                        >
+                                            <td className="px-6 py-4 font-semibold text-gray-800">{item.clientName}</td>
+                                            <td className="px-6 py-4 text-gray-700 font-medium">{item.formName}</td>
+                                            <td className="px-6 py-4 text-gray-600">{item.workTypeName}</td>
+                                            <td className="px-6 py-4 text-gray-600">{item.allocatedToName}</td>
+                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(item.dueDate)}</td>
+                                            <td className="px-6 py-4"><StatusBadge status={item.status} /></td>
+                                        </tr>
                                     )
                                 })}
                             </tbody>
@@ -1138,9 +1141,12 @@ export default function DashboardPage() {
 
     const fetchSummary = async () => {
         if (isStaff) {
-            const s = await api.get('/staff/dashboard/summary')
+            const [s, st] = await Promise.all([
+                api.get('/staff/dashboard/summary'),
+                api.get('/staff/dashboard/staff-summary'),
+            ])
             setSummary(s.data)
-            setStaffData([])
+            setStaffData(st.data.data)
             setWorkTypes(s.data.work_types || [])
         } else {
             const [s, st, wt] = await Promise.all([
@@ -1585,23 +1591,22 @@ export default function DashboardPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                            {['#', 'Client', 'Work Type', 'Allocated To', 'Inward', 'Allocated', 'Completed', 'Status'].map(h => (
+                                            {['#', 'Client', 'Work Type', 'Sheet Name', 'Allocated To', 'Due Date', 'Status'].map(h => (
                                                 <th key={h} className="px-6 py-3.5 text-left">{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
                                         {tasks?.length === 0 ? (
-                                            <tr><td colSpan={8} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                            <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
                                             <tr key={t.unique_id || t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
                                                 <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
+                                                <td className="px-6 py-4 font-medium text-gray-700">{t.form_name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.allocated_to?.name ?? 'Unassigned'}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_inward)}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_allocated)}</td>
-                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.date_completed)}</td>
+                                                <td className="px-6 py-4 text-gray-500">{formatDate(t.due_date)}</td>
                                                 <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
                                             </tr>
                                         ))}
@@ -1694,19 +1699,20 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Staff-wise Summary */}
-                    {!isStaff && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                                <h2 className="text-lg font-semibold text-gray-800">Staff-wise Summary</h2>
-                                <div className="flex items-center gap-3">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                            <h2 className="text-lg font-semibold text-gray-800">Staff-wise Summary</h2>
+                            <div className="flex items-center gap-3">
+                                {!isStaff && (
                                     <button
                                         onClick={exportStaffSummary}
                                         className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
                                     >
                                         <Download size={15} /> Export
                                     </button>
-                                </div>
+                                )}
                             </div>
+                        </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
@@ -1746,10 +1752,9 @@ export default function DashboardPage() {
                                 </table>
                             </div>
                         </div>
-                    )}
                 </>
             ) : activeTab === 'calendar' ? (
-                <CalendarView />
+                <CalendarView staffData={staffData} />
             ) : (
                 <WorkTypeSubtaskSummary workTypes={workTypes} staff={staffData} />
             )}

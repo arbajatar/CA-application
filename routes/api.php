@@ -167,10 +167,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Staff routes  ─────────────────────────────────────────────
     Route::middleware('role:staff')->prefix('staff')->name('staff.')->group(function () {
 
-        // Dashboard
         Route::get('/dashboard/summary', [App\Http\Controllers\Api\Staff\DashboardController::class, 'summary']);
         Route::get('/dashboard/tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'tasks']);
         Route::get('/dashboard/calendar-tasks', [App\Http\Controllers\Api\Staff\DashboardController::class, 'calendarTasks']);
+        Route::get('/dashboard/staff-summary', [App\Http\Controllers\Api\Staff\DashboardController::class, 'staffSummary']);
 
         // Staff List (read-only for assignment)
         Route::get('/staff-members', [\App\Http\Controllers\Api\CA\StaffController::class, 'index']);

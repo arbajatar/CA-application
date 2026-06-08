@@ -287,32 +287,32 @@ export default function MyTasksPage() {
 
     const cards = summary ? [
         { 
-            icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_tasks,      sub: 'All sheets assigned',
+            icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_sheets ?? 0,      sub: 'All sheets assigned',
             active: activeTab === 'tasks' && statusFilter === '',
             onClick: () => { setActiveTab('tasks'); setStatusFilter(''); }
         },
         { 
-            icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending,          sub: 'Waiting to start',
+            icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending_sheets ?? 0,          sub: 'Waiting to start',
             active: activeTab === 'tasks' && statusFilter === 'pending',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('pending'); }
         },
         { 
-            icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress,  sub: 'Currently active',
+            icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress_sheets ?? 0,  sub: 'Currently active',
             active: activeTab === 'tasks' && statusFilter === 'work_in_progress',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('work_in_progress'); }
         },
         { 
-            icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete,         sub: 'Finalized tasks',
+            icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete_sheets ?? 0,         sub: 'Finalized tasks',
             active: activeTab === 'tasks' && statusFilter === 'complete',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('complete'); }
         },
         { 
-            icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done,   sub: 'Excluded tasks',
+            icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done_sheets ?? 0,   sub: 'Excluded tasks',
             active: activeTab === 'tasks' && statusFilter === 'not_to_be_done',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('not_to_be_done'); }
         },
         { 
-            icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other,            sub: 'Other tasks',
+            icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other_sheets ?? 0,            sub: 'Other tasks',
             active: activeTab === 'tasks' && statusFilter === 'other',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('other'); }
         },

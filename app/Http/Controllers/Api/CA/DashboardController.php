@@ -48,22 +48,19 @@ class DashboardController extends Controller
 
     public function summary(Request $request): JsonResponse
     {
+        $search = $request->query('search');
         $workTypeId = $request->query('work_type_id');
         $allocatedTo = $request->query('allocated_to') ?: $request->query('staff_id');
-        $query = Task::query();
-        if ($workTypeId) {
-            $query->where('work_type_id', $workTypeId);
-        }
         
-        $staffUser = $allocatedTo ? User::with('roles')->find($allocatedTo) : null;
-        if ($allocatedTo) {
-            $query->where(function ($q) use ($allocatedTo) {
-                $q->where('allocated_to', $allocatedTo)
-                  ->orWhereNotNull('dynamic_fields');
-            });
-        }
+        $tasks = Task::latest()->get();
 
-        $tasks = $query->get();
+        $clients = \App\Models\Client::all()->keyBy('id');
+        $workTypes = \App\Models\WorkType::all()->keyBy('id');
+        $users = \App\Models\User::all()->keyBy('id');
+        $roles = \App\Models\Role::all()->keyBy('id');
+
+        $staffUser = $allocatedTo ? User::with('roles')->find($allocatedTo) : null;
+
         $total = 0;
         $pending = 0;
         $workInProgress = 0;
@@ -72,26 +69,63 @@ class DashboardController extends Controller
         $other = 0;
 
         foreach ($tasks as $task) {
-            $taskRows = [];
-            if (isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows']) && !empty($task->dynamic_fields['multi_rows'])) {
-                foreach ($task->dynamic_fields['multi_rows'] as $row) {
-                    $taskRows[] = $row;
-                }
-            } else {
-                $taskRows[] = [
-                    'allocated_type' => 'user',
-                    'allocated_to' => $task->allocated_to,
-                    'status' => $task->status ? ($task->status instanceof TaskStatus ? $task->status->value : $task->status) : 'assigned',
-                ];
-            }
+            $multiRows = isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])
+                ? $task->dynamic_fields['multi_rows']
+                : [null];
 
-            foreach ($taskRows as $r) {
-                if ($staffUser && !self::doesUserMatchRowAllocation($r, $staffUser)) {
+            foreach ($multiRows as $rowIndex => $row) {
+                if ($row === null) {
+                    $clientId = $task->client_id;
+                    $workTypeIdVal = $task->work_type_id;
+                    $statusVal = $task->status->value;
+                    $allocatedToVal = $task->allocated_to;
+                    $allocType = 'user';
+                } else {
+                    $clientId = $row['client_id'] ?? null;
+                    $workTypeIdVal = $row['work_type_id'] ?? null;
+                    $statusVal = $row['status'] ?? 'pending';
+                    $allocatedToVal = $row['allocated_to'] ?? null;
+                    $allocType = $row['allocated_type'] ?? 'user';
+                }
+
+                // Apply Work Type Filter
+                if ($workTypeId && (string)$workTypeIdVal !== (string)$workTypeId) {
                     continue;
                 }
 
+                // Apply Allocated To Filter
+                if ($staffUser) {
+                    $rowToCheck = $row ?? [
+                        'allocated_to' => $allocatedToVal,
+                        'allocated_type' => $allocType
+                    ];
+                    if (!self::doesUserMatchRowAllocation($rowToCheck, $staffUser)) {
+                        continue;
+                    }
+                }
+
+                // Resolve Client and Work Type
+                $clientObj = ($clientId && is_scalar($clientId)) ? $clients->get($clientId) : null;
+                $workTypeObj = ($workTypeIdVal && is_scalar($workTypeIdVal)) ? $workTypes->get($workTypeIdVal) : null;
+
+                // Apply Search
+                if ($search) {
+                    $searchLower = strtolower($search);
+                    $clientName = $clientObj ? strtolower($clientObj->name) : '';
+                    $workTypeName = $workTypeObj ? strtolower($workTypeObj->name) : '';
+                    $formName = strtolower($task->form_name ?? '');
+
+                    if (
+                        strpos($clientName, $searchLower) === false &&
+                        strpos($workTypeName, $searchLower) === false &&
+                        strpos($formName, $searchLower) === false
+                    ) {
+                        continue;
+                    }
+                }
+
                 $total++;
-                $statusVal = strtolower($r['status'] ?? 'assigned');
+                $statusVal = strtolower($statusVal ?? 'assigned');
                 if ($statusVal === 'pending' || $statusVal === 'assigned' || empty($statusVal)) {
                     $pending++;
                 } elseif ($statusVal === 'work_in_progress') {
@@ -215,6 +249,7 @@ class DashboardController extends Controller
                     $allocType = 'user';
                     $dateAllocatedVal = $task->date_allocated?->toDateString();
                     $dateCompletedVal = $task->date_completed?->toDateString();
+                    $dueDateVal = $task->due_date?->toDateString();
                 } else {
                     $clientId = $row['client_id'] ?? null;
                     $workTypeId = $row['work_type_id'] ?? null;
@@ -223,6 +258,7 @@ class DashboardController extends Controller
                     $allocType = $row['allocated_type'] ?? 'user';
                     $dateAllocatedVal = $row['date_allocated'] ?? null;
                     $dateCompletedVal = $row['date_completed'] ?? null;
+                    $dueDateVal = $row['due_date'] ?? $row['dynamic_data']['Due Date'] ?? $row['dynamic_data']['due_date'] ?? null;
                 }
 
                 // Apply Filters
@@ -321,6 +357,7 @@ class DashboardController extends Controller
                     'date_inward' => $task->date_inward?->toDateString(),
                     'date_allocated' => $dateAllocatedVal,
                     'date_completed' => $dateCompletedVal,
+                    'due_date' => $dueDateVal,
                     'status' => $statusVal,
                     'status_label' => ucfirst(str_replace('_', ' ', $statusVal)),
                     'form_name' => $task->form_name,
@@ -398,10 +435,46 @@ class DashboardController extends Controller
                     $q->whereNotNull('due_date')
                       ->whereMonth('due_date', $request->month)
                       ->whereYear('due_date', $request->year);
-                });
+                })
+                ->orWhereNotNull('dynamic_fields');
             })
             ->get();
 
-        return TaskResource::collection($tasks);
+        // Filter tasks that actually contain at least one row in multi_rows with a due date matching requested month and year,
+        // or have task level/subtask level matching due date.
+        $filtered = $tasks->filter(function($task) use ($request) {
+            $hasTaskDueDate = $task->due_date && $task->due_date->month == $request->month && $task->due_date->year == $request->year;
+            $hasSubTaskDueDate = $task->subTasks->contains(fn($st) => $st->due_date && $st->due_date->month == $request->month && $st->due_date->year == $request->year);
+            
+            $hasDynamicRowDueDate = false;
+            if (isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])) {
+                foreach ($task->dynamic_fields['multi_rows'] as $row) {
+                    $dateVal = $row['due_date'] ?? $row['dynamic_data']['Due Date'] ?? $row['dynamic_data']['due_date'] ?? null;
+                    if (!empty($dateVal)) {
+                        try {
+                            // check if format is d-m-Y (e.g. contains '-' and day is first)
+                            if (strpos($dateVal, '-') !== false) {
+                                $parts = explode('-', $dateVal);
+                                if (count($parts) === 3 && strlen($parts[2]) === 4) {
+                                    $parsed = \Carbon\Carbon::createFromFormat('d-m-Y', $dateVal);
+                                } else {
+                                    $parsed = \Carbon\Carbon::parse($dateVal);
+                                }
+                            } else {
+                                $parsed = \Carbon\Carbon::parse($dateVal);
+                            }
+                            if ($parsed->month == $request->month && $parsed->year == $request->year) {
+                                $hasDynamicRowDueDate = true;
+                                break;
+                            }
+                        } catch (\Exception $e) {}
+                    }
+                }
+            }
+
+            return $hasTaskDueDate || $hasSubTaskDueDate || $hasDynamicRowDueDate;
+        });
+
+        return TaskResource::collection($filtered);
     }
 }
