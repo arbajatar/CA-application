@@ -903,12 +903,14 @@ function CalendarView({ staffData = [] }) {
                             <span className="text-xs font-medium bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
                                 {flatDueRows.length} Tasks
                             </span>
-                            <button
-                                onClick={exportCalendarTasks}
-                                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
-                            >
-                                <Download size={15} /> Export
-                            </button>
+                            {!isStaff && (
+                                <button
+                                    onClick={exportCalendarTasks}
+                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer"
+                                >
+                                    <Download size={15} /> Export
+                                </button>
+                            )}
                         </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -1251,12 +1253,14 @@ export default function DashboardPage() {
                                     className="flex-1 sm:flex-none"
                                 />
                                 {/* Export Button */}
-                                <button
-                                    onClick={exportAllTasks}
-                                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer shrink-0"
-                                >
-                                    <Download size={15} /> Export
-                                </button>
+                                {!isStaff && (
+                                    <button
+                                        onClick={exportAllTasks}
+                                        className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-[#1F5C99] to-[#154673] hover:from-[#246bb2] hover:to-[#1a558c] rounded-xl shadow-sm shadow-blue-900/15 border border-[#154673]/40 transition-all duration-200 hover:-translate-y-px hover:shadow-md active:scale-95 cursor-pointer shrink-0"
+                                    >
+                                        <Download size={15} /> Export
+                                    </button>
+                                )}
                             </div>
                         </div>
 

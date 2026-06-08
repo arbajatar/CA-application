@@ -1211,6 +1211,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     const handleExport = async () => {
+        if (isStaff) {
+            toast.error("Access Denied: Export is only available for admins.");
+            return;
+        }
         try {
             const formatVal = (val) => {
                 if (Array.isArray(val)) return val.join(', ');
@@ -1322,6 +1326,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     const handleImportExcel = async (e) => {
+        if (isStaff) {
+            toast.error("Access Denied: Import is only available for admins.");
+            return;
+        }
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -1840,66 +1848,68 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 </div>
                             </button>
 
-                            <div className="h-5 w-[1px] bg-slate-200 mx-1 shrink-0"></div>
-
-                            {/* Export / Import / Settings / Layout (decreased size) */}
-                            <button 
-                                onClick={handleExport} 
-                                className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                            >
-                                <FileDown size={12} className="text-emerald-600" /> 
-                                <span>Export Excel</span>
-                            </button>
-                            <label 
-                                className="flex items-center gap-1.5 text-indigo-755 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 cursor-pointer shrink-0"
-                            >
-                                <FileUp size={12} className="text-indigo-600" />
-                                <span>Import Excel</span>
-                                <input 
-                                    type="file" 
-                                    accept=".xlsx, .xls" 
-                                    onChange={handleImportExcel} 
-                                    className="hidden" 
-                                />
-                            </label>
-                            <button 
-                                onClick={() => setIsGlobalModalOpen(true)}
-                                className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                            >
-                                <Sliders size={12} className="text-indigo-500" />
-                                <span>Global Settings</span>
-                            </button>
                             {!isStaff && (
-                                <button 
-                                    onClick={() => {
-                                        if (!task) return;
-                                        const duplicateData = {
-                                            form_name: task.form_name,
-                                            client_id: task.client?.id,
-                                            work_type_id: task.work_type?.id,
-                                            remarks: task.remarks,
-                                            dynamic_fields: task.dynamic_fields,
-                                            created_at: task.created_at,
-                                            status: task.status,
-                                            allow_attachments: task.allow_attachments,
-                                            allow_checklist: task.allow_checklist,
-                                            allow_notes: task.allow_notes,
-                                            subtasks: (task.sub_tasks || []).map(st => ({
-                                                title: st.title,
-                                                assigned_to: st.assigned_to?.id,
-                                                priority: st.priority,
-                                                status: st.status,
-                                                due_date: st.due_date,
-                                                remarks: st.remarks
-                                            }))
-                                        };
-                                        navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                                    }}
-                                    className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                                >
-                                    <Edit2 size={12} className="text-violet-600" /> 
-                                    <span>Layout Builder</span>
-                                </button>
+                                <>
+                                    <div className="h-5 w-[1px] bg-slate-200 mx-1 shrink-0"></div>
+
+                                    {/* Export / Import / Settings / Layout (decreased size) */}
+                                    <button 
+                                        onClick={handleExport} 
+                                        className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                    >
+                                        <FileDown size={12} className="text-emerald-600" /> 
+                                        <span>Export Excel</span>
+                                    </button>
+                                    <label 
+                                        className="flex items-center gap-1.5 text-indigo-755 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 cursor-pointer shrink-0"
+                                    >
+                                        <FileUp size={12} className="text-indigo-600" />
+                                        <span>Import Excel</span>
+                                        <input 
+                                            type="file" 
+                                            accept=".xlsx, .xls" 
+                                            onChange={handleImportExcel} 
+                                            className="hidden" 
+                                        />
+                                    </label>
+                                    <button 
+                                        onClick={() => setIsGlobalModalOpen(true)}
+                                        className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                    >
+                                        <Sliders size={12} className="text-indigo-500" />
+                                        <span>Global Settings</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            if (!task) return;
+                                            const duplicateData = {
+                                                form_name: task.form_name,
+                                                client_id: task.client?.id,
+                                                work_type_id: task.work_type?.id,
+                                                remarks: task.remarks,
+                                                dynamic_fields: task.dynamic_fields,
+                                                created_at: task.created_at,
+                                                status: task.status,
+                                                allow_attachments: task.allow_attachments,
+                                                allow_checklist: task.allow_checklist,
+                                                allow_notes: task.allow_notes,
+                                                subtasks: (task.sub_tasks || []).map(st => ({
+                                                    title: st.title,
+                                                    assigned_to: st.assigned_to?.id,
+                                                    priority: st.priority,
+                                                    status: st.status,
+                                                    due_date: st.due_date,
+                                                    remarks: st.remarks
+                                                }))
+                                            };
+                                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                        }}
+                                        className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                    >
+                                        <Edit2 size={12} className="text-violet-600" /> 
+                                        <span>Layout Builder</span>
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
