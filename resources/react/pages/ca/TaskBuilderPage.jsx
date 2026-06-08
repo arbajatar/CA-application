@@ -1420,6 +1420,48 @@ export default function TaskBuilderPage() {
               value = data.dynamic_fields[f.label];
             }
             
+            // Normalize value based on type to avoid crashes
+            if (f.type === 'labels') {
+              if (!Array.isArray(value)) {
+                if (typeof value === 'string' && value.trim()) {
+                  if (value.startsWith('[') && value.endsWith(']')) {
+                    try {
+                      value = JSON.parse(value);
+                    } catch (e) {
+                      value = value.split(',').map(s => s.trim());
+                    }
+                  } else {
+                    value = value.split(',').map(s => s.trim());
+                  }
+                } else {
+                  value = [];
+                }
+              }
+            } else if (f.type === 'checkbox') {
+              const isMulti = (f.checkType || 'multicheck') === 'multicheck';
+              if (isMulti) {
+                if (!Array.isArray(value)) {
+                  if (typeof value === 'string' && value.trim()) {
+                    if (value.startsWith('[') && value.endsWith(']')) {
+                      try {
+                        value = JSON.parse(value);
+                      } catch (e) {
+                        value = value.split(',').map(s => s.trim());
+                      }
+                    } else {
+                      value = value.split(',').map(s => s.trim());
+                    }
+                  } else {
+                    value = [];
+                  }
+                }
+              } else {
+                if (Array.isArray(value)) {
+                  value = value[0] || '';
+                }
+              }
+            }
+            
             // Map the primary static values from data
             if (f.id === 'static_form_name') value = data.form_name || '';
             else if (f.id === 'static_work_type') value = data.work_type_id || '';
@@ -3148,13 +3190,14 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
       return <input type="date" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} />;
     case 'number':
       return <input type="number" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} placeholder={field.placeholder} />;
-    case 'labels':
+    case 'labels': {
+      const labelsVal = Array.isArray(field.value) ? field.value : (typeof field.value === 'string' && field.value.trim() ? field.value.split(',').map(s => s.trim()) : []);
       return (
         <div className="flex flex-wrap gap-2 min-h-[50px] p-2 bg-white border border-slate-200 rounded-xl focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all">
-          {field.value.map((tag, i) => (
+          {labelsVal.map((tag, i) => (
             <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-800 text-xs font-bold rounded-lg border border-slate-200">
               {tag}
-              <button onClick={() => onUpdate('value', field.value.filter((_, idx) => idx !== i))} className="hover:text-slate-950"><X className="w-3 h-3" /></button>
+              <button onClick={() => onUpdate('value', labelsVal.filter((_, idx) => idx !== i))} className="hover:text-slate-950"><X className="w-3 h-3" /></button>
             </span>
           ))}
           <input
@@ -3163,13 +3206,14 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
             className="flex-1 bg-transparent border-none focus:ring-0 text-sm min-w-[150px]"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && e.target.value.trim()) {
-                onUpdate('value', [...field.value, e.target.value.trim()]);
+                onUpdate('value', [...labelsVal, e.target.value.trim()]);
                 e.target.value = '';
               }
             }}
           />
         </div>
       );
+    }
     case 'checkbox': {
       const isMulti = (field.checkType || 'multicheck') === 'multicheck';
       const optionsList = field.options || [];
