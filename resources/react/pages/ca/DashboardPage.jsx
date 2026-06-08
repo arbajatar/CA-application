@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
                     work_type_id: filterWorkTypeId,
                     allocated_to: filterAllocatedTo,
                     page,
-                    per_page: 10
+                    per_page: 15
                 }
             })
             setTasks(res.data.data)
@@ -1279,7 +1279,7 @@ export default function DashboardPage() {
                                             <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
                                             <tr key={t.unique_id || t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
-                                                <td className="px-6 py-4 text-gray-400">{String(i + 1).padStart(2, '0')}</td>
+                                                <td className="px-6 py-4 text-gray-400">{String((page - 1) * 15 + (i + 1)).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
                                                 <td className="px-6 py-4 font-medium text-gray-700">{t.form_name || '—'}</td>
