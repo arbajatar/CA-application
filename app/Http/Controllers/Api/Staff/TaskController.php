@@ -44,6 +44,19 @@ class TaskController extends Controller
 
     public static function doesUserHaveAccessToTask($task, $user)
     {
+        if ($task->permissions()->exists()) {
+            $roleIds = $user->relationLoaded('roles')
+                ? $user->roles->pluck('id')->toArray()
+                : $user->roles()->pluck('roles.id')->toArray();
+            $hasReadAccess = $task->permissions()
+                ->whereIn('role_id', $roleIds)
+                ->where('can_read', true)
+                ->exists();
+            if ($hasReadAccess) {
+                return true;
+            }
+        }
+
         if ($task->allocated_to === $user->id) {
             return true;
         }
@@ -273,8 +286,14 @@ class TaskController extends Controller
     {
         $user = $request->user();
 
-        // Check parent task write permission or staff role
-        if ($user->role->value === 'staff' || !$perms['can_write']) {
+        $perms = (new TaskResource($task))->getUserPermissions($user);
+
+        if (!$perms['can_write']) {
+            return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+        }
+
+        $hasPermissionsSet = $task->permissions()->exists();
+        if ($user->role->value === 'staff' && !$hasPermissionsSet) {
             if ($request->has('dynamic_fields')) {
                 $oldRows = $task->dynamic_fields['multi_rows'] ?? [];
                 $newRows = $request->input('dynamic_fields.multi_rows') ?? [];

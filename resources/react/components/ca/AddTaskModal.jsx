@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Edit2 } from 'lucide-react';
+import { Plus, X, Edit2, Download } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 
@@ -193,7 +193,7 @@ export default function AddTaskModal({
                                                             <span className="text-xs font-bold text-slate-700 truncate flex-1" title={file.name}>{file.name}</span>
                                                             <div className="flex items-center gap-1">
                                                                 <a href={file.url} download={file.name} target="_blank" rel="noopener noreferrer" className="p-1.5 text-indigo-650 hover:bg-indigo-50 rounded-lg transition" title="Download">
-                                                                    <Plus size={12} className="rotate-45 text-indigo-600" />
+                                                                    <Download size={12} className="text-indigo-600" />
                                                                 </a>
                                                                 {isCurrentlyEditable && (
                                                                     <button

@@ -2137,26 +2137,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 ))}
                             </select>
                             
-                            <button
-                                onClick={() => {
-                                    setViewingRowIndex(null);
-                                    setModalEditable(true);
-                                    setNewTaskData({
-                                        form_name: task?.form_name || '',
-                                        client_id: task?.client?.id || '',
-                                        work_type_id: task?.work_type?.id || '',
-                                        allocated_to: task?.allocated_to || '',
-                                        date_allocated: task?.date_allocated || '',
-                                        status: task?.status || 'assigned',
-                                        sub_status: task?.sub_status || ''
-                                    });
-                                    setIsAddTaskModalOpen(true);
-                                }}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                            >
-                                <Plus size={13} />
-                                <span>Add Task</span>
-                            </button>
+                            {canWrite && (
+                                <button
+                                    onClick={() => {
+                                        setViewingRowIndex(null);
+                                        setModalEditable(true);
+                                        setNewTaskData({
+                                            form_name: task?.form_name || '',
+                                            client_id: task?.client?.id || '',
+                                            work_type_id: task?.work_type?.id || '',
+                                            allocated_to: task?.allocated_to || '',
+                                            date_allocated: task?.date_allocated || '',
+                                            status: task?.status || 'assigned',
+                                            sub_status: task?.sub_status || ''
+                                        });
+                                        setIsAddTaskModalOpen(true);
+                                    }}
+                                    className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                >
+                                    <Plus size={13} />
+                                    <span>Add Task</span>
+                                </button>
+                            )}
 
                             {allFields.length > 0 && (
                                 <button
@@ -2311,10 +2313,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     const originalIndex = rows.indexOf(row);
                                     if (originalIndex === -1) return null;
 
+                                    const hasSheetPermissions = Array.isArray(task?.permissions) && task.permissions.length > 0;
                                     const isRowLocked = !isAdmin && (
                                         row.is_verified || 
                                         !canWrite || 
-                                        (isStaff && !doesStaffMatchRow(row, user))
+                                        (isStaff && !hasSheetPermissions && !doesStaffMatchRow(row, user))
                                     );
 
                                     const isRowEditable = !isRowLocked && !!editingRows[originalIndex];
@@ -3168,14 +3171,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     )}
 
                                                     {/* Duplicate button */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => duplicateRow(originalIndex)}
-                                                        className="p-1.5 bg-emerald-50/40 hover:bg-emerald-100/60 text-emerald-650 border border-emerald-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
-                                                        title="Duplicate Row"
-                                                    >
-                                                        <Copy size={14} />
-                                                    </button>
+                                                    {canWrite && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => duplicateRow(originalIndex)}
+                                                            className="p-1.5 bg-emerald-50/40 hover:bg-emerald-100/60 text-emerald-650 border border-emerald-100 rounded-xl transition duration-150 active:scale-90 cursor-pointer"
+                                                            title="Duplicate Row"
+                                                        >
+                                                            <Copy size={14} />
+                                                        </button>
+                                                    )}
 
                                                     {/* Delete button */}
                                                     {!isRowLocked && canDelete && (
@@ -3193,20 +3198,22 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     );
                                 })
                             )}
-                            <tr className="hover:bg-slate-200 transition-colors">
-                                <td 
-                                    colSpan={2 + activeColumns.length} 
-                                    className="px-10 py-4"
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={addRow}
-                                        className="flex items-center gap-2 text-slate-800 hover:text-indigo-600 text-sm font-bold transition-colors bg-transparent border-none cursor-pointer outline-none"
+                            {canWrite && (
+                                <tr className="hover:bg-slate-200 transition-colors">
+                                    <td 
+                                        colSpan={2 + activeColumns.length} 
+                                        className="px-10 py-4"
                                     >
-                                        <Plus size={16} /> Add Row
-                                    </button>
-                                </td>
-                            </tr>
+                                        <button
+                                            type="button"
+                                            onClick={addRow}
+                                            className="flex items-center gap-2 text-slate-800 hover:text-indigo-600 text-sm font-bold transition-colors bg-transparent border-none cursor-pointer outline-none"
+                                        >
+                                            <Plus size={16} /> Add Row
+                                        </button>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
