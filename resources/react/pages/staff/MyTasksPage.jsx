@@ -390,7 +390,7 @@ export default function MyTasksPage() {
                             <thead>
                                 <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
                                     {activeTab === 'tasks' ? (
-                                        ['#', 'Nature', 'Inward', 'Status', 'Remarks', 'Actions'].map(h => (
+                                        ['#', 'Sheet Name', 'Work Type', 'Inward', 'Status', 'Remarks', 'Actions'].map(h => (
                                             <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
                                         ))
                                     ) : (
@@ -403,7 +403,7 @@ export default function MyTasksPage() {
                             <tbody className="divide-y divide-gray-50">
                                 {activeTab === 'tasks' ? (
                                     tasks?.length === 0 ? (
-                                        <tr><td colSpan={6} className="text-center py-12 text-gray-400">No sheets found</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
                                     ) : tasks?.map((t, i) => (
                                         <tr 
                                             key={t.id} 
@@ -411,6 +411,7 @@ export default function MyTasksPage() {
                                             onClick={() => openView(t)}
                                         >
                                             <td className="px-6 py-4 text-gray-400">{i + 1}</td>
+                                            <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
                                             <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.date_inward)}</td>
                                             <td className="px-6 py-4"><StatusBadge status={t.status} /></td>

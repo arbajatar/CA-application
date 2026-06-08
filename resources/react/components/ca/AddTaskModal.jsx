@@ -3,6 +3,32 @@ import { Plus, X, Edit2 } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 
+const DEFAULT_SUB_STATUSES = [
+    'Documentation pending',
+    'Awaiting approval',
+    'Completed'
+];
+
+const getSubStatusOptions = (task, field) => {
+    if (field && Array.isArray(field.options) && field.options.length > 0) {
+        return field.options;
+    }
+    if (task && task.dynamic_fields) {
+        let fields = task.dynamic_fields;
+        if (typeof fields === 'string') {
+            try { fields = JSON.parse(fields); } catch(e) {}
+        }
+        const schema = fields?.schema;
+        if (Array.isArray(schema)) {
+            const subStatusField = schema.find(f => f.id === 'static_sub_status');
+            if (subStatusField && Array.isArray(subStatusField.options) && subStatusField.options.length > 0) {
+                return subStatusField.options;
+            }
+        }
+    }
+    return DEFAULT_SUB_STATUSES;
+};
+
 export default function AddTaskModal({
     isOpen,
     onClose,
@@ -104,7 +130,7 @@ export default function AddTaskModal({
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                             <option value="">— Select Sub Status —</option>
-                                            {['Documentation pending', 'Awaiting approval', 'Completed'].map(opt => (
+                                            {getSubStatusOptions(task, field).map(opt => (
                                                 <option key={opt} value={opt}>{opt}</option>
                                             ))}
                                         </select>

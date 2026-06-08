@@ -1371,7 +1371,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[160px]' };
             }
             if (f.id === 'static_sub_status') {
-                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]' };
+                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]', field: f };
             }
             if (f.id === 'static_remarks') {
                 return { id: 'remarks', label: 'Remarks', minWidth: 'min-w-[220px]' };
@@ -1391,7 +1391,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[130px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[130px]' }
     ];
-
+ 
     let activeColumns = [];
     if (customColumnOrder) {
         const baseIds = baseColumns.map(c => c.id);
@@ -1402,7 +1402,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     } else {
         activeColumns = baseColumns;
     }
-
+ 
     const allFields = activeColumns.map(col => {
         if (col.id === 'form_name') return { key: 'form_name', label: 'Sheet Name', isStatic: true };
         if (col.id === 'client') return { key: 'client_id', label: 'Client', isStatic: true };
@@ -1410,7 +1410,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         if (col.id === 'assigned_to') return { key: 'allocated_to', label: 'Assigned To', isStatic: true };
         if (col.id === 'date_allocated') return { key: 'date_allocated', label: 'Create Date', isStatic: true };
         if (col.id === 'status') return { key: 'status', label: 'Sheet Status', isStatic: true };
-        if (col.id === 'sub_status') return { key: 'sub_status', label: 'Sub Status', isStatic: true };
+        if (col.id === 'sub_status') return { key: 'sub_status', label: 'Sub Status', isStatic: true, options: col.field?.options };
         if (col.id === 'attachments') return { key: 'attachments', label: 'Attachments', isStatic: true };
         if (col.id === 'is_verified') return { key: 'is_verified', label: 'Verification', isStatic: true };
         if (col.isDynamic) return { key: col.label, label: col.label, isStatic: false, type: col.field?.type, options: col.field?.options };
