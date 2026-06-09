@@ -80,6 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/client-groups', [ClientController::class, 'groups']);
         Route::post('/client-groups', [ClientController::class, 'storeGroup']);
         Route::put('/client-groups/{group}', [ClientController::class, 'updateGroup']);
+        Route::post('/work-types', [WorkTypeController::class, 'store']);
     });
 
     // ── CA / Admin routes ────────────────────────────────────────
@@ -141,7 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('/roles', RoleController::class);
 
         // Work Types
-        Route::apiResource('/work-types', WorkTypeController::class)->except(['show']);
+        Route::apiResource('/work-types', WorkTypeController::class)->except(['show', 'store']);
 
         // Settings
         Route::patch('/settings/change-password', [SettingsController::class, 'changePassword']);
