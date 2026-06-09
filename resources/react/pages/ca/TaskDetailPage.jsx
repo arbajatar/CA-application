@@ -17,7 +17,7 @@ import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import Tooltip from '../../components/ui/Tooltip';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
-import { formatDate } from '../../utils/dateHelper';
+import { formatDate, convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import AddTaskModal from '../../components/ca/AddTaskModal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
@@ -3275,12 +3275,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         ) : isTime ? (
                                                             <input
                                                                 type="time"
-                                                                value={value || ''}
+                                                                value={convertTo24Hour(value || '')}
                                                                 disabled={!isRowEditable}
                                                                 onChange={(e) => {
                                                                     const newRows = [...rows];
                                                                     if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                    newRows[originalIndex].dynamic_data[field.label] = e.target.value;
+                                                                    newRows[originalIndex].dynamic_data[field.label] = convertTo12Hour(e.target.value);
                                                                     setRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"

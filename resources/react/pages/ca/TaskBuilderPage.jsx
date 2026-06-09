@@ -17,6 +17,7 @@ import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
+import { convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
 import '../../styles/task-builder.css';
 
 const IconMap = {
@@ -3351,7 +3352,7 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
         />
       );
     case 'time':
-      return <input type="time" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} />;
+      return <input type="time" value={convertTo24Hour(field.value)} onChange={(e) => onUpdate('value', convertTo12Hour(e.target.value))} className={baseClass} />;
     case 'currency':
       return (
         <input

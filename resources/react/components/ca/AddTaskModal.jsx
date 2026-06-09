@@ -3,6 +3,7 @@ import { Plus, X, Edit2, Download } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
+import { convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
 
 const DEFAULT_SUB_STATUSES = [
     'Documentation pending',
@@ -163,7 +164,7 @@ export default function AddTaskModal({
                                     ) : isTime ? (
                                         <input
                                             type="time"
-                                            value={newTaskData.dynamic_data?.[field.key] || ''}
+                                            value={convertTo24Hour(newTaskData.dynamic_data?.[field.key] || '')}
                                             onChange={(e) => setNewTaskData({
                                                 ...newTaskData,
                                                 dynamic_data: {
@@ -409,7 +410,7 @@ export default function AddTaskModal({
                                                                     ...newTaskData,
                                                                     dynamic_data: {
                                                                         ...(newTaskData.dynamic_data || {}),
-                                                                        [field.key]: e.target.value
+                                                                        [field.key]: convertTo12Hour(e.target.value)
                                                                     }
                                                                 });
                                                             }}
