@@ -4,6 +4,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import { convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
+import TimePicker12Hour from '../ui/TimePicker12Hour';
 
 const DEFAULT_SUB_STATUSES = [
     'Documentation pending',
@@ -162,14 +163,13 @@ export default function AddTaskModal({
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     ) : isTime ? (
-                                        <input
-                                            type="time"
+                                        <TimePicker12Hour
                                             value={convertTo24Hour(newTaskData.dynamic_data?.[field.key] || '')}
-                                            onChange={(e) => setNewTaskData({
+                                            onChange={(val) => setNewTaskData({
                                                 ...newTaskData,
                                                 dynamic_data: {
                                                     ...(newTaskData.dynamic_data || {}),
-                                                    [field.key]: e.target.value
+                                                    [field.key]: convertTo12Hour(val)
                                                 }
                                             })}
                                             disabled={!isCurrentlyEditable}
@@ -264,7 +264,7 @@ export default function AddTaskModal({
                                     ) : field.type === 'checkbox' ? (
                                         field.options && field.options.length > 0 ? (
                                             <div className="flex flex-col gap-2 mt-2">
-                                                {field.options.map((opt, i) => {
+                                                {field.options.filter(opt => opt !== null && opt !== undefined).map((opt, i) => {
                                                     const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
                                                     const optLabel = typeof opt === 'object' ? opt.label : opt;
                                                     const currentVals = Array.isArray(newTaskData.dynamic_data?.[field.key]) ? newTaskData.dynamic_data[field.key] : (newTaskData.dynamic_data?.[field.key] ? [newTaskData.dynamic_data[field.key]] : []);
@@ -362,7 +362,7 @@ export default function AddTaskModal({
                                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                             <option value="">— Select {field.label} —</option>
-                                            {field.options && field.options.map((opt, i) => {
+                                            {field.options && field.options.filter(opt => opt !== null && opt !== undefined).map((opt, i) => {
                                                 const optVal = typeof opt === 'object' ? (opt.value !== undefined ? opt.value : opt.label) : opt;
                                                 const optLabel = typeof opt === 'object' ? opt.label : opt;
                                                 return <option key={i} value={optVal}>{optLabel}</option>;

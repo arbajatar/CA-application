@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import Sortable from 'sortablejs';
 import { FIELD_TYPES } from '../constants/fieldTypes'; // adjust path if needed
+import TimePicker12Hour from './ui/TimePicker12Hour';
+import { convertTo12Hour, convertTo24Hour } from '../utils/dateHelper';
 
 const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
@@ -534,7 +536,13 @@ function FieldInput({ field, onUpdate, calculateAutoProgress }) {
         />
       );
     case 'time':
-      return <input type="time" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} />;
+      return (
+        <TimePicker12Hour
+          value={convertTo24Hour(field.value || '')}
+          onChange={(val) => onUpdate('value', convertTo12Hour(val))}
+          className={baseClass}
+        />
+      );
     case 'progress_manual':
       return (
         <div className="space-y-3 p-2">

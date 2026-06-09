@@ -27,6 +27,7 @@ class SubTaskResource extends JsonResource
             'sub_status' => $this->sub_status,
             'is_verified' => (bool)$this->is_verified,
             'screenshot_url' => $this->screenshot_url,
+            'attachments' => $this->attachments,
             'task' => [
                 'id' => $this->task->id,
                 'form_name' => $this->task->form_name,

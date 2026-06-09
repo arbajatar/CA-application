@@ -18,6 +18,7 @@ import { FIELD_TYPES } from '../../constants/fieldTypes';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import { convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
+import TimePicker12Hour from '../../components/ui/TimePicker12Hour';
 import '../../styles/task-builder.css';
 
 const IconMap = {
@@ -3171,7 +3172,7 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
         <div className="relative">
           <select value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={`${baseClass} appearance-none`}>
             <option value="">{field.placeholder}</option>
-            {field.options.map((opt, i) => {
+            {(field.options || []).filter(opt => opt !== null && opt !== undefined).map((opt, i) => {
               const val = typeof opt === 'object' ? opt.value : opt;
               const lbl = typeof opt === 'object' ? opt.label : opt;
               return <option key={i} value={val}>{lbl}</option>;
@@ -3352,7 +3353,13 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
         />
       );
     case 'time':
-      return <input type="time" value={convertTo24Hour(field.value)} onChange={(e) => onUpdate('value', convertTo12Hour(e.target.value))} className={baseClass} />;
+      return (
+        <TimePicker12Hour
+          value={convertTo24Hour(field.value || '')}
+          onChange={(val) => onUpdate('value', convertTo12Hour(val))}
+          className={baseClass}
+        />
+      );
     case 'currency':
       return (
         <input
@@ -3445,7 +3452,7 @@ function FieldSettings({ field, onUpdate }) {
           <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Options Configuration</h4>
         </div>
         <div className="space-y-3">
-          {field.options.map((opt, i) => (
+          {(field.options || []).filter(opt => opt !== null && opt !== undefined).map((opt, i) => (
             <div key={i} className="flex gap-2">
               <input
                 type="text"
