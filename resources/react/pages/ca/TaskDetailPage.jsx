@@ -1219,6 +1219,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             const formatVal = (val) => {
                 if (Array.isArray(val)) return val.join(', ');
                 if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+                if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(val.trim())) {
+                    return formatDate(val);
+                }
                 return val || '';
             };
 
@@ -1374,6 +1377,38 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         index: headers.indexOf(f.label)
                     })).filter(item => item.index !== -1);
 
+                    const parseExcelDate = (val) => {
+                        if (val === undefined || val === null) return '';
+                        if (val instanceof Date) {
+                            return val.toISOString().split('T')[0];
+                        }
+                        if (typeof val === 'number' || (!isNaN(val) && !isNaN(parseFloat(val)))) {
+                            try {
+                                const dateObj = new Date((Number(val) - 25569) * 86400 * 1000);
+                                return dateObj.toISOString().split('T')[0];
+                            } catch (e) {
+                                return '';
+                            }
+                        }
+                        const str = String(val).trim();
+                        if (!str) return '';
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+                            return str;
+                        }
+                        const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                        if (dmyMatch) {
+                            const [, d, m, y] = dmyMatch;
+                            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                        }
+                        try {
+                            const parsed = new Date(str);
+                            if (!isNaN(parsed.getTime())) {
+                                return parsed.toISOString().split('T')[0];
+                            }
+                        } catch (e) {}
+                        return str;
+                    };
+
                     const importedRows = [];
                     for (let i = 4; i < json.length; i++) {
                         const rowData = json[i];
@@ -1397,7 +1432,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         const matchedStaff = staff.find(s => s.name.toLowerCase() === assignedToName.toLowerCase());
                         const allocated_to = matchedStaff ? matchedStaff.id : (task.allocated_to?.id || '');
 
-                        const date_allocated = idxCreateDate !== -1 ? String(rowData[idxCreateDate] || '').trim() : (task.date_allocated || '');
+                        const rawCreateDate = idxCreateDate !== -1 ? rowData[idxCreateDate] : '';
+                        const date_allocated = parseExcelDate(rawCreateDate) || (task.date_allocated || '');
                         const status = idxStatus !== -1 ? String(rowData[idxStatus] || '').trim().toLowerCase() : 'assigned';
                         const sub_status = idxSubStatus !== -1 ? String(rowData[idxSubStatus] || '').trim() : '';
                         const remarks = idxRemarks !== -1 ? String(rowData[idxRemarks] || '').trim() : '';
@@ -1405,7 +1441,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         // Extract dynamic fields
                         const dynamic_data = {};
                         dynamicFieldIndices.forEach(item => {
-                            dynamic_data[item.field.label] = rowData[item.index] !== undefined ? rowData[item.index] : '';
+                            let rawVal = rowData[item.index] !== undefined ? rowData[item.index] : '';
+                            if (item.field.type === 'date') {
+                                rawVal = parseExcelDate(rawVal);
+                            }
+                            dynamic_data[item.field.label] = rawVal;
                         });
 
                         const existingRow = rowId ? rows.find(r => String(r.row_id) === String(rowId)) : null;

@@ -45,11 +45,19 @@ class TaskController extends Controller
                         ->orWhere('task_particular', 'like', '%' . $search . '%')
                         ->orWhere('sub_status', 'like', '%' . $search . '%')
                         ->orWhere('feedback', 'like', '%' . $search . '%')
-                        ->orWhereHas('client', function($c) use ($search) {
-                            $c->where('name', 'like', '%' . $search . '%')
-                              ->orWhere('contact', 'like', '%' . $search . '%');
-                        })
                         ->orWhere('dynamic_fields', 'like', '%' . $search . '%');
+
+                    // Resolve matching client IDs
+                    $matchingClientIds = \App\Models\Client::where('name', 'like', '%' . $search . '%')
+                        ->orWhere('contact', 'like', '%' . $search . '%')
+                        ->pluck('id')
+                        ->toArray();
+
+                    foreach ($matchingClientIds as $cid) {
+                        $sub->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => $cid])
+                            ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$cid])
+                            ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$cid]);
+                    }
                 });
             })
             ->latest();

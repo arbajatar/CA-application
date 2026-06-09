@@ -104,18 +104,27 @@ class TaskController extends Controller
             )
             ->when(
                 $request->filled('search'),
-                fn($q) =>
-                $q->where(function ($q) use ($request) {
-                    $q->whereHas(
-                        'client',
-                        fn($cq) =>
-                        $cq->where('name', 'like', '%' . $request->search . '%')
-                    )->orWhereHas(
-                            'workType',
-                            fn($wq) =>
-                            $wq->where('name', 'like', '%' . $request->search . '%')
-                        );
-                })
+                function ($q) use ($request) {
+                    $search = $request->search;
+                    $q->where(function ($q) use ($search) {
+                        $q->where('form_name', 'like', '%' . $search . '%')
+                          ->orWhereHas('workType', function ($wq) use ($search) {
+                              $wq->where('name', 'like', '%' . $search . '%');
+                          });
+
+                        // Resolve matching client IDs
+                        $matchingClientIds = \App\Models\Client::where('name', 'like', '%' . $search . '%')
+                            ->orWhere('contact', 'like', '%' . $search . '%')
+                            ->pluck('id')
+                            ->toArray();
+
+                        foreach ($matchingClientIds as $cid) {
+                            $q->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => $cid])
+                              ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$cid])
+                              ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$cid]);
+                        }
+                    });
+                }
             )
             ->latest();
 

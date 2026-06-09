@@ -401,7 +401,7 @@ export default function ClientsPage() {
                 if (c.dob) {
                     const parts = c.dob.split('-')
                     if (parts.length === 3) {
-                        formattedDob = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`
+                        formattedDob = `${parts[2]}/${parts[1]}/${parts[0]}`
                     } else {
                         formattedDob = c.dob
                     }
@@ -543,7 +543,7 @@ export default function ClientsPage() {
                                 const dateObj = new Date((Number(rawDob) - 25569) * 86400 * 1000)
                                 dobStr = dateObj.toISOString().split('T')[0]
                             } else {
-                                const parts = rawDob.split('/')
+                                const parts = rawDob.split(/[\/\-]/)
                                 if (parts.length === 3) {
                                     let year = parts[2].trim()
                                     if (year.length === 2) {
