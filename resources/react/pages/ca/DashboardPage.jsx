@@ -925,7 +925,7 @@ function CalendarView({ staffData = [] }) {
                                     <th className="px-6 py-3.5 text-left">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-300 bg-white">
+                            <tbody className="divide-y divide-black bg-white">
                                 {flatDueRows.length === 0 ? (
                                     <tr><td colSpan={6} className="text-center py-8 text-gray-400">No tasks due within selected range.</td></tr>
                                 ) : flatDueRows.map((item, idx) => {
@@ -1274,7 +1274,7 @@ export default function DashboardPage() {
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-300">
+                                    <tbody className="divide-y divide-black">
                                         {tasks?.length === 0 ? (
                                             <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
@@ -1400,7 +1400,7 @@ export default function DashboardPage() {
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-300">
+                                    <tbody className="divide-y divide-black">
                                         {staffData.map(s => (
                                             <tr
                                                 key={s.id}

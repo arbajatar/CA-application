@@ -400,7 +400,7 @@ export default function MyTasksPage() {
                                     )}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-300">
+                            <tbody className="divide-y divide-black">
                                 {activeTab === 'tasks' ? (
                                     tasks?.length === 0 ? (
                                         <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
@@ -831,7 +831,7 @@ export default function MyTasksPage() {
                                                         <th className="px-4 py-2 text-left">Status</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-slate-300 bg-white">
+                                                <tbody className="divide-y divide-black bg-white">
                                                     {selected.sub_tasks?.map(st => (
                                                         <tr key={st.id} className="hover:bg-slate-50/30 transition">
                                                             <td className="px-4 py-2.5 font-semibold text-gray-700">{st.title}</td>
