@@ -18,6 +18,7 @@ import Tooltip from '../../components/ui/Tooltip';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import { formatDate } from '../../utils/dateHelper';
+import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import AddTaskModal from '../../components/ca/AddTaskModal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { exportToExcel } from '../../utils/excelExport';
@@ -97,7 +98,7 @@ const SummaryCard = ({ icon: Icon, iconBg, iconColor, label, value, sub, subColo
     return (
         <div 
             onClick={onClick}
-            className={`rounded-full px-3.5 py-1.5 transition-all duration-300 flex items-center justify-between gap-4 cursor-pointer select-none border text-[10px] font-black uppercase tracking-wider
+            className={`rounded-2xl px-4 py-2.5 transition-all duration-300 flex items-center justify-between gap-4 cursor-pointer select-none border text-[11px] font-black uppercase tracking-wider
                 ${active 
                     ? `${activeClass} -translate-y-0.5` 
                     : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow`}`}
@@ -2256,7 +2257,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             )}
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 w-full">
                         {[
                             { label: 'All Sub Statuses', count: rows.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
                             { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
@@ -2909,6 +2910,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 const isProgressAuto = field.type === 'progress_auto';
                                                 const isProgressManual = field.type === 'progress_manual';
                                                 const isTime = field.type === 'time';
+                                                const isCurrency = field.type === 'currency';
 
                                                 return (
                                                         <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350">
@@ -3282,6 +3284,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     setRows(newRows);
                                                                 }}
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                            />
+                                                        ) : isCurrency ? (
+                                                            <input
+                                                                type="text"
+                                                                value={value || ''}
+                                                                disabled={!isRowEditable}
+                                                                onChange={(e) => {
+                                                                    const formatted = formatIndianCurrency(e.target.value);
+                                                                    const newRows = [...rows];
+                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                    newRows[originalIndex].dynamic_data[field.label] = formatted;
+                                                                    setRows(newRows);
+                                                                }}
+                                                                onBlur={(e) => {
+                                                                    const finalVal = formatIndianCurrencyWithDecimals(e.target.value);
+                                                                    const newRows = [...rows];
+                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                    newRows[originalIndex].dynamic_data[field.label] = finalVal;
+                                                                    setRows(newRows);
+                                                                }}
+                                                                placeholder={field.placeholder || "0.00"}
+                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
@@ -4235,6 +4259,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             <Modal
                 open={isImportPreviewOpen}
                 onClose={() => setIsImportPreviewOpen(false)}
+                closeOnOutsideClick={false}
                 title="Excel Import Registry Preview"
                 width="max-w-7xl"
             >

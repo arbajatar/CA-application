@@ -2,9 +2,9 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
-export default function Modal({ open, onClose, title, children, width = 'max-w-lg' }) {
+export default function Modal({ open, onClose, title, children, width = 'max-w-lg', closeOnOutsideClick = true }) {
     useEffect(() => {
-        const handleKey = (e) => { if (e.key === 'Escape') onClose() }
+        const handleKey = (e) => { if (e.key === 'Escape' && closeOnOutsideClick) onClose() }
         if (open) {
             document.addEventListener('keydown', handleKey)
             document.body.style.overflow = 'hidden'
@@ -13,14 +13,14 @@ export default function Modal({ open, onClose, title, children, width = 'max-w-l
             document.removeEventListener('keydown', handleKey)
             document.body.style.overflow = ''
         }
-    }, [open, onClose])
+    }, [open, onClose, closeOnOutsideClick])
 
     if (!open) return null
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeOnOutsideClick ? onClose : undefined} />
             {/* Modal box */}
             <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${width} z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200`}>
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">

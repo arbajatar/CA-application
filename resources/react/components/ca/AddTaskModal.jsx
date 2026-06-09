@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, X, Edit2, Download } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
+import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 
 const DEFAULT_SUB_STATUSES = [
     'Documentation pending',
@@ -418,6 +419,28 @@ export default function AddTaskModal({
                                                 );
                                             })()}
                                         </div>
+                                    ) : field.type === 'currency' ? (
+                                        <input
+                                            type="text"
+                                            value={newTaskData.dynamic_data?.[field.key] || ''}
+                                            onChange={(e) => {
+                                                const formatted = formatIndianCurrency(e.target.value);
+                                                setNewTaskData({
+                                                    ...newTaskData,
+                                                    dynamic_data: { ...(newTaskData.dynamic_data || {}), [field.key]: formatted }
+                                                });
+                                            }}
+                                            onBlur={(e) => {
+                                                const finalVal = formatIndianCurrencyWithDecimals(e.target.value);
+                                                setNewTaskData({
+                                                    ...newTaskData,
+                                                    dynamic_data: { ...(newTaskData.dynamic_data || {}), [field.key]: finalVal }
+                                                });
+                                            }}
+                                            disabled={!isCurrentlyEditable}
+                                            placeholder={field.placeholder || `Enter amount for ${field.label}...`}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        />
                                     ) : (
                                         <input
                                             type="text"

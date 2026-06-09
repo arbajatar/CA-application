@@ -16,6 +16,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Tooltip from '../../components/ui/Tooltip';
 import { FIELD_TYPES } from '../../constants/fieldTypes';
 import SubStatusPicker from '../../components/ui/SubStatusPicker';
+import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import '../../styles/task-builder.css';
 
 const IconMap = {
@@ -1972,7 +1973,7 @@ export default function TaskBuilderPage() {
                         {[
                           {
                             name: "Inputs & Text Fields",
-                            fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink']
+                            fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink', 'currency']
                           },
                           {
                             name: "Choices & Calendar",
@@ -3351,6 +3352,23 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
       );
     case 'time':
       return <input type="time" value={field.value} onChange={(e) => onUpdate('value', e.target.value)} className={baseClass} />;
+    case 'currency':
+      return (
+        <input
+          type="text"
+          value={field.value || ''}
+          onChange={(e) => {
+            const formatted = formatIndianCurrency(e.target.value);
+            onUpdate('value', formatted);
+          }}
+          onBlur={(e) => {
+            const finalVal = formatIndianCurrencyWithDecimals(e.target.value);
+            onUpdate('value', finalVal);
+          }}
+          className={baseClass}
+          placeholder={field.placeholder || "Enter amount (e.g. 5,00,000.00)"}
+        />
+      );
     case 'progress_manual':
       return (
         <div className="space-y-4 px-2 pb-2">
