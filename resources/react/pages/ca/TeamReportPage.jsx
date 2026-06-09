@@ -181,12 +181,74 @@ const DURATION_OPTIONS = [
 ]
 
 const STATUS_OPTIONS = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'work_in_progress', label: 'Work In Progress' },
-    { value: 'complete', label: 'Complete' },
-    { value: 'not_to_be_done', label: 'Not To Be Done' },
-    { value: 'other', label: 'Other' }
+    { value: 'DONE- COMPLETE 100%', label: 'DONE- COMPLETE 100%' },
+    { value: 'DONE- PARTIALLY', label: 'DONE- PARTIALLY' },
+    { value: 'PENDING- FOR WORKING', label: 'PENDING- FOR WORKING' },
+    { value: 'PENDING- DUE TO DOCUMENT', label: 'PENDING- DUE TO DOCUMENT' },
+    { value: 'PENDING- DUE TO CLIENT', label: 'PENDING- DUE TO CLIENT' },
+    { value: 'PENDING- SENIOR CHECKING', label: 'PENDING- SENIOR CHECKING' },
+    { value: 'PENDING- SOME REASON', label: 'PENDING- SOME REASON' },
+    { value: 'NOT TO BE DONE', label: 'NOT TO BE DONE' }
 ]
+
+const STATUS_COLORS = {
+    'DONE- COMPLETE 100%': {
+        colorClass: 'bg-emerald-500',
+        textClass: 'text-emerald-700',
+        activeBorder: 'border-emerald-500',
+        activeBg: 'bg-emerald-50/30',
+        ring: 'ring-emerald-500/10'
+    },
+    'DONE- PARTIALLY': {
+        colorClass: 'bg-teal-500',
+        textClass: 'text-teal-700',
+        activeBorder: 'border-teal-500',
+        activeBg: 'bg-teal-50/30',
+        ring: 'ring-teal-500/10'
+    },
+    'PENDING- FOR WORKING': {
+        colorClass: 'bg-amber-400',
+        textClass: 'text-amber-700',
+        activeBorder: 'border-amber-400',
+        activeBg: 'bg-amber-50/30',
+        ring: 'ring-amber-400/10'
+    },
+    'PENDING- DUE TO DOCUMENT': {
+        colorClass: 'bg-orange-400',
+        textClass: 'text-orange-700',
+        activeBorder: 'border-orange-400',
+        activeBg: 'bg-orange-50/30',
+        ring: 'ring-orange-400/10'
+    },
+    'PENDING- DUE TO CLIENT': {
+        colorClass: 'bg-sky-450',
+        textClass: 'text-sky-700',
+        activeBorder: 'border-sky-400',
+        activeBg: 'bg-sky-50/30',
+        ring: 'ring-sky-400/10'
+    },
+    'PENDING- SENIOR CHECKING': {
+        colorClass: 'bg-purple-500',
+        textClass: 'text-purple-700',
+        activeBorder: 'border-purple-500',
+        activeBg: 'bg-purple-50/30',
+        ring: 'ring-purple-500/10'
+    },
+    'PENDING- SOME REASON': {
+        colorClass: 'bg-slate-400',
+        textClass: 'text-slate-700',
+        activeBorder: 'border-slate-400',
+        activeBg: 'bg-slate-50',
+        ring: 'ring-slate-400/10'
+    },
+    'NOT TO BE DONE': {
+        colorClass: 'bg-rose-500',
+        textClass: 'text-rose-700',
+        activeBorder: 'border-rose-500',
+        activeBg: 'bg-rose-50/30',
+        ring: 'ring-rose-500/10'
+    }
+}
 
 const CA_REVIEW_OPTIONS = [
     { value: 'WORK- VERY WELL', label: 'WORK- VERY WELL' },
@@ -1173,12 +1235,8 @@ export default function TeamReportPage() {
         ? Math.round(displayedReports.reduce((acc, curr) => acc + (curr.pct_completion || 0), 0) / displayedReports.length)
         : 0
 
-    // Status counts based on loaded reports
-    const pendingCount = reports.filter(r => r.status === 'pending').length
-    const wipCount = reports.filter(r => r.status === 'work_in_progress').length
-    const completeCount = reports.filter(r => r.status === 'complete').length
-    const notToBeDoneCount = reports.filter(r => r.status === 'not_to_be_done').length
-    const otherCount = reports.filter(r => r.status === 'other').length
+    // Status counts are now calculated dynamically for all 8 status options
+
 
     return (
         <div className="space-y-8 pb-12 transition-all">
@@ -1354,7 +1412,7 @@ export default function TeamReportPage() {
             {/* Interactive Status Cards Grid */}
             <div className="space-y-1.5">
                 <p className="text-[10px] font-bold text-slate-650 uppercase tracking-wider px-1">Filter by Status</p>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2">
                     {[
                         {
                             status: '',
@@ -1366,56 +1424,21 @@ export default function TeamReportPage() {
                             activeBg: 'bg-[#EEF4FB]',
                             ring: 'ring-[#1F5C99]/10'
                         },
-                        {
-                            status: 'pending',
-                            label: 'Pending',
-                            count: pendingCount,
-                            colorClass: 'bg-amber-400',
-                            textClass: 'text-amber-700',
-                            activeBorder: 'border-amber-400',
-                            activeBg: 'bg-amber-50/30',
-                            ring: 'ring-amber-400/10'
-                        },
-                        {
-                            status: 'work_in_progress',
-                            label: 'In Progress',
-                            count: wipCount,
-                            colorClass: 'bg-blue-500',
-                            textClass: 'text-blue-700',
-                            activeBorder: 'border-blue-500',
-                            activeBg: 'bg-blue-50/30',
-                            ring: 'ring-blue-500/10'
-                        },
-                        {
-                            status: 'complete',
-                            label: 'Complete',
-                            count: completeCount,
-                            colorClass: 'bg-emerald-500',
-                            textClass: 'text-emerald-700',
-                            activeBorder: 'border-emerald-500',
-                            activeBg: 'bg-emerald-50/30',
-                            ring: 'ring-emerald-500/10'
-                        },
-                        {
-                            status: 'not_to_be_done',
-                            label: 'Not To Be Done',
-                            count: notToBeDoneCount,
-                            colorClass: 'bg-rose-500',
-                            textClass: 'text-rose-700',
-                            activeBorder: 'border-rose-500',
-                            activeBg: 'bg-rose-50/30',
-                            ring: 'ring-rose-500/10'
-                        },
-                        {
-                            status: 'other',
-                            label: 'Other',
-                            count: otherCount,
-                            colorClass: 'bg-slate-400',
-                            textClass: 'text-slate-700',
-                            activeBorder: 'border-slate-400',
-                            activeBg: 'bg-slate-50',
-                            ring: 'ring-slate-400/10'
-                        }
+                        ...STATUS_OPTIONS.map(opt => {
+                            const colors = STATUS_COLORS[opt.value] || {
+                                colorClass: 'bg-slate-400',
+                                textClass: 'text-slate-700',
+                                activeBorder: 'border-slate-400',
+                                activeBg: 'bg-slate-50',
+                                ring: 'ring-slate-400/10'
+                            };
+                            return {
+                                status: opt.value,
+                                label: opt.label,
+                                count: reports.filter(r => r.status === opt.value).length,
+                                ...colors
+                            };
+                        })
                     ].map(c => (
                         <button
                             key={c.status}
@@ -1785,7 +1808,7 @@ export default function TeamReportPage() {
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        {isCA ? (
+                                                        {user?.role === 'ca' ? (
                                                             <select
                                                                 value={inlineForm.ca_review}
                                                                 onChange={e => setInlineForm(p => ({ ...p, ca_review: e.target.value }))}
@@ -1799,7 +1822,7 @@ export default function TeamReportPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        {isCA ? (
+                                                        {user?.role === 'ca' ? (
                                                             <input
                                                                 type="text"
                                                                 value={inlineForm.ca_remark}
@@ -1901,7 +1924,7 @@ export default function TeamReportPage() {
                                                     {report.final_remark || '—'}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap min-w-[200px]">
-                                                    {isCA ? (
+                                                    {user?.role === 'ca' ? (
                                                         <select
                                                             value={pendingUpdates[report.id]?.ca_review !== undefined ? pendingUpdates[report.id].ca_review : (report.ca_review || '')}
                                                             onChange={e => {
@@ -1931,7 +1954,7 @@ export default function TeamReportPage() {
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-500 min-w-[180px]">
-                                                    {isCA ? (
+                                                    {user?.role === 'ca' ? (
                                                         <input
                                                             type="text"
                                                             placeholder="Write review comment..."
@@ -1956,7 +1979,7 @@ export default function TeamReportPage() {
                                                         >
                                                             Inline Edit
                                                         </button>
-                                                        {isCA && (
+                                                        {user?.role === 'ca' && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => openReviewModal(report)}
@@ -2330,7 +2353,7 @@ export default function TeamReportPage() {
                         </div>
 
                         {/* CA Review and CA Remark (Admin only) */}
-                        {isCA && (
+                        {user?.role === 'ca' && (
                             <>
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">CA Review Status</label>

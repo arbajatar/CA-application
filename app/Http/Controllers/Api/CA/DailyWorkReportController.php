@@ -117,7 +117,7 @@ class DailyWorkReportController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        $isCA = true; // Both CA and Staff get the same view/privileges
+        $isActualCA = $user->role === 'ca';
 
         $rules = [
             'date' => 'required|date',
@@ -134,8 +134,12 @@ class DailyWorkReportController extends Controller
             'final_remark' => 'nullable|string',
         ];
 
-        if ($isCA) {
+        if ($isActualCA) {
             $rules['user_id'] = 'required|integer';
+            $rules['ca_review'] = 'nullable|string|max:255';
+            $rules['ca_remark'] = 'nullable|string';
+        } else {
+            $rules['user_id'] = 'nullable|integer';
         }
 
         $validated = $request->validate($rules);
@@ -155,7 +159,7 @@ class DailyWorkReportController extends Controller
         }
         $validated['hours_taken'] = $hours;
 
-        if (!$isCA) {
+        if (!$isActualCA) {
             $validated['user_id'] = $user->id;
         }
 
@@ -174,11 +178,12 @@ class DailyWorkReportController extends Controller
     {
         $user = $request->user();
         $isCA = true; // Both CA and Staff get the same view/privileges
+        $isActualCA = $user->role === 'ca';
 
         $report = DailyWorkReport::findOrFail($id);
 
-        // Access control
-        if (!$isCA && $report->user_id !== $user->id) {
+        // Access control: Staff can only edit their own reports
+        if (!$isActualCA && $report->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -197,7 +202,7 @@ class DailyWorkReportController extends Controller
             'final_remark' => 'nullable|string',
         ];
 
-        if ($isCA) {
+        if ($isActualCA) {
             $rules['user_id'] = 'sometimes|required|integer|exists:users,id';
             $rules['ca_review'] = 'nullable|string|max:255';
             $rules['ca_remark'] = 'nullable|string';
@@ -234,11 +239,11 @@ class DailyWorkReportController extends Controller
     public function destroy(Request $request, $id): JsonResponse
     {
         $user = $request->user();
-        $isCA = true; // Both CA and Staff get the same view/privileges
+        $isActualCA = $user->role === 'ca';
 
         $report = DailyWorkReport::findOrFail($id);
 
-        if (!$isCA && $report->user_id !== $user->id) {
+        if (!$isActualCA && $report->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
