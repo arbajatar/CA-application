@@ -91,11 +91,11 @@ export default function SearchableSelect({ value, options, placeholder, onChange
     <div className="relative w-full" ref={containerRef}>
       <div
         className={`w-full bg-white border border-slate-200 rounded-xl px-4 outline-none focus-within:border-slate-800 focus-within:ring-4 focus-within:ring-slate-200/50 transition-all flex items-center justify-between cursor-pointer ${
-          size === 'sm' ? 'py-1.5 text-xs h-[38px]' : 'py-3 text-sm'
+          size === 'sm' ? 'py-1.5 text-xs min-h-[38px] h-auto' : 'py-3 text-sm'
         } ${disabled ? 'opacity-60 bg-slate-50 cursor-not-allowed pointer-events-none' : ''}`}
         onClick={handleToggleOpen}
       >
-        <span className={`truncate mr-2 ${selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}`}>
+        <span className={`whitespace-normal break-words leading-tight mr-2 ${selectedOption ? 'text-slate-900 font-semibold' : 'text-slate-400 font-medium'}`}>
           {selectedOption ? getLabel(selectedOption) : placeholder}
         </span>
         <ChevronDown className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''} ${

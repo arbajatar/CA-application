@@ -613,6 +613,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully') => {
+        // Validate for duplicate clients within the same sheet
+        const clientIds = updatedRows.map(r => r.client_id).filter(id => id !== null && id !== undefined && id !== '');
+        const duplicateClientId = clientIds.find((id, idx) => clientIds.indexOf(id) !== idx);
+        if (duplicateClientId) {
+            const clientName = clients.find(c => String(c.id) === String(duplicateClientId))?.name || 'Selected client';
+            toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
+            return;
+        }
+
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             const firstRow = updatedRows[0] || {};
@@ -1219,9 +1228,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             return;
         }
         try {
-            const formatVal = (val) => {
+            const formatVal = (val, fieldType) => {
                 if (Array.isArray(val)) return val.join(', ');
                 if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+                if (fieldType === 'currency') {
+                    return formatIndianCurrencyWithDecimals(val);
+                }
                 if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T.*)?$/.test(val.trim())) {
                     return formatDate(val);
                 }
@@ -1235,6 +1247,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 'Row ID',
                 'Sheet Name',
                 'Client',
+                'PAN No',
                 'Work Type',
                 'Assigned To',
                 'Create Date',
@@ -1245,7 +1258,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             ];
 
             const sheetInfoRows = rows.map((r, index) => {
-                const clientName = clients.find(c => c.id === r.client_id || c.id === task.client?.id)?.name || 'N/A';
+                const clientObj = clients.find(c => c.id === r.client_id || c.id === task.client?.id);
+                const clientName = clientObj?.name || 'N/A';
+                const clientPan = clientObj?.pan_no || 'N/A';
                 const workTypeName = workTypes.find(w => w.id === r.work_type_id || w.id === task.work_type?.id)?.name || 'N/A';
                 const assignedToName = staff.find(s => s.id === r.allocated_to || s.id === task.allocated_to?.id)?.name || 'Unassigned';
                 const dynamicData = r.dynamic_data || {};
@@ -1255,12 +1270,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     r.row_id || '',
                     r.form_name || task.form_name || '',
                     clientName,
+                    clientPan,
                     workTypeName,
                     assignedToName,
                     formatDate(r.date_allocated || task.date_allocated),
                     r.status || 'assigned',
                     r.sub_status || '—',
-                    ...dynamicFields.map(f => formatVal(dynamicData[f.label])),
+                    ...dynamicFields.map(f => formatVal(dynamicData[f.label], f.type)),
                     r.remarks || ''
                 ];
             });
@@ -1420,9 +1436,20 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         const rowId = idxRowId !== -1 ? String(rowData[idxRowId] || '').trim() : '';
                         const form_name = String(rowData[idxSheetName] || '').trim();
                         
-                        // Look up client
+                        // Look up client by Name, PAN, or name + PAN
                         const clientName = idxClientName !== -1 ? String(rowData[idxClientName] || '').trim() : '';
-                        const matchedClient = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
+                        let matchedClient = null;
+                        if (clientName) {
+                            const panMatch = clientName.match(/\(([^)]+)\)/);
+                            const extractedPan = panMatch ? panMatch[1].trim().toUpperCase() : '';
+                            const cleanName = clientName.replace(/\([^)]+\)/, '').trim().toLowerCase();
+
+                            matchedClient = clients.find(c => {
+                                if (extractedPan && c.pan_no && c.pan_no.toUpperCase() === extractedPan) return true;
+                                if (c.pan_no && c.pan_no.toUpperCase() === clientName.toUpperCase()) return true;
+                                return c.name.toLowerCase() === cleanName || c.name.toLowerCase() === clientName.toLowerCase();
+                            });
+                        }
                         const client_id = matchedClient ? matchedClient.id : (task.client?.id || '');
 
                         // Look up work type
@@ -1447,6 +1474,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             let rawVal = rowData[item.index] !== undefined ? rowData[item.index] : '';
                             if (item.field.type === 'date') {
                                 rawVal = parseExcelDate(rawVal);
+                            } else if (item.field.type === 'currency' && rawVal !== '') {
+                                rawVal = formatIndianCurrencyWithDecimals(rawVal);
                             }
                             dynamic_data[item.field.label] = rawVal;
                         });
@@ -1589,61 +1618,57 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
 
     const baseColumns = schema.length > 0 ? [
+        { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
+        { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
         ...schema.map(f => {
-            if (f.id === 'static_form_name') {
-                return { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[220px]' };
-            }
-            if (f.id === 'static_client_name') {
-                return { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' };
-            }
-            if (f.id === 'static_work_type') {
-                return { id: 'work_type', label: 'Work Type', minWidth: 'min-w-[180px]' };
-            }
+            if (f.id === 'static_client_name') return null;
+            if (f.id === 'static_form_name') return null;
+            if (f.id === 'static_work_type') return null;
+            if (f.id === 'static_created_date') return null;
+            if (f.id === 'static_remarks') return null;
+            if (f.id === 'static_sheet_status') return null;
             if (f.id === 'static_assignee') {
-                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[180px]' };
-            }
-            if (f.id === 'static_created_date') {
-                return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[160px]' };
-            }
-            if (f.id === 'static_sheet_status') {
-                return { id: 'status', label: 'Sheet Status', minWidth: 'min-w-[160px]' };
+                return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[150px]' };
             }
             if (f.id === 'static_sub_status') {
-                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[180px]', field: f };
-            }
-            if (f.id === 'static_remarks') {
-                return { id: 'remarks', label: 'Remarks', minWidth: 'min-w-[220px]' };
+                return { id: 'sub_status', label: 'Sub Status', minWidth: 'min-w-[150px]', field: f };
             }
             return {
                 id: `dynamic_${f.label}`,
                 label: f.label,
-                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[180px]' : (f.type === 'checkbox' ? 'min-w-[180px]' : 'min-w-[200px]'),
+                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[150px]' : (f.type === 'checkbox' ? 'min-w-[120px]' : 'min-w-[150px]'),
                 isDynamic: true,
                 field: f
             };
         }).filter(Boolean),
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[130px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[130px]' }
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
-        { id: 'form_name', label: 'Sheet Name', minWidth: 'min-w-[220px]' },
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[130px]' },
-        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[130px]' }
+        { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
+        { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
+        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];
  
     let activeColumns = [];
     if (customColumnOrder) {
-        const baseIds = baseColumns.map(c => c.id);
-        const ordered = customColumnOrder.filter(id => baseIds.includes(id));
+        const filteredCustomOrder = customColumnOrder.filter(id => id !== 'client' && id !== 'client_pan');
+        const baseIds = baseColumns.map(c => c.id).filter(id => id !== 'client' && id !== 'client_pan');
+        const ordered = filteredCustomOrder.filter(id => baseIds.includes(id));
         const missing = baseIds.filter(id => !ordered.includes(id));
-        const finalIds = [...ordered, ...missing];
+        const finalIds = ['client', 'client_pan', ...ordered, ...missing];
         activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
     } else {
-        activeColumns = baseColumns;
+        const restCols = baseColumns.filter(c => c.id !== 'client' && c.id !== 'client_pan');
+        const clientCol = baseColumns.find(c => c.id === 'client');
+        const panCol = baseColumns.find(c => c.id === 'client_pan');
+        activeColumns = [clientCol, panCol, ...restCols].filter(Boolean);
     }
  
     const allFields = activeColumns.map(col => {
         if (col.id === 'form_name') return { key: 'form_name', label: 'Sheet Name', isStatic: true };
         if (col.id === 'client') return { key: 'client_id', label: 'Client', isStatic: true };
+        if (col.id === 'client_pan') return { key: 'client_pan', label: 'PAN No', isStatic: true };
         if (col.id === 'work_type') return { key: 'work_type_id', label: 'Work Type', isStatic: true };
         if (col.id === 'assigned_to') return { key: 'allocated_to', label: 'Assigned To', isStatic: true };
         if (col.id === 'date_allocated') return { key: 'date_allocated', label: 'Create Date', isStatic: true };
@@ -2480,7 +2505,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[12px] font-black uppercase tracking-widest">
-                                <th className="px-6 py-4 text-center border-r border-[#154673] w-16 text-white bg-[#1F5C99]">#</th>
+                                <th className="px-2 py-4 text-center border-r border-[#154673] w-[60px] min-w-[60px] text-white bg-[#1F5C99] sticky left-0 z-30">#</th>
                                 {activeColumns.map((col, idx) => {
                                     const handleColumnDrop = (targetIdx) => {
                                         if (draggedColumnIndex === null || draggedColumnIndex === targetIdx) return;
@@ -2496,6 +2521,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     
                                     const isDragging = draggedColumnIndex === idx;
                                     const isDragOver = dragOverColumnIndex === idx;
+                                    const isStickyClient = col.id === 'client';
                                     
                                     return (
                                         <th
@@ -2511,10 +2537,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 setDragOverColumnIndex(null);
                                             }}
                                             onDrop={() => handleColumnDrop(idx)}
-                                            className={`px-6 py-4 text-left border-r border-[#154673] whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th text-white font-bold ${col.minWidth} ${
+                                            className={`px-4 py-3 text-left border-r border-[#154673] whitespace-normal break-words select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th text-white font-bold ${col.minWidth} ${
                                                 isDragging ? 'opacity-40 bg-[#154673]/50 scale-95 border-dashed border-2 border-slate-350' : ''
                                             } ${
                                                 isDragOver && !isDragging ? 'bg-[#154673] border-l-2 border-blue-400 scale-102 shadow-sm' : ''
+                                            } ${
+                                                isStickyClient ? 'sticky left-[60px] z-30 bg-[#1F5C99]' : ''
                                             }`}
                                             title="Drag to rearrange column order"
                                         >
@@ -2529,7 +2557,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         className="flex items-center gap-1 cursor-pointer hover:text-white transition min-w-0 select-none"
                                                         title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
                                                     >
-                                                        <span className={`font-black transition truncate ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
+                                                        <span className={`font-black transition whitespace-normal break-words ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
                                                         {sortField === col.id ? (
                                                             sortDirection === 'asc' ? (
                                                                 <ArrowUp size={13} className="text-white shrink-0" />
@@ -2578,53 +2606,29 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 : 'hover:bg-slate-200'
                                         }`}>
                                             {/* # column with hover delete */}
-                                            <td className="px-4 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50/40 relative">
+                                            <td className="px-2 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50 sticky left-0 z-20 w-[60px] min-w-[60px]">
                                                 <span>
                                                     {String(idx + 1).padStart(2, '0')}
                                                 </span>
                                             </td>
 
                                             {activeColumns.map(col => {
-                                                if (col.id === 'form_name') {
-                                                    return (
-                                                        <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350">
-                                                            <div className="flex items-center gap-2">
-                                                                 <input
-                                                                     type="text"
-                                                                     disabled={!isRowEditable}
-                                                                     value={row.form_name || ''}
-                                                                     onChange={(e) => {
-                                                                         const val = e.target.value;
-                                                                         const newRows = [...rows];
-                                                                         newRows[originalIndex].form_name = val;
-                                                                         setRows(newRows);
-                                                                     }}
-                                                                     onFocus={(e) => setFocusedValue(e.target.value)}
-                                                                     onBlur={(e) => {
-                                                                         // No auto-save on blur
-                                                                     }}
-                                                                     onKeyDown={(e) => {
-                                                                         if (e.key === 'Enter') {
-                                                                             e.target.blur();
-                                                                         }
-                                                                     }}
-                                                                     placeholder="Sheet Name..."
-                                                                     className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                                 />
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                }
-
                                                 if (col.id === 'client') {
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 min-w-[220px]">
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 min-w-[240px] sticky left-[60px] z-20 bg-white group-hover:bg-slate-200">
                                                             <SearchableSelect
                                                                 value={row.client_id || ''}
                                                                 disabled={!isRowEditable}
-                                                                options={clients.map(c => {
-                                                                    return { value: c.id, label: c.name };
-                                                                })}
+                                                                options={clients
+                                                                    .filter(c => {
+                                                                        if (String(c.id) === String(row.client_id)) return true;
+                                                                        return !rows.some((r, rIdx) => rIdx !== originalIndex && String(r.client_id) === String(c.id));
+                                                                    })
+                                                                    .map(c => ({
+                                                                        value: c.id,
+                                                                        label: c.name
+                                                                    }))
+                                                                }
                                                                 placeholder="Select Client..."
                                                                 onChange={(val) => {
                                                                     const newRows = [...rows];
@@ -2634,6 +2638,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                 size="sm"
                                                                 direction={originalIndex > 3 ? 'up' : 'down'}
                                                             />
+                                                        </td>
+                                                    );
+                                                }
+
+                                                if (col.id === 'client_pan') {
+                                                    const clientObj = clients.find(c => String(c.id) === String(row.client_id));
+                                                    const panNo = clientObj?.pan_no || '—';
+                                                    return (
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 font-mono font-bold text-slate-700 min-w-[140px]">
+                                                            {panNo}
                                                         </td>
                                                     );
                                                 }
@@ -3312,6 +3326,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
                                                                 <textarea
+                                                                     ref={(el) => {
+                                                                         if (el) {
+                                                                             el.style.height = 'auto';
+                                                                             el.style.height = el.scrollHeight + 'px';
+                                                                         }
+                                                                     }}
                                                                      rows={1}
                                                                      value={value || ''}
                                                                      disabled={!isRowEditable}
@@ -3330,10 +3350,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                          e.target.style.height = e.target.scrollHeight + 'px';
                                                                      }}
                                                                      onBlur={(e) => {
-                                                                         // No auto-save on blur
-                                                                         if (!e.target.value || e.target.value.length < 50) {
-                                                                             e.target.style.height = 'auto';
-                                                                         }
+                                                                         e.target.style.height = 'auto';
+                                                                         e.target.style.height = e.target.scrollHeight + 'px';
                                                                      }}
                                                                     placeholder={field.placeholder || `Enter ${field.label}...`}
                                                                     className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
@@ -3375,7 +3393,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     </button>
 
                                                     {/* Assign button */}
-                                                    {!isRowLocked && isAdmin && (
+                                                    {!isRowLocked && (isAdmin || isStaff) && (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
@@ -4520,7 +4538,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 isOpen={isAddTaskModalOpen}
                 onClose={() => setIsAddTaskModalOpen(false)}
                 allFields={allFields}
-                clients={clients}
+                clients={clients
+                    .filter(c => {
+                        if (viewingRowIndex !== null && String(c.id) === String(rows[viewingRowIndex]?.client_id)) return true;
+                        return !rows.some((r, rIdx) => rIdx !== viewingRowIndex && String(r.client_id) === String(c.id));
+                    })
+                    .map(c => ({
+                        id: c.id,
+                        name: c.name
+                    }))
+                }
                 workTypes={workTypes}
                 staff={staff}
                 newTaskData={newTaskData}
