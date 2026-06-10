@@ -1328,312 +1328,316 @@ export default function TasksPage() {
                             </div>
 
                             {/* Table */}
-                            <div className="overflow-x-auto">
-                                {loading ? <Spinner /> : (
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
-                                                <th className="px-4 py-3.5 text-left whitespace-nowrap w-[60px]">
-                                                    <div className="flex items-center gap-2">
-                                                        <input 
-                                                            type="checkbox"
-                                                            checked={tasks.length > 0 && selectedSheetIds.length === tasks.length}
-                                                            onChange={() => {
-                                                                if (selectedSheetIds.length === tasks.length) {
-                                                                    setSelectedSheetIds([]);
-                                                                } else {
-                                                                    setSelectedSheetIds(tasks.map(t => t.id));
-                                                                }
-                                                            }}
-                                                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
-                                                        />
-                                                        <span>#</span>
-                                                    </div>
-                                                </th>
-                                                {activeColumns.map((col, index) => {
-                                                    const handleColumnDrop = (targetIndex) => {
-                                                        if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) return;
-                                                        const copy = [...activeColumns.map(c => c.id)];
-                                                        const draggedItem = copy[draggedColumnIndex];
-                                                        copy.splice(draggedColumnIndex, 1);
-                                                        copy.splice(targetIndex, 0, draggedItem);
-                                                        setCustomColumnOrder(copy);
-                                                        setDraggedColumnIndex(null);
-                                                        setDragOverColumnIndex(null);
-                                                        toast.success(`Positioned "${col.label}" column!`);
-                                                    };
-                                                    
-                                                    const isDragging = draggedColumnIndex === index;
-                                                    const isDragOver = dragOverColumnIndex === index;
-                                                    
-                                                    return (
-                                                        <th
-                                                            key={col.id}
-                                                            draggable
-                                                            onDragStart={() => setDraggedColumnIndex(index)}
-                                                            onDragOver={(e) => {
-                                                                e.preventDefault();
-                                                                setDragOverColumnIndex(index);
-                                                            }}
-                                                            onDragEnd={() => {
-                                                                setDraggedColumnIndex(null);
-                                                                setDragOverColumnIndex(null);
-                                                            }}
-                                                            onDrop={() => handleColumnDrop(index)}
-                                                            className={`px-4 py-3 text-left whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th border-b border-[#154673] text-white font-bold ${
-                                                                isDragging ? 'opacity-40 bg-slate-100/20 scale-95 border-dashed border-2 border-slate-300' : ''
-                                                            } ${
-                                                                isDragOver && !isDragging ? 'bg-[#154673] border-l-2 border-blue-400 scale-102 shadow-sm' : ''
-                                                            }`}
-                                                            title="Drag to rearrange column order"
-                                                        >
-                                                            <div className="flex items-center gap-1.5 justify-between">
-                                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                                    <GripVertical size={13} className="text-blue-200 shrink-0 cursor-grab group-hover/th:text-white transition" />
-                                                                    <div
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleSort(col.id);
-                                                                        }}
-                                                                        className="flex items-center gap-1 cursor-pointer hover:text-white transition min-w-0 select-none"
-                                                                        title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
-                                                                    >
-                                                                        <span className={`font-bold transition truncate ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
-                                                                        {sortField === col.id ? (
-                                                                            sortDirection === 'asc' ? (
-                                                                                <ArrowUp size={13} className="text-white shrink-0" />
-                                                                            ) : (
-                                                                                <ArrowDown size={13} className="text-white shrink-0" />
-                                                                            )
+                            <div className="overflow-x-auto relative min-h-[200px]">
+                                {loading && (
+                                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-50">
+                                        <Spinner />
+                                    </div>
+                                )}
+                                <table className={`w-full text-sm ${loading ? 'opacity-40 pointer-events-none' : ''}`}>
+                                    <thead>
+                                        <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                            <th className="px-4 py-3.5 text-left whitespace-nowrap w-[60px]">
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={tasks.length > 0 && selectedSheetIds.length === tasks.length}
+                                                        onChange={() => {
+                                                            if (selectedSheetIds.length === tasks.length) {
+                                                                setSelectedSheetIds([]);
+                                                            } else {
+                                                                setSelectedSheetIds(tasks.map(t => t.id));
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                                    />
+                                                    <span>#</span>
+                                                </div>
+                                            </th>
+                                            {activeColumns.map((col, index) => {
+                                                const handleColumnDrop = (targetIndex) => {
+                                                    if (draggedColumnIndex === null || draggedColumnIndex === targetIndex) return;
+                                                    const copy = [...activeColumns.map(c => c.id)];
+                                                    const draggedItem = copy[draggedColumnIndex];
+                                                    copy.splice(draggedColumnIndex, 1);
+                                                    copy.splice(targetIndex, 0, draggedItem);
+                                                    setCustomColumnOrder(copy);
+                                                    setDraggedColumnIndex(null);
+                                                    setDragOverColumnIndex(null);
+                                                    toast.success(`Positioned "${col.label}" column!`);
+                                                };
+                                                
+                                                const isDragging = draggedColumnIndex === index;
+                                                const isDragOver = dragOverColumnIndex === index;
+                                                
+                                                return (
+                                                    <th
+                                                        key={col.id}
+                                                        draggable
+                                                        onDragStart={() => setDraggedColumnIndex(index)}
+                                                        onDragOver={(e) => {
+                                                            e.preventDefault();
+                                                            setDragOverColumnIndex(index);
+                                                        }}
+                                                        onDragEnd={() => {
+                                                            setDraggedColumnIndex(null);
+                                                            setDragOverColumnIndex(null);
+                                                        }}
+                                                        onDrop={() => handleColumnDrop(index)}
+                                                        className={`px-4 py-3 text-left whitespace-nowrap select-none cursor-grab active:cursor-grabbing transition-all duration-150 group/th border-b border-[#154673] text-white font-bold ${
+                                                            isDragging ? 'opacity-40 bg-slate-100/20 scale-95 border-dashed border-2 border-slate-300' : ''
+                                                        } ${
+                                                            isDragOver && !isDragging ? 'bg-[#154673] border-l-2 border-blue-400 scale-102 shadow-sm' : ''
+                                                        }`}
+                                                        title="Drag to rearrange column order"
+                                                    >
+                                                        <div className="flex items-center gap-1.5 justify-between">
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <GripVertical size={13} className="text-blue-200 shrink-0 cursor-grab group-hover/th:text-white transition" />
+                                                                <div
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleSort(col.id);
+                                                                    }}
+                                                                    className="flex items-center gap-1 cursor-pointer hover:text-white transition min-w-0 select-none"
+                                                                    title="Click to sort (Default ⇄ Ascending ⇄ Descending)"
+                                                                >
+                                                                    <span className={`font-bold transition truncate ${sortField === col.id ? 'text-white font-extrabold underline decoration-blue-200 decoration-2' : 'text-blue-50'}`}>{col.label}</span>
+                                                                    {sortField === col.id ? (
+                                                                        sortDirection === 'asc' ? (
+                                                                            <ArrowUp size={13} className="text-white shrink-0" />
                                                                         ) : (
-                                                                            <ArrowUpDown size={13} className="text-blue-200 group-hover/th:text-white shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
-                                                                        )}
-                                                                    </div>
+                                                                            <ArrowDown size={13} className="text-white shrink-0" />
+                                                                        )
+                                                                    ) : (
+                                                                        <ArrowUpDown size={13} className="text-blue-200 group-hover/th:text-white shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
+                                                                    )}
                                                                 </div>
                                                             </div>
-                                                        </th>
-                                                    );
-                                                })}
-                                                <th className="px-4 py-3.5 text-left whitespace-nowrap sticky right-0 bg-[#1F5C99] z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white font-bold">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {sortedTasks?.length === 0 ? (
-                                                <tr><td colSpan={2 + activeColumns.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
-                                            ) : sortedTasks?.map((t, i) => (
-                                                    <tr 
-                                                        key={t.id} 
-                                                        className={`transition duration-150 border-b border-gray-100 ${
-                                                            (pendingUpdates[t.id] && Object.keys(pendingUpdates[t.id]).length > 0) ? 'bg-amber-50/70 hover:bg-amber-100/80 border-l-4 border-amber-500 shadow-[inset_0_1px_0_rgba(251,191,36,0.1),_inset_0_-1px_0_rgba(251,191,36,0.1)]' 
-                                                                : 'hover:bg-slate-50/80 bg-white'
-                                                        }`}
-                                                    >
-                                                        <td className="px-4 py-3 text-gray-400 font-semibold text-xs w-[60px]">
-                                                            <div className="flex items-center gap-2">
-                                                                <input 
-                                                                    type="checkbox"
-                                                                    checked={selectedSheetIds.includes(t.id)}
-                                                                    onChange={() => {
-                                                                        setSelectedSheetIds(prev => 
-                                                                            prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                                                        );
-                                                                    }}
-                                                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
-                                                                />
-                                                                <span>{String(i + 1).padStart(2, '0')}</span>
-                                                            </div>
-                                                        </td>
-                                                        {activeColumns.map(col => {
-                                                            if (col.id === 'form_name') {
-                                                                const draftVal = pendingUpdates[t.id]?.form_name !== undefined ? pendingUpdates[t.id].form_name : (t.form_name || '');
+                                                        </div>
+                                                    </th>
+                                                );
+                                            })}
+                                            <th className="px-4 py-3.5 text-left whitespace-nowrap sticky right-0 bg-[#1F5C99] z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] border-b border-[#154673] text-white font-bold">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {sortedTasks?.length === 0 ? (
+                                            <tr><td colSpan={2 + activeColumns.length} className="text-center py-12 text-gray-400">No sheets found matching filters</td></tr>
+                                        ) : sortedTasks?.map((t, i) => (
+                                                <tr 
+                                                    key={t.id} 
+                                                    className={`transition duration-150 border-b border-gray-100 ${
+                                                        (pendingUpdates[t.id] && Object.keys(pendingUpdates[t.id]).length > 0) ? 'bg-amber-50/70 hover:bg-amber-100/80 border-l-4 border-amber-500 shadow-[inset_0_1px_0_rgba(251,191,36,0.1),_inset_0_-1px_0_rgba(251,191,36,0.1)]' 
+                                                            : 'hover:bg-slate-50/80 bg-white'
+                                                    }`}
+                                                >
+                                                    <td className="px-4 py-3 text-gray-400 font-semibold text-xs w-[60px]">
+                                                        <div className="flex items-center gap-2">
+                                                            <input 
+                                                                type="checkbox"
+                                                                checked={selectedSheetIds.includes(t.id)}
+                                                                onChange={() => {
+                                                                    setSelectedSheetIds(prev => 
+                                                                        prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                                                    );
+                                                                }}
+                                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                                            />
+                                                            <span>{String(i + 1).padStart(2, '0')}</span>
+                                                        </div>
+                                                    </td>
+                                                    {activeColumns.map(col => {
+                                                        if (col.id === 'form_name') {
+                                                            const draftVal = pendingUpdates[t.id]?.form_name !== undefined ? pendingUpdates[t.id].form_name : (t.form_name || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[150px]">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'form_name', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-800 w-full outline-none transition"
+                                                                    />
+                                                                </td>
+                                                             );
+                                                        }
+                                                        if (col.id === 'client') {
+                                                            const draftVal = pendingUpdates[t.id]?.client_id !== undefined ? pendingUpdates[t.id].client_id : (t.client?.id || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
+                                                                    <select 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'client_id', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                    >
+                                                                        <option value="">— Select Client —</option>
+                                                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                                    </select>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'mobile') {
+                                                            const currentClientId = pendingUpdates[t.id]?.client_id !== undefined ? pendingUpdates[t.id].client_id : (t.client?.id || '');
+                                                            const selectedClientObj = clients.find(c => String(c.id) === String(currentClientId));
+                                                            const mobileDisplay = selectedClientObj ? selectedClientObj.contact : (t.client?.contact || '—');
+                                                            return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs font-semibold">{mobileDisplay}</td>;
+                                                        }
+                                                        if (col.id === 'work_type') {
+                                                            const draftVal = pendingUpdates[t.id]?.work_type_id !== undefined ? pendingUpdates[t.id].work_type_id : (t.work_type?.id || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
+                                                                    <select 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'work_type_id', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                    >
+                                                                        <option value="">— Select Work Type —</option>
+                                                                        {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                                                    </select>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'assigned_to') {
+                                                            const draftVal = pendingUpdates[t.id]?.allocated_to !== undefined ? pendingUpdates[t.id].allocated_to : (t.allocated_to?.id || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
+                                                                    <select 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'allocated_to', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                    >
+                                                                        <option value="">— Select Assigned To —</option>
+                                                                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                    </select>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'date_inward') {
+                                                            const draftVal = pendingUpdates[t.id]?.date_inward !== undefined ? pendingUpdates[t.id].date_inward : (t.date_inward || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[140px]">
+                                                                    <input 
+                                                                        type="date" 
+                                                                        value={draftVal ? draftVal.substring(0, 10) : ''}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'date_inward', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                    />
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'status') {
+                                                            const draftVal = pendingUpdates[t.id]?.status !== undefined ? pendingUpdates[t.id].status : (t.status || 'assigned');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[150px]">
+                                                                    <select 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'status', e.target.value)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-bold text-gray-700 w-full outline-none transition capitalize"
+                                                                    >
+                                                                        <option value="complete">Complete</option>
+                                                                        <option value="work_in_progress">Work In Progress</option>
+                                                                        <option value="pending">Pending</option>
+                                                                        <option value="not_to_be_done">Not To Be Done</option>
+                                                                        <option value="other">Other</option>
+                                                                    </select>
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'task_particular') {
+                                                            const draftVal = pendingUpdates[t.id]?.task_particular !== undefined ? pendingUpdates[t.id].task_particular : (t.task_particular || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                    <textarea 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'task_particular', e.target.value)}
+                                                                        rows={2}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
+                                                                    />
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.id === 'remarks') {
+                                                            const draftVal = pendingUpdates[t.id]?.remarks !== undefined ? pendingUpdates[t.id].remarks : (t.remarks || '');
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                    <textarea 
+                                                                        value={draftVal}
+                                                                        onChange={e => handleBulkFieldChange(t.id, 'remarks', e.target.value)}
+                                                                        rows={2}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
+                                                                    />
+                                                                </td>
+                                                            );
+                                                        }
+                                                        if (col.isDynamic) {
+                                                            const val = pendingUpdates[t.id]?.dynamic_fields?.[col.fieldName] !== undefined 
+                                                                ? pendingUpdates[t.id].dynamic_fields[col.fieldName] 
+                                                                : (t.dynamic_fields?.[col.fieldName] || '');
+                                                            
+                                                            if (col.fieldName === 'CA Rating') {
+                                                                const ratingNum = parseInt(val || '0');
                                                                 return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[150px]">
-                                                                        <input 
-                                                                            type="text" 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'form_name', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-800 w-full outline-none transition"
-                                                                        />
-                                                                    </td>
-                                                                 );
-                                                            }
-                                                            if (col.id === 'client') {
-                                                                const draftVal = pendingUpdates[t.id]?.client_id !== undefined ? pendingUpdates[t.id].client_id : (t.client?.id || '');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
-                                                                        <select 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'client_id', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
-                                                                        >
-                                                                            <option value="">— Select Client —</option>
-                                                                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                                        </select>
+                                                                    <td key={col.id} className="px-4 py-3 whitespace-nowrap min-w-[120px]">
+                                                                        <div className="flex items-center gap-0.5 text-amber-500 text-sm leading-none">
+                                                                            {Array.from({ length: 5 }).map((_, starI) => {
+                                                                                const starVal = starI + 1;
+                                                                                const isSelected = starVal <= ratingNum;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={starI}
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            const nextVal = ratingNum === starVal ? '0' : String(starVal);
+                                                                                            handleBulkDynamicFieldChange(t.id, 'CA Rating', nextVal, t.dynamic_fields);
+                                                                                        }}
+                                                                                        className={`transition-all hover:scale-125 text-sm ${isSelected ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
+                                                                                    >
+                                                                                        ★
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
                                                                     </td>
                                                                 );
                                                             }
-                                                            if (col.id === 'mobile') {
-                                                                const currentClientId = pendingUpdates[t.id]?.client_id !== undefined ? pendingUpdates[t.id].client_id : (t.client?.id || '');
-                                                                const selectedClientObj = clients.find(c => String(c.id) === String(currentClientId));
-                                                                const mobileDisplay = selectedClientObj ? selectedClientObj.contact : (t.client?.contact || '—');
-                                                                return <td key={col.id} className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs font-semibold">{mobileDisplay}</td>;
-                                                            }
-                                                            if (col.id === 'work_type') {
-                                                                const draftVal = pendingUpdates[t.id]?.work_type_id !== undefined ? pendingUpdates[t.id].work_type_id : (t.work_type?.id || '');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
-                                                                        <select 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'work_type_id', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
-                                                                        >
-                                                                            <option value="">— Select Work Type —</option>
-                                                                            {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                                                        </select>
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.id === 'assigned_to') {
-                                                                const draftVal = pendingUpdates[t.id]?.allocated_to !== undefined ? pendingUpdates[t.id].allocated_to : (t.allocated_to?.id || '');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[180px]">
-                                                                        <select 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'allocated_to', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
-                                                                        >
-                                                                            <option value="">— Select Assigned To —</option>
-                                                                            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                                        </select>
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.id === 'date_inward') {
-                                                                const draftVal = pendingUpdates[t.id]?.date_inward !== undefined ? pendingUpdates[t.id].date_inward : (t.date_inward || '');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[140px]">
-                                                                        <input 
-                                                                            type="date" 
-                                                                            value={draftVal ? draftVal.substring(0, 10) : ''}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'date_inward', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
-                                                                        />
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.id === 'status') {
-                                                                const draftVal = pendingUpdates[t.id]?.status !== undefined ? pendingUpdates[t.id].status : (t.status || 'assigned');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[150px]">
-                                                                        <select 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'status', e.target.value)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-bold text-gray-700 w-full outline-none transition capitalize"
-                                                                        >
-                                                                            <option value="complete">Complete</option>
-                                                                            <option value="work_in_progress">Work In Progress</option>
-                                                                            <option value="pending">Pending</option>
-                                                                            <option value="not_to_be_done">Not To Be Done</option>
-                                                                            <option value="other">Other</option>
-                                                                        </select>
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.id === 'task_particular') {
-                                                                const draftVal = pendingUpdates[t.id]?.task_particular !== undefined ? pendingUpdates[t.id].task_particular : (t.task_particular || '');
+                                                            
+                                                            const displayVal = Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || ''));
+                                                            if (col.fieldName === 'CA Feedback') {
                                                                 return (
                                                                     <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
                                                                         <textarea 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'task_particular', e.target.value)}
-                                                                            rows={2}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
-                                                                        />
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.id === 'remarks') {
-                                                                const draftVal = pendingUpdates[t.id]?.remarks !== undefined ? pendingUpdates[t.id].remarks : (t.remarks || '');
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
-                                                                        <textarea 
-                                                                            value={draftVal}
-                                                                            onChange={e => handleBulkFieldChange(t.id, 'remarks', e.target.value)}
-                                                                            rows={2}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
-                                                                        />
-                                                                    </td>
-                                                                );
-                                                            }
-                                                            if (col.isDynamic) {
-                                                                const val = pendingUpdates[t.id]?.dynamic_fields?.[col.fieldName] !== undefined 
-                                                                    ? pendingUpdates[t.id].dynamic_fields[col.fieldName] 
-                                                                    : (t.dynamic_fields?.[col.fieldName] || '');
-
-                                                                if (col.fieldName === 'CA Rating') {
-                                                                    const ratingNum = parseInt(val || '0');
-                                                                    return (
-                                                                        <td key={col.id} className="px-4 py-3 whitespace-nowrap min-w-[120px]">
-                                                                            <div className="flex items-center gap-0.5 text-amber-500 text-sm leading-none">
-                                                                                {Array.from({ length: 5 }).map((_, starI) => {
-                                                                                    const starVal = starI + 1;
-                                                                                    const isSelected = starVal <= ratingNum;
-                                                                                    return (
-                                                                                        <button
-                                                                                            key={starI}
-                                                                                            type="button"
-                                                                                            onClick={() => {
-                                                                                                const nextVal = ratingNum === starVal ? '0' : String(starVal);
-                                                                                                handleBulkDynamicFieldChange(t.id, 'CA Rating', nextVal, t.dynamic_fields);
-                                                                                            }}
-                                                                                            className={`transition-all hover:scale-125 text-sm ${isSelected ? 'text-amber-500 font-bold' : 'text-slate-200 hover:text-amber-400'}`}
-                                                                                        >
-                                                                                            ★
-                                                                                        </button>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        </td>
-                                                                    );
-                                                                }
-
-                                                                const displayVal = Array.isArray(val) ? val.join(', ') : (typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val || ''));
-                                                                if (col.fieldName === 'CA Feedback') {
-                                                                    return (
-                                                                        <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
-                                                                            <textarea 
-                                                                                value={displayVal}
-                                                                                onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
-                                                                                rows={2}
-                                                                                className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
-                                                                            />
-                                                                        </td>
-                                                                    );
-                                                                }
-                                                                if (col.fieldName === 'CA Remark') {
-                                                                    return (
-                                                                        <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
-                                                                            <textarea 
-                                                                                value={displayVal}
-                                                                                onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
-                                                                                rows={2}
-                                                                                className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
-                                                                            />
-                                                                        </td>
-                                                                    );
-                                                                }
-                                                                return (
-                                                                    <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[160px]">
-                                                                        <input 
-                                                                            type="text" 
                                                                             value={displayVal}
                                                                             onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
-                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                            rows={2}
+                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
                                                                         />
                                                                     </td>
                                                                 );
                                                             }
-                                                         })}
+                                                            if (col.fieldName === 'CA Remark') {
+                                                                return (
+                                                                    <td key={col.id} className="px-3 py-1.5 min-w-[220px]">
+                                                                        <textarea 
+                                                                            value={displayVal}
+                                                                            onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
+                                                                            rows={2}
+                                                                            className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition resize-y min-h-[40px] leading-relaxed"
+                                                                        />
+                                                                    </td>
+                                                                );
+                                                            }
+                                                            return (
+                                                                <td key={col.id} className="px-3 py-1.5 whitespace-nowrap min-w-[160px]">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={displayVal}
+                                                                        onChange={e => handleBulkDynamicFieldChange(t.id, col.fieldName, e.target.value, t.dynamic_fields)}
+                                                                        className="bg-transparent hover:bg-slate-100 focus:bg-white border border-transparent focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded px-2 py-1 text-xs font-semibold text-gray-700 w-full outline-none transition"
+                                                                    />
+                                                                </td>
+                                                            );
+                                                        }
+                                                    })}
                                                     <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white group-hover/row:bg-gray-100 transition shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] z-10">
                                                         <div className="flex items-center gap-2">
                                                             <Tooltip content="View Sheet">
@@ -1656,9 +1660,8 @@ export default function TasksPage() {
                                                     </td>
                                                 </tr>
                                             ))}
-                                        </tbody>
-                                    </table>
-                                )}
+                                    </tbody>
+                                </table>
                             </div>
 
                             {/* Pagination */}

@@ -374,14 +374,25 @@ export default function AddTaskModal({
                                                 const totalSub = task?.sub_tasks?.length || 0;
                                                 const completeSub = task?.sub_tasks?.filter(st => st.status === 'complete').length || 0;
                                                 const pct = totalSub > 0 ? Math.round((completeSub / totalSub) * 100) : 0;
+
+                                                let gradient = 'from-rose-500 to-amber-500';
+                                                let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                if (pct >= 40 && pct < 90) {
+                                                    gradient = 'from-blue-500 to-indigo-600';
+                                                    badgeBg = 'bg-indigo-50 border-indigo-100 text-indigo-655';
+                                                } else if (pct >= 90) {
+                                                    gradient = 'from-emerald-500 to-teal-500';
+                                                    badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                }
+
                                                 return (
                                                     <>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto Progress</span>
-                                                            <span className="text-xs font-black text-indigo-650">{pct}%</span>
+                                                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>{pct}%</span>
                                                         </div>
-                                                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                                                        <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden relative border border-slate-200/20 shadow-inner">
+                                                            <div className={`h-full bg-gradient-to-r ${gradient} transition-all duration-500`} style={{ width: `${pct}%` }}></div>
                                                         </div>
                                                         <p className="text-[9px] text-slate-400 font-bold">{completeSub}/{totalSub} Checklist Tasks Complete</p>
                                                     </>
@@ -393,11 +404,19 @@ export default function AddTaskModal({
                                             {(() => {
                                                 const value = newTaskData.dynamic_data?.[field.key] ?? '0';
                                                 const parsedVal = Math.min(100, Math.max(0, parseInt(value) || 0));
+
+                                                let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+                                                if (parsedVal >= 40 && parsedVal < 90) {
+                                                    badgeBg = 'bg-teal-50 border-teal-100 text-teal-700';
+                                                } else if (parsedVal >= 90) {
+                                                    badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+                                                }
+
                                                 return (
                                                     <>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Manual Progress</span>
-                                                            <span className="text-xs font-black text-indigo-650">{parsedVal}%</span>
+                                                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>{parsedVal}%</span>
                                                         </div>
                                                         <input
                                                             type="range"
@@ -410,11 +429,14 @@ export default function AddTaskModal({
                                                                     ...newTaskData,
                                                                     dynamic_data: {
                                                                         ...(newTaskData.dynamic_data || {}),
-                                                                        [field.key]: convertTo12Hour(e.target.value)
+                                                                        [field.key]: e.target.value
                                                                     }
                                                                 });
                                                             }}
-                                                            className="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-50"
+                                                            className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            style={{
+                                                                background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
+                                                            }}
                                                         />
                                                     </>
                                                 );

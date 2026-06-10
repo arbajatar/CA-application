@@ -543,16 +543,34 @@ function FieldInput({ field, onUpdate, calculateAutoProgress }) {
           className={baseClass}
         />
       );
-    case 'progress_manual':
+    case 'progress_manual': {
+      const parsedVal = Math.min(100, Math.max(0, parseInt(field.value) || 0));
+      let badgeBg = 'bg-rose-50 border-rose-100 text-rose-600';
+      if (parsedVal >= 40 && parsedVal < 90) {
+        badgeBg = 'bg-teal-50 border-teal-100 text-teal-700';
+      } else if (parsedVal >= 90) {
+        badgeBg = 'bg-emerald-50 border-emerald-100 text-emerald-600';
+      }
       return (
         <div className="space-y-3 p-2">
           <div className="flex justify-between items-center">
             <span className="text-xs font-bold text-slate-400 uppercase">Manual Scale</span>
-            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{field.value || 0}%</span>
+            <span className={`px-2 py-0.5 rounded-lg text-xs font-black tracking-tighter border shadow-sm ${badgeBg}`}>{parsedVal}%</span>
           </div>
-          <input type="range" min="0" max="100" value={field.value || 0} onChange={(e) => onUpdate('value', parseInt(e.target.value))} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={parsedVal}
+            onChange={(e) => onUpdate('value', parseInt(e.target.value))}
+            className="w-full h-3 rounded-full appearance-none cursor-pointer focus:outline-none transition-all outline-none shadow-inner border border-slate-200/20"
+            style={{
+              background: `linear-gradient(to right, ${parsedVal < 40 ? '#f43f5e, #f59e0b' : parsedVal < 90 ? '#3b82f6, #4f46e5' : '#10b981, #14b8a6'} ${parsedVal}%, #f1f5f9 ${parsedVal}%)`
+            }}
+          />
         </div>
       );
+    }
     case 'progress_auto': {
       const pct = calculateAutoProgress();
       return (
