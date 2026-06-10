@@ -454,6 +454,112 @@ export default function ClientsPage() {
         }
     }
 
+    // Helper to validate all imported rows for formats, database duplicates, and sheet duplicates
+    const validateImportRows = (rowsToValidate, existingPans) => {
+        const seenPansInSheet = new Set()
+        const duplicatePansInSheet = new Set()
+
+        // First pass: find sheet-level duplicate PANs
+        rowsToValidate.forEach(row => {
+            if (row.pan_no) {
+                if (seenPansInSheet.has(row.pan_no)) {
+                    duplicatePansInSheet.add(row.pan_no)
+                } else {
+                    seenPansInSheet.add(row.pan_no)
+                }
+            }
+        })
+
+        // Second pass: apply validation rules to each row
+        return rowsToValidate.map(row => {
+            let validationError = ''
+            let isUpdate = false
+            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
+
+            if (row.pan_no) {
+                if (!panRegex.test(row.pan_no)) {
+                    validationError = 'Invalid general PAN format.'
+                } else {
+                    const typeOption = types.find(t => t.name.toLowerCase() === (row.type || '').toLowerCase())
+                    if (typeOption && typeOption.pan_char) {
+                        const expectedChar = typeOption.pan_char.toUpperCase()
+                        if (row.pan_no.charAt(3) !== expectedChar) {
+                            validationError = `PAN character 4 must be "${expectedChar}" for type "${row.type}".`
+                        }
+                    }
+                }
+
+                // Sheet duplication check takes priority for error
+                if (!validationError && duplicatePansInSheet.has(row.pan_no)) {
+                    validationError = 'Duplicate PAN number in Excel sheet.'
+                }
+
+                // Database duplication check -> marks as Update (not validationError)
+                if (!validationError && existingPans) {
+                    const matchedByPan = existingPans.find(c => c.pan_no === row.pan_no)
+                    if (matchedByPan) {
+                        isUpdate = true
+                    } else {
+                        // Match by name if DB record has blank PAN
+                        const matchedByNameAndBlankPan = existingPans.find(c => c.name === String(row.name || '').trim().toLowerCase() && !c.pan_no)
+                        if (matchedByNameAndBlankPan) {
+                            isUpdate = true
+                        }
+                    }
+                }
+            } else {
+                // If row doesn't have PAN, match by Name to mark as update
+                if (existingPans) {
+                    const matchedByName = existingPans.find(c => c.name === String(row.name || '').trim().toLowerCase())
+                    if (matchedByName) {
+                        isUpdate = true
+                    }
+                }
+            }
+
+            if (!validationError && row.gst_number) {
+                const isGstEmpty = !row.gst_number || row.gst_number === '-' || row.gst_number === '—' || row.gst_number === 'N/A' || row.gst_number === 'NA'
+                if (!isGstEmpty) {
+                    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
+                    if (!gstRegex.test(row.gst_number)) {
+                        validationError = 'Invalid GST format.'
+                    } else if (row.pan_no) {
+                        const panInGst = row.gst_number.substring(2, 12)
+                        if (panInGst !== row.pan_no.toUpperCase()) {
+                            validationError = 'GST PAN segment must match client PAN.'
+                        }
+                    }
+                }
+            }
+
+            if (!validationError && row.contact && row.contact.replace(/\D/g, '').length !== 10) {
+                validationError = 'Contact No must be exactly 10 digits.'
+            }
+            if (!validationError && row.alternative_contact && row.alternative_contact.replace(/\D/g, '').length !== 10) {
+                validationError = 'Alternative Contact No must be exactly 10 digits.'
+            }
+
+            // Re-generate password if dob or pan changed
+            let aisTisPassword = row.credentials?.ais_tis_password || ''
+            if (row.pan_no && row.dob) {
+                const dobParts = row.dob.split('-')
+                if (dobParts.length === 3) {
+                    aisTisPassword = `${row.pan_no.toLowerCase()}${dobParts[2]}${dobParts[1]}${dobParts[0]}`
+                }
+            }
+
+            return {
+                ...row,
+                validationError,
+                isUpdate,
+                credentials: {
+                    ...(row.credentials || {}),
+                    ais_tis_password: aisTisPassword
+                }
+            }
+        })
+    }
+
     // Excel Client Side Import & Preview logic
     const handleImportFile = async (e) => {
         const file = e.target.files?.[0]
@@ -481,6 +587,10 @@ export default function ClientsPage() {
                     let headers = []
                     let idxName = -1
                     let idxPan = -1
+                    let bestHeaderIndex = -1
+                    let bestHeaders = []
+                    let bestIdxName = -1
+                    let bestIdxPan = -1
 
                     for (let i = 0; i < Math.min(json.length, 10); i++) {
                         const candidateRow = json[i]
@@ -490,17 +600,32 @@ export default function ClientsPage() {
                         const tempName = candidateHeaders.findIndex(h => h.includes('name') && !h.includes('pan'))
                         const tempPan = candidateHeaders.findIndex(h => h.includes('pan') && !h.includes('name') && !h.includes('as per'))
 
-                        if (tempName !== -1 && tempPan !== -1) {
-                            headerRowIndex = i
-                            headers = candidateHeaders
-                            idxName = tempName
-                            idxPan = tempPan
-                            break
+                        if (tempName !== -1) {
+                            if (tempPan !== -1) {
+                                headerRowIndex = i
+                                headers = candidateHeaders
+                                idxName = tempName
+                                idxPan = tempPan
+                                break
+                            }
+                            if (bestIdxName === -1) {
+                                bestHeaderIndex = i
+                                bestHeaders = candidateHeaders
+                                bestIdxName = tempName
+                                bestIdxPan = tempPan
+                            }
                         }
                     }
 
-                    if (idxName === -1 || idxPan === -1) {
-                        toast.error('Could not find mandatory "Client Name" or "PAN No" columns in Excel header.')
+                    if (idxName === -1 && bestIdxName !== -1) {
+                        headerRowIndex = bestHeaderIndex
+                        headers = bestHeaders
+                        idxName = bestIdxName
+                        idxPan = bestIdxPan
+                    }
+
+                    if (idxName === -1) {
+                        toast.error('Could not find mandatory "Client Name" column in Excel header.')
                         return
                     }
 
@@ -520,10 +645,10 @@ export default function ClientsPage() {
 
                     // Load all active database PANs to flag duplicate rows in RED
                     const pansRes = await api.get('/ca/clients/pan-numbers')
-                    const existingPans = new Set(pansRes.data.data.map(p => p.toUpperCase()))
+                    const existingPans = pansRes.data.data
                     existingPansRef.current = existingPans
 
-                    const rows = []
+                    const rawRows = []
                     for (let i = headerRowIndex + 1; i < json.length; i++) {
                         const rowData = json[i]
                         if (rowData.length === 0 || !rowData[idxName]) {
@@ -533,8 +658,6 @@ export default function ClientsPage() {
                         const rawPan = idxPan !== -1 ? String(rowData[idxPan] || '').trim().toUpperCase() : ''
                         const rawType = String(rowData[idxType] || '').trim()
                         const rawDob = String(rowData[idxDob] || '').trim()
-
-                        const isUpdate = rawPan ? existingPans.has(rawPan) : false
 
                         // Parse date properly from excel serial or string formats
                         let dobStr = ''
@@ -565,46 +688,8 @@ export default function ClientsPage() {
                             }
                         }
 
-                        // Local validation check
-                        let validationError = ''
-                        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-                        if (rawPan) {
-                            if (!panRegex.test(rawPan)) {
-                                validationError = 'Invalid general PAN format.'
-                            } else {
-                                const typeOption = types.find(t => t.name.toLowerCase() === rawType.toLowerCase())
-                                if (typeOption && typeOption.pan_char) {
-                                    const expectedChar = typeOption.pan_char.toUpperCase()
-                                    if (rawPan.charAt(3) !== expectedChar) {
-                                        validationError = `PAN character 4 must be "${expectedChar}" for type "${rawType}".`
-                                    }
-                                }
-                            }
-                        }
-
-                        // Validate GST if provided
                         const rawGst = idxGst !== -1 ? String(rowData[idxGst] || '').trim().toUpperCase() : ''
                         const isGstEmpty = !rawGst || rawGst === '-' || rawGst === '—' || rawGst === 'N/A' || rawGst === 'NA'
-                        if (rawGst && !isGstEmpty) {
-                            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-                            if (!gstRegex.test(rawGst)) {
-                                validationError = 'Invalid GST format.'
-                            } else if (rawPan) {
-                                const panInGst = rawGst.substring(2, 12)
-                                if (panInGst !== rawPan) {
-                                    validationError = 'GST PAN segment must match client PAN.'
-                                }
-                            }
-                        }
-
-                        // Auto generate AIS & TIS password
-                        let aisTisPassword = ''
-                        if (rawPan && dobStr) {
-                            const dobParts = dobStr.split('-')
-                            if (dobParts.length === 3) {
-                                aisTisPassword = `${rawPan.toLowerCase()}${dobParts[2]}${dobParts[1]}${dobParts[0]}`
-                            }
-                        }
 
                         let parsedContact = idxContact !== -1 ? String(rowData[idxContact] || '').trim().replace(/\D/g, '') : ''
                         if (parsedContact.length > 10) {
@@ -616,14 +701,7 @@ export default function ClientsPage() {
                             parsedAltContact = parsedAltContact.slice(-10)
                         }
 
-                        if (!validationError && parsedContact && parsedContact.length !== 10) {
-                            validationError = 'Contact No must be exactly 10 digits.'
-                        }
-                        if (!validationError && parsedAltContact && parsedAltContact.length !== 10) {
-                            validationError = 'Alternative Contact No must be exactly 10 digits.'
-                        }
-
-                        rows.push({
+                        rawRows.push({
                             name: String(rowData[idxName] || '').trim(),
                             name_as_per_pan: idxNameAsPan !== -1 ? String(rowData[idxNameAsPan] || '').trim() : '',
                             pan_no: rawPan,
@@ -640,16 +718,15 @@ export default function ClientsPage() {
                             gst_number: (idxGst !== -1 && !isGstEmpty) ? rawGst : '',
                             credentials: {
                                 efiling_password: idxEfilingPwd !== -1 ? String(rowData[idxEfilingPwd] || '').trim() : '',
-                                ais_tis_password: aisTisPassword
-                            },
-                            isUpdate,
-                            validationError
+                                ais_tis_password: ''
+                            }
                         })
                     }
 
-                    setPreviewRows(rows)
+                    const validatedRows = validateImportRows(rawRows, existingPans)
+                    setPreviewRows(validatedRows)
                     setImportOpen(true)
-                    toast.success(`Parsed ${rows.length} rows successfully. Please review preview list.`)
+                    toast.success(`Parsed ${validatedRows.length} rows successfully. Please review preview list.`)
                 } catch (e) {
                     console.error(e)
                     toast.error('Error reading details from selected sheet.')
@@ -688,63 +765,8 @@ export default function ClientsPage() {
                 row[field] = val
             }
 
-            // Re-run validation
-            let validationError = ''
-            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/
-            if (row.pan_no) {
-                if (!panRegex.test(row.pan_no)) {
-                    validationError = 'Invalid general PAN format.'
-                } else {
-                    const typeOption = types.find(t => t.name.toLowerCase() === (row.type || '').toLowerCase())
-                    if (typeOption && typeOption.pan_char) {
-                        const expectedChar = typeOption.pan_char.toUpperCase()
-                        if (row.pan_no.charAt(3) !== expectedChar) {
-                            validationError = `PAN character 4 must be "${expectedChar}" for type "${row.type}".`
-                        }
-                    }
-                }
-            }
-
-            if (!validationError && row.gst_number) {
-                const isGstEmpty = !row.gst_number || row.gst_number === '-' || row.gst_number === '—' || row.gst_number === 'N/A' || row.gst_number === 'NA'
-                if (!isGstEmpty) {
-                    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
-                    if (!gstRegex.test(row.gst_number)) {
-                        validationError = 'Invalid GST format.'
-                    } else if (row.pan_no) {
-                        const panInGst = row.gst_number.substring(2, 12)
-                        if (panInGst !== row.pan_no.toUpperCase()) {
-                            validationError = 'GST PAN segment must match client PAN.'
-                        }
-                    }
-                }
-            }
-
-            if (!validationError && row.contact && row.contact.replace(/\D/g, '').length !== 10) {
-                validationError = 'Contact No must be exactly 10 digits.'
-            }
-            if (!validationError && row.alternative_contact && row.alternative_contact.replace(/\D/g, '').length !== 10) {
-                validationError = 'Alternative Contact No must be exactly 10 digits.'
-            }
-
-            row.validationError = validationError
-
-            // Re-generate password if dob or pan changed
-            if (row.pan_no && row.dob) {
-                const dobParts = row.dob.split('-')
-                if (dobParts.length === 3) {
-                    row.credentials = {
-                        ...(row.credentials || {}),
-                        ais_tis_password: `${row.pan_no.toLowerCase()}${dobParts[2]}${dobParts[1]}${dobParts[0]}`
-                    }
-                }
-            }
-
-            // Re-evaluate database duplication check (now update check)
-            row.isUpdate = (row.pan_no && existingPansRef.current) ? existingPansRef.current.has(row.pan_no) : false
-
             updated[idx] = row
-            return updated
+            return validateImportRows(updated, existingPansRef.current)
         })
     }
 

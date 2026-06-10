@@ -145,8 +145,12 @@ class ClientController extends Controller
 
     public function panNumbers(): JsonResponse
     {
-        $pans = Client::pluck('pan_no')->filter()->values()->map(fn($p) => strtoupper($p));
-        return response()->json(['data' => $pans]);
+        $clients = Client::withTrashed()->get(['id', 'name', 'pan_no'])->map(fn($c) => [
+            'id' => $c->id,
+            'name' => trim(strtolower($c->name)),
+            'pan_no' => $c->pan_no ? strtoupper(trim($c->pan_no)) : null
+        ]);
+        return response()->json(['data' => $clients]);
     }
 
     public function bulkStore(Request $request): JsonResponse
@@ -188,14 +192,35 @@ class ClientController extends Controller
             ];
 
             if ($pan) {
-                // Use updateOrCreate to either create a new client or update existing one matching the PAN
-                Client::updateOrCreate(
-                    ['pan_no' => $pan], // Match by PAN
-                    $data
-                );
+                // 1. Try matching by PAN (including soft-deleted)
+                $client = Client::withTrashed()->where('pan_no', $pan)->first();
+                
+                // 2. Try matching by Name where PAN is null/empty
+                if (!$client) {
+                    $client = Client::withTrashed()
+                        ->where('name', $c['name'])
+                        ->where(fn($q) => $q->whereNull('pan_no')->orWhere('pan_no', ''))
+                        ->first();
+                }
+                
+                if ($client) {
+                    $client->restore();
+                    $client->update(array_merge($data, ['pan_no' => $pan]));
+                } else {
+                    Client::create(array_merge($data, ['pan_no' => $pan]));
+                }
             } else {
-                // If there's no PAN, we create a new client directly
-                Client::create($data);
+                // Try matching by Name (including soft-deleted)
+                $client = Client::withTrashed()
+                    ->where('name', $c['name'])
+                    ->first();
+                
+                if ($client) {
+                    $client->restore();
+                    $client->update($data);
+                } else {
+                    Client::create($data);
+                }
             }
             $imported++;
         }

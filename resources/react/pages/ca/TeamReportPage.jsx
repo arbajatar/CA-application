@@ -938,6 +938,7 @@ export default function TeamReportPage() {
         }
 
         setSaving(true)
+        setFormErrors({})
         try {
             const payload = {
                 ...newClientForm,
@@ -972,6 +973,7 @@ export default function TeamReportPage() {
             })
             toast.success('New client registered successfully!')
         } catch (e) {
+            setFormErrors(e.response?.data?.errors ?? {})
             toast.error(e.response?.data?.message || 'Failed to register client')
         } finally {
             setSaving(false)
