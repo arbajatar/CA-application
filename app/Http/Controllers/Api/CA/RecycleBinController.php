@@ -101,28 +101,14 @@ class RecycleBinController extends Controller
         // Mark status as Active
         $client->update(['status' => \App\Enums\ClientStatus::Active]);
 
-        // Automatically restore client's soft-deleted tasks
-        $tasks = Task::onlyTrashed()->where('client_id', $client->id)->get();
-        foreach ($tasks as $task) {
-            $task->restore();
-            SubTask::onlyTrashed()->where('task_id', $task->id)->restore();
-        }
-
         return response()->json([
-            'message' => 'Client and related sheets/tasks successfully restored.',
+            'message' => 'Client successfully restored.',
         ]);
     }
 
     public function forceDeleteClient($id): JsonResponse
     {
         $client = Client::onlyTrashed()->findOrFail($id);
-        
-        // Permanently delete related tasks and subtasks first
-        $tasks = Task::onlyTrashed()->where('client_id', $client->id)->get();
-        foreach ($tasks as $task) {
-            SubTask::onlyTrashed()->where('task_id', $task->id)->forceDelete();
-            $task->forceDelete();
-        }
         
         $client->forceDelete();
 

@@ -21,7 +21,13 @@ class ReportController extends Controller
 
         // 1. Fetch Tasks (Sheets)
         $tasksQuery = Task::with(['client', 'workType', 'assignedTo'])
-            ->when($clientId, fn($q) => $q->where('client_id', $clientId))
+            ->when($clientId, function ($q) use ($clientId) {
+                $q->where(function ($sub) use ($clientId) {
+                    $sub->whereJsonContains('dynamic_fields->multi_rows', ['client_id' => $clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$clientId]);
+                });
+            })
             ->when($staffId, function ($q) use ($staffId) {
                 $q->where(function ($sub) use ($staffId) {
                     $sub->where('allocated_to', $staffId)
@@ -76,7 +82,11 @@ class ReportController extends Controller
             ->when($startDate, fn($q) => $q->whereDate('created_at', '>=', $startDate))
             ->when($endDate, fn($q) => $q->whereDate('created_at', '<=', $endDate))
             ->when($clientId, function($q) use ($clientId) {
-                $q->whereHas('task', fn($tq) => $tq->where('client_id', $clientId));
+                $q->whereHas('task', function($tq) use ($clientId) {
+                    $tq->whereJsonContains('dynamic_fields->multi_rows', ['client_id' => $clientId])
+                       ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$clientId])
+                       ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$clientId]);
+                });
             });
 
         $subTasks = $subTasksQuery->latest()->get()->map(function($subTask) {
@@ -125,7 +135,13 @@ class ReportController extends Controller
         $endDate = $request->get('end_date');
 
         $tasksQuery = Task::with(['client', 'workType', 'assignedTo', 'subTasks.assignedTo'])
-            ->when($clientId, fn($q) => $q->where('client_id', $clientId))
+            ->when($clientId, function ($q) use ($clientId) {
+                $q->where(function ($sub) use ($clientId) {
+                    $sub->whereJsonContains('dynamic_fields->multi_rows', ['client_id' => $clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$clientId]);
+                });
+            })
             ->when($staffId, function ($q) use ($staffId) {
                 $q->where(function ($sub) use ($staffId) {
                     $sub->where('allocated_to', $staffId)

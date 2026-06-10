@@ -34,7 +34,14 @@ class TaskController extends Controller
             })
             ->when($request->filled('status'), fn($q) => $q->where('status', TaskStatus::from($request->status)))
             ->when($request->filled('work_type_id'), fn($q) => $q->where('work_type_id', $request->work_type_id))
-            ->when($request->filled('client_id'), fn($q) => $q->where('client_id', $request->client_id))
+            ->when($request->filled('client_id'), function ($q) use ($request) {
+                $clientId = $request->client_id;
+                $q->where(function ($sub) use ($clientId) {
+                    $sub->whereJsonContains('dynamic_fields->multi_rows', ['client_id' => $clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (string)$clientId])
+                        ->orWhereJsonContains('dynamic_fields->multi_rows', ['client_id' => (int)$clientId]);
+                });
+            })
             ->when($request->filled('date_from'), fn($q) => $q->whereDate('date_inward', '>=', $request->date_from))
             ->when($request->filled('date_to'), fn($q) => $q->whereDate('date_inward', '<=', $request->date_to))
             ->when($request->filled('search'), function($q) use ($request) {
