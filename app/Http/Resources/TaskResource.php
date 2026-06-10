@@ -90,16 +90,16 @@ class TaskResource extends JsonResource
 
         // Find permissions matching any of the user's roles
         $roleIds = $user->relationLoaded('roles') 
-            ? $user->roles->pluck('id')->toArray() 
-            : $user->roles()->pluck('roles.id')->toArray();
+            ? $user->roles->pluck('id')->map('intval')->toArray() 
+            : $user->roles()->pluck('roles.id')->map('intval')->toArray();
 
         $userRolePermissions = $permissions->whereIn('role_id', $roleIds);
 
         if ($userRolePermissions->isNotEmpty()) {
             return [
-                'can_read' => $userRolePermissions->contains('can_read', true),
-                'can_write' => $userRolePermissions->contains('can_write', true),
-                'can_delete' => $userRolePermissions->contains('can_delete', true),
+                'can_read' => $userRolePermissions->contains(fn($p) => (bool)$p->can_read),
+                'can_write' => $userRolePermissions->contains(fn($p) => (bool)$p->can_write),
+                'can_delete' => $userRolePermissions->contains(fn($p) => (bool)$p->can_delete),
             ];
         }
 

@@ -26,8 +26,17 @@ class DashboardController extends Controller
         $allocatedToFilter = $request->get('allocated_to');
 
         $tasksQuery = Task::where(function ($query) use ($user) {
+                $roleIds = $user->roles()->pluck('roles.id')->toArray();
                 $query->where('allocated_to', $user->id)
-                      ->orWhereNotNull('dynamic_fields');
+                      ->orWhereNotNull('dynamic_fields')
+                      ->orWhereHas('permissions', function ($pq) use ($roleIds) {
+                          if (!empty($roleIds)) {
+                              $pq->whereIn('role_id', $roleIds)
+                                 ->where('can_read', true);
+                          } else {
+                              $pq->whereRaw('1 = 0');
+                          }
+                      });
             })
             ->where(function ($query) use ($user) {
                 $query->whereDoesntHave('permissions')
@@ -241,8 +250,17 @@ class DashboardController extends Controller
 
         // Fetch tasks with query filters, then filter by staff access in memory
         $tasksQuery = Task::where(function ($query) use ($user) {
+                $roleIds = $user->roles()->pluck('roles.id')->toArray();
                 $query->where('allocated_to', $user->id)
-                      ->orWhereNotNull('dynamic_fields');
+                      ->orWhereNotNull('dynamic_fields')
+                      ->orWhereHas('permissions', function ($pq) use ($roleIds) {
+                          if (!empty($roleIds)) {
+                              $pq->whereIn('role_id', $roleIds)
+                                 ->where('can_read', true);
+                          } else {
+                              $pq->whereRaw('1 = 0');
+                          }
+                      });
             })
             ->where(function ($query) use ($user) {
                 $query->whereDoesntHave('permissions')
@@ -448,9 +466,18 @@ class DashboardController extends Controller
                     });
             })
             ->where(function ($query) use ($user) {
+                $roleIds = $user->roles()->pluck('roles.id')->toArray();
                 $query->where('allocated_to', $user->id)
                       ->orWhereNotNull('dynamic_fields')
-                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id));
+                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id))
+                      ->orWhereHas('permissions', function ($pq) use ($roleIds) {
+                          if (!empty($roleIds)) {
+                              $pq->whereIn('role_id', $roleIds)
+                                 ->where('can_read', true);
+                          } else {
+                              $pq->whereRaw('1 = 0');
+                          }
+                      });
             })
             ->where(function($query) use ($request) {
                 $query->where(function($q) use ($request) {
@@ -472,31 +499,45 @@ class DashboardController extends Controller
                 return false;
             }
 
+            $perms = (new TaskResource($task))->getUserPermissions($user);
+            $hasGlobalRead = $perms['can_read'];
+
             $hasTaskDueDate = $task->due_date && $task->due_date->month == $request->month && $task->due_date->year == $request->year;
-            $hasSubTaskDueDate = $task->subTasks->contains(fn($st) => $st->due_date && $st->due_date->month == $request->month && $st->due_date->year == $request->year);
+            if (!$hasGlobalRead && $task->allocated_to != $user->id) {
+                $hasTaskDueDate = false;
+            }
+
+            $hasSubTaskDueDate = $task->subTasks->contains(function($st) use ($user, $request, $hasGlobalRead) {
+                if (!$hasGlobalRead && $st->assigned_to != $user->id) {
+                    return false;
+                }
+                return $st->due_date && $st->due_date->month == $request->month && $st->due_date->year == $request->year;
+            });
             
             $hasDynamicRowDueDate = false;
             if (isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])) {
                 foreach ($task->dynamic_fields['multi_rows'] as $row) {
-                    $dateVal = $row['due_date'] ?? $row['dynamic_data']['Due Date'] ?? $row['dynamic_data']['due_date'] ?? null;
-                    if (!empty($dateVal)) {
-                        try {
-                            // check if format is d-m-Y (e.g. contains '-' and day is first)
-                            if (strpos($dateVal, '-') !== false) {
-                                $parts = explode('-', $dateVal);
-                                if (count($parts) === 3 && strlen($parts[2]) === 4) {
-                                    $parsed = \Carbon\Carbon::createFromFormat('d-m-Y', $dateVal);
+                    if ($hasGlobalRead || self::doesUserMatchRowAllocation($row, $user)) {
+                        $dateVal = $row['due_date'] ?? $row['dynamic_data']['Due Date'] ?? $row['dynamic_data']['due_date'] ?? null;
+                        if (!empty($dateVal)) {
+                            try {
+                                // check if format is d-m-Y (e.g. contains '-' and day is first)
+                                if (strpos($dateVal, '-') !== false) {
+                                    $parts = explode('-', $dateVal);
+                                    if (count($parts) === 3 && strlen($parts[2]) === 4) {
+                                        $parsed = \Carbon\Carbon::createFromFormat('d-m-Y', $dateVal);
+                                    } else {
+                                        $parsed = \Carbon\Carbon::parse($dateVal);
+                                    }
                                 } else {
                                     $parsed = \Carbon\Carbon::parse($dateVal);
                                 }
-                            } else {
-                                $parsed = \Carbon\Carbon::parse($dateVal);
-                            }
-                            if ($parsed->month == $request->month && $parsed->year == $request->year) {
-                                $hasDynamicRowDueDate = true;
-                                break;
-                            }
-                        } catch (\Exception $e) {}
+                                if ($parsed->month == $request->month && $parsed->year == $request->year) {
+                                    $hasDynamicRowDueDate = true;
+                                    break;
+                                }
+                            } catch (\Exception $e) {}
+                        }
                     }
                 }
             }
@@ -533,9 +574,10 @@ class DashboardController extends Controller
         return false;
     }
 
-    public function staffSummary(): AnonymousResourceCollection
+    public function staffSummary(Request $request): AnonymousResourceCollection
     {
-        $staff = User::staff()->active()->with('roles')->get();
+        $user = $request->user();
+        $staff = User::staff()->active()->where('id', $user->id)->with('roles')->get();
         $tasks = Task::select('id', 'allocated_to', 'status', 'dynamic_fields')->get();
 
         $stats = [];

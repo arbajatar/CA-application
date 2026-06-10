@@ -81,9 +81,18 @@ class TaskController extends Controller
         $user = $request->user();
         $tasksQuery = Task::with(['client', 'workType', 'assignedTo', 'permissions.role'])
             ->where(function ($query) use ($user) {
+                $roleIds = $user->roles()->pluck('roles.id')->toArray();
                 $query->where('allocated_to', $user->id)
                       ->orWhereNotNull('dynamic_fields')
-                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id));
+                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id))
+                      ->orWhereHas('permissions', function ($pq) use ($roleIds) {
+                          if (!empty($roleIds)) {
+                              $pq->whereIn('role_id', $roleIds)
+                                 ->where('can_read', true);
+                          } else {
+                              $pq->whereRaw('1 = 0');
+                          }
+                      });
             })
             ->where(function ($query) use ($user) {
                 $query->whereDoesntHave('permissions')
@@ -297,12 +306,19 @@ class TaskController extends Controller
 
         $perms = (new TaskResource($task))->getUserPermissions($user);
 
-        if (!$perms['can_write']) {
-            return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+        $isStaff = $user->role->value === 'staff';
+        $hasWriteAccess = $perms['can_write'];
+
+        if (!$hasWriteAccess) {
+            if ($isStaff && $request->has('dynamic_fields')) {
+                // Allow passing through to check row-level permissions
+            } else {
+                return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
+            }
         }
 
         $hasPermissionsSet = $task->permissions()->exists();
-        if ($user->role->value === 'staff' && !$hasPermissionsSet) {
+        if ($isStaff && (!$hasPermissionsSet || !$hasWriteAccess)) {
             if ($request->has('dynamic_fields')) {
                 $oldRows = $task->dynamic_fields['multi_rows'] ?? [];
                 $newRows = $request->input('dynamic_fields.multi_rows') ?? [];

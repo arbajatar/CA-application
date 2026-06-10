@@ -723,8 +723,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             form_name: task.form_name || '',
             client_id: '',
             work_type_id: task.work_type?.id || '',
-            allocated_to: '',
-            date_allocated: '',
+            allocated_type: 'user',
+            allocated_to: isStaff ? (user?.id || '') : '',
+            date_allocated: isStaff ? new Date().toISOString().split('T')[0] : '',
             status: 'assigned',
             dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
         };
@@ -2384,28 +2385,30 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 ))}
                             </select>
                             
-                            {canWrite && (
-                                <button
-                                    onClick={() => {
-                                        setViewingRowIndex(null);
-                                        setModalEditable(true);
-                                        setNewTaskData({
-                                            form_name: task?.form_name || '',
-                                            client_id: task?.client?.id || '',
-                                            work_type_id: task?.work_type?.id || '',
-                                            allocated_to: task?.allocated_to || '',
-                                            date_allocated: task?.date_allocated || '',
-                                            status: task?.status || 'assigned',
-                                            sub_status: task?.sub_status || ''
-                                        });
-                                        setIsAddTaskModalOpen(true);
-                                    }}
-                                    className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                                >
-                                    <Plus size={13} />
-                                    <span>Add Task</span>
-                                </button>
-                            )}
+                            {(canWrite || isStaff) && (
+                                 <button
+                                     onClick={() => {
+                                         setViewingRowIndex(null);
+                                         setModalEditable(true);
+                                         setNewTaskData({
+                                             form_name: task?.form_name || '',
+                                             client_id: task?.client?.id || '',
+                                             work_type_id: task?.work_type?.id || '',
+                                             allocated_type: 'user',
+                                             allocated_to: isStaff ? (user?.id || '') : '',
+                                             date_allocated: isStaff ? new Date().toISOString().split('T')[0] : '',
+                                             status: task?.status || 'assigned',
+                                             sub_status: task?.sub_status || '',
+                                             dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
+                                         });
+                                         setIsAddTaskModalOpen(true);
+                                     }}
+                                     className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold transition rounded-xl shadow-sm h-[36px] whitespace-nowrap border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                                 >
+                                     <Plus size={13} />
+                                     <span>Add Task</span>
+                                 </button>
+                             )}
 
                             {allFields.length > 0 && (
                                 <button
@@ -2562,10 +2565,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                     const hasSheetPermissions = Array.isArray(task?.permissions) && task.permissions.length > 0;
                                     const isRowLocked = !isAdmin && (
-                                        row.is_verified || 
-                                        !canWrite || 
-                                        (isStaff && !hasSheetPermissions && !doesStaffMatchRow(row, user))
-                                    );
+                                         row.is_verified || 
+                                         (!canWrite && (!isStaff || !doesStaffMatchRow(row, user)))
+                                     );
 
                                     const isRowEditable = !isRowLocked && !!editingRows[originalIndex];
 
@@ -3467,7 +3469,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     );
                                 })
                             )}
-                            {canWrite && (
+                            {(canWrite || isStaff) && (
                                 <tr className="hover:bg-slate-200 transition-colors">
                                     <td 
                                         colSpan={2 + activeColumns.length} 
