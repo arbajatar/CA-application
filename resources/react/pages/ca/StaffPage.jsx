@@ -358,9 +358,9 @@ export default function StaffPage() {
                     {loading ? <Spinner /> : (
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
                                     {['Staff Member', 'Username', 'Role', 'Account Status', 'Actions'].map(h => (
-                                        <th key={h} className="px-6 py-3 text-left">{h}</th>
+                                        <th key={h} className="px-6 py-3.5 text-left">{h}</th>
                                     ))}
                                 </tr>
                             </thead>

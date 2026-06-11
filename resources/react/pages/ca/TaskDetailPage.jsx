@@ -775,7 +775,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         const duplicatedRow = {
             ...rowToDuplicate,
             is_verified: false,
-            attachments: [],
+            client_id: '',
+            attachments: rowToDuplicate.attachments ? [...rowToDuplicate.attachments] : [],
             dynamic_data: { ...(rowToDuplicate.dynamic_data || {}) }
         };
         const updatedRows = [...rows];

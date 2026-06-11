@@ -3718,6 +3718,7 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
 }
 
 function FieldSettings({ field, onUpdate }) {
+  if (field.static && field.id !== 'static_sub_status') return null;
   const handleAddOption = () => onUpdate('options', [...field.options, `Option ${field.options.length + 1}`]);
   return (
     <div className="mt-6 pt-6 border-t border-slate-100 space-y-5">
