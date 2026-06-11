@@ -1316,7 +1316,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     if (!idToFind) return null;
                     return staff.find(s => String(s.id) === String(idToFind))?.name || null;
                 };
-                const assignedToName = getAssignedToName(r.allocated_to) || getAssignedToName(task.allocated_to) || 'Unassigned';
+                const hasExplicitAllocation = r.allocated_to !== undefined && r.allocated_to !== null && r.allocated_to !== '';
+                const assignedToName = hasExplicitAllocation
+                    ? (getAssignedToName(r.allocated_to) || 'Unassigned')
+                    : (getAssignedToName(task.allocated_to) || 'Unassigned');
                 const dynamicData = r.dynamic_data || {};
 
                 return [
@@ -1551,9 +1554,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         const work_type_id = matchedWorkType ? matchedWorkType.id : (task.work_type?.id || '');
 
                         // Look up assigned staff
-                        const assignedToName = idxAssignedTo !== -1 ? String(rowData[idxAssignedTo] || '').trim() : '';
-                        const matchedStaff = staff.find(s => s.name.toLowerCase() === assignedToName.toLowerCase());
-                        const allocated_to = matchedStaff ? matchedStaff.id : (task.allocated_to?.id || '');
+                        let allocated_to = '';
+                        if (idxAssignedTo !== -1) {
+                            const cellVal = String(rowData[idxAssignedTo] || '').trim();
+                            if (cellVal && cellVal.toLowerCase() !== 'unassigned') {
+                                const matchedStaff = staff.find(s => s.name.trim().toLowerCase() === cellVal.toLowerCase());
+                                if (matchedStaff) {
+                                    allocated_to = matchedStaff.id;
+                                }
+                            }
+                        } else {
+                            allocated_to = task.allocated_to?.id || '';
+                        }
 
                         const rawCreateDate = idxCreateDate !== -1 ? rowData[idxCreateDate] : '';
                         const date_allocated = parseExcelDate(rawCreateDate) || (task.date_allocated || '');
