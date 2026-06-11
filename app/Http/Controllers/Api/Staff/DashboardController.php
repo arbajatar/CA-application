@@ -43,11 +43,56 @@ class DashboardController extends Controller
         return false;
     }
 
+    private static function doesUserHaveAccessToTask($task, $user)
+    {
+        // 1. Direct assignment of the sheet
+        if ($task->allocated_to == $user->id) {
+            return true;
+        }
+
+        // 2. Subtask assignment
+        $hasSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
+        if ($hasSubtask) {
+            return true;
+        }
+
+        // 3. Row assignment (in dynamic_fields->multi_rows)
+        $multiRows = $task->dynamic_fields['multi_rows'] ?? [];
+        if (is_array($multiRows)) {
+            foreach ($multiRows as $row) {
+                if (self::doesUserMatchRowAllocation($row, $user)) {
+                    return true;
+                }
+            }
+        }
+
+        // 4. Sheet level permissions
+        $hasPermissions = $task->permissions()->exists();
+        if (!$hasPermissions) {
+            return true;
+        }
+
+        $roleIds = $user->roles()->pluck('roles.id')->toArray();
+        $canRead = $task->permissions()
+            ->whereIn('role_id', $roleIds)
+            ->where('can_read', true)
+            ->exists();
+        if ($canRead) {
+            return true;
+        }
+
+        return false;
+    }
+
     public function summary(Request $request): JsonResponse
     {
         $search = $request->query('search');
         $workTypeId = $request->query('work_type_id');
         $allocatedTo = $request->query('allocated_to') ?: $request->query('staff_id');
+
+        if (!$allocatedTo && $request->user() && $request->user()->role->value === 'staff') {
+            $allocatedTo = $request->user()->id;
+        }
         
         $tasks = Task::latest()->get();
 
@@ -58,92 +103,112 @@ class DashboardController extends Controller
 
         $staffUser = $allocatedTo ? User::with('roles')->find($allocatedTo) : null;
 
-        $total = 0;
-        $pending = 0;
-        $workInProgress = 0;
-        $complete = 0;
-        $notToBeDone = 0;
-        $other = 0;
+        $totalTasks = 0;
+        $pendingTasks = 0;
+        $workInProgressTasks = 0;
+        $completeTasks = 0;
+        $notToBeDoneTasks = 0;
+        $otherTasks = 0;
+
+        $totalSheets = 0;
+        $pendingSheets = 0;
+        $workInProgressSheets = 0;
+        $completeSheets = 0;
+        $notToBeDoneSheets = 0;
+        $otherSheets = 0;
 
         foreach ($tasks as $task) {
-            $multiRows = isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])
-                ? $task->dynamic_fields['multi_rows']
-                : [null];
+            // Apply access filter first if staff user is present
+            if ($staffUser && !self::doesUserHaveAccessToTask($task, $staffUser)) {
+                continue;
+            }
 
-            foreach ($multiRows as $rowIndex => $row) {
-                if ($row === null) {
-                    $clientId = $task->client_id;
-                    $workTypeIdVal = $task->work_type_id;
-                    $statusVal = $task->status->value;
-                    $allocatedToVal = $task->allocated_to;
-                    $allocType = 'user';
-                } else {
-                    $clientId = $row['client_id'] ?? null;
-                    $workTypeIdVal = $row['work_type_id'] ?? null;
-                    $statusVal = $row['status'] ?? 'pending';
-                    $allocatedToVal = $row['allocated_to'] ?? null;
-                    $allocType = $row['allocated_type'] ?? 'user';
+            // Apply Work Type Filter
+            if ($workTypeId && (string)$task->work_type_id !== (string)$workTypeId) {
+                continue;
+            }
+
+            // Apply Search
+            if ($search) {
+                $searchLower = strtolower($search);
+                $clientName = $task->client ? strtolower($task->client->name) : '';
+                $workTypeName = $task->workType ? strtolower($task->workType->name) : '';
+                $formName = strtolower($task->form_name ?? '');
+
+                if (
+                    strpos($clientName, $searchLower) === false &&
+                    strpos($workTypeName, $searchLower) === false &&
+                    strpos($formName, $searchLower) === false
+                ) {
+                    continue;
                 }
+            }
 
-                // Apply Work Type Filter
-                if ($workTypeId && (string)$workTypeIdVal !== (string)$workTypeId) {
+            // Sheet-wise count
+            $totalSheets++;
+            $statusVal = strtolower($task->status->value ?? 'pending');
+            if ($statusVal === 'pending' || $statusVal === 'assigned' || empty($statusVal)) {
+                $pendingSheets++;
+            } elseif ($statusVal === 'work_in_progress') {
+                $workInProgressSheets++;
+            } elseif ($statusVal === 'complete') {
+                $completeSheets++;
+            } elseif ($statusVal === 'not_to_be_done') {
+                $notToBeDoneSheets++;
+            } else {
+                $otherSheets++;
+            }
+
+            // Task-wise count (based on row allocations)
+            $taskRows = [];
+            if (isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows']) && !empty($task->dynamic_fields['multi_rows'])) {
+                foreach ($task->dynamic_fields['multi_rows'] as $row) {
+                    $taskRows[] = $row;
+                }
+            } else {
+                $taskRows[] = [
+                    'allocated_type' => 'user',
+                    'allocated_to' => $task->allocated_to,
+                    'status' => $task->status ? ($task->status instanceof TaskStatus ? $task->status->value : $task->status) : 'assigned',
+                ];
+            }
+
+            foreach ($taskRows as $r) {
+                if ($staffUser && !self::doesUserMatchRowAllocation($r, $staffUser)) {
                     continue;
                 }
 
-                // Apply Allocated To Filter
-                if ($staffUser) {
-                    $rowToCheck = $row ?? [
-                        'allocated_to' => $allocatedToVal,
-                        'allocated_type' => $allocType
-                    ];
-                    if (!self::doesUserMatchRowAllocation($rowToCheck, $staffUser)) {
-                        continue;
-                    }
-                }
-
-                // Resolve Client and Work Type
-                $clientObj = ($clientId && is_scalar($clientId)) ? $clients->get($clientId) : null;
-                $workTypeObj = ($workTypeIdVal && is_scalar($workTypeIdVal)) ? $workTypes->get($workTypeIdVal) : null;
-
-                // Apply Search
-                if ($search) {
-                    $searchLower = strtolower($search);
-                    $clientName = $clientObj ? strtolower($clientObj->name) : '';
-                    $workTypeName = $workTypeObj ? strtolower($workTypeObj->name) : '';
-                    $formName = strtolower($task->form_name ?? '');
-
-                    if (
-                        strpos($clientName, $searchLower) === false &&
-                        strpos($workTypeName, $searchLower) === false &&
-                        strpos($formName, $searchLower) === false
-                    ) {
-                        continue;
-                    }
-                }
-
-                $total++;
-                $statusVal = strtolower($statusVal ?? 'assigned');
+                $totalTasks++;
+                $statusVal = strtolower($r['status'] ?? 'assigned');
                 if ($statusVal === 'pending' || $statusVal === 'assigned' || empty($statusVal)) {
-                    $pending++;
+                    $pendingTasks++;
                 } elseif ($statusVal === 'work_in_progress') {
-                    $workInProgress++;
+                    $workInProgressTasks++;
                 } elseif ($statusVal === 'complete') {
-                    $complete++;
+                    $completeTasks++;
                 } elseif ($statusVal === 'not_to_be_done') {
-                    $notToBeDone++;
+                    $notToBeDoneTasks++;
                 } else {
-                    $other++;
+                    $otherTasks++;
                 }
             }
         }
 
         return response()->json([
-            'total_tasks' => $total,
-            'pending_tasks' => $pending,
-            'work_in_progress_tasks' => $workInProgress,
-            'completed_tasks' => $complete,
-            'not_to_be_done_tasks' => $notToBeDone,
-            'other_tasks' => $other,
+            'total_tasks' => $totalTasks,
+            'pending_tasks' => $pendingTasks,
+            'work_in_progress_tasks' => $workInProgressTasks,
+            'completed_tasks' => $completeTasks,
+            'not_to_be_done_tasks' => $notToBeDoneTasks,
+            'other_tasks' => $otherTasks,
+            
+            // Also return in *_sheets format expected by My Sheets page
+            'total_sheets' => $totalSheets,
+            'pending_sheets' => $pendingSheets,
+            'work_in_progress_sheets' => $workInProgressSheets,
+            'complete_sheets' => $completeSheets,
+            'not_to_be_done_sheets' => $notToBeDoneSheets,
+            'other_sheets' => $otherSheets,
         ]);
     }
 

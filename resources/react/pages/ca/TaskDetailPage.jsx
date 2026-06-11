@@ -363,18 +363,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setAllowChecklist(!!data.allow_checklist);
             setAllowNotes(!!data.allow_notes);
             const parseBoolSetting = (val) => val === true || val === 1 || String(val).toLowerCase() === 'true' || String(val) === '1';
-            setIsBillableEnabled(parseBoolSetting(data.dynamic_fields?.is_billable));
-            setIsAfterSalesEnabled(parseBoolSetting(data.dynamic_fields?.is_after_sales));
-            setAllowDuplicateClients(parseBoolSetting(data.dynamic_fields?.allow_duplicate_clients));
+            setIsBillableEnabled(parseBoolSetting(data.is_billable ?? data.dynamic_fields?.is_billable));
+            setIsAfterSalesEnabled(parseBoolSetting(data.is_after_sales ?? data.dynamic_fields?.is_after_sales));
+            setAllowDuplicateClients(parseBoolSetting(data.allow_duplicate_clients ?? data.dynamic_fields?.allow_duplicate_clients));
 
             let rolesData = [];
-            if (!isStaff) {
-                try {
-                    const rolesRes = await api.get('/ca/roles');
-                    rolesData = rolesRes.data.data || [];
-                } catch (roleErr) {
-                    console.error("Failed to load roles", roleErr);
-                }
+            try {
+                const rolesRes = await api.get(isStaff ? '/staff/roles' : '/ca/roles');
+                rolesData = rolesRes.data.data || [];
+            } catch (roleErr) {
+                console.error("Failed to load roles", roleErr);
             }
             setAvailableRoles(rolesData);
 
@@ -849,11 +847,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             const updatedDynamicFields = {
                 ...(task.dynamic_fields || {}),
                 'CA Feedback': caFeedback,
-                'CA Rating': caRating,
-                is_billable: isBillableEnabled,
-                is_after_sales: isAfterSalesEnabled,
-                allow_duplicate_clients: allowDuplicateClients
+                'CA Rating': caRating
             };
+            delete updatedDynamicFields.is_billable;
+            delete updatedDynamicFields.is_after_sales;
+            delete updatedDynamicFields.allow_duplicate_clients;
 
             await api.patch(`${apiPrefix}/tasks/${id}`, {
                 status: globalStatus,
@@ -862,7 +860,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 permissions: sheetPermissions,
                 allow_attachments: allowAttachments,
                 allow_checklist: allowChecklist,
-                allow_notes: allowNotes
+                allow_notes: allowNotes,
+                is_billable: isBillableEnabled,
+                is_after_sales: isAfterSalesEnabled,
+                allow_duplicate_clients: allowDuplicateClients
             });
 
             setTask(prev => ({
@@ -873,7 +874,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 permissions: sheetPermissions,
                 allow_attachments: allowAttachments,
                 allow_checklist: allowChecklist,
-                allow_notes: allowNotes
+                allow_notes: allowNotes,
+                is_billable: isBillableEnabled,
+                is_after_sales: isAfterSalesEnabled,
+                allow_duplicate_clients: allowDuplicateClients
             }));
             toast.success('Global controls updated successfully');
             setIsGlobalModalOpen(false);

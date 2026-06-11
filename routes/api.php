@@ -184,6 +184,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Staff List (read-only for assignment)
         Route::get('/staff-members', [\App\Http\Controllers\Api\CA\StaffController::class, 'index']);
 
+        // Roles (read-only for assignment)
+        Route::get('/roles', [\App\Http\Controllers\Api\CA\RoleController::class, 'index']);
+
         // Tasks
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
         Route::post('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'store']);

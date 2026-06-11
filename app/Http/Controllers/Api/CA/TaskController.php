@@ -89,9 +89,21 @@ class TaskController extends Controller
         $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Pending;
 
         $dynamicFields = $request->dynamic_fields;
-        $isBillable = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $isAfterSales = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $allowDuplicateClients = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isBillable = $request->has('is_billable')
+            ? $request->boolean('is_billable')
+            : filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isAfterSales = $request->has('is_after_sales')
+            ? $request->boolean('is_after_sales')
+            : filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $allowDuplicateClients = $request->has('allow_duplicate_clients')
+            ? $request->boolean('allow_duplicate_clients')
+            : filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (is_array($dynamicFields)) {
+            unset($dynamicFields['is_billable']);
+            unset($dynamicFields['is_after_sales']);
+            unset($dynamicFields['allow_duplicate_clients']);
+        }
 
         $task = Task::create([
             'work_type_id' => $request->work_type_id,
@@ -102,7 +114,7 @@ class TaskController extends Controller
             'date_allocated' => $request->date_allocated ?? now()->toDateString(),
             'status' => $status,
             'remarks' => $request->remarks,
-            'dynamic_fields' => $request->dynamic_fields,
+            'dynamic_fields' => $dynamicFields,
             'task_particular' => $request->task_particular,
             'sub_status' => $request->sub_status,
             'feedback' => $request->feedback,
@@ -167,13 +179,30 @@ class TaskController extends Controller
         $oldStatus = $task->status;
         $validated = $request->validated();
 
-        if ($request->has('dynamic_fields')) {
-            $dynamicFields = $request->input('dynamic_fields');
-            if (is_array($dynamicFields)) {
-                $validated['is_billable'] = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
-                $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
-                $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            }
+        $dynamicFields = $request->input('dynamic_fields');
+        if ($request->has('is_billable')) {
+            $validated['is_billable'] = $request->boolean('is_billable');
+        } elseif (is_array($dynamicFields) && array_key_exists('is_billable', $dynamicFields)) {
+            $validated['is_billable'] = filter_var($dynamicFields['is_billable'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->has('is_after_sales')) {
+            $validated['is_after_sales'] = $request->boolean('is_after_sales');
+        } elseif (is_array($dynamicFields) && array_key_exists('is_after_sales', $dynamicFields)) {
+            $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->has('allow_duplicate_clients')) {
+            $validated['allow_duplicate_clients'] = $request->boolean('allow_duplicate_clients');
+        } elseif (is_array($dynamicFields) && array_key_exists('allow_duplicate_clients', $dynamicFields)) {
+            $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (is_array($dynamicFields)) {
+            unset($dynamicFields['is_billable']);
+            unset($dynamicFields['is_after_sales']);
+            unset($dynamicFields['allow_duplicate_clients']);
+            $validated['dynamic_fields'] = $dynamicFields;
         }
 
         $task->update($validated);

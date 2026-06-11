@@ -48,7 +48,43 @@ class TaskController extends Controller
 
     public static function doesUserHaveAccessToTask($task, $user)
     {
-        return true;
+        // 1. Direct assignment of the sheet
+        if ($task->allocated_to == $user->id) {
+            return true;
+        }
+
+        // 2. Subtask assignment
+        $hasSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
+        if ($hasSubtask) {
+            return true;
+        }
+
+        // 3. Row assignment (in dynamic_fields->multi_rows)
+        $multiRows = $task->dynamic_fields['multi_rows'] ?? [];
+        if (is_array($multiRows)) {
+            foreach ($multiRows as $row) {
+                if (self::doesUserMatchRowAllocation($row, $user)) {
+                    return true;
+                }
+            }
+        }
+
+        // 4. Sheet level permissions
+        $hasPermissions = $task->permissions()->exists();
+        if (!$hasPermissions) {
+            return true;
+        }
+
+        $roleIds = $user->roles()->pluck('roles.id')->toArray();
+        $canRead = $task->permissions()
+            ->whereIn('role_id', $roleIds)
+            ->where('can_read', true)
+            ->exists();
+        if ($canRead) {
+            return true;
+        }
+
+        return false;
     }
 
     public function index(Request $request)
@@ -327,15 +363,35 @@ class TaskController extends Controller
             'feedback' => ['nullable', 'string'],
             'entry_date' => ['nullable', 'date'],
             'allow_attachments' => ['nullable', 'boolean'],
+            'is_billable' => ['nullable', 'boolean'],
+            'is_after_sales' => ['nullable', 'boolean'],
+            'allow_duplicate_clients' => ['nullable', 'boolean'],
         ]);
 
-        if ($request->has('dynamic_fields')) {
-            $dynamicFields = $request->input('dynamic_fields');
-            if (is_array($dynamicFields)) {
-                $validated['is_billable'] = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
-                $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
-                $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            }
+        $dynamicFields = $request->input('dynamic_fields');
+        if ($request->has('is_billable')) {
+            $validated['is_billable'] = $request->boolean('is_billable');
+        } elseif (is_array($dynamicFields) && array_key_exists('is_billable', $dynamicFields)) {
+            $validated['is_billable'] = filter_var($dynamicFields['is_billable'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->has('is_after_sales')) {
+            $validated['is_after_sales'] = $request->boolean('is_after_sales');
+        } elseif (is_array($dynamicFields) && array_key_exists('is_after_sales', $dynamicFields)) {
+            $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->has('allow_duplicate_clients')) {
+            $validated['allow_duplicate_clients'] = $request->boolean('allow_duplicate_clients');
+        } elseif (is_array($dynamicFields) && array_key_exists('allow_duplicate_clients', $dynamicFields)) {
+            $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (is_array($dynamicFields)) {
+            unset($dynamicFields['is_billable']);
+            unset($dynamicFields['is_after_sales']);
+            unset($dynamicFields['allow_duplicate_clients']);
+            $validated['dynamic_fields'] = $dynamicFields;
         }
 
         $oldStatus = $task->status;
