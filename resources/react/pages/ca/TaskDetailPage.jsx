@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -231,6 +231,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [allowNotes, setAllowNotes] = useState(true);
     const [isBillableEnabled, setIsBillableEnabled] = useState(false);
     const [isAfterSalesEnabled, setIsAfterSalesEnabled] = useState(false);
+    const [allowDuplicateClients, setAllowDuplicateClients] = useState(false);
 
     const handleAddRolePermission = () => {
         if (!selectedRoleId) {
@@ -277,6 +278,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     // Multi-row state
     const [formName, setFormName] = useState('');
     const [rows, setRows] = useState([]);
+    const duplicateClientIds = useMemo(() => {
+        if (allowDuplicateClients) return [];
+        // Find duplicate client IDs
+        const clientIds = (rows || []).map(r => r.client_id).filter(id => id !== null && id !== undefined && id !== '');
+        const dupIds = clientIds.filter((id, index) => clientIds.indexOf(id) !== index);
+
+        // Find duplicate PAN numbers
+        const pans = (rows || []).map(r => {
+            const cObj = clients.find(c => String(c.id) === String(r.client_id));
+            return cObj?.pan_no ? cObj.pan_no.trim().toUpperCase() : '';
+        }).filter(pan => pan !== '');
+        const dupPans = pans.filter((pan, index) => pans.indexOf(pan) !== index);
+
+        // Return client IDs that are duplicates by ID OR by PAN
+        return (rows || []).filter(r => {
+            if (!r.client_id) return false;
+            const cObj = clients.find(c => String(c.id) === String(r.client_id));
+            const hasDupId = dupIds.includes(r.client_id);
+            const hasDupPan = cObj?.pan_no && dupPans.includes(cObj.pan_no.trim().toUpperCase());
+            return hasDupId || hasDupPan;
+        }).map(r => r.client_id);
+    }, [rows, clients, allowDuplicateClients]);
     const [schema, setSchema] = useState([]); // Array of field objects
     const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
     const [newTaskData, setNewTaskData] = useState({});
@@ -341,6 +364,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setAllowNotes(!!data.allow_notes);
             setIsBillableEnabled(!!data.dynamic_fields?.is_billable);
             setIsAfterSalesEnabled(!!data.dynamic_fields?.is_after_sales);
+            setAllowDuplicateClients(!!data.dynamic_fields?.allow_duplicate_clients);
 
             let rolesData = [];
             if (!isStaff) {
@@ -620,12 +644,26 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
     const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully') => {
         // Validate for duplicate clients within the same sheet
-        const clientIds = updatedRows.map(r => r.client_id).filter(id => id !== null && id !== undefined && id !== '');
-        const duplicateClientId = clientIds.find((id, idx) => clientIds.indexOf(id) !== idx);
-        if (duplicateClientId) {
-            const clientName = clients.find(c => String(c.id) === String(duplicateClientId))?.name || 'Selected client';
-            toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
-            return;
+        if (!allowDuplicateClients) {
+            // Check client ID duplicates
+            const clientIds = updatedRows.map(r => r.client_id).filter(id => id !== null && id !== undefined && id !== '');
+            const duplicateClientId = clientIds.find((id, idx) => clientIds.indexOf(id) !== idx);
+            if (duplicateClientId) {
+                const clientName = clients.find(c => String(c.id) === String(duplicateClientId))?.name || 'Selected client';
+                toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
+                return;
+            }
+
+            // Check client PAN duplicates
+            const pans = updatedRows.map(r => {
+                const cObj = clients.find(c => String(c.id) === String(r.client_id));
+                return cObj?.pan_no ? cObj.pan_no.trim().toUpperCase() : '';
+            }).filter(pan => pan !== '');
+            const duplicatePan = pans.find((pan, idx) => pans.indexOf(pan) !== idx);
+            if (duplicatePan) {
+                toast.error(`A client with PAN "${duplicatePan}" is already assigned to another row in this sheet.`);
+                return;
+            }
         }
 
         try {
@@ -796,7 +834,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 'CA Feedback': caFeedback,
                 'CA Rating': caRating,
                 is_billable: isBillableEnabled,
-                is_after_sales: isAfterSalesEnabled
+                is_after_sales: isAfterSalesEnabled,
+                allow_duplicate_clients: allowDuplicateClients
             };
 
             await api.patch(`${apiPrefix}/tasks/${id}`, {
@@ -1842,31 +1881,42 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 field: f
             };
         }).filter(Boolean),
-        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? billingSchema : []),
-        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? afterSalesSchema : []),
+        ...(isBillableEnabled && !schema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !schema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
-        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? billingSchema : []),
-        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? afterSalesSchema : []),
+        ...(isBillableEnabled && !schema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !schema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];
  
+    // Deduplicate baseColumns by ID
+    const uniqueBaseColumns = [];
+    const seenIds = new Set();
+    baseColumns.forEach(col => {
+        if (col && col.id && !seenIds.has(col.id)) {
+            seenIds.add(col.id);
+            uniqueBaseColumns.push(col);
+        }
+    });
+
     let activeColumns = [];
     if (customColumnOrder) {
         const filteredCustomOrder = customColumnOrder.filter(id => id !== 'client' && id !== 'client_pan');
-        const baseIds = baseColumns.map(c => c.id).filter(id => id !== 'client' && id !== 'client_pan');
+        const baseIds = uniqueBaseColumns.map(c => c.id).filter(id => id !== 'client' && id !== 'client_pan');
         const ordered = filteredCustomOrder.filter(id => baseIds.includes(id));
         const missing = baseIds.filter(id => !ordered.includes(id));
         const finalIds = ['client', 'client_pan', ...ordered, ...missing];
-        activeColumns = finalIds.map(id => baseColumns.find(c => c.id === id)).filter(Boolean);
+        const uniqueFinalIds = Array.from(new Set(finalIds));
+        activeColumns = uniqueFinalIds.map(id => uniqueBaseColumns.find(c => c.id === id)).filter(Boolean);
     } else {
-        const restCols = baseColumns.filter(c => c.id !== 'client' && c.id !== 'client_pan');
-        const clientCol = baseColumns.find(c => c.id === 'client');
-        const panCol = baseColumns.find(c => c.id === 'client_pan');
+        const restCols = uniqueBaseColumns.filter(c => c.id !== 'client' && c.id !== 'client_pan');
+        const clientCol = uniqueBaseColumns.find(c => c.id === 'client');
+        const panCol = uniqueBaseColumns.find(c => c.id === 'client_pan');
         activeColumns = [clientCol, panCol, ...restCols].filter(Boolean);
     }
  
@@ -2333,6 +2383,27 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 type="checkbox"
                                                 checked={isAfterSalesEnabled}
                                                 onChange={(e) => setIsAfterSalesEnabled(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Allow Duplicate Clients Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-455">
+                                        <UserPlus size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Client Multi-Row Option</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setAllowDuplicateClients(!allowDuplicateClients)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Allow duplicate clients
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={allowDuplicateClients}
+                                                onChange={(e) => setAllowDuplicateClients(e.target.checked)}
                                             />
                                             <span className="slider"></span>
                                         </label>
@@ -2852,7 +2923,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 ? 'bg-blue-50/40 hover:bg-blue-100/50 border-y-2 border-indigo-250' 
                                                 : 'hover:bg-slate-200'
                                         }`}>
-                                            {/* # column with hover delete */}
+                            {/* # column with hover delete */}
                                             <td className="px-2 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50 sticky left-0 z-20 w-[60px] min-w-[60px]">
                                                 <span>
                                                     {String(idx + 1).padStart(2, '0')}
@@ -2861,30 +2932,32 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                             {activeColumns.map(col => {
                                                 if (col.id === 'client') {
+                                                    const isDuplicate = !!row.client_id && duplicateClientIds.includes(row.client_id);
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 min-w-[240px] sticky left-[60px] z-20 bg-white group-hover:bg-slate-200">
-                                                            <SearchableSelect
-                                                                value={row.client_id || ''}
-                                                                disabled={!isRowEditable}
-                                                                options={clients
-                                                                    .filter(c => {
-                                                                        if (String(c.id) === String(row.client_id)) return true;
-                                                                        return !rows.some((r, rIdx) => rIdx !== originalIndex && String(r.client_id) === String(c.id));
-                                                                    })
-                                                                    .map(c => ({
+                                                        <td key={col.id} className={`px-6 py-4 border-r border-b border-slate-350 min-w-[240px] sticky left-[60px] z-20 bg-white group-hover:bg-slate-200 transition ${isDuplicate ? '!bg-red-50/80 border-red-300' : ''}`}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <SearchableSelect
+                                                                    value={row.client_id || ''}
+                                                                    disabled={!isRowEditable}
+                                                                    options={clients.map(c => ({
                                                                         value: c.id,
                                                                         label: c.name
-                                                                    }))
-                                                                }
-                                                                placeholder="Select Client..."
-                                                                onChange={(val) => {
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].client_id = val || null;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                size="sm"
-                                                                direction={originalIndex > 3 ? 'up' : 'down'}
-                                                            />
+                                                                    }))}
+                                                                    placeholder="Select Client..."
+                                                                    onChange={(val) => {
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].client_id = val || null;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    size="sm"
+                                                                    direction={originalIndex > 3 ? 'up' : 'down'}
+                                                                />
+                                                                {isDuplicate && (
+                                                                    <span className="text-[10px] font-bold text-red-600 animate-pulse mt-0.5">
+                                                                        Same client can't be used
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     );
                                                 }
@@ -4816,6 +4889,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 isAfterSalesEnabled={isAfterSalesEnabled}
                 clients={clients
                     .filter(c => {
+                        if (allowDuplicateClients) return true;
                         if (viewingRowIndex !== null && String(c.id) === String(rows[viewingRowIndex]?.client_id)) return true;
                         return !rows.some((r, rIdx) => rIdx !== viewingRowIndex && String(r.client_id) === String(c.id));
                     })
