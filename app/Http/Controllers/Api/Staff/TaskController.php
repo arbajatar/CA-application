@@ -44,36 +44,7 @@ class TaskController extends Controller
 
     public static function doesUserHaveAccessToTask($task, $user)
     {
-        if ($task->permissions()->exists()) {
-            $roleIds = $user->relationLoaded('roles')
-                ? $user->roles->pluck('id')->toArray()
-                : $user->roles()->pluck('roles.id')->toArray();
-            $hasReadAccess = $task->permissions()
-                ->whereIn('role_id', $roleIds)
-                ->where('can_read', true)
-                ->exists();
-            if ($hasReadAccess) {
-                return true;
-            }
-        }
-
-        if ($task->allocated_to === $user->id) {
-            return true;
-        }
-
-        if ($task->dynamic_fields && isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])) {
-            foreach ($task->dynamic_fields['multi_rows'] as $row) {
-                if (self::doesUserMatchRowAllocation($row, $user)) {
-                    return true;
-                }
-            }
-        }
-
-        if ($task->subTasks()->where('assigned_to', $user->id)->exists()) {
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     public function index(Request $request)
@@ -165,24 +136,6 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
-        $user = $request->user();
-
-        if (!self::doesUserHaveAccessToTask($task, $user)) {
-            return response()->json(['message' => 'You do not have access to this task.'], 403);
-        }
-
-        // Check read permission
-        if ($task->permissions()->exists()) {
-            $roleIds = $user->roles()->pluck('roles.id')->toArray();
-            $hasReadAccess = $task->permissions()
-                ->whereIn('role_id', $roleIds)
-                ->where('can_read', true)
-                ->exists();
-            if (!$hasReadAccess) {
-                return response()->json(['message' => 'You do not have read access to this sheet.'], 403);
-            }
-        }
-
         return response()->json([
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role', 'subTasks.assignedTo'])),
         ]);
@@ -310,8 +263,13 @@ class TaskController extends Controller
         $hasWriteAccess = $perms['can_write'];
 
         if (!$hasWriteAccess) {
-            if ($isStaff && $request->has('dynamic_fields')) {
-                // Allow passing through to check row-level permissions
+            if ($isStaff) {
+                $restrictedFields = ['work_type_id', 'form_name', 'date_inward', 'allocated_to', 'date_allocated', 'remarks', 'task_particular'];
+                foreach ($restrictedFields as $field) {
+                    if ($request->has($field) && $request->input($field) != $task->$field) {
+                        return response()->json(['message' => 'You do not have write access to change ' . str_replace('_', ' ', $field) . '.'], 403);
+                    }
+                }
             } else {
                 return response()->json(['message' => 'You do not have write access to this sheet.'], 403);
             }

@@ -362,9 +362,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setAllowAttachments(!!data.allow_attachments);
             setAllowChecklist(!!data.allow_checklist);
             setAllowNotes(!!data.allow_notes);
-            setIsBillableEnabled(!!data.dynamic_fields?.is_billable);
-            setIsAfterSalesEnabled(!!data.dynamic_fields?.is_after_sales);
-            setAllowDuplicateClients(!!data.dynamic_fields?.allow_duplicate_clients);
+            const parseBoolSetting = (val) => val === true || val === 1 || String(val).toLowerCase() === 'true' || String(val) === '1';
+            setIsBillableEnabled(parseBoolSetting(data.dynamic_fields?.is_billable));
+            setIsAfterSalesEnabled(parseBoolSetting(data.dynamic_fields?.is_after_sales));
+            setAllowDuplicateClients(parseBoolSetting(data.dynamic_fields?.allow_duplicate_clients));
 
             let rolesData = [];
             if (!isStaff) {
@@ -1289,8 +1290,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             };
 
             const dynamicFields = [
-                ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
-                ...(isBillableEnabled && !schema.some(f => f.section === 3) ? [
+                ...filteredSchema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
+                ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || f.label === 'TASK IS BILLABLE OR NOT') ? [
                     { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
                     { label: 'BILL NO', type: 'text' },
                     { label: 'BILL AMOUNT', type: 'currency' },
@@ -1315,7 +1316,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     { label: 'PR ACTIVE UPDATION', type: 'text' },
                     { label: 'FINAL REMARK', type: 'text' }
                 ] : []),
-                ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? [
+                ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || f.label === 'CUSTOMER SERVICE CALL') ? [
                     { label: 'CUSTOMER SERVICE CALL', type: 'text' },
                     { label: 'DATE OF CALLING', type: 'date' },
                     { label: 'CALL BY WHOM', type: 'dropdown' },
@@ -1487,8 +1488,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                     // Find dynamic fields in the headers
                     const dynamicFields = [
-                        ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
-                        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? [
+                        ...filteredSchema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
+                        ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || f.label === 'TASK IS BILLABLE OR NOT') ? [
                             { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
                             { label: 'BILL NO', type: 'text' },
                             { label: 'BILL AMOUNT', type: 'currency' },
@@ -1513,7 +1514,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             { label: 'PR ACTIVE UPDATION', type: 'text' },
                             { label: 'FINAL REMARK', type: 'text' }
                         ] : []),
-                        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? [
+                        ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || f.label === 'CUSTOMER SERVICE CALL') ? [
                             { label: 'CUSTOMER SERVICE CALL', type: 'text' },
                             { label: 'DATE OF CALLING', type: 'date' },
                             { label: 'CALL BY WHOM', type: 'dropdown' },
@@ -1857,10 +1858,19 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         };
     });
 
-    const baseColumns = schema.length > 0 ? [
+    const filteredSchema = schema.filter(f => {
+        if (Number(f.section) === 3 && !isBillableEnabled) return false;
+        if (Number(f.section) === 4 && !isAfterSalesEnabled) return false;
+        // Safety check by field label fallback
+        if (!isBillableEnabled && billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) return false;
+        if (!isAfterSalesEnabled && afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) return false;
+        return true;
+    });
+
+    const baseColumns = filteredSchema.length > 0 ? [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
-        ...schema.map(f => {
+        ...filteredSchema.map(f => {
             if (f.id === 'static_client_name') return null;
             if (f.id === 'static_form_name') return null;
             if (f.id === 'static_work_type') return null;
@@ -1881,15 +1891,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 field: f
             };
         }).filter(Boolean),
-        ...(isBillableEnabled && !schema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
-        ...(isAfterSalesEnabled && !schema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
+        ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
-        ...(isBillableEnabled && !schema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
-        ...(isAfterSalesEnabled && !schema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
+        ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];

@@ -599,10 +599,10 @@ export default function AddTaskModal({
                                 'DATE OF GOOGLE REVIEW', 'APP DOWN LOADED', 'MAHESH SIR MOBILE SAVED', 'SOCIAL MEDIA CONNECTION', 'OTHER REMARK'
                             ].map(k => k.trim().toUpperCase());
                             const cleanKey = String(f.key || '').trim().toUpperCase();
-                            return !billingKeys.includes(cleanKey) && !afterSalesKeys.includes(cleanKey) && f.section !== 3 && f.section !== 4;
+                            return !billingKeys.includes(cleanKey) && !afterSalesKeys.includes(cleanKey) && Number(f.section) !== 3 && Number(f.section) !== 4;
                         }).map(field => renderField(field))}
                     </div>
-
+ 
                     {/* Billing Section */}
                     {isBillableEnabled && (
                         <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
@@ -619,12 +619,12 @@ export default function AddTaskModal({
                                         'DATE-2', 'PAYMENT-3', 'DATE-3', 'BALANCE AMOUNT', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'FINAL REMARK'
                                     ].map(k => k.trim().toUpperCase());
                                     const cleanKey = String(f.key || '').trim().toUpperCase();
-                                    return billingKeys.includes(cleanKey) || f.section === 3;
+                                    return billingKeys.includes(cleanKey) || Number(f.section) === 3;
                                 }).map(field => renderField(field))}
                             </div>
                         </div>
                     )}
-
+ 
                     {/* After Sales Services Section */}
                     {isAfterSalesEnabled && (
                         <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
@@ -639,7 +639,7 @@ export default function AddTaskModal({
                                         'DATE OF GOOGLE REVIEW', 'APP DOWN LOADED', 'MAHESH SIR MOBILE SAVED', 'SOCIAL MEDIA CONNECTION', 'OTHER REMARK'
                                     ].map(k => k.trim().toUpperCase());
                                     const cleanKey = String(f.key || '').trim().toUpperCase();
-                                    return afterSalesKeys.includes(cleanKey) || f.section === 4;
+                                    return afterSalesKeys.includes(cleanKey) || Number(f.section) === 4;
                                 }).map(field => renderField(field))}
                             </div>
                         </div>

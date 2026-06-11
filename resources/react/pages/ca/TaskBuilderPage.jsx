@@ -1306,7 +1306,8 @@ export default function TaskBuilderPage() {
         required: !!f.required,
         options: f.options || [],
         checkType: f.checkType,
-        static: !!f.static
+        static: !!f.static,
+        section: f.section
       }))
     };
     formSchema.forEach(f => {
@@ -1540,12 +1541,31 @@ export default function TaskBuilderPage() {
       setFormSchema(prev => {
         // If the task has a structured schema, reconstruct from it directly
         if (data.dynamic_fields && Array.isArray(data.dynamic_fields.schema)) {
-          return data.dynamic_fields.schema.map(f => {
-            const existing = prev.find(p => p.id === f.id);
-            let value = f.value || '';
-            if ((!f.static || f.id.startsWith('dynamic_')) && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
-              value = data.dynamic_fields[f.label];
-            }
+          const isBillable = !!data.dynamic_fields.is_billable;
+          const isAfterSales = !!data.dynamic_fields.is_after_sales;
+          return data.dynamic_fields.schema
+            .filter(f => {
+              let resolvedSection = f.section;
+              if (resolvedSection === undefined || resolvedSection === null) {
+                if (PREDEFINED_BILLING_FIELDS.some(pb => pb.label === f.label)) {
+                  resolvedSection = 3;
+                } else if (PREDEFINED_AFTERSALES_FIELDS.some(pa => pa.label === f.label)) {
+                  resolvedSection = 4;
+                } else {
+                  const existing = prev.find(p => p.id === f.id);
+                  resolvedSection = existing?.section || 2;
+                }
+              }
+              if (resolvedSection === 3 && !isBillable) return false;
+              if (resolvedSection === 4 && !isAfterSales) return false;
+              return true;
+            })
+            .map(f => {
+              const existing = prev.find(p => p.id === f.id);
+              let value = f.value || '';
+              if ((!f.static || f.id.startsWith('dynamic_')) && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
+                value = data.dynamic_fields[f.label];
+              }
             
             // Normalize value based on type to avoid crashes
             if (f.type === 'labels') {
@@ -1598,6 +1618,17 @@ export default function TaskBuilderPage() {
             else if (f.id === 'static_sheet_status') value = data.status || 'pending';
             else if (f.id === 'static_created_date') value = data.created_at ? data.created_at.substring(0, 10) : new Date().toISOString().split('T')[0];
 
+            let resolvedSection = f.section;
+            if (resolvedSection === undefined || resolvedSection === null) {
+              if (PREDEFINED_BILLING_FIELDS.some(pb => pb.label === f.label)) {
+                resolvedSection = 3;
+              } else if (PREDEFINED_AFTERSALES_FIELDS.some(pa => pa.label === f.label)) {
+                resolvedSection = 4;
+              } else {
+                resolvedSection = existing?.section || 2;
+              }
+            }
+
             return {
               id: f.id,
               type: f.type,
@@ -1610,7 +1641,7 @@ export default function TaskBuilderPage() {
               options: f.options || [],
               checkType: f.checkType,
               static: !!f.static,
-              section: f.section || existing?.section || 2
+              section: resolvedSection
             };
           });
         }
@@ -1669,6 +1700,9 @@ export default function TaskBuilderPage() {
       if (data.dynamic_fields) {
         setIsBillableEnabled(!!data.dynamic_fields.is_billable);
         setIsAfterSalesEnabled(!!data.dynamic_fields.is_after_sales);
+      }
+      if (data.permissions) {
+        setSheetPermissions(data.permissions);
       }
 
       showToast(location.state?.isEditing ? 'Form layout loaded for editing.' : 'Sheet data loaded for duplication.');
