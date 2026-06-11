@@ -229,6 +229,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [allowAttachments, setAllowAttachments] = useState(false);
     const [allowChecklist, setAllowChecklist] = useState(true);
     const [allowNotes, setAllowNotes] = useState(true);
+    const [isBillableEnabled, setIsBillableEnabled] = useState(false);
+    const [isAfterSalesEnabled, setIsAfterSalesEnabled] = useState(false);
 
     const handleAddRolePermission = () => {
         if (!selectedRoleId) {
@@ -337,6 +339,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setAllowAttachments(!!data.allow_attachments);
             setAllowChecklist(!!data.allow_checklist);
             setAllowNotes(!!data.allow_notes);
+            setIsBillableEnabled(!!data.dynamic_fields?.is_billable);
+            setIsAfterSalesEnabled(!!data.dynamic_fields?.is_after_sales);
 
             let rolesData = [];
             if (!isStaff) {
@@ -787,7 +791,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             const updatedDynamicFields = {
                 ...(task.dynamic_fields || {}),
                 'CA Feedback': caFeedback,
-                'CA Rating': caRating
+                'CA Rating': caRating,
+                is_billable: isBillableEnabled,
+                is_after_sales: isAfterSalesEnabled
             };
 
             await api.patch(`${apiPrefix}/tasks/${id}`, {
@@ -1240,7 +1246,41 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 return val || '';
             };
 
-            const dynamicFields = schema.filter(f => !f.id.startsWith('static_'));
+            const dynamicFields = [
+                ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
+                ...(isBillableEnabled ? [
+                    { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
+                    { label: 'INVOICE IS CREATED', type: 'dropdown' },
+                    { label: 'CREATED BY', type: 'text' },
+                    { label: 'VERIFY BY', type: 'checkbox' },
+                    { label: 'TOTAL INVOICE AMOUNT', type: 'currency' },
+                    { label: 'DATE OF INVOICE', type: 'date' },
+                    { label: 'INVOICE SENT MODE / FROM', type: 'dropdown' },
+                    { label: 'DATE OF SENT', type: 'date' },
+                    { label: 'PAYMENT-1', type: 'currency' },
+                    { label: 'DATE-1', type: 'date' },
+                    { label: 'PAYMENT-2', type: 'currency' },
+                    { label: 'DATE-2', type: 'date' },
+                    { label: 'PAYMENT-3', type: 'currency' },
+                    { label: 'DATE-3', type: 'date' },
+                    { label: 'BALANCE AMOUNT', type: 'currency' },
+                    { label: 'BILLING FOLLOW UP', type: 'text' },
+                    { label: 'PR ACTIVE UPDATION', type: 'text' },
+                    { label: 'FINAL REMARK', type: 'text' }
+                ] : []),
+                ...(isAfterSalesEnabled ? [
+                    { label: 'CUSTOMER SERVICE CALL', type: 'text' },
+                    { label: 'DATE OF CALLING', type: 'date' },
+                    { label: 'CALL BY WHOM', type: 'dropdown' },
+                    { label: 'CLIENT FEED BACK', type: 'longtext' },
+                    { label: 'GOOGLE REVIEW', type: 'dropdown' },
+                    { label: 'DATE OF GOOGLE REVIEW', type: 'date' },
+                    { label: 'APP DOWN LOADED', type: 'dropdown' },
+                    { label: 'MAHESH SIR MOBILE SAVED', type: 'dropdown' },
+                    { label: 'SOCIAL MEDIA CONNECTION', type: 'dropdown' },
+                    { label: 'OTHER REMARK', type: 'longtext' }
+                ] : [])
+            ];
 
             const sheetInfoHeaders = [
                 'SR NO',
@@ -1390,7 +1430,41 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
 
                     // Find dynamic fields in the headers
-                    const dynamicFields = schema.filter(f => !f.id.startsWith('static_'));
+                    const dynamicFields = [
+                        ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
+                        ...(isBillableEnabled ? [
+                            { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
+                            { label: 'INVOICE IS CREATED', type: 'dropdown' },
+                            { label: 'CREATED BY', type: 'text' },
+                            { label: 'VERIFY BY', type: 'checkbox' },
+                            { label: 'TOTAL INVOICE AMOUNT', type: 'currency' },
+                            { label: 'DATE OF INVOICE', type: 'date' },
+                            { label: 'INVOICE SENT MODE / FROM', type: 'dropdown' },
+                            { label: 'DATE OF SENT', type: 'date' },
+                            { label: 'PAYMENT-1', type: 'currency' },
+                            { label: 'DATE-1', type: 'date' },
+                            { label: 'PAYMENT-2', type: 'currency' },
+                            { label: 'DATE-2', type: 'date' },
+                            { label: 'PAYMENT-3', type: 'currency' },
+                            { label: 'DATE-3', type: 'date' },
+                            { label: 'BALANCE AMOUNT', type: 'currency' },
+                            { label: 'BILLING FOLLOW UP', type: 'text' },
+                            { label: 'PR ACTIVE UPDATION', type: 'text' },
+                            { label: 'FINAL REMARK', type: 'text' }
+                        ] : []),
+                        ...(isAfterSalesEnabled ? [
+                            { label: 'CUSTOMER SERVICE CALL', type: 'text' },
+                            { label: 'DATE OF CALLING', type: 'date' },
+                            { label: 'CALL BY WHOM', type: 'dropdown' },
+                            { label: 'CLIENT FEED BACK', type: 'longtext' },
+                            { label: 'GOOGLE REVIEW', type: 'dropdown' },
+                            { label: 'DATE OF GOOGLE REVIEW', type: 'date' },
+                            { label: 'APP DOWN LOADED', type: 'dropdown' },
+                            { label: 'MAHESH SIR MOBILE SAVED', type: 'dropdown' },
+                            { label: 'SOCIAL MEDIA CONNECTION', type: 'dropdown' },
+                            { label: 'OTHER REMARK', type: 'longtext' }
+                        ] : [])
+                    ];
                     const dynamicFieldIndices = dynamicFields.map(f => ({
                         field: f,
                         index: headers.indexOf(f.label)
@@ -1617,6 +1691,65 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const filteredSubTasks = task.sub_tasks || [];
 
 
+    // Dynamic static Billing fields schema
+    const billingSchema = [
+        { id: 'dynamic_TASK IS BILLABLE OR NOT', label: 'TASK IS BILLABLE OR NOT', type: 'dropdown', options: ['YES', 'NO'] },
+        { id: 'dynamic_INVOICE IS CREATED', label: 'INVOICE IS CREATED', type: 'dropdown', options: ['YES', 'PENDING'] },
+        { id: 'dynamic_CREATED BY', label: 'CREATED BY', type: 'text' },
+        { id: 'dynamic_VERIFY BY', label: 'VERIFY BY', type: 'checkbox', options: ['CA MAHESH SIR', 'SAMIYA', 'MANISH'] },
+        { id: 'dynamic_TOTAL INVOICE AMOUNT', label: 'TOTAL INVOICE AMOUNT', type: 'currency' },
+        { id: 'dynamic_DATE OF INVOICE', label: 'DATE OF INVOICE', type: 'date' },
+        { id: 'dynamic_INVOICE SENT MODE / FROM', label: 'INVOICE SENT MODE / FROM', type: 'dropdown', options: ['WHATSAPP', 'EMAIL', 'BY HAND', 'POST / COURIER'] },
+        { id: 'dynamic_DATE OF SENT', label: 'DATE OF SENT', type: 'date' },
+        { id: 'dynamic_PAYMENT-1', label: 'PAYMENT-1', type: 'currency' },
+        { id: 'dynamic_DATE-1', label: 'DATE-1', type: 'date' },
+        { id: 'dynamic_PAYMENT-2', label: 'PAYMENT-2', type: 'currency' },
+        { id: 'dynamic_DATE-2', label: 'DATE-2', type: 'date' },
+        { id: 'dynamic_PAYMENT-3', label: 'PAYMENT-3', type: 'currency' },
+        { id: 'dynamic_DATE-3', label: 'DATE-3', type: 'date' },
+        { id: 'dynamic_BALANCE AMOUNT', label: 'BALANCE AMOUNT', type: 'currency', readOnly: true },
+        { id: 'dynamic_BILLING FOLLOW UP', label: 'BILLING FOLLOW UP', type: 'text' },
+        { id: 'dynamic_PR ACTIVE UPDATION', label: 'PR ACTIVE UPDATION', type: 'text' },
+        { id: 'dynamic_FINAL REMARK', label: 'FINAL REMARK', type: 'text' }
+    ].map(f => ({
+        id: f.id,
+        label: f.label,
+        minWidth: 'min-w-[150px]',
+        isDynamic: true,
+        field: {
+            id: f.id.replace('dynamic_', ''),
+            label: f.label,
+            type: f.type,
+            options: f.options || [],
+            readOnly: !!f.readOnly
+        }
+    }));
+
+    // Dynamic static After Sales fields schema
+    const afterSalesSchema = [
+        { id: 'dynamic_CUSTOMER SERVICE CALL', label: 'CUSTOMER SERVICE CALL', type: 'text' },
+        { id: 'dynamic_DATE OF CALLING', label: 'DATE OF CALLING', type: 'date' },
+        { id: 'dynamic_CALL BY WHOM', label: 'CALL BY WHOM', type: 'dropdown', options: staff.map(s => s.name) },
+        { id: 'dynamic_CLIENT FEED BACK', label: 'CLIENT FEED BACK', type: 'longtext' },
+        { id: 'dynamic_GOOGLE REVIEW', label: 'GOOGLE REVIEW', type: 'dropdown', options: ['YES', 'NO', 'PENDING'] },
+        { id: 'dynamic_DATE OF GOOGLE REVIEW', label: 'DATE OF GOOGLE REVIEW', type: 'date' },
+        { id: 'dynamic_APP DOWN LOADED', label: 'APP DOWN LOADED', type: 'dropdown', options: ['YES', 'NO'] },
+        { id: 'dynamic_MAHESH SIR MOBILE SAVED', label: 'MAHESH SIR MOBILE SAVED', type: 'dropdown', options: ['YES', 'NO'] },
+        { id: 'dynamic_SOCIAL MEDIA CONNECTION', label: 'SOCIAL MEDIA CONNECTION', type: 'dropdown', options: ['FACEBOOK', 'INSTA', 'LINKED IN', 'ALL', 'NONE'] },
+        { id: 'dynamic_OTHER REMARK', label: 'OTHER REMARK', type: 'longtext' }
+    ].map(f => ({
+        id: f.id,
+        label: f.label,
+        minWidth: 'min-w-[150px]',
+        isDynamic: true,
+        field: {
+            id: f.id.replace('dynamic_', ''),
+            label: f.label,
+            type: f.type,
+            options: f.options || []
+        }
+    }));
+
     const baseColumns = schema.length > 0 ? [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
@@ -1641,11 +1774,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 field: f
             };
         }).filter(Boolean),
+        ...(isBillableEnabled ? billingSchema : []),
+        ...(isAfterSalesEnabled ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
+        ...(isBillableEnabled ? billingSchema : []),
+        ...(isAfterSalesEnabled ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];
@@ -1676,7 +1813,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         if (col.id === 'sub_status') return { key: 'sub_status', label: 'Sub Status', isStatic: true, options: col.field?.options };
         if (col.id === 'attachments') return { key: 'attachments', label: 'Attachments', isStatic: true };
         if (col.id === 'is_verified') return { key: 'is_verified', label: 'Verification', isStatic: true };
-        if (col.isDynamic) return { key: col.label, label: col.label, isStatic: false, type: col.field?.type, options: col.field?.options };
+        if (col.isDynamic) return { key: col.label, label: col.label, isStatic: false, type: col.field?.type, options: col.field?.options, section: col.field?.section };
         return null;
     }).filter(Boolean);
 
@@ -2086,6 +2223,48 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 type="checkbox"
                                                 checked={allowNotes}
                                                 onChange={(e) => setAllowNotes(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Enable Billing Section Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-455">
+                                        <Sliders size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Billing Section</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setIsBillableEnabled(!isBillableEnabled)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Enable Billing Fields
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={isBillableEnabled}
+                                                onChange={(e) => setIsBillableEnabled(e.target.checked)}
+                                            />
+                                            <span className="slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Enable After Sales Section Toggle */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-slate-455">
+                                        <Globe size={14} className="text-indigo-500" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">After Sales Service Section</span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl h-[46px] cursor-pointer" onClick={() => setIsAfterSalesEnabled(!isAfterSalesEnabled)}>
+                                        <span className="text-xs font-bold text-slate-700 select-none">
+                                            Enable After Sales Fields
+                                        </span>
+                                        <label className="toggle-switch shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={isAfterSalesEnabled}
+                                                onChange={(e) => setIsAfterSalesEnabled(e.target.checked)}
                                             />
                                             <span className="slider"></span>
                                         </label>
@@ -3302,27 +3481,54 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                 className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                             />
                                                         ) : isCurrency ? (
-                                                            <input
-                                                                type="text"
-                                                                value={value || ''}
-                                                                disabled={!isRowEditable}
-                                                                onChange={(e) => {
-                                                                    const formatted = formatIndianCurrency(e.target.value);
-                                                                    const newRows = [...rows];
-                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                    newRows[originalIndex].dynamic_data[field.label] = formatted;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                onBlur={(e) => {
-                                                                    const finalVal = formatIndianCurrencyWithDecimals(e.target.value);
-                                                                    const newRows = [...rows];
-                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                    newRows[originalIndex].dynamic_data[field.label] = finalVal;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                placeholder={field.placeholder || "0.00"}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            />
+                                                            (() => {
+                                                                let finalVal = value || '';
+                                                                const isReadOnly = field.readOnly;
+                                                                if (isReadOnly && field.label === 'BALANCE AMOUNT') {
+                                                                    const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+                                                                    const total = parseAmt(row.dynamic_data?.['TOTAL INVOICE AMOUNT']);
+                                                                    const p1 = parseAmt(row.dynamic_data?.['PAYMENT-1']);
+                                                                    const p2 = parseAmt(row.dynamic_data?.['PAYMENT-2']);
+                                                                    const p3 = parseAmt(row.dynamic_data?.['PAYMENT-3']);
+                                                                    const balance = total - (p1 + p2 + p3);
+                                                                    finalVal = formatIndianCurrencyWithDecimals(balance.toString());
+                                                                }
+                                                                return (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={finalVal}
+                                                                        disabled={!isRowEditable || isReadOnly}
+                                                                        onChange={(e) => {
+                                                                            if (isReadOnly) return;
+                                                                            const formatted = formatIndianCurrency(e.target.value);
+                                                                            const newRows = [...rows];
+                                                                            if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                            newRows[originalIndex].dynamic_data[field.label] = formatted;
+                                                                            setRows(newRows);
+                                                                        }}
+                                                                        onBlur={(e) => {
+                                                                            if (isReadOnly) return;
+                                                                            const formattedBlur = formatIndianCurrencyWithDecimals(e.target.value);
+                                                                            const newRows = [...rows];
+                                                                            if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                            newRows[originalIndex].dynamic_data[field.label] = formattedBlur;
+                                                                            
+                                                                            // Also update balance amount dynamically if total or payments changed
+                                                                            const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+                                                                            const total = parseAmt(newRows[originalIndex].dynamic_data?.['TOTAL INVOICE AMOUNT']);
+                                                                            const p1 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-1']);
+                                                                            const p2 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-2']);
+                                                                            const p3 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-3']);
+                                                                            const balance = total - (p1 + p2 + p3);
+                                                                            newRows[originalIndex].dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
+                                                                            
+                                                                            setRows(newRows);
+                                                                        }}
+                                                                        placeholder={field.placeholder || "0.00"}
+                                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed ${isReadOnly ? 'bg-slate-100 border-slate-200 font-extrabold text-indigo-700 cursor-not-allowed' : ''}`}
+                                                                    />
+                                                                );
+                                                            })()
                                                         ) : (
                                                             <div className="flex items-center justify-between group/cell w-full">
                                                                 <textarea
@@ -4538,6 +4744,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 isOpen={isAddTaskModalOpen}
                 onClose={() => setIsAddTaskModalOpen(false)}
                 allFields={allFields}
+                isBillableEnabled={isBillableEnabled}
+                isAfterSalesEnabled={isAfterSalesEnabled}
                 clients={clients
                     .filter(c => {
                         if (viewingRowIndex !== null && String(c.id) === String(rows[viewingRowIndex]?.client_id)) return true;

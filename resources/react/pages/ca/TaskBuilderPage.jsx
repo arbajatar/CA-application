@@ -21,6 +21,59 @@ import { convertTo12Hour, convertTo24Hour } from '../../utils/dateHelper';
 import TimePicker12Hour from '../../components/ui/TimePicker12Hour';
 import '../../styles/task-builder.css';
 
+const PREDEFINED_BILLING_FIELDS = [
+  { id: 'dynamic_TASK IS BILLABLE OR NOT', type: 'dropdown', label: 'TASK IS BILLABLE OR NOT', options: ['YES', 'NO'], required: false, static: true, section: 3 },
+  { id: 'dynamic_INVOICE IS CREATED', type: 'dropdown', label: 'INVOICE IS CREATED', options: ['YES', 'PENDING'], required: false, static: true, section: 3 },
+  { id: 'dynamic_CREATED BY', type: 'text', label: 'CREATED BY', required: false, static: true, section: 3 },
+  { id: 'dynamic_VERIFY BY', type: 'checkbox', label: 'VERIFY BY', options: ['CA MAHESH SIR', 'SAMIYA', 'MANISH'], required: false, static: true, section: 3 },
+  { id: 'dynamic_TOTAL INVOICE AMOUNT', type: 'currency', label: 'TOTAL INVOICE AMOUNT', required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE OF INVOICE', type: 'date', label: 'DATE OF INVOICE', required: false, static: true, section: 3 },
+  { id: 'dynamic_INVOICE SENT MODE / FROM', type: 'dropdown', label: 'INVOICE SENT MODE / FROM', options: ['WHATSAPP', 'EMAIL', 'BY HAND', 'POST / COURIER'], required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE OF SENT', type: 'date', label: 'DATE OF SENT', required: false, static: true, section: 3 },
+  { id: 'dynamic_PAYMENT-1', type: 'currency', label: 'PAYMENT-1', required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE-1', type: 'date', label: 'DATE-1', required: false, static: true, section: 3 },
+  { id: 'dynamic_PAYMENT-2', type: 'currency', label: 'PAYMENT-2', required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE-2', type: 'date', label: 'DATE-2', required: false, static: true, section: 3 },
+  { id: 'dynamic_PAYMENT-3', type: 'currency', label: 'PAYMENT-3', required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE-3', type: 'date', label: 'DATE-3', required: false, static: true, section: 3 },
+  { id: 'dynamic_BALANCE AMOUNT', type: 'currency', label: 'BALANCE AMOUNT', required: false, static: true, section: 3, readOnly: true },
+  { id: 'dynamic_BILLING FOLLOW UP', type: 'text', label: 'BILLING FOLLOW UP', required: false, static: true, section: 3 },
+  { id: 'dynamic_PR ACTIVE UPDATION', type: 'text', label: 'PR ACTIVE UPDATION', required: false, static: true, section: 3 },
+  { id: 'dynamic_FINAL REMARK', type: 'text', label: 'FINAL REMARK', required: false, static: true, section: 3 }
+];
+
+const PREDEFINED_AFTERSALES_FIELDS = [
+  { id: 'dynamic_CUSTOMER SERVICE CALL', type: 'text', label: 'CUSTOMER SERVICE CALL', required: false, static: true, section: 4 },
+  { id: 'dynamic_DATE OF CALLING', type: 'date', label: 'DATE OF CALLING', required: false, static: true, section: 4 },
+  { id: 'dynamic_CALL BY WHOM', type: 'dropdown', label: 'CALL BY WHOM', options: [], required: false, static: true, section: 4 },
+  { id: 'dynamic_CLIENT FEED BACK', type: 'longtext', label: 'CLIENT FEED BACK', required: false, static: true, section: 4 },
+  { id: 'dynamic_GOOGLE REVIEW', type: 'dropdown', label: 'GOOGLE REVIEW', options: ['YES', 'NO', 'PENDING'], required: false, static: true, section: 4 },
+  { id: 'dynamic_DATE OF GOOGLE REVIEW', type: 'date', label: 'DATE OF GOOGLE REVIEW', required: false, static: true, section: 4 },
+  { id: 'dynamic_APP DOWN LOADED', type: 'dropdown', label: 'APP DOWN LOADED', options: ['YES', 'NO'], required: false, static: true, section: 4 },
+  { id: 'dynamic_MAHESH SIR MOBILE SAVED', type: 'dropdown', label: 'MAHESH SIR MOBILE SAVED', options: ['YES', 'NO'], required: false, static: true, section: 4 },
+  { id: 'dynamic_SOCIAL MEDIA CONNECTION', type: 'dropdown', label: 'SOCIAL MEDIA CONNECTION', options: ['FACEBOOK', 'INSTA', 'LINKED IN', 'ALL', 'NONE'], required: false, static: true, section: 4 },
+  { id: 'dynamic_OTHER REMARK', type: 'longtext', label: 'OTHER REMARK', required: false, static: true, section: 4 }
+];
+
+const addPredefinedFieldsMetadata = (fields) => {
+  return fields.map(f => {
+    let icon = 'Type';
+    let color = '#6366f1';
+    if (f.type === 'dropdown') { icon = 'ChevronDown'; color = '#3b82f6'; }
+    else if (f.type === 'date') { icon = 'Calendar'; color = '#f43f5e'; }
+    else if (f.type === 'checkbox') { icon = 'CheckSquare'; color = '#10b981'; }
+    else if (f.type === 'longtext') { icon = 'AlignLeft'; color = '#64748b'; }
+    else if (f.type === 'currency') { icon = 'Hash'; color = '#8b5cf6'; }
+    return {
+      ...f,
+      icon,
+      color,
+      placeholder: `Enter ${f.label.toLowerCase()}...`,
+      value: ''
+    };
+  });
+};
+
 const IconMap = {
   ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
   CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
@@ -732,12 +785,46 @@ export default function TaskBuilderPage() {
   const [allowAttachments, setAllowAttachments] = useState(false);
   const [allowChecklist, setAllowChecklist] = useState(true);
   const [allowNotes, setAllowNotes] = useState(true);
+  const [isBillableEnabled, setIsBillableEnabled] = useState(false);
+  const [isAfterSalesEnabled, setIsAfterSalesEnabled] = useState(false);
   const [selectedFields, setSelectedFields] = useState([]);
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toastState, setToastState] = useState({ show: false, message: '' });
   const [saving, setSaving] = useState(false);
   const [deletedFields, setDeletedFields] = useState([]);
+
+  // Predefined Billing Fields synchronization
+  useEffect(() => {
+    if (isBillableEnabled) {
+      setFormSchema(prev => {
+        const hasBilling = prev.some(f => f.section === 3);
+        if (!hasBilling) {
+          const billingFields = addPredefinedFieldsMetadata(PREDEFINED_BILLING_FIELDS);
+          return [...prev, ...billingFields];
+        }
+        return prev;
+      });
+    } else {
+      setFormSchema(prev => prev.filter(f => f.section !== 3));
+    }
+  }, [isBillableEnabled]);
+
+  // Predefined After Sales Fields synchronization
+  useEffect(() => {
+    if (isAfterSalesEnabled) {
+      setFormSchema(prev => {
+        const hasAfterSales = prev.some(f => f.section === 4);
+        if (!hasAfterSales) {
+          const afterSalesFields = addPredefinedFieldsMetadata(PREDEFINED_AFTERSALES_FIELDS);
+          return [...prev, ...afterSalesFields];
+        }
+        return prev;
+      });
+    } else {
+      setFormSchema(prev => prev.filter(f => f.section !== 4));
+    }
+  }, [isAfterSalesEnabled]);
 
   const isDuplicating = !!location.state?.duplicateData;
   const hasInitializedRef = useRef(false);
@@ -858,6 +945,8 @@ export default function TaskBuilderPage() {
 
   const fieldsContainerRef = useRef(null);
   const fieldsContainer2Ref = useRef(null);
+  const fieldsContainer3Ref = useRef(null);
+  const fieldsContainer4Ref = useRef(null);
   const sidebarRef = useRef(null);
 
   const handleAddRolePermission = () => {
@@ -907,7 +996,7 @@ export default function TaskBuilderPage() {
     showToast(`Field "${field.label}" restored`);
   };
 
-  const addField = (type, atIndex = null) => {
+  const addField = (type, atIndex = null, section = 2) => {
     const id = 'f_' + Date.now();
     const newField = {
       id,
@@ -922,7 +1011,8 @@ export default function TaskBuilderPage() {
       required: false,
       error: '',
       labelTouched: false,
-      placeholderTouched: false
+      placeholderTouched: false,
+      section: section
     };
 
     setFormSchema(prev => {
@@ -1174,6 +1264,8 @@ export default function TaskBuilderPage() {
 
     const dynamicFields = {
       ...originalDynamicFields,
+      is_billable: !!isBillableEnabled,
+      is_after_sales: !!isAfterSalesEnabled,
       schema: formSchema.map(f => ({
         id: f.id,
         type: f.type,
@@ -1542,6 +1634,10 @@ export default function TaskBuilderPage() {
       if (data.allow_notes !== undefined) {
         setAllowNotes(!!data.allow_notes);
       }
+      if (data.dynamic_fields) {
+        setIsBillableEnabled(!!data.dynamic_fields.is_billable);
+        setIsAfterSalesEnabled(!!data.dynamic_fields.is_after_sales);
+      }
 
       showToast(location.state?.isEditing ? 'Form layout loaded for editing.' : 'Sheet data loaded for duplication.');
     }
@@ -1554,7 +1650,11 @@ export default function TaskBuilderPage() {
   const reorderSection = (section, oldDomIdx, newDomIdx) => {
     setFormSchema(prev => {
       const sectionIndices = prev
-        .map((f, i) => (section === 1 ? f.section === 1 : f.section !== 1) ? i : null)
+        .map((f, i) => {
+          if (section === 1) return f.section === 1 ? i : null;
+          if (section === 2) return (f.section === 2 || (!f.section && f.id !== 'static_form_name' && f.id !== 'static_work_type' && f.id !== 'static_created_date' && f.id !== 'static_sheet_status' && f.id !== 'static_remarks')) ? i : null;
+          return f.section === section ? i : null;
+        })
         .filter(i => i !== null);
 
       if (oldDomIdx < 0 || oldDomIdx >= sectionIndices.length) return prev;
@@ -1589,7 +1689,7 @@ export default function TaskBuilderPage() {
           const newIndex = evt.newIndex;
           evt.item.remove();
           const fieldType = FIELD_TYPES.find(f => f.id === typeId);
-          addField(fieldType, newIndex);
+          addField(fieldType, newIndex, 1);
         },
         onUpdate: (evt) => {
           reorderSectionRef.current(1, evt.oldIndex, evt.newIndex);
@@ -1609,10 +1709,52 @@ export default function TaskBuilderPage() {
             const newIndex = evt.newIndex;
             evt.item.remove();
             const fieldType = FIELD_TYPES.find(f => f.id === typeId);
-            addField(fieldType, newIndex);
+            addField(fieldType, newIndex, 2);
           },
           onUpdate: (evt) => {
             reorderSectionRef.current(2, evt.oldIndex, evt.newIndex);
+          }
+        });
+      }
+
+      let canvasSortable3 = null;
+      if (isBillableEnabled && fieldsContainer3Ref.current) {
+        canvasSortable3 = new Sortable(fieldsContainer3Ref.current, {
+          group: 'fields',
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          onAdd: (evt) => {
+            const typeId = evt.item.getAttribute('data-type');
+            const newIndex = evt.newIndex;
+            evt.item.remove();
+            const fieldType = FIELD_TYPES.find(f => f.id === typeId);
+            addField(fieldType, newIndex, 3);
+          },
+          onUpdate: (evt) => {
+            reorderSectionRef.current(3, evt.oldIndex, evt.newIndex);
+          }
+        });
+      }
+
+      let canvasSortable4 = null;
+      if (isAfterSalesEnabled && fieldsContainer4Ref.current) {
+        canvasSortable4 = new Sortable(fieldsContainer4Ref.current, {
+          group: 'fields',
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          onAdd: (evt) => {
+            const typeId = evt.item.getAttribute('data-type');
+            const newIndex = evt.newIndex;
+            evt.item.remove();
+            const fieldType = FIELD_TYPES.find(f => f.id === typeId);
+            addField(fieldType, newIndex, 4);
+          },
+          onUpdate: (evt) => {
+            reorderSectionRef.current(4, evt.oldIndex, evt.newIndex);
           }
         });
       }
@@ -1621,9 +1763,11 @@ export default function TaskBuilderPage() {
         sidebarSortable.destroy();
         canvasSortable1.destroy();
         if (canvasSortable2) canvasSortable2.destroy();
+        if (canvasSortable3) canvasSortable3.destroy();
+        if (canvasSortable4) canvasSortable4.destroy();
       };
     }
-  }, [viewMode]);
+  }, [viewMode, isBillableEnabled, isAfterSalesEnabled]);
 
   return (
     <div className="w-full flex-1 flex flex-col">
@@ -1737,7 +1881,7 @@ export default function TaskBuilderPage() {
                     <h3 className="text-sm font-black bg-gradient-to-r from-amber-700 to-amber-600 bg-clip-text text-transparent uppercase tracking-widest">Task Assignment Section</h3>
                   </div>
                   <div ref={fieldsContainer2Ref} id="fieldsContainer2" className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {formSchema.filter(f => f.section !== 1).map((field) => (
+                    {formSchema.filter(f => f.section === 2 || (!f.section && f.id !== 'static_form_name' && f.id !== 'static_work_type' && f.id !== 'static_created_date' && f.id !== 'static_sheet_status' && f.id !== 'static_remarks')).map((field) => (
                       <FormCard
                         key={field.id}
                         field={field}
@@ -1762,6 +1906,76 @@ export default function TaskBuilderPage() {
                     ))}
                   </div>
                 </div>
+
+                {/* SECTION 3 (Billing Information) */}
+                {isBillableEnabled && (
+                  <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-1.5 h-6 bg-gradient-to-b from-indigo-500 to-indigo-650 rounded-full shadow-sm"></div>
+                      <h3 className="text-sm font-black bg-gradient-to-r from-indigo-700 to-indigo-600 bg-clip-text text-transparent uppercase tracking-widest">Billing Information</h3>
+                    </div>
+                    <div ref={fieldsContainer3Ref} id="fieldsContainer3" className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[100px] border border-dashed border-slate-200 rounded-3xl p-4 bg-slate-50/20">
+                      {formSchema.filter(f => f.section === 3).map((field) => (
+                        <FormCard
+                          key={field.id}
+                          field={field}
+                          viewMode={viewMode}
+                          isActive={activeFieldId === field.id && viewMode === 'builder'}
+                          onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
+                          onUpdate={(key, val) => updateField(field.id, key, val)}
+                          onRemove={() => removeField(field.id)}
+                          isDuplicating={isDuplicating}
+                          isSelected={selectedFields.includes(field.id)}
+                          onToggleSelect={() => toggleSelectField(field.id)}
+                          calculateAutoProgress={calculateAutoProgress}
+                          modalActions={{
+                            setAddClientOpen,
+                            setClientForm,
+                            setClientErrors,
+                            setAddWorkTypeOpen,
+                            setWorkTypeName,
+                            setWorkTypeError
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 4 (After Sales Services) */}
+                {isAfterSalesEnabled && (
+                  <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-1.5 h-6 bg-gradient-to-b from-emerald-400 to-emerald-650 rounded-full shadow-sm"></div>
+                      <h3 className="text-sm font-black bg-gradient-to-r from-emerald-700 to-emerald-600 bg-clip-text text-transparent uppercase tracking-widest">After Sales Services</h3>
+                    </div>
+                    <div ref={fieldsContainer4Ref} id="fieldsContainer4" className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[100px] border border-dashed border-slate-200 rounded-3xl p-4 bg-slate-50/20">
+                      {formSchema.filter(f => f.section === 4).map((field) => (
+                        <FormCard
+                          key={field.id}
+                          field={field}
+                          viewMode={viewMode}
+                          isActive={activeFieldId === field.id && viewMode === 'builder'}
+                          onActive={() => viewMode === 'builder' && setActiveFieldId(field.id)}
+                          onUpdate={(key, val) => updateField(field.id, key, val)}
+                          onRemove={() => removeField(field.id)}
+                          isDuplicating={isDuplicating}
+                          isSelected={selectedFields.includes(field.id)}
+                          onToggleSelect={() => toggleSelectField(field.id)}
+                          calculateAutoProgress={calculateAutoProgress}
+                          modalActions={{
+                            setAddClientOpen,
+                            setClientForm,
+                            setClientErrors,
+                            setAddWorkTypeOpen,
+                            setWorkTypeName,
+                            setWorkTypeError
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* SECTION: Sheet Options */}
                 <div className="bg-white rounded-3xl border border-slate-100/80 p-6 md:p-8 shadow-sm space-y-6">
@@ -1813,6 +2027,36 @@ export default function TaskBuilderPage() {
                         type="checkbox"
                         checked={allowNotes}
                         onChange={(e) => setAllowNotes(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">Enable Billing Fields</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">Show Billing dynamic section (Total amount, Payments, Invoice details, and Balance amount) on this sheet.</p>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={isBillableEnabled}
+                        onChange={(e) => setIsBillableEnabled(e.target.checked)}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800">Enable After Sales Services Fields</h4>
+                      <p className="text-xs text-slate-400 font-semibold mt-1">Show After Sales Services dynamic section (Calling details, Feedback, App download status, Google Review etc.) on this sheet.</p>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={isAfterSalesEnabled}
+                        onChange={(e) => setIsAfterSalesEnabled(e.target.checked)}
                       />
                       <span className="slider"></span>
                     </label>
