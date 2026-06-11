@@ -1248,8 +1248,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
             const dynamicFields = [
                 ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
-                ...(isBillableEnabled ? [
+                ...(isBillableEnabled && !schema.some(f => f.section === 3) ? [
                     { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
+                    { label: 'BILL NO', type: 'text' },
+                    { label: 'BILL AMOUNT', type: 'currency' },
+                    { label: 'INVOICE SENT TO CLIENT', type: 'dropdown' },
+                    { label: 'DATE OF SENDING TO CLIENT', type: 'date' },
+                    { label: 'STATUS', type: 'dropdown' },
                     { label: 'INVOICE IS CREATED', type: 'dropdown' },
                     { label: 'CREATED BY', type: 'text' },
                     { label: 'VERIFY BY', type: 'checkbox' },
@@ -1268,7 +1273,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     { label: 'PR ACTIVE UPDATION', type: 'text' },
                     { label: 'FINAL REMARK', type: 'text' }
                 ] : []),
-                ...(isAfterSalesEnabled ? [
+                ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? [
                     { label: 'CUSTOMER SERVICE CALL', type: 'text' },
                     { label: 'DATE OF CALLING', type: 'date' },
                     { label: 'CALL BY WHOM', type: 'dropdown' },
@@ -1432,8 +1437,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     // Find dynamic fields in the headers
                     const dynamicFields = [
                         ...schema.filter(f => !f.id.startsWith('static_')).map(f => ({ label: f.label, type: f.type })),
-                        ...(isBillableEnabled ? [
+                        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? [
                             { label: 'TASK IS BILLABLE OR NOT', type: 'dropdown' },
+                            { label: 'BILL NO', type: 'text' },
+                            { label: 'BILL AMOUNT', type: 'currency' },
+                            { label: 'INVOICE SENT TO CLIENT', type: 'dropdown' },
+                            { label: 'DATE OF SENDING TO CLIENT', type: 'date' },
+                            { label: 'STATUS', type: 'dropdown' },
                             { label: 'INVOICE IS CREATED', type: 'dropdown' },
                             { label: 'CREATED BY', type: 'text' },
                             { label: 'VERIFY BY', type: 'checkbox' },
@@ -1452,7 +1462,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             { label: 'PR ACTIVE UPDATION', type: 'text' },
                             { label: 'FINAL REMARK', type: 'text' }
                         ] : []),
-                        ...(isAfterSalesEnabled ? [
+                        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? [
                             { label: 'CUSTOMER SERVICE CALL', type: 'text' },
                             { label: 'DATE OF CALLING', type: 'date' },
                             { label: 'CALL BY WHOM', type: 'dropdown' },
@@ -1694,12 +1704,17 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     // Dynamic static Billing fields schema
     const billingSchema = [
         { id: 'dynamic_TASK IS BILLABLE OR NOT', label: 'TASK IS BILLABLE OR NOT', type: 'dropdown', options: ['YES', 'NO'] },
+        { id: 'dynamic_BILL NO', label: 'BILL NO', type: 'text' },
+        { id: 'dynamic_BILL AMOUNT', label: 'BILL AMOUNT', type: 'currency' },
+        { id: 'dynamic_INVOICE SENT TO CLIENT', label: 'INVOICE SENT TO CLIENT', type: 'dropdown', options: ['YES', 'NO', 'PENDING'] },
+        { id: 'dynamic_DATE OF SENDING TO CLIENT', label: 'DATE OF SENDING TO CLIENT', type: 'date' },
+        { id: 'dynamic_STATUS', label: 'STATUS', type: 'dropdown', options: ['PAID', 'UNPAID', 'PENDING'] },
         { id: 'dynamic_INVOICE IS CREATED', label: 'INVOICE IS CREATED', type: 'dropdown', options: ['YES', 'PENDING'] },
         { id: 'dynamic_CREATED BY', label: 'CREATED BY', type: 'text' },
         { id: 'dynamic_VERIFY BY', label: 'VERIFY BY', type: 'checkbox', options: ['CA MAHESH SIR', 'SAMIYA', 'MANISH'] },
         { id: 'dynamic_TOTAL INVOICE AMOUNT', label: 'TOTAL INVOICE AMOUNT', type: 'currency' },
         { id: 'dynamic_DATE OF INVOICE', label: 'DATE OF INVOICE', type: 'date' },
-        { id: 'dynamic_INVOICE SENT MODE / FROM', label: 'INVOICE SENT MODE / FROM', type: 'dropdown', options: ['WHATSAPP', 'EMAIL', 'BY HAND', 'POST / COURIER'] },
+        { id: 'dynamic_INVOICE SENT MODE / FROM', label: 'INVOICE SENT MODE / FROM', type: 'dropdown', options: ['MAHESH SIR- 9270200217', 'EMAIL- SENT', 'BLUE- 7276060217', 'PINK- 9523479523', 'GREEN- 9523299523', 'SKY BLUE -9588656472', 'GREY- 9975460217'] },
         { id: 'dynamic_DATE OF SENT', label: 'DATE OF SENT', type: 'date' },
         { id: 'dynamic_PAYMENT-1', label: 'PAYMENT-1', type: 'currency' },
         { id: 'dynamic_DATE-1', label: 'DATE-1', type: 'date' },
@@ -1711,19 +1726,35 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         { id: 'dynamic_BILLING FOLLOW UP', label: 'BILLING FOLLOW UP', type: 'text' },
         { id: 'dynamic_PR ACTIVE UPDATION', label: 'PR ACTIVE UPDATION', type: 'text' },
         { id: 'dynamic_FINAL REMARK', label: 'FINAL REMARK', type: 'text' }
-    ].map(f => ({
-        id: f.id,
-        label: f.label,
-        minWidth: 'min-w-[150px]',
-        isDynamic: true,
-        field: {
-            id: f.id.replace('dynamic_', ''),
-            label: f.label,
-            type: f.type,
-            options: f.options || [],
-            readOnly: !!f.readOnly
+    ].map(f => {
+        let finalOptions = f.options || [];
+        if (task && task.dynamic_fields) {
+            let fields = task.dynamic_fields;
+            if (typeof fields === 'string') {
+                try { fields = JSON.parse(fields); } catch(e) {}
+            }
+            const schema = fields?.schema;
+            if (Array.isArray(schema)) {
+                const matchedField = schema.find(sf => sf.id === f.id || sf.label === f.label);
+                if (matchedField && Array.isArray(matchedField.options) && matchedField.options.length > 0) {
+                    finalOptions = matchedField.options;
+                }
+            }
         }
-    }));
+        return {
+            id: f.id,
+            label: f.label,
+            minWidth: 'min-w-[150px]',
+            isDynamic: true,
+            field: {
+                id: f.id.replace('dynamic_', ''),
+                label: f.label,
+                type: f.type,
+                options: finalOptions,
+                readOnly: !!f.readOnly
+            }
+        };
+    });
 
     // Dynamic static After Sales fields schema
     const afterSalesSchema = [
@@ -1737,18 +1768,34 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         { id: 'dynamic_MAHESH SIR MOBILE SAVED', label: 'MAHESH SIR MOBILE SAVED', type: 'dropdown', options: ['YES', 'NO'] },
         { id: 'dynamic_SOCIAL MEDIA CONNECTION', label: 'SOCIAL MEDIA CONNECTION', type: 'dropdown', options: ['FACEBOOK', 'INSTA', 'LINKED IN', 'ALL', 'NONE'] },
         { id: 'dynamic_OTHER REMARK', label: 'OTHER REMARK', type: 'longtext' }
-    ].map(f => ({
-        id: f.id,
-        label: f.label,
-        minWidth: 'min-w-[150px]',
-        isDynamic: true,
-        field: {
-            id: f.id.replace('dynamic_', ''),
-            label: f.label,
-            type: f.type,
-            options: f.options || []
+    ].map(f => {
+        let finalOptions = f.options || [];
+        if (task && task.dynamic_fields) {
+            let fields = task.dynamic_fields;
+            if (typeof fields === 'string') {
+                try { fields = JSON.parse(fields); } catch(e) {}
+            }
+            const schema = fields?.schema;
+            if (Array.isArray(schema)) {
+                const matchedField = schema.find(sf => sf.id === f.id || sf.label === f.label);
+                if (matchedField && Array.isArray(matchedField.options) && matchedField.options.length > 0) {
+                    finalOptions = matchedField.options;
+                }
+            }
         }
-    }));
+        return {
+            id: f.id,
+            label: f.label,
+            minWidth: 'min-w-[150px]',
+            isDynamic: true,
+            field: {
+                id: f.id.replace('dynamic_', ''),
+                label: f.label,
+                type: f.type,
+                options: finalOptions
+            }
+        };
+    });
 
     const baseColumns = schema.length > 0 ? [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
@@ -1774,15 +1821,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 field: f
             };
         }).filter(Boolean),
-        ...(isBillableEnabled ? billingSchema : []),
-        ...(isAfterSalesEnabled ? afterSalesSchema : []),
+        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
-        ...(isBillableEnabled ? billingSchema : []),
-        ...(isAfterSalesEnabled ? afterSalesSchema : []),
+        ...(isBillableEnabled && !schema.some(f => f.section === 3) ? billingSchema : []),
+        ...(isAfterSalesEnabled && !schema.some(f => f.section === 4) ? afterSalesSchema : []),
         { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];

@@ -23,12 +23,17 @@ import '../../styles/task-builder.css';
 
 const PREDEFINED_BILLING_FIELDS = [
   { id: 'dynamic_TASK IS BILLABLE OR NOT', type: 'dropdown', label: 'TASK IS BILLABLE OR NOT', options: ['YES', 'NO'], required: false, static: true, section: 3 },
+  { id: 'dynamic_BILL NO', type: 'text', label: 'BILL NO', required: false, static: true, section: 3 },
+  { id: 'dynamic_BILL AMOUNT', type: 'currency', label: 'BILL AMOUNT', required: false, static: true, section: 3 },
+  { id: 'dynamic_INVOICE SENT TO CLIENT', type: 'dropdown', label: 'INVOICE SENT TO CLIENT', options: ['YES', 'NO', 'PENDING'], required: false, static: true, section: 3 },
+  { id: 'dynamic_DATE OF SENDING TO CLIENT', type: 'date', label: 'DATE OF SENDING TO CLIENT', required: false, static: true, section: 3 },
+  { id: 'dynamic_STATUS', type: 'dropdown', label: 'STATUS', options: ['PAID', 'UNPAID', 'PENDING'], required: false, static: true, section: 3 },
   { id: 'dynamic_INVOICE IS CREATED', type: 'dropdown', label: 'INVOICE IS CREATED', options: ['YES', 'PENDING'], required: false, static: true, section: 3 },
   { id: 'dynamic_CREATED BY', type: 'text', label: 'CREATED BY', required: false, static: true, section: 3 },
   { id: 'dynamic_VERIFY BY', type: 'checkbox', label: 'VERIFY BY', options: ['CA MAHESH SIR', 'SAMIYA', 'MANISH'], required: false, static: true, section: 3 },
   { id: 'dynamic_TOTAL INVOICE AMOUNT', type: 'currency', label: 'TOTAL INVOICE AMOUNT', required: false, static: true, section: 3 },
   { id: 'dynamic_DATE OF INVOICE', type: 'date', label: 'DATE OF INVOICE', required: false, static: true, section: 3 },
-  { id: 'dynamic_INVOICE SENT MODE / FROM', type: 'dropdown', label: 'INVOICE SENT MODE / FROM', options: ['WHATSAPP', 'EMAIL', 'BY HAND', 'POST / COURIER'], required: false, static: true, section: 3 },
+  { id: 'dynamic_INVOICE SENT MODE / FROM', type: 'dropdown', label: 'INVOICE SENT MODE / FROM', options: ['MAHESH SIR- 9270200217', 'EMAIL- SENT', 'BLUE- 7276060217', 'PINK- 9523479523', 'GREEN- 9523299523', 'SKY BLUE -9588656472', 'GREY- 9975460217'], required: false, static: true, section: 3 },
   { id: 'dynamic_DATE OF SENT', type: 'date', label: 'DATE OF SENT', required: false, static: true, section: 3 },
   { id: 'dynamic_PAYMENT-1', type: 'currency', label: 'PAYMENT-1', required: false, static: true, section: 3 },
   { id: 'dynamic_DATE-1', type: 'date', label: 'DATE-1', required: false, static: true, section: 3 },
@@ -637,21 +642,6 @@ export default function TaskBuilderPage() {
       static: true,
       section: 1
     },
-    {
-      id: 'is_task_billable',
-      type: 'checkbox',
-      icon: 'CheckSquare',
-      color: '#f59e0b',
-      label: 'Is Task Billable?',
-      placeholder: 'Select Yes or No',
-      value: '',
-      options: ['Yes', 'No'],
-      checkType: 'singlecheck',
-      required: false,
-      static: false,
-      section: 1
-    },
-
     // SECTION 2: Task Assignment Section
     {
       id: 'static_entry_date',
@@ -779,6 +769,7 @@ export default function TaskBuilderPage() {
     }
   ]);
   const [activeFieldId, setActiveFieldId] = useState(null);
+  const [targetSection, setTargetSection] = useState(2);
   const [availableRoles, setAvailableRoles] = useState([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [sheetPermissions, setSheetPermissions] = useState([]);
@@ -1017,8 +1008,49 @@ export default function TaskBuilderPage() {
 
     setFormSchema(prev => {
       const updated = [...prev];
-      if (atIndex !== null) updated.splice(atIndex, 0, newField);
-      else updated.push(newField);
+      
+      const sectionIndices = [];
+      prev.forEach((f, idx) => {
+        const fSec = f.section || 2;
+        if (fSec === section) {
+          sectionIndices.push(idx);
+        }
+      });
+
+      if (atIndex !== null) {
+        if (atIndex < sectionIndices.length) {
+          const globalInsertIdx = sectionIndices[atIndex];
+          updated.splice(globalInsertIdx, 0, newField);
+        } else if (sectionIndices.length > 0) {
+          const globalInsertIdx = sectionIndices[sectionIndices.length - 1] + 1;
+          updated.splice(globalInsertIdx, 0, newField);
+        } else {
+          let insertIdx = updated.length;
+          for (let s = section - 1; s >= 1; s--) {
+            const precedingIndices = prev.map((f, i) => (f.section || 2) === s ? i : null).filter(i => i !== null);
+            if (precedingIndices.length > 0) {
+              insertIdx = precedingIndices[precedingIndices.length - 1] + 1;
+              break;
+            }
+          }
+          updated.splice(insertIdx, 0, newField);
+        }
+      } else {
+        if (sectionIndices.length > 0) {
+          const globalInsertIdx = sectionIndices[sectionIndices.length - 1] + 1;
+          updated.splice(globalInsertIdx, 0, newField);
+        } else {
+          let insertIdx = updated.length;
+          for (let s = section - 1; s >= 1; s--) {
+            const precedingIndices = prev.map((f, i) => (f.section || 2) === s ? i : null).filter(i => i !== null);
+            if (precedingIndices.length > 0) {
+              insertIdx = precedingIndices[precedingIndices.length - 1] + 1;
+              break;
+            }
+          }
+          updated.splice(insertIdx, 0, newField);
+        }
+      }
       return updated;
     });
 
@@ -1674,6 +1706,7 @@ export default function TaskBuilderPage() {
     if (viewMode === 'builder' && fieldsContainerRef.current) {
       const sidebarSortable = new Sortable(sidebarRef.current, {
         group: { name: 'fields', pull: 'clone', put: false },
+        draggable: '.field-btn',
         sort: false,
         animation: 150
       });
@@ -1988,11 +2021,11 @@ export default function TaskBuilderPage() {
                   </p>
 
                   <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
-                    <div>
+                    <div className="pr-4">
                       <h4 className="text-sm font-black text-slate-800">Allow File Uploads & Screenshots</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Allow employees to upload screenshots and files when updating status of this sheet.</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0">
                       <input
                         type="checkbox"
                         checked={allowAttachments}
@@ -2003,11 +2036,11 @@ export default function TaskBuilderPage() {
                   </div>
 
                   <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
-                    <div>
+                    <div className="pr-4">
                       <h4 className="text-sm font-black text-slate-800">Allow Sub-Tasks Checklist</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Enable a checklist feature on this sheet to break down work into sub-tasks.</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0">
                       <input
                         type="checkbox"
                         checked={allowChecklist}
@@ -2018,11 +2051,11 @@ export default function TaskBuilderPage() {
                   </div>
 
                   <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
-                    <div>
+                    <div className="pr-4">
                       <h4 className="text-sm font-black text-slate-800">Allow Sheet Notes</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Provide a collaboration space for staff to add internal notes to this sheet.</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0">
                       <input
                         type="checkbox"
                         checked={allowNotes}
@@ -2033,11 +2066,11 @@ export default function TaskBuilderPage() {
                   </div>
 
                   <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
-                    <div>
+                    <div className="pr-4">
                       <h4 className="text-sm font-black text-slate-800">Enable Billing Fields</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Show Billing dynamic section (Total amount, Payments, Invoice details, and Balance amount) on this sheet.</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0">
                       <input
                         type="checkbox"
                         checked={isBillableEnabled}
@@ -2048,11 +2081,11 @@ export default function TaskBuilderPage() {
                   </div>
 
                   <div className="flex items-center justify-between p-5 bg-slate-50 border border-slate-100/50 rounded-2xl max-w-xl shadow-sm">
-                    <div>
+                    <div className="pr-4">
                       <h4 className="text-sm font-black text-slate-800">Enable After Sales Services Fields</h4>
                       <p className="text-xs text-slate-400 font-semibold mt-1">Show After Sales Services dynamic section (Calling details, Feedback, App download status, Google Review etc.) on this sheet.</p>
                     </div>
-                    <label className="toggle-switch">
+                    <label className="toggle-switch flex-shrink-0">
                       <input
                         type="checkbox"
                         checked={isAfterSalesEnabled}
@@ -2216,44 +2249,60 @@ export default function TaskBuilderPage() {
                   <div ref={sidebarRef} id="fieldsList" className={`p-4 ${!isSidebarOpen ? 'flex flex-col items-center gap-5 py-6 px-0' : 'space-y-4'}`}>
                     {isSidebarOpen ? (
                       <>
-                        {[
-                          {
-                            name: "Inputs & Text Fields",
-                            fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink', 'currency']
-                          },
-                          {
-                            name: "Choices & Calendar",
-                            fields: ['dropdown', 'checkbox', 'labels', 'date', 'time']
-                          },
-                          {
-                            name: "Status & Progress",
-                            fields: ['progress_auto', 'progress_manual']
-                          }
-                        ].map((grp) => {
-                          let btnBgClass = '';
-                          
-                          if (grp.name === "Inputs & Text Fields") {
-                            btnBgClass = 'bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/60 hover:border-blue-200 text-blue-700 hover:shadow-blue-500/5';
-                          } else if (grp.name === "Choices & Calendar") {
-                            btnBgClass = 'bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/60 hover:border-amber-200 text-amber-700 hover:shadow-amber-500/5';
-                          } else {
-                            btnBgClass = 'bg-emerald-50/20 border-emerald-100/50 hover:bg-emerald-50/60 hover:border-emerald-200 text-emerald-700 hover:shadow-emerald-500/5';
-                          }
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 mb-4 space-y-1.5 shadow-sm">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Add Fields To Section</label>
+                          <select
+                            value={targetSection}
+                            onChange={(e) => setTargetSection(Number(e.target.value))}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition shadow-inner"
+                          >
+                            <option value={1}>Sheet Meta Information</option>
+                            <option value={2}>Task Assignment Section</option>
+                            {isBillableEnabled && <option value={3}>Billing Information</option>}
+                            {isAfterSalesEnabled && <option value={4}>After Sales Services</option>}
+                          </select>
+                        </div>
 
-                          return (
-                            <div key={grp.name} className="space-y-2 mb-4">
-                              <div className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2">
+                        {(() => {
+                          const items = [];
+                          [
+                            {
+                              name: "Inputs & Text Fields",
+                              fields: ['text', 'longtext', 'number', 'email', 'phone', 'hyperlink', 'currency']
+                            },
+                            {
+                              name: "Choices & Calendar",
+                              fields: ['dropdown', 'checkbox', 'labels', 'date', 'time']
+                            },
+                            {
+                              name: "Status & Progress",
+                              fields: ['progress_auto', 'progress_manual']
+                            }
+                          ].forEach((grp) => {
+                            items.push(
+                              <div key={grp.name} className="text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-2 mt-4 select-none" data-exclude="true">
                                 {grp.name}
                               </div>
-                              {grp.fields.map(fieldId => {
-                                const type = FIELD_TYPES.find(f => f.id === fieldId);
-                                if (!type) return null;
-                                return (
+                            );
+                            
+                            let btnBgClass = '';
+                            if (grp.name === "Inputs & Text Fields") {
+                              btnBgClass = 'bg-blue-50/20 border-blue-100/50 hover:bg-blue-50/60 hover:border-blue-200 text-blue-700 hover:shadow-blue-500/5';
+                            } else if (grp.name === "Choices & Calendar") {
+                              btnBgClass = 'bg-amber-50/20 border-amber-100/50 hover:bg-amber-50/60 hover:border-amber-200 text-amber-700 hover:shadow-amber-500/5';
+                            } else {
+                              btnBgClass = 'bg-emerald-50/20 border-emerald-100/50 hover:bg-emerald-50/60 hover:border-emerald-200 text-emerald-700 hover:shadow-emerald-500/5';
+                            }
+
+                            grp.fields.forEach(fieldId => {
+                              const type = FIELD_TYPES.find(f => f.id === fieldId);
+                              if (type) {
+                                items.push(
                                   <div
                                     key={type.id}
                                     className={`field-btn animate-slide-in flex items-center gap-2.5 py-2.5 px-3 rounded-xl border cursor-grab hover:shadow-md hover:translate-x-1 transition-all duration-200 w-full text-left ${btnBgClass}`}
                                     data-type={type.id}
-                                    onClick={() => addField(type)}
+                                    onClick={() => addField(type, null, targetSection)}
                                   >
                                     <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-100 shadow-sm shrink-0" style={{ color: type.color }}>
                                       {React.createElement(IconMap[type.icon], { size: 14 })}
@@ -2262,10 +2311,11 @@ export default function TaskBuilderPage() {
                                     <Plus className="w-3.5 h-3.5 text-slate-400 ml-auto shrink-0" />
                                   </div>
                                 );
-                              })}
-                            </div>
-                          );
-                        })}
+                              }
+                            });
+                          });
+                          return items;
+                        })()}
 
                         {deletedFields.length > 0 && (
                           <div className="space-y-2 mt-6 pt-4 border-t border-dashed border-slate-200">
@@ -2295,7 +2345,7 @@ export default function TaskBuilderPage() {
                           key={type.id}
                           className="animate-slide-in flex justify-center w-full transition-transform hover:scale-110 active:scale-95 cursor-pointer"
                           data-type={type.id}
-                          onClick={() => addField(type)}
+                          onClick={() => addField(type, null, targetSection)}
                           title={type.name}
                         >
                           <div className="w-10 h-10 bg-white shadow-md border border-slate-100 rounded-xl flex items-center justify-center" style={{ color: type.color }}>
@@ -3224,7 +3274,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
           {/* Label + placeholder */}
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-1">
-              {isLive || field.static ? (
+              {isLive || (field.static && !field.id.startsWith('dynamic_')) ? (
                 <span className={`text-sm font-black uppercase tracking-wider text-black`}>
                   {field.label}
                 </span>
@@ -3242,7 +3292,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
               {field.required && <span className="text-rose-500 font-bold shrink-0" title="Required">*</span>}
             </div>
             {!isLive && (
-              field.static ? (
+              field.static && !field.id.startsWith('dynamic_') ? (
                 <span className="text-[9px] font-bold text-slate-400 italic mt-0.5">{field.placeholder} (System)</span>
               ) : (
                 <input
@@ -3278,7 +3328,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
                 <span className="slider"></span>
               </label>
             </div>
-            {(!field.static || field.section === 2) && (
+            {(!field.static || field.section === 2 || field.id.startsWith('dynamic_')) && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onRemove(); }} 
                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
@@ -3311,7 +3361,7 @@ function FormCard({ field, viewMode, isActive, onActive, onUpdate, onRemove, isD
         )}
       </div>
 
-      {isActive && (!field.static || field.id === 'static_sub_status') && (field.type === 'dropdown' || field.type === 'labels' || field.type === 'checkbox') && (
+      {isActive && (field.type === 'dropdown' || field.type === 'labels' || field.type === 'checkbox') && field.id !== 'static_sheet_status' && (
         <FieldSettings field={field} onUpdate={onUpdate} />
       )}
     </div>

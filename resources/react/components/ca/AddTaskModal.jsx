@@ -544,6 +544,7 @@ export default function AddTaskModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {allFields.filter(f => {
                             const billingKeys = [
+                                'BILL NO', 'BILL AMOUNT', 'INVOICE SENT TO CLIENT', 'DATE OF SENDING TO CLIENT', 'STATUS',
                                 'TASK IS BILLABLE OR NOT', 'INVOICE IS CREATED', 'CREATED BY', 'VERIFY BY', 'TOTAL INVOICE AMOUNT',
                                 'DATE OF INVOICE', 'INVOICE SENT MODE / FROM', 'DATE OF SENT', 'PAYMENT-1', 'DATE-1', 'PAYMENT-2',
                                 'DATE-2', 'PAYMENT-3', 'DATE-3', 'BALANCE AMOUNT', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'FINAL REMARK'
@@ -566,6 +567,7 @@ export default function AddTaskModal({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 {allFields.filter(f => {
                                     const billingKeys = [
+                                        'BILL NO', 'BILL AMOUNT', 'INVOICE SENT TO CLIENT', 'DATE OF SENDING TO CLIENT', 'STATUS',
                                         'TASK IS BILLABLE OR NOT', 'INVOICE IS CREATED', 'CREATED BY', 'VERIFY BY', 'TOTAL INVOICE AMOUNT',
                                         'DATE OF INVOICE', 'INVOICE SENT MODE / FROM', 'DATE OF SENT', 'PAYMENT-1', 'DATE-1', 'PAYMENT-2',
                                         'DATE-2', 'PAYMENT-3', 'DATE-3', 'BALANCE AMOUNT', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'FINAL REMARK'
