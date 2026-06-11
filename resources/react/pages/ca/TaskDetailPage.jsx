@@ -449,7 +449,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         date_allocated: data.date_allocated || '',
                         status: data.status || 'assigned',
                         dynamic_data: data.dynamic_fields?.schema
-                            ? data.dynamic_fields.schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
+                            ? data.dynamic_fields.schema.reduce((acc, f) => {
+                                  let defaultVal = '';
+                                  if (f.value !== undefined && f.value !== null) {
+                                      defaultVal = f.value;
+                                  } else if (f.type === 'checkbox' || f.type === 'labels') {
+                                      defaultVal = [];
+                                  }
+                                  return { ...acc, [f.label]: defaultVal };
+                              }, {})
                             : topLevelData
                     };
                     loadedRows = [initialRow];
@@ -781,7 +789,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             allocated_to: isStaff ? (user?.id || '') : '',
             date_allocated: isStaff ? new Date().toISOString().split('T')[0] : '',
             status: 'assigned',
-            dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
+            dynamic_data: schema.reduce((acc, f) => {
+                let defaultVal = '';
+                if (f.value !== undefined && f.value !== null) {
+                    defaultVal = f.value;
+                } else if (f.type === 'checkbox' || f.type === 'labels') {
+                    defaultVal = [];
+                }
+                return { ...acc, [f.label]: defaultVal };
+            }, {})
         };
         const updatedRows = [...rows, newRow];
         setRows(updatedRows);
@@ -2752,7 +2768,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                              date_allocated: isStaff ? new Date().toISOString().split('T')[0] : '',
                                              status: task?.status || 'assigned',
                                              sub_status: task?.sub_status || '',
-                                             dynamic_data: schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
+                                             dynamic_data: schema.reduce((acc, f) => {
+                                                 let defaultVal = '';
+                                                 if (f.value !== undefined && f.value !== null) {
+                                                     defaultVal = f.value;
+                                                 } else if (f.type === 'checkbox' || f.type === 'labels') {
+                                                     defaultVal = [];
+                                                 }
+                                                 return { ...acc, [f.label]: defaultVal };
+                                             }, {})
                                          });
                                          setIsAddTaskModalOpen(true);
                                      }}
