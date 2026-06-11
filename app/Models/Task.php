@@ -32,6 +32,9 @@ class Task extends Model
         'allow_attachments',
         'allow_checklist',
         'allow_notes',
+        'is_billable',
+        'is_after_sales',
+        'allow_duplicate_clients',
     ];
 
     protected function casts(): array
@@ -48,6 +51,9 @@ class Task extends Model
             'allow_attachments' => 'boolean',
             'allow_checklist' => 'boolean',
             'allow_notes' => 'boolean',
+            'is_billable' => 'boolean',
+            'is_after_sales' => 'boolean',
+            'allow_duplicate_clients' => 'boolean',
         ];
     }
 

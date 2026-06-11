@@ -20,6 +20,10 @@ class TaskController extends Controller
         $type = $row['allocated_type'] ?? 'user';
         $val = $row['allocated_to'] ?? null;
 
+        if (empty($val) || (is_array($val) && count($val) === 0)) {
+            return true;
+        }
+
         // If data is array but type is user, treat it as users
         if (is_array($val) && $type === 'user') {
             $type = 'users';
@@ -276,7 +280,8 @@ class TaskController extends Controller
         }
 
         $hasPermissionsSet = $task->permissions()->exists();
-        if ($isStaff && (!$hasPermissionsSet || !$hasWriteAccess)) {
+        $isAuthorizedForSheet = !$hasPermissionsSet || $hasWriteAccess;
+        if ($isStaff && !$isAuthorizedForSheet) {
             if ($request->has('dynamic_fields')) {
                 $oldRows = $task->dynamic_fields['multi_rows'] ?? [];
                 $newRows = $request->input('dynamic_fields.multi_rows') ?? [];
@@ -287,20 +292,17 @@ class TaskController extends Controller
                     $newRow = $newRows[$i] ?? null;
 
                     if ($oldRow != $newRow) {
-                        // If it's a new row, it must be allocated to the user
-                        if (!$oldRow) {
-                            if (!self::doesUserMatchRowAllocation($newRow, $user)) {
-                                return response()->json(['message' => 'You can only add rows allocated to yourself.'], 403);
-                            }
-                        }
                         // If it's an existing row, it must have been allocated to the user
-                        else {
-                            if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
-                                return response()->json(['message' => 'You do not have permission to modify rows assigned to other staff.'], 403);
-                            }
+                        if ($oldRow) {
+                            $oldRowNoAlloc = $oldRow;
+                            $newRowNoAlloc = $newRow;
+                            unset($oldRowNoAlloc['allocated_to'], $oldRowNoAlloc['allocated_type'], $oldRowNoAlloc['date_allocated']);
+                            unset($newRowNoAlloc['allocated_to'], $newRowNoAlloc['allocated_type'], $newRowNoAlloc['date_allocated']);
 
-                            if ($newRow && !self::doesUserMatchRowAllocation($newRow, $user)) {
-                                return response()->json(['message' => 'You cannot assign your row to another staff member.'], 403);
+                            if ($oldRowNoAlloc != $newRowNoAlloc) {
+                                if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
+                                    return response()->json(['message' => 'You do not have permission to modify rows assigned to other staff.'], 403);
+                                }
                             }
                         }
                     }
@@ -326,6 +328,15 @@ class TaskController extends Controller
             'entry_date' => ['nullable', 'date'],
             'allow_attachments' => ['nullable', 'boolean'],
         ]);
+
+        if ($request->has('dynamic_fields')) {
+            $dynamicFields = $request->input('dynamic_fields');
+            if (is_array($dynamicFields)) {
+                $validated['is_billable'] = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            }
+        }
 
         $oldStatus = $task->status;
 

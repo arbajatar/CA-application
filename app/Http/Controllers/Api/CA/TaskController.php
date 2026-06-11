@@ -88,6 +88,11 @@ class TaskController extends Controller
     {
         $status = $request->status ? TaskStatus::from($request->status) : TaskStatus::Pending;
 
+        $dynamicFields = $request->dynamic_fields;
+        $isBillable = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isAfterSales = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $allowDuplicateClients = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         $task = Task::create([
             'work_type_id' => $request->work_type_id,
             'form_name' => $request->form_name,
@@ -105,6 +110,9 @@ class TaskController extends Controller
             'allow_attachments' => $request->boolean('allow_attachments', false),
             'allow_checklist' => $request->boolean('allow_checklist', true),
             'allow_notes' => $request->boolean('allow_notes', true),
+            'is_billable' => $isBillable,
+            'is_after_sales' => $isAfterSales,
+            'allow_duplicate_clients' => $allowDuplicateClients,
         ]);
 
         // Handle detailed subtasks assignment
@@ -157,7 +165,18 @@ class TaskController extends Controller
     public function update(UpdateTaskRequest $request, Task $task): JsonResponse
     {
         $oldStatus = $task->status;
-        $task->update($request->validated());
+        $validated = $request->validated();
+
+        if ($request->has('dynamic_fields')) {
+            $dynamicFields = $request->input('dynamic_fields');
+            if (is_array($dynamicFields)) {
+                $validated['is_billable'] = filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $validated['is_after_sales'] = filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        $task->update($validated);
 
         if ($request->has('permissions')) {
             $task->permissions()->delete();

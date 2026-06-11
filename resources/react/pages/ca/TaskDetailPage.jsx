@@ -3774,7 +3774,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     </button>
 
                                                     {/* Assign button */}
-                                                    {!isRowLocked && (isAdmin || isStaff) && (
+                                                    {!row.is_verified && (isAdmin || isStaff) && (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
