@@ -590,7 +590,8 @@ function FieldInput({ field, onUpdate, calculateAutoProgress }) {
 }
 
 function FieldSettings({ field, onUpdate }) {
-  if (field.static && field.id !== 'static_sub_status') return null;
+  const isEditable = !field.static || field.id.startsWith('dynamic_') || field.id === 'static_sub_status';
+  if (!isEditable) return null;
   return (
     <div className="mt-6 pt-6 border-t border-slate-100">
       <div className="flex items-center justify-between mb-4">

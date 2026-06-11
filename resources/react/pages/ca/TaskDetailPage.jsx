@@ -423,7 +423,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         allocated_to: data.allocated_to?.id || '',
                         date_allocated: data.date_allocated || '',
                         status: data.status || 'assigned',
-                        dynamic_data: topLevelData
+                        dynamic_data: data.dynamic_fields?.schema
+                            ? data.dynamic_fields.schema.reduce((acc, f) => ({ ...acc, [f.label]: '' }), {})
+                            : topLevelData
                     };
                     loadedRows = [initialRow];
                     needsSave = true;
@@ -1817,7 +1819,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             return {
                 id: `dynamic_${f.label}`,
                 label: f.label,
-                minWidth: f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[150px]' : (f.type === 'checkbox' ? 'min-w-[120px]' : 'min-w-[150px]'),
+                minWidth: f.type === 'longtext' ? 'min-w-[300px]' : (f.type === 'progress_auto' || f.type === 'progress_manual' ? 'min-w-[150px]' : (f.type === 'checkbox' ? 'min-w-[120px]' : 'min-w-[150px]')),
                 isDynamic: true,
                 field: f
             };

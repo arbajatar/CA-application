@@ -27,5 +27,5 @@ export const FIELD_TYPES = [
   },
   { id: "time", name: "Time", icon: "Clock", color: "#8b5cf6" },
   { id: "hyperlink", name: "Hyperlink (URL)", icon: "Globe", color: "#a855f7" },
-  { id: "currency", name: "Currency", icon: "Hash", color: "#059669" },
+  { id: "currency", name: "Amount", icon: "Hash", color: "#059669" },
 ];

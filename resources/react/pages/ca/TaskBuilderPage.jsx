@@ -1310,7 +1310,7 @@ export default function TaskBuilderPage() {
       }))
     };
     formSchema.forEach(f => {
-      if (!f.static) {
+      if (!f.static || f.id.startsWith('dynamic_')) {
         dynamicFields[f.label] = f.value;
       }
     });
@@ -1543,7 +1543,7 @@ export default function TaskBuilderPage() {
           return data.dynamic_fields.schema.map(f => {
             const existing = prev.find(p => p.id === f.id);
             let value = f.value || '';
-            if (!f.static && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
+            if ((!f.static || f.id.startsWith('dynamic_')) && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
               value = data.dynamic_fields[f.label];
             }
             
@@ -3718,7 +3718,8 @@ function FieldInput({ field, onUpdate, calculateAutoProgress, modalActions }) {
 }
 
 function FieldSettings({ field, onUpdate }) {
-  if (field.static && field.id !== 'static_sub_status') return null;
+  const isEditable = !field.static || field.id.startsWith('dynamic_') || field.id === 'static_sub_status';
+  if (!isEditable) return null;
   const handleAddOption = () => onUpdate('options', [...field.options, `Option ${field.options.length + 1}`]);
   return (
     <div className="mt-6 pt-6 border-t border-slate-100 space-y-5">
