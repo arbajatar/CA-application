@@ -6,7 +6,7 @@ import {
     AlertCircle, ChevronDown, ChevronUp, UserCheck, CheckSquare,
     ArrowUpDown, RefreshCw, X, MessageSquare, Info, Globe,
     ShieldCheck, ShieldAlert, Folder, ArrowLeft, User, ChevronRight,
-    Copy, PlusCircle, Key, Eye, EyeOff, ExternalLink
+    Copy, PlusCircle, Key, Eye, EyeOff, ExternalLink, FileText, FileDown
 } from 'lucide-react'
 import api from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
@@ -439,6 +439,181 @@ export default function TeamReportPage() {
             updated = [{ id: `note-${Date.now()}`, text: '', timestamp: new Date().toLocaleString() }]
         }
         handleSaveNotesList(updated)
+    }
+
+    const [checklistList, setChecklistList] = useState([])
+    const [attachmentsModal, setAttachmentsModal] = useState({ open: false, itemId: null, files: [] })
+    const [incomingPreviewFile, setIncomingPreviewFile] = useState(null)
+
+    const getFileType = (url) => {
+        if (!url) return 'unknown'
+        const ext = url.split('.').pop().toLowerCase()
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image'
+        if (ext === 'pdf') return 'pdf'
+        return 'file'
+    }
+
+    const fetchChecklist = useCallback(async () => {
+        try {
+            const params = {}
+            if (user?.role === 'staff') {
+                params.user_id = user.id
+            } else if (selectedStaffId && selectedStaffId !== 'all') {
+                params.user_id = selectedStaffId
+            } else {
+                params.user_id = 'all'
+            }
+            const res = await api.get('/team-checklists', { params })
+            setChecklistList(res.data.data || [])
+        } catch (e) {
+            console.error('Failed to load team checklist', e)
+        }
+    }, [selectedStaffId, user])
+
+    useEffect(() => {
+        if (user) {
+            fetchChecklist()
+        }
+    }, [fetchChecklist])
+
+    const handleAddChecklistItem = async () => {
+        try {
+            let userIdVal = null
+            if (user?.role === 'staff') {
+                userIdVal = user.id
+            } else if (selectedStaffId && selectedStaffId !== 'all') {
+                userIdVal = selectedStaffId
+            }
+            const payload = {
+                user_id: userIdVal,
+                title: '',
+                assigned_to: '',
+                status: 'pending',
+                sub_status: '',
+                due_date: '',
+                remarks: '',
+                screenshot: null
+            }
+            const res = await api.post('/team-checklists', payload)
+            setChecklistList(prev => [...prev, res.data.data])
+            toast.success('Checklist item added')
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to add checklist item')
+        }
+    }
+
+    const handleChecklistLocalUpdate = (id, key, val) => {
+        setChecklistList(prev => prev.map(item => item.id === id ? { ...item, [key]: val } : item))
+    }
+
+    const handleChecklistServerUpdate = async (id, key, val) => {
+        try {
+            await api.patch(`/team-checklists/${id}`, { [key]: val })
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to save changes to server')
+        }
+    }
+
+    const handleUpdateChecklistItemDirect = async (id, key, val) => {
+        setChecklistList(prev => prev.map(item => item.id === id ? { ...item, [key]: val } : item))
+        try {
+            await api.patch(`/team-checklists/${id}`, { [key]: val })
+            toast.success('Updated successfully')
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to update checklist item')
+            fetchChecklist()
+        }
+    }
+
+    const handleDeleteChecklistItem = async (id) => {
+        try {
+            await api.delete(`/team-checklists/${id}`)
+            setChecklistList(prev => prev.filter(item => item.id !== id))
+            toast.success('Deleted successfully')
+        } catch (e) {
+            console.error(e)
+            toast.error('Failed to delete checklist item')
+        }
+    }
+
+    const handleUploadMultipleChecklistAttachments = async (itemId, fileList) => {
+        const files = Array.from(fileList || []);
+        if (files.length === 0) return;
+
+        const loadingToast = toast.loading(`Uploading ${files.length} attachment(s)...`);
+        try {
+            const item = checklistList.find(i => i.id === itemId);
+            const currentPaths = item?.attachments?.map(att => att.path) || [];
+            const uploadedPaths = [];
+
+            for (const file of files) {
+                if (file.size > 5 * 1024 * 1024) {
+                    toast.error(`File "${file.name}" exceeds 5MB and was skipped.`);
+                    continue;
+                }
+                const formData = new FormData();
+                formData.append('file', file);
+                const uploadRes = await api.post('/team-checklists/upload-file', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                uploadedPaths.push(uploadRes.data.path);
+            }
+
+            if (uploadedPaths.length === 0) {
+                toast.dismiss(loadingToast);
+                return;
+            }
+
+            const updatedPaths = [...currentPaths, ...uploadedPaths];
+
+            const patchRes = await api.patch(`/team-checklists/${itemId}`, {
+                screenshot: JSON.stringify(updatedPaths)
+            });
+
+            setChecklistList(prev => prev.map(i => i.id === itemId ? patchRes.data.data : i));
+            
+            setAttachmentsModal(prev => {
+                if (prev.open && prev.itemId === itemId) {
+                    return { ...prev, files: patchRes.data.data.attachments || [] };
+                }
+                return prev;
+            });
+
+            toast.success("Attachments uploaded successfully!", { id: loadingToast });
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to upload attachments", { id: loadingToast });
+        }
+    };
+
+    const handleDeleteChecklistAttachment = async (itemId, filePath) => {
+        const loadingToast = toast.loading("Deleting attachment...");
+        try {
+            const item = checklistList.find(i => i.id === itemId)
+            const currentPaths = item?.attachments?.map(att => att.path) || []
+            const updatedPaths = currentPaths.filter(p => p !== filePath)
+
+            const patchRes = await api.patch(`/team-checklists/${itemId}`, {
+                screenshot: updatedPaths.length > 0 ? JSON.stringify(updatedPaths) : null
+            })
+
+            setChecklistList(prev => prev.map(i => i.id === itemId ? patchRes.data.data : i))
+
+            setAttachmentsModal(prev => {
+                if (prev.open && prev.itemId === itemId) {
+                    return { ...prev, files: patchRes.data.data.attachments || [] }
+                }
+                return prev
+            })
+
+            toast.success("Attachment deleted successfully!", { id: loadingToast })
+        } catch (e) {
+            console.error(e)
+            toast.error("Failed to delete attachment", { id: loadingToast })
+        }
     }
     const [filterStatus, setFilterStatus] = useState('')
     const todayStr = new Date().toISOString().substring(0, 10)
@@ -1200,15 +1375,51 @@ export default function TeamReportPage() {
                     note.timestamp || ''
                 ]);
 
+            const summaryRows = [
+                ["Employee Name", staffName || 'All Employees'],
+                ["Total Logged Hours", `${totalHours} hrs`],
+                ["Tasks Awaiting Review", pendingReviews],
+                ["Average Completion Rate", `${completionAvg}%`],
+                ["Total Tasks Logged", displayedReports.length]
+            ];
+
+            const checklistRows = checklistList.map((item, index) => {
+                const assigneeName = staff.find(s => String(s.id) === String(item.assigned_to))?.name || item.assigned_to || 'Unassigned';
+                return [
+                    index + 1,
+                    item.id || '',
+                    item.title || '',
+                    assigneeName,
+                    item.status || '',
+                    item.sub_status || '',
+                    item.due_date || '',
+                    item.remarks || ''
+                ];
+            });
+
             await exportToExcel({
                 filename: `DAILY_WORK_PROGRESS_REPORT_${new Date().toISOString().substring(0, 10)}.xlsx`,
                 sheets: [
+                    {
+                        sheetName: "Summary",
+                        title: `Work Progress Summary - ${staffName}`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ["METRIC", "VALUE"],
+                        rows: summaryRows
+                    },
                     {
                         sheetName: "Tasks",
                         title: `Daily Tasks and Progress Reports - ${staffName}`,
                         subtitle: `Generated at: ${new Date().toLocaleString()}`,
                         headers: reportHeaders,
                         rows: reportRows.length > 0 ? reportRows : [[1, "No activities logged", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]]
+                    },
+                    {
+                        sheetName: "Note Checklist",
+                        title: `Note Checklist - ${staffName}`,
+                        subtitle: `Generated at: ${new Date().toLocaleString()}`,
+                        headers: ["SR NO", "Note ID", "Note 1", "Assignee", "Status", "Sub Status", "Due Date", "Remarks"],
+                        rows: checklistRows.length > 0 ? checklistRows : [[1, "", "No checklist notes", "", "", "", "", ""]]
                     },
                     {
                         sheetName: "Notes",
@@ -1701,7 +1912,7 @@ export default function TeamReportPage() {
                                     </tr>
                                 ) : (
                                     [...displayedReports, ...inlineNewRows].map((report, idx) => {
-                                        const isHideOptions = user?.role === 'staff' && report.user_role === 'ca';
+                                        const isHideOptions = user?.role === 'staff' && report.user_id !== user.id;
                                         const isEditing = editingRowId === report.id;
                                         if (isEditing) {
                                             return (
@@ -2052,6 +2263,137 @@ export default function TeamReportPage() {
                         <Spinner />
                     </div>
                 )}
+            </div>
+
+            {/* Note Checklist Section */}
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 space-y-6 my-6">
+                <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+                    <div className="space-y-1">
+                        <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2 select-none">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#1F5C99] shadow-sm"></span>
+                            Note Checklist
+                        </h3>
+                        <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Manage checklist tasks and progress tracking</p>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm bg-white">
+                    <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '1800px' }}>
+                        <thead>
+                            <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[10px] font-black uppercase tracking-widest">
+                                <th className="px-5 py-3.5 text-left" style={{ width: '60px' }}>#</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '400px', width: '400px' }}>Note 1</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '220px', width: '220px' }}>Assignee</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '220px', width: '220px' }}>Status</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '200px', width: '200px' }}>Sub Status</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '180px', width: '180px' }}>Due Date</th>
+                                <th className="px-5 py-3.5 text-left" style={{ minWidth: '350px', width: '350px' }}>Remarks</th>
+                                <th className="px-5 py-3.5 text-center" style={{ minWidth: '160px', width: '160px' }}>Attachments</th>
+                                <th className="px-5 py-3.5 text-center" style={{ width: '60px' }}></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {checklistList.length === 0 ? (
+                                <tr>
+                                    <td colSpan={9} className="text-center py-8 text-gray-400 font-semibold italic">No checklist items. Click "+ Add Note Row" below to get started.</td>
+                                </tr>
+                            ) : (
+                                checklistList.map((item, idx) => (
+                                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-5 py-2.5 font-bold text-gray-400">{idx + 1}</td>
+                                        <td className="px-5 py-2.5">
+                                            <input
+                                                type="text"
+                                                value={item.title || ''}
+                                                onChange={e => handleChecklistLocalUpdate(item.id, 'title', e.target.value)}
+                                                onBlur={e => handleChecklistServerUpdate(item.id, 'title', e.target.value)}
+                                                placeholder="Enter Note 1..."
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none transition shadow-sm"
+                                            />
+                                        </td>
+                                        <td className="px-5 py-2.5">
+                                            <select
+                                                value={item.assigned_to || ''}
+                                                onChange={e => handleUpdateChecklistItemDirect(item.id, 'assigned_to', e.target.value)}
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer transition shadow-sm"
+                                            >
+                                                <option value="">Unassigned</option>
+                                                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </select>
+                                        </td>
+                                        <td className="px-5 py-2.5">
+                                            <select
+                                                value={item.status || 'pending'}
+                                                onChange={e => handleUpdateChecklistItemDirect(item.id, 'status', e.target.value)}
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer capitalize transition shadow-sm"
+                                            >
+                                                <option value="complete">Complete</option>
+                                                <option value="work_in_progress">Work In Progress</option>
+                                                <option value="pending">Pending</option>
+                                                <option value="not_to_be_done">Not To Be Done</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </td>
+                                        <td className="px-5 py-2.5">
+                                            <input
+                                                type="text"
+                                                value={item.sub_status || ''}
+                                                onChange={e => handleChecklistLocalUpdate(item.id, 'sub_status', e.target.value)}
+                                                onBlur={e => handleChecklistServerUpdate(item.id, 'sub_status', e.target.value)}
+                                                placeholder="Sub Status"
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none transition shadow-sm"
+                                            />
+                                        </td>
+                                        <td className="px-5 py-2.5">
+                                            <input
+                                                type="date"
+                                                value={item.due_date || ''}
+                                                onChange={e => handleUpdateChecklistItemDirect(item.id, 'due_date', e.target.value)}
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none transition shadow-sm"
+                                            />
+                                        </td>
+                                        <td className="px-5 py-2.5">
+                                            <input
+                                                type="text"
+                                                value={item.remarks || ''}
+                                                onChange={e => handleChecklistLocalUpdate(item.id, 'remarks', e.target.value)}
+                                                onBlur={e => handleChecklistServerUpdate(item.id, 'remarks', e.target.value)}
+                                                placeholder="Remarks"
+                                                className="w-full bg-white border border-gray-200 hover:border-gray-300 focus:border-[#1F5C99] focus:ring-1 focus:ring-[#1F5C99] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-700 focus:outline-none transition shadow-sm"
+                                            />
+                                        </td>
+                                        <td className="px-5 py-2.5 text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => setAttachmentsModal({ open: true, itemId: item.id, files: item.attachments || [] })}
+                                                className="px-2.5 py-1.5 text-[10px] font-bold text-[#1F5C99] bg-[#EEF4FB] hover:bg-[#1F5C99] hover:text-white rounded-lg transition shadow-sm w-full text-center border border-[#1F5C99]/10"
+                                            >
+                                                {item.attachments && item.attachments.length > 0 ? `${item.attachments.length} Files` : 'Attach File'}
+                                            </button>
+                                        </td>
+                                        <td className="px-5 py-2.5 text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteChecklistItem(item.id)}
+                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                title="Delete Row"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                            <tr className="bg-gray-50/50 hover:bg-slate-50 transition cursor-pointer" onClick={handleAddChecklistItem}>
+                                <td colSpan={9} className="px-6 py-3 text-left text-[#1F5C99] font-bold text-xs">
+                                    <div className="flex items-center justify-start gap-2">
+                                        <Plus size={14} /> Add Note Row
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Notes Section at the Bottom */}
@@ -3217,6 +3559,127 @@ export default function TeamReportPage() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Note Checklist Attachments Modal */}
+            {attachmentsModal.open && (
+                <div className="fixed inset-0 z-[990] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden max-w-lg w-full border border-slate-100 flex flex-col max-h-[85vh]">
+                        {/* Header */}
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                            <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">Note Checklist Attachments</h3>
+                            <button
+                                onClick={() => {
+                                    setAttachmentsModal({ open: false, itemId: null, files: [] });
+                                    setIncomingPreviewFile(null);
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-650 hover:bg-slate-50 rounded-xl transition"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {incomingPreviewFile ? (
+                                // PDF / Image Preview State inside the modal (with Back button)
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                        <button
+                                            onClick={() => setIncomingPreviewFile(null)}
+                                            className="flex items-center gap-1 text-[11px] font-black text-indigo-650 hover:text-indigo-700 bg-white border border-slate-200 rounded-xl px-3.5 py-1.5 transition shadow-sm"
+                                        >
+                                            ← Back to List
+                                        </button>
+                                        <span className="text-[10px] font-black uppercase text-indigo-655 bg-indigo-50/50 px-2.5 py-1 rounded-full">
+                                            {getFileType(incomingPreviewFile.url)}
+                                        </span>
+                                    </div>
+                                    <div className="overflow-auto max-h-[45vh] p-2 flex items-center justify-center bg-slate-50/30 rounded-2xl border border-slate-150">
+                                        {getFileType(incomingPreviewFile.url) === 'image' ? (
+                                            <img src={incomingPreviewFile.url} alt={incomingPreviewFile.name} className="max-w-full max-h-[40vh] object-contain rounded-xl shadow-sm" />
+                                        ) : getFileType(incomingPreviewFile.url) === 'pdf' ? (
+                                            <iframe src={incomingPreviewFile.url} className="w-full h-[40vh] rounded-xl border border-slate-200 bg-white" title="PDF Preview"></iframe>
+                                        ) : (
+                                            <div className="py-8 px-4 flex flex-col items-center justify-center gap-3 text-center">
+                                                <FileText size={32} className="text-slate-400" />
+                                                <p className="text-xs font-bold text-slate-600">{incomingPreviewFile.name}</p>
+                                                <p className="text-[10px] text-slate-400 uppercase font-black">Preview not supported</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Attachments List View
+                                <div className="space-y-3">
+                                    {attachmentsModal.files.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <FileText size={36} className="mx-auto text-slate-300 mb-2" />
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">No Attachments Uploaded</p>
+                                        </div>
+                                    ) : (
+                                        attachmentsModal.files.map((file, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/50 rounded-2xl border border-slate-100 transition gap-4">
+                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                    <FileText size={16} className="text-indigo-500 shrink-0" />
+                                                    <span className="text-xs font-bold text-slate-700 truncate" title={file.name}>
+                                                        {file.name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        onClick={() => setIncomingPreviewFile(file)}
+                                                        className="p-2 text-indigo-650 hover:text-indigo-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                        title="Preview"
+                                                    >
+                                                        <Eye size={14} />
+                                                    </button>
+                                                    <a
+                                                        href={file.url}
+                                                        download={file.name}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                        title="Download"
+                                                    >
+                                                        <FileDown size={14} />
+                                                    </a>
+                                                    <button
+                                                        onClick={() => handleDeleteChecklistAttachment(attachmentsModal.itemId, file.path)}
+                                                        className="p-2 text-rose-600 hover:text-rose-700 hover:bg-white rounded-xl transition border border-transparent hover:border-slate-200/60 shadow-none hover:shadow-sm"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer (Upload form when inside list view) */}
+                        {!incomingPreviewFile && (
+                            <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                                <label className="flex items-center justify-center gap-2 p-3 bg-white hover:bg-slate-50 border border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-wider text-slate-600 hover:text-indigo-650 cursor-pointer transition shadow-sm">
+                                    <Plus size={16} />
+                                    <span>Upload Attachments (Select Multiple)</span>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files.length > 0) {
+                                                handleUploadMultipleChecklistAttachments(attachmentsModal.itemId, e.target.files);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Sliding Bottom Bulk Action Panel */}
             {Object.keys(pendingUpdates).length > 0 && (

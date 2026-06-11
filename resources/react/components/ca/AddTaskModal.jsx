@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Edit2, Download } from 'lucide-react';
+import { Plus, X, Edit2, Download, Paperclip } from 'lucide-react';
 import SearchableSelect from '../ui/SearchableSelect';
 import toast from 'react-hot-toast';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
@@ -63,6 +63,19 @@ export default function AddTaskModal({
 }) {
     if (!isOpen) return null;
 
+    // Deduplicate fields by key (trimmed and case-insensitive)
+    const uniqueFields = [];
+    const seenKeys = new Set();
+    for (const f of allFields) {
+        if (f && f.key) {
+            const normalizedKey = String(f.key).trim().toUpperCase();
+            if (!seenKeys.has(normalizedKey)) {
+                seenKeys.add(normalizedKey);
+                uniqueFields.push(f);
+            }
+        }
+    }
+
     const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
 
     // Auto calculate Balance Amount live when Total Invoice Amount or payments change
@@ -111,7 +124,14 @@ export default function AddTaskModal({
                         value={newTaskData.client_id || ''}
                         options={clients.map(c => ({ value: c.id, label: c.name }))}
                         placeholder="Select Client..."
-                        onChange={(val) => setNewTaskData({...newTaskData, client_id: val})}
+                        onChange={(val) => {
+                            const selectedClient = clients.find(c => String(c.id) === String(val));
+                            setNewTaskData({
+                                ...newTaskData,
+                                client_id: val,
+                                client_pan: selectedClient?.pan_no || ''
+                            });
+                        }}
                         size="md"
                         disabled={!isCurrentlyEditable}
                     />
@@ -207,16 +227,19 @@ export default function AddTaskModal({
                             <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
                                 {newTaskData.attachments.map((file, idx) => (
                                     <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/60 shadow-sm gap-2">
-                                        <span className="text-xs font-bold text-slate-700 truncate flex-1" title={file.name}>{file.name}</span>
+                                        <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                            <Paperclip size={12} className="text-slate-400 shrink-0" />
+                                            <span className="text-[11px] font-semibold text-slate-600 truncate">{file.name}</span>
+                                        </div>
                                         <div className="flex items-center gap-1">
                                             <a href={file.url} download={file.name} target="_blank" rel="noopener noreferrer" className="p-1.5 text-indigo-650 hover:bg-indigo-50 rounded-lg transition" title="Download">
                                                 <Download size={12} className="text-indigo-600" />
                                             </a>
-                                            {isCurrentlyEditable && (
+                                            {isCurrentlyEditable && (task?.allow_attachments === undefined ? true : !!task.allow_attachments) && (
                                                 <button
                                                     type="button"
                                                     onClick={() => onDeleteAttachment && onDeleteAttachment(idx, file.path)}
-                                                    className="p-1.5 text-rose-650 hover:bg-rose-50 rounded-lg transition"
+                                                    className="p-1.5 text-rose-655 hover:bg-rose-50 rounded-lg transition"
                                                     title="Delete"
                                                 >
                                                     <X size={12} className="text-rose-600" />
@@ -227,7 +250,7 @@ export default function AddTaskModal({
                                 ))}
                             </div>
                         )}
-                        {isCurrentlyEditable && (
+                        {isCurrentlyEditable && (task?.allow_attachments === undefined ? true : !!task.allow_attachments) && (
                             <label className="flex items-center justify-center gap-2 p-2 bg-white hover:bg-slate-50 border border-dashed border-slate-300 hover:border-indigo-500 rounded-xl text-xs font-bold text-slate-655 hover:text-indigo-650 cursor-pointer transition shadow-sm">
                                 <Plus size={14} />
                                 <span>Upload Attachment</span>
@@ -491,6 +514,28 @@ export default function AddTaskModal({
                         rows={3}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed resize-y"
                     />
+                ) : ['number', 'email', 'phone', 'hyperlink'].includes(field.type) ? (
+                    <input
+                        type={field.type === 'phone' ? 'tel' : field.type === 'hyperlink' ? 'url' : field.type}
+                        value={
+                            field.isStatic 
+                            ? (newTaskData[field.key] || '') 
+                            : (newTaskData.dynamic_data?.[field.key] || '')
+                        }
+                        onChange={(e) => {
+                            if (field.isStatic) {
+                                setNewTaskData({ ...newTaskData, [field.key]: e.target.value });
+                            } else {
+                                setNewTaskData({
+                                    ...newTaskData, 
+                                    dynamic_data: { ...(newTaskData.dynamic_data || {}), [field.key]: e.target.value }
+                                });
+                            }
+                        }}
+                        disabled={!isCurrentlyEditable}
+                        placeholder={field.placeholder || `Enter ${field.label}...`}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
                 ) : (
                     <input
                         type="text"
@@ -539,21 +584,22 @@ export default function AddTaskModal({
                     </button>
                 </div>
                 
-                <div className="p-6 overflow-y-auto flex-1 bg-white space-y-8">
+                <div className="p-6 overflow-y-auto flex-1 bg-white">
                     {/* Main section fields */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {allFields.filter(f => {
+                        {uniqueFields.filter(f => {
                             const billingKeys = [
                                 'BILL NO', 'BILL AMOUNT', 'INVOICE SENT TO CLIENT', 'DATE OF SENDING TO CLIENT', 'STATUS',
                                 'TASK IS BILLABLE OR NOT', 'INVOICE IS CREATED', 'CREATED BY', 'VERIFY BY', 'TOTAL INVOICE AMOUNT',
                                 'DATE OF INVOICE', 'INVOICE SENT MODE / FROM', 'DATE OF SENT', 'PAYMENT-1', 'DATE-1', 'PAYMENT-2',
                                 'DATE-2', 'PAYMENT-3', 'DATE-3', 'BALANCE AMOUNT', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'FINAL REMARK'
-                            ];
+                            ].map(k => k.trim().toUpperCase());
                             const afterSalesKeys = [
                                 'CUSTOMER SERVICE CALL', 'DATE OF CALLING', 'CALL BY WHOM', 'CLIENT FEED BACK', 'GOOGLE REVIEW',
                                 'DATE OF GOOGLE REVIEW', 'APP DOWN LOADED', 'MAHESH SIR MOBILE SAVED', 'SOCIAL MEDIA CONNECTION', 'OTHER REMARK'
-                            ];
-                            return !billingKeys.includes(f.key) && !afterSalesKeys.includes(f.key) && f.section !== 3 && f.section !== 4;
+                            ].map(k => k.trim().toUpperCase());
+                            const cleanKey = String(f.key || '').trim().toUpperCase();
+                            return !billingKeys.includes(cleanKey) && !afterSalesKeys.includes(cleanKey) && f.section !== 3 && f.section !== 4;
                         }).map(field => renderField(field))}
                     </div>
 
@@ -565,14 +611,15 @@ export default function AddTaskModal({
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Billing Information</h3>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                {allFields.filter(f => {
+                                {uniqueFields.filter(f => {
                                     const billingKeys = [
                                         'BILL NO', 'BILL AMOUNT', 'INVOICE SENT TO CLIENT', 'DATE OF SENDING TO CLIENT', 'STATUS',
                                         'TASK IS BILLABLE OR NOT', 'INVOICE IS CREATED', 'CREATED BY', 'VERIFY BY', 'TOTAL INVOICE AMOUNT',
                                         'DATE OF INVOICE', 'INVOICE SENT MODE / FROM', 'DATE OF SENT', 'PAYMENT-1', 'DATE-1', 'PAYMENT-2',
                                         'DATE-2', 'PAYMENT-3', 'DATE-3', 'BALANCE AMOUNT', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'FINAL REMARK'
-                                    ];
-                                    return billingKeys.includes(f.key) || f.section === 3;
+                                    ].map(k => k.trim().toUpperCase());
+                                    const cleanKey = String(f.key || '').trim().toUpperCase();
+                                    return billingKeys.includes(cleanKey) || f.section === 3;
                                 }).map(field => renderField(field))}
                             </div>
                         </div>
@@ -586,12 +633,13 @@ export default function AddTaskModal({
                                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">After Sales Services</h3>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                {allFields.filter(f => {
+                                {uniqueFields.filter(f => {
                                     const afterSalesKeys = [
                                         'CUSTOMER SERVICE CALL', 'DATE OF CALLING', 'CALL BY WHOM', 'CLIENT FEED BACK', 'GOOGLE REVIEW',
                                         'DATE OF GOOGLE REVIEW', 'APP DOWN LOADED', 'MAHESH SIR MOBILE SAVED', 'SOCIAL MEDIA CONNECTION', 'OTHER REMARK'
-                                    ];
-                                    return afterSalesKeys.includes(f.key) || f.section === 4;
+                                    ].map(k => k.trim().toUpperCase());
+                                    const cleanKey = String(f.key || '').trim().toUpperCase();
+                                    return afterSalesKeys.includes(cleanKey) || f.section === 4;
                                 }).map(field => renderField(field))}
                             </div>
                         </div>
@@ -624,7 +672,7 @@ export default function AddTaskModal({
                                     toast.error("Work Type is mandatory!");
                                     return;
                                 }
-                                for (const field of allFields) {
+                                for (const field of uniqueFields) {
                                     if (field.isStatic) continue;
                                     if (field.required) {
                                         const val = newTaskData.dynamic_data?.[field.key];

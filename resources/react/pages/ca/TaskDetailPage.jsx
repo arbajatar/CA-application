@@ -1310,7 +1310,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 const clientName = clientObj?.name || 'N/A';
                 const clientPan = clientObj?.pan_no || 'N/A';
                 const workTypeName = workTypes.find(w => w.id === r.work_type_id || w.id === task.work_type?.id)?.name || 'N/A';
-                const assignedToName = staff.find(s => s.id === r.allocated_to || s.id === task.allocated_to?.id)?.name || 'Unassigned';
+                const getAssignedToName = (val) => {
+                    if (!val) return null;
+                    const idToFind = typeof val === 'object' ? val.id : val;
+                    if (!idToFind) return null;
+                    return staff.find(s => String(s.id) === String(idToFind))?.name || null;
+                };
+                const assignedToName = getAssignedToName(r.allocated_to) || getAssignedToName(task.allocated_to) || 'Unassigned';
                 const dynamicData = r.dynamic_data || {};
 
                 return [
@@ -3039,7 +3045,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                     <Eye size={12} />
                                                                     <span>{(row.attachments || []).length} Files</span>
                                                                 </button>
-                                                                {!isRowLocked && (
+                                                                {!isRowLocked && allowAttachments && (
                                                                     <label className="inline-flex items-center justify-center p-1.5 bg-slate-50 hover:bg-white border border-slate-200 border-dashed hover:border-slate-350 rounded-xl text-slate-500 hover:text-indigo-655 transition cursor-pointer" title="Upload multiple files">
                                                                         <Plus size={12} />
                                                                         <input

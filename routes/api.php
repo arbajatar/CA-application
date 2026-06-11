@@ -66,6 +66,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/daily-reports/client-groups', [ClientController::class, 'groups']);
     Route::get('/daily-reports/work-types', [WorkTypeController::class, 'index']);
 
+    // Team Checklist routes (accessible to staff & CA)
+    Route::get('/team-checklists', [\App\Http\Controllers\Api\Common\TeamChecklistController::class, 'index']);
+    Route::post('/team-checklists', [\App\Http\Controllers\Api\Common\TeamChecklistController::class, 'store']);
+    Route::patch('/team-checklists/{teamChecklist}', [\App\Http\Controllers\Api\Common\TeamChecklistController::class, 'update']);
+    Route::delete('/team-checklists/{teamChecklist}', [\App\Http\Controllers\Api\Common\TeamChecklistController::class, 'destroy']);
+    Route::post('/team-checklists/upload-file', [\App\Http\Controllers\Api\Common\TeamChecklistController::class, 'uploadFile']);
+
+
     // Clients routes accessible by both CA and Staff (Read, Create, Update)
     Route::middleware('role:ca,staff')->prefix('ca')->group(function () {
         Route::get('/clients/pan-numbers', [ClientController::class, 'panNumbers']);
