@@ -395,6 +395,13 @@ export default function TeamReportPage() {
     const notesKey = selectedStaffId ? `team_notes_staff_${selectedStaffId}` : `team_notes_general`
 
     useEffect(() => {
+        if (user && user.role !== 'ca') {
+            setFilterStaff(user.id)
+            setSelectedStaffId(user.id)
+        }
+    }, [user])
+
+    useEffect(() => {
         const saved = localStorage.getItem(notesKey)
         try {
             const parsed = saved ? JSON.parse(saved) : []
@@ -1471,7 +1478,7 @@ export default function TeamReportPage() {
                     <button
                         onClick={() => {
                             setSearch('')
-                            setFilterStaff('')
+                            setFilterStaff(user?.role === 'ca' ? '' : user?.id || '')
                             setFilterClient('')
                             setFilterStatus('')
                             const todayStr = new Date().toISOString().substring(0, 10)
@@ -1501,11 +1508,17 @@ export default function TeamReportPage() {
                         <CustomSelect
                             value={filterStaff}
                             onChange={e => setFilterStaff(e.target.value)}
-                            options={[
-                                { value: '', label: 'All Team Members' },
-                                ...(user ? [{ value: user.id, label: `${user.name} (Admin / Me)` }] : []),
-                                ...staff.map(s => ({ value: s.id, label: s.name }))
-                            ]}
+                            options={
+                                user?.role === 'ca'
+                                    ? [
+                                        { value: '', label: 'All Team Members' },
+                                        ...(user ? [{ value: user.id, label: `${user.name} (Admin / Me)` }] : []),
+                                        ...staff.filter(s => s.id !== user?.id).map(s => ({ value: s.id, label: s.name }))
+                                    ]
+                                    : [
+                                        ...(user ? [{ value: user.id, label: `${user.name} (Me)` }] : [])
+                                    ]
+                            }
                             widthClass="w-full sm:w-auto"
                         />
                     ) : (
@@ -1688,6 +1701,7 @@ export default function TeamReportPage() {
                                     </tr>
                                 ) : (
                                     [...displayedReports, ...inlineNewRows].map((report, idx) => {
+                                        const isHideOptions = user?.role === 'staff' && report.user_role === 'ca';
                                         const isEditing = editingRowId === report.id;
                                         if (isEditing) {
                                             return (
@@ -1702,8 +1716,8 @@ export default function TeamReportPage() {
                                                                 onChange={e => setInlineForm(p => ({ ...p, user_id: e.target.value }))}
                                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                             >
-                                                                <option value={user?.id}>{user?.name} (Admin / Me)</option>
-                                                                {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                <option value={user?.id}>{user?.role === 'ca' ? `${user?.name} (Admin / Me)` : `${user?.name} (Me)`}</option>
+                                                                {user?.role === 'ca' && staff.filter(s => s.id !== user?.id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                             </select>
                                                         </td>
                                                     )}
@@ -1973,14 +1987,16 @@ export default function TeamReportPage() {
                                                     : 'bg-white group-hover:bg-slate-100'
                                                     }`}>
                                                     <div className="flex items-center gap-2 justify-center">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleStartInlineEdit(report)}
-                                                            className="px-2 py-1 rounded bg-indigo-50 border border-indigo-150/50 hover:bg-indigo-100 text-indigo-750 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
-                                                            title="Edit Inline"
-                                                        >
-                                                            Inline Edit
-                                                        </button>
+                                                        {!isHideOptions && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleStartInlineEdit(report)}
+                                                                className="px-2 py-1 rounded bg-indigo-50 border border-indigo-150/50 hover:bg-indigo-100 text-indigo-750 font-bold text-xs transition cursor-pointer hover:scale-105 active:scale-95"
+                                                                title="Edit Inline"
+                                                            >
+                                                                Inline Edit
+                                                            </button>
+                                                        )}
                                                         {user?.role === 'ca' && (
                                                             <button
                                                                 type="button"
@@ -1991,25 +2007,29 @@ export default function TeamReportPage() {
                                                                 Review
                                                             </button>
                                                         )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEditModal(report)}
-                                                            className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-                                                            title="Edit Daily Work Log"
-                                                        >
-                                                            <Edit3 size={15} />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedReport(report)
-                                                                setDeleteModalOpen(true)
-                                                            }}
-                                                            className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-                                                            title="Delete Daily Work Log"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
+                                                        {!isHideOptions && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openEditModal(report)}
+                                                                    className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                                    title="Edit Daily Work Log"
+                                                                >
+                                                                    <Edit3 size={15} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setSelectedReport(report)
+                                                                        setDeleteModalOpen(true)
+                                                                    }}
+                                                                    className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                                    title="Delete Daily Work Log"
+                                                                >
+                                                                    <Trash2 size={15} />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2138,8 +2158,8 @@ export default function TeamReportPage() {
                                     className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
                                     required
                                 >
-                                    <option value={user?.id}>{user?.name}</option>
-                                    {staff.map(s => (
+                                    <option value={user?.id}>{user?.role === 'ca' ? `${user?.name} (Admin / Me)` : `${user?.name} (Me)`}</option>
+                                    {user?.role === 'ca' && staff.filter(s => s.id !== user?.id).map(s => (
                                         <option key={s.id} value={s.id}>{s.name}</option>
                                     ))}
                                 </select>

@@ -27,7 +27,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
     }
 
     const sidebarClasses = `
-        fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
+        fixed top-0 left-0 h-screen bg-[#0f1c2e] border-r border-[#1e2e42] flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
         ${isOpen ? 'w-64' : 'w-20'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
     `
@@ -35,15 +35,15 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
     return (
         <aside className={sidebarClasses}>
             {/* Logo */}
-            <div className={`px-4 py-3.5 border-b border-slate-200 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
+            <div className={`px-4 py-3.5 border-b border-[#1e2e42] flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
                 {(isOpen || isMobileOpen) && (
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden bg-white rounded-xl p-1">
                             <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-gray-900 whitespace-nowrap">Staff Portal</p>
-                            <p className="text-xs text-gray-400 uppercase tracking-wider whitespace-nowrap">Office Management</p>
+                            <p className="text-sm font-bold text-white whitespace-nowrap">Staff Portal</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-wider whitespace-nowrap">Office Management</p>
                         </div>
                     </div>
                 )}
@@ -55,7 +55,7 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
                             setIsOpen && setIsOpen(!isOpen)
                         }
                     }}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
+                    className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors shrink-0"
                     title="Toggle Menu"
                 >
                     <Menu size={20} />
@@ -64,17 +64,17 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
 
             {/* User card */}
             {(isOpen || isMobileOpen) ? (
-                <div className="mx-4 mt-4 p-3 bg-gray-50 rounded-xl flex items-center gap-3 shrink-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold shrink-0">
+                <div className="mx-4 mt-4 p-3 bg-white/5 rounded-xl flex items-center gap-3 shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#1F5C99] flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
                         {user?.name?.[0]?.toUpperCase()}
                     </div>
                     <div className="overflow-hidden">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{user?.name}</p>
-                        <p className="text-xs text-green-500 font-medium">● Online</p>
+                        <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                        <p className="text-xs text-green-400 font-medium">● Online</p>
                     </div>
                 </div>
             ) : (
-                <div className="mx-auto mt-4 w-10 h-10 rounded-xl bg-[#0f1c2e] flex items-center justify-center text-white text-sm font-bold shrink-0" title={user?.name}>
+                <div className="mx-auto mt-4 w-10 h-10 rounded-xl bg-[#1F5C99] flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm" title={user?.name}>
                     {user?.name?.[0]?.toUpperCase()}
                 </div>
             )}
@@ -88,8 +88,8 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
                         onClick={() => setIsMobileOpen?.(false)}
                         className={({ isActive }) =>
                             `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
-                                ? 'bg-[#0f1c2e] text-white'
-                                : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
+                                ? 'bg-[#1F5C99] text-white shadow-sm'
+                                : 'text-slate-300 hover:bg-white/5 hover:text-white'
                             }`
                         }
                         title={!isOpen ? label : undefined}
@@ -102,10 +102,10 @@ export default function StaffSidebar({ isOpen = true, setIsOpen, isMobileOpen, s
 
             {/* Logout */}
             <div className={`px-4 py-3 flex flex-col ${isOpen ? '' : 'items-center justify-center'}`}>
-                <div className={`h-[1px] bg-slate-200 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
+                <div className={`h-[1px] bg-slate-800 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
                 <button
                     onClick={() => setLogoutConfirmOpen(true)}
-                    className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
+                    className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-950/20 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
                     title={!isOpen ? "Sign Out" : undefined}
                 >
                     <LogOut size={18} className="shrink-0" />

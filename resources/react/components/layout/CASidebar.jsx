@@ -39,7 +39,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
     }
 
     const sidebarClasses = `
-        fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
+        fixed top-0 left-0 h-screen bg-[#0f1c2e] border-r border-[#1e2e42] flex flex-col z-40 shadow-[4px_0_24px_rgba(15,28,46,0.03)] transition-all duration-300
         ${isOpen ? 'w-64' : 'w-20'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
     `
@@ -47,15 +47,15 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
     return (
         <aside className={sidebarClasses}>
             {/* Logo */}
-            <div className={`px-4 py-3.5 border-b border-slate-200 flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
+            <div className={`px-4 py-3.5 border-b border-[#1e2e42] flex items-center ${isOpen ? 'justify-between' : 'justify-center'} overflow-hidden`}>
                 {(isOpen || isMobileOpen) && (
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden bg-white rounded-xl p-1">
                             <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-gray-900 whitespace-nowrap">CA Office</p>
-                            <p className="text-xs text-gray-400 uppercase tracking-wider whitespace-nowrap">Admin Suite</p>
+                            <p className="text-sm font-bold text-white whitespace-nowrap">CA Office</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-wider whitespace-nowrap">Admin Suite</p>
                         </div>
                     </div>
                 )}
@@ -67,7 +67,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                             setIsOpen && setIsOpen(!isOpen)
                         }
                     }}
-                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors shrink-0"
+                    className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors shrink-0"
                     title="Toggle Menu"
                 >
                     <Menu size={20} />
@@ -92,8 +92,8 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                                         setReportsExpanded(!reportsExpanded)
                                     }}
                                     className={`flex items-center justify-between w-full py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${hasActiveChild
-                                        ? 'bg-[#EEF4FB] text-[#1F5C99]'
-                                        : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
+                                        ? 'bg-[#1F5C99] text-white shadow-sm'
+                                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                     }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                                         {isOpen && <span className="whitespace-nowrap">{item.label}</span>}
                                     </div>
                                     {isOpen && (
-                                        isExpanded ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />
+                                        isExpanded ? <ChevronUp size={14} className="text-slate-400 shrink-0" /> : <ChevronDown size={14} className="text-slate-400 shrink-0" />
                                     )}
                                 </button>
                                 
@@ -114,8 +114,8 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                                                 onClick={() => setIsMobileOpen?.(false)}
                                                 className={({ isActive }) =>
                                                     `flex items-center gap-2.5 py-2 px-4 rounded-xl text-xs font-bold transition-all ${isActive
-                                                        ? 'text-[#1F5C99] bg-[#EEF4FB]'
-                                                        : 'text-slate-650 hover:bg-slate-55 hover:text-slate-900'
+                                                        ? 'text-white bg-[#1F5C99] shadow-sm'
+                                                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
                                                     }`
                                                 }
                                             >
@@ -137,8 +137,8 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                             onClick={() => setIsMobileOpen?.(false)}
                             className={({ isActive }) =>
                                 `flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isOpen ? 'px-4' : 'px-0 justify-center w-10 mx-auto'} ${isActive
-                                    ? 'bg-[#EEF4FB] text-[#1F5C99]'
-                                    : 'text-slate-650 hover:bg-slate-50 hover:text-slate-900'
+                                    ? 'bg-[#1F5C99] text-white shadow-sm'
+                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                 }`
                             }
                             title={!isOpen ? item.label : undefined}
@@ -152,10 +152,10 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
 
             {/* Logout */}
             <div className={`px-4 py-3 flex flex-col ${isOpen ? '' : 'items-center justify-center'}`}>
-                <div className={`h-[1px] bg-slate-200 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
+                <div className={`h-[1px] bg-slate-800 mx-auto mb-3 transition-all ${isOpen ? 'w-4/5' : 'w-10'}`}></div>
                 <button
                     onClick={() => setLogoutConfirmOpen(true)}
-                    className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
+                    className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-950/20 transition-all ${isOpen ? 'w-full px-4' : 'justify-center px-0 w-10 mx-auto shrink-0'}`}
                     title={!isOpen ? "Sign Out" : undefined}
                 >
                     <LogOut size={18} className="shrink-0" />

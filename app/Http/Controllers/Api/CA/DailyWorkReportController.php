@@ -102,6 +102,7 @@ class DailyWorkReportController extends Controller
                 'final_remark' => $report->final_remark,
                 'ca_review' => $report->ca_review,
                 'ca_remark' => $report->ca_remark,
+                'user_role' => $report->user?->role ?? 'staff',
                 'created_at' => $report->created_at->toDateTimeString(),
             ];
         });
