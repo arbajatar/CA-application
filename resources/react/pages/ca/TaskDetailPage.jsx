@@ -831,6 +831,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             ...rowToDuplicate,
             is_verified: false,
             client_id: '',
+            allocated_to: '',
+            allocated_type: 'user',
+            date_allocated: null,
             attachments: rowToDuplicate.attachments ? [...rowToDuplicate.attachments] : [],
             dynamic_data: { ...(rowToDuplicate.dynamic_data || {}) }
         };
@@ -3044,15 +3047,20 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     const allocType = row.allocated_type || 'user';
                                                     let displayVal = 'Unassigned';
                                                     if (allocType === 'user' && row.allocated_to) {
-                                                        const sMember = staff.find(s => String(s.id) === String(row.allocated_to));
+                                                        const idToFind = typeof row.allocated_to === 'object' ? row.allocated_to.id : row.allocated_to;
+                                                        const sMember = staff.find(s => String(s.id) === String(idToFind));
                                                         displayVal = sMember ? sMember.name : 'Unassigned';
                                                     } else if (allocType === 'users' && Array.isArray(row.allocated_to)) {
                                                         const names = row.allocated_to
-                                                            .map(id => staff.find(s => String(s.id) === String(id))?.name)
+                                                            .map(id => {
+                                                                const idToFind = typeof id === 'object' ? id.id : id;
+                                                                return staff.find(s => String(s.id) === String(idToFind))?.name;
+                                                            })
                                                             .filter(Boolean);
                                                         displayVal = names.length > 0 ? names.join(', ') : 'Unassigned';
                                                     } else if (allocType === 'role' && row.allocated_to) {
-                                                        const roleObj = availableRoles.find(r => String(r.id) === String(row.allocated_to));
+                                                        const idToFind = typeof row.allocated_to === 'object' ? row.allocated_to.id : row.allocated_to;
+                                                        const roleObj = availableRoles.find(r => String(r.id) === String(idToFind));
                                                         displayVal = roleObj ? `Dept: ${roleObj.name}` : 'Unassigned';
                                                     }
                                                     return (
