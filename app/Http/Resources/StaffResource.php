@@ -27,6 +27,17 @@ class StaffResource extends JsonResource
             'mobile' => $this->mobile,
             'profile_photo' => $this->profile_photo,
             'profile_photo_url' => $this->profile_photo_url,
+            'special_permissions' => $this->specialPermissions ? [
+                'create_sheet' => (bool)$this->specialPermissions->create_sheet,
+                'edit_sheet' => (bool)$this->specialPermissions->edit_sheet,
+                'delete_sheet' => (bool)$this->specialPermissions->delete_sheet,
+                'import_export_sheet' => (bool)$this->specialPermissions->import_export_sheet,
+            ] : [
+                'create_sheet' => false,
+                'edit_sheet' => false,
+                'delete_sheet' => false,
+                'import_export_sheet' => false,
+            ],
             'created_at' => $this->created_at->toDateString(),
         ];
     }

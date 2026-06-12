@@ -6,7 +6,8 @@ import {
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
     Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, FileUp, Eye, Copy, ChevronRight, Globe,
-    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock, ArrowUpDown, ArrowUp, ArrowDown
+    PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock, ArrowUpDown, ArrowUp, ArrowDown,
+    Key, EyeOff, ShieldCheck, ShieldAlert, ExternalLink, AlertTriangle
 } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -270,10 +271,70 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }));
     };
 
+    const EMPTY_CLIENT_FORM = {
+        name: '',
+        name_as_per_pan: '',
+        pan_no: '',
+        type: '',
+        group: '',
+        contact: '',
+        alternative_contact: '',
+        email: '',
+        reference_no: '',
+        dob: '',
+        city: '',
+        pin_code: '',
+        state: '',
+        gst_number: '',
+        status: 'active',
+        credentials: {
+            efiling_password: '',
+            ais_tis_password: ''
+        }
+    };
+
     // Dropdown Data
     const [clients, setClients] = useState([]);
     const [staff, setStaff] = useState([]);
     const [workTypes, setWorkTypes] = useState([]);
+    const [clientTypes, setClientTypes] = useState([]);
+    const [clientGroups, setClientGroups] = useState([]);
+    const [isQuickAddClientOpen, setIsQuickAddClientOpen] = useState(false);
+    const [quickAddClientForm, setQuickAddClientForm] = useState(EMPTY_CLIENT_FORM);
+    const [quickAddClientErrors, setQuickAddClientErrors] = useState({});
+    const [savingQuickClient, setSavingQuickClient] = useState(false);
+    const [showPasswords, setShowPasswords] = useState(false);
+
+    const getQuickClientPanValidation = () => {
+        const pan = (quickAddClientForm?.pan_no || '').toUpperCase();
+        if (!pan) return null;
+        
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        if (!panRegex.test(pan)) {
+            return { valid: false, msg: 'Invalid general PAN format (e.g. ABCDE1234F).' };
+        }
+
+        const typeOption = clientTypes.find(t => t.name === quickAddClientForm.type);
+        if (typeOption && typeOption.pan_char) {
+            const expectedChar = typeOption.pan_char.toUpperCase();
+            const fourthChar = pan.charAt(3);
+            if (fourthChar !== expectedChar) {
+                return { valid: false, msg: `The 4th letter of PAN number must be '${expectedChar}' for Client Type '${quickAddClientForm.type}'.` };
+            }
+        }
+        return { valid: true, msg: 'Valid PAN format.' };
+    };
+
+    const getQuickClientGstValidation = () => {
+        const gst = (quickAddClientForm?.gst_number || '').toUpperCase();
+        if (!gst) return null;
+
+        const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+        if (!gstRegex.test(gst)) {
+            return { valid: false, msg: 'Invalid general GST format (e.g. 27AADCB1234F1Z1).' };
+        }
+        return { valid: true, msg: 'Valid GST format.' };
+    };
 
     // Multi-row state
     const [formName, setFormName] = useState('');
@@ -340,11 +401,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         setLoading(true);
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
-            const [taskRes, clientsRes, staffRes, workTypesRes] = await Promise.all([
+            const [taskRes, clientsRes, staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
                 api.get(`${apiPrefix}/tasks/${id}`),
                 api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { per_page: 10000 } }),
                 api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { per_page: 10000 } }),
-                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { per_page: 10000 } })
+                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { per_page: 10000 } }),
+                api.get('/ca/client-types'),
+                api.get('/ca/client-groups')
             ]);
 
             const data = taskRes.data.data;
@@ -358,6 +421,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setClients(clientsRes.data.data || clientsRes.data || []);
             setStaff(staffRes.data.data || staffRes.data || []);
             setWorkTypes(workTypesRes.data.data || workTypesRes.data || []);
+            setClientTypes(typesRes.data.data || []);
+            setClientGroups(groupsRes.data.data || []);
             setSheetPermissions(data.permissions || []);
             setAllowAttachments(!!data.allow_attachments);
             setAllowChecklist(!!data.allow_checklist);
@@ -1295,8 +1360,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     const handleExport = async () => {
-        if (isStaff) {
-            toast.error("Access Denied: Export is only available for admins.");
+        if (isStaff && !user?.special_permissions?.import_export_sheet) {
+            toast.error("Access Denied: Export is not allowed.");
             return;
         }
         try {
@@ -1477,8 +1542,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     const handleImportExcel = async (e) => {
-        if (isStaff) {
-            toast.error("Access Denied: Import is only available for admins.");
+        if (isStaff && !user?.special_permissions?.import_export_sheet) {
+            toast.error("Access Denied: Import is not allowed.");
             return;
         }
         const file = e.target.files?.[0];
@@ -1506,6 +1571,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     const idxRowId = headers.indexOf('Row ID');
                     const idxSheetName = headers.indexOf('Sheet Name');
                     const idxClientName = headers.indexOf('Client');
+                    const idxClientPan = headers.indexOf('PAN No');
                     const idxWorkType = headers.indexOf('Work Type');
                     const idxAssignedTo = headers.indexOf('Assigned To');
                     const idxCreateDate = headers.indexOf('Create Date');
@@ -1606,19 +1672,34 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         
                         // Look up client by Name, PAN, or name + PAN
                         const clientName = idxClientName !== -1 ? String(rowData[idxClientName] || '').trim() : '';
-                        let matchedClient = null;
-                        if (clientName) {
-                            const panMatch = clientName.match(/\(([^)]+)\)/);
-                            const extractedPan = panMatch ? panMatch[1].trim().toUpperCase() : '';
-                            const cleanName = clientName.replace(/\([^)]+\)/, '').trim().toLowerCase();
+                        const clientPanVal = idxClientPan !== -1 ? String(rowData[idxClientPan] || '').trim().toUpperCase() : '';
 
-                            matchedClient = clients.find(c => {
-                                if (extractedPan && c.pan_no && c.pan_no.toUpperCase() === extractedPan) return true;
-                                if (c.pan_no && c.pan_no.toUpperCase() === clientName.toUpperCase()) return true;
-                                return c.name.toLowerCase() === cleanName || c.name.toLowerCase() === clientName.toLowerCase();
-                            });
+                        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i;
+                        let extractedPan = clientPanVal;
+                        let cleanName = clientName;
+
+                        if (!extractedPan && panRegex.test(clientName)) {
+                            extractedPan = clientName.toUpperCase();
+                            cleanName = '';
+                        } else if (clientName) {
+                            const panMatch = clientName.match(/\(([^)]+)\)/);
+                            if (panMatch) {
+                                const tempPan = panMatch[1].trim().toUpperCase();
+                                if (panRegex.test(tempPan)) {
+                                    extractedPan = tempPan;
+                                }
+                                cleanName = clientName.replace(/\([^)]+\)/, '').trim();
+                            }
                         }
-                        const client_id = matchedClient ? matchedClient.id : (task.client?.id || '');
+
+                        let matchedClient = null;
+                        if (extractedPan) {
+                            matchedClient = clients.find(c => c.pan_no && c.pan_no.toUpperCase() === extractedPan.toUpperCase());
+                        }
+                        if (!matchedClient && cleanName) {
+                            matchedClient = clients.find(c => c.name.toLowerCase() === cleanName.toLowerCase() || c.name.toLowerCase() === clientName.toLowerCase());
+                        }
+                        const client_id = matchedClient ? matchedClient.id : '';
 
                         // Look up work type
                         const workTypeName = idxWorkType !== -1 ? String(rowData[idxWorkType] || '').trim() : '';
@@ -1627,8 +1708,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                         // Look up assigned staff
                         let allocated_to = '';
+                        let assignedToName = 'Unassigned';
                         if (idxAssignedTo !== -1) {
                             const cellVal = String(rowData[idxAssignedTo] || '').trim();
+                            assignedToName = cellVal || 'Unassigned';
                             if (cellVal && cellVal.toLowerCase() !== 'unassigned') {
                                 const matchedStaff = staff.find(s => s.name.trim().toLowerCase() === cellVal.toLowerCase());
                                 if (matchedStaff) {
@@ -1637,6 +1720,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             }
                         } else {
                             allocated_to = task.allocated_to?.id || '';
+                            assignedToName = task.allocated_to?.name || 'Unassigned';
                         }
 
                         const rawCreateDate = idxCreateDate !== -1 ? rowData[idxCreateDate] : '';
@@ -1692,6 +1776,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             form_name,
                             client_id,
                             client_name: clientName,
+                            parsed_client_name: cleanName || clientName,
+                            parsed_client_pan: extractedPan,
                             work_type_id,
                             work_type_name: workTypeName,
                             allocated_to,
@@ -1733,7 +1819,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 const cleanRowData = {
                     row_id: importedRow.row_id,
                     form_name: importedRow.form_name,
-                    client_id: importedRow.client_id,
+                    client_id: importedRow.client_id || (task.client?.id || ''),
                     work_type_id: importedRow.work_type_id,
                     allocated_to: importedRow.allocated_to,
                     date_allocated: importedRow.date_allocated,
@@ -1764,6 +1850,87 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         } catch (err) {
             console.error(err);
             toast.error('Failed to save imported rows.', { id: loadingToast });
+        }
+    };
+
+    const handleQuickAddClient = (row) => {
+        setQuickAddClientForm({
+            ...EMPTY_CLIENT_FORM,
+            name: row.parsed_client_name || '',
+            pan_no: (row.parsed_client_pan || '').toUpperCase(),
+            credentials: {
+                efiling_password: '',
+                ais_tis_password: ''
+            }
+        });
+        setQuickAddClientErrors({});
+        setIsQuickAddClientOpen(true);
+    };
+
+    const handleSaveQuickClient = async () => {
+        if (!quickAddClientForm.name.trim()) {
+            toast.error('Client name is required.');
+            return;
+        }
+        if (!quickAddClientForm.type) {
+            toast.error('Client type is required.');
+            return;
+        }
+        if (!quickAddClientForm.group) {
+            toast.error('Client group is required.');
+            return;
+        }
+        const panStatus = getQuickClientPanValidation();
+        if (panStatus && !panStatus.valid) {
+            toast.error(panStatus.msg);
+            return;
+        }
+        const gstStatus = getQuickClientGstValidation();
+        if (gstStatus && !gstStatus.valid) {
+            toast.error(gstStatus.msg);
+            return;
+        }
+        if (quickAddClientForm.contact && quickAddClientForm.contact.replace(/\D/g, '').length !== 10) {
+            toast.error('Contact No must be exactly 10 digits.');
+            return;
+        }
+
+        setSavingQuickClient(true);
+        setQuickAddClientErrors({});
+        try {
+            const payload = {
+                ...quickAddClientForm,
+                pan_no: (quickAddClientForm.pan_no || '').toUpperCase()
+            };
+            const res = await api.post('/ca/clients', payload);
+            const newClient = res.data.data;
+            
+            // Add new client to local list
+            setClients(prev => [...prev, newClient]);
+            
+            // Map new client to matching preview rows
+            setPreviewRows(prev => prev.map(r => {
+                const matchesName = r.parsed_client_name && r.parsed_client_name.toLowerCase() === newClient.name.toLowerCase();
+                const matchesPan = r.parsed_client_pan && newClient.pan_no && r.parsed_client_pan.toUpperCase() === newClient.pan_no.toUpperCase();
+                if (matchesName || matchesPan) {
+                    return {
+                        ...r,
+                        client_id: newClient.id,
+                        client_name: newClient.name,
+                        parsed_client_pan: newClient.pan_no,
+                        changedFields: r.changedFields.filter(f => f !== 'Client')
+                    };
+                }
+                return r;
+            }));
+
+            setIsQuickAddClientOpen(false);
+            toast.success('Client registered and mapped successfully!');
+        } catch (e) {
+            setQuickAddClientErrors(e.response?.data?.errors ?? {});
+            toast.error(e.response?.data?.message || 'Please fix validation errors');
+        } finally {
+            setSavingQuickClient(false);
         }
     };
 
@@ -2213,67 +2380,78 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 </div>
                             </button>
 
-                            {!isStaff && (
+                            {(!isStaff || user?.special_permissions?.import_export_sheet || user?.special_permissions?.edit_sheet) && (
                                 <>
                                     <div className="h-5 w-[1px] bg-slate-200 mx-1 shrink-0"></div>
 
                                     {/* Export / Import / Settings / Layout (decreased size) */}
-                                    <button 
-                                        onClick={handleExport} 
-                                        className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                                    >
-                                        <FileDown size={12} className="text-emerald-600" /> 
-                                        <span>Export Excel</span>
-                                    </button>
-                                    <label 
-                                        className="flex items-center gap-1.5 text-indigo-755 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 cursor-pointer shrink-0"
-                                    >
-                                        <FileUp size={12} className="text-indigo-600" />
-                                        <span>Import Excel</span>
-                                        <input 
-                                            type="file" 
-                                            accept=".xlsx, .xls" 
-                                            onChange={handleImportExcel} 
-                                            className="hidden" 
-                                        />
-                                    </label>
-                                    <button 
-                                        onClick={() => setIsGlobalModalOpen(true)}
-                                        className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                                    >
-                                        <Sliders size={12} className="text-indigo-500" />
-                                        <span>Global Settings</span>
-                                    </button>
-                                    <button 
-                                        onClick={() => {
-                                            if (!task) return;
-                                            const duplicateData = {
-                                                form_name: task.form_name,
-                                                client_id: task.client?.id,
-                                                work_type_id: task.work_type?.id,
-                                                remarks: task.remarks,
-                                                dynamic_fields: task.dynamic_fields,
-                                                created_at: task.created_at,
-                                                status: task.status,
-                                                allow_attachments: task.allow_attachments,
-                                                allow_checklist: task.allow_checklist,
-                                                allow_notes: task.allow_notes,
-                                                subtasks: (task.sub_tasks || []).map(st => ({
-                                                    title: st.title,
-                                                    assigned_to: st.assigned_to?.id,
-                                                    priority: st.priority,
-                                                    status: st.status,
-                                                    due_date: st.due_date,
-                                                    remarks: st.remarks
-                                                }))
-                                            };
-                                            navigate('/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
-                                        }}
-                                        className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
-                                    >
-                                        <Edit2 size={12} className="text-violet-600" /> 
-                                        <span>Layout Builder</span>
-                                    </button>
+                                    {(!isStaff || user?.special_permissions?.import_export_sheet) && (
+                                        <>
+                                            <button 
+                                                onClick={handleExport} 
+                                                className="flex items-center gap-1.5 text-emerald-755 bg-emerald-50/75 hover:bg-emerald-100/80 border border-emerald-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                            >
+                                                <FileDown size={12} className="text-emerald-600" /> 
+                                                <span>Export Excel</span>
+                                            </button>
+                                            <label 
+                                                className="flex items-center gap-1.5 text-indigo-755 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 cursor-pointer shrink-0"
+                                            >
+                                                <FileUp size={12} className="text-indigo-600" />
+                                                <span>Import Excel</span>
+                                                <input 
+                                                    type="file" 
+                                                    accept=".xlsx, .xls" 
+                                                    onChange={handleImportExcel} 
+                                                    className="hidden" 
+                                                />
+                                            </label>
+                                        </>
+                                    )}
+                                    {(!isStaff || user?.special_permissions?.edit_sheet) && (
+                                        <>
+                                            <button 
+                                                onClick={() => setIsGlobalModalOpen(true)}
+                                                className="flex items-center gap-1.5 text-indigo-700 bg-indigo-50/75 hover:bg-indigo-100/80 border border-indigo-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                            >
+                                                <Sliders size={12} className="text-indigo-500" />
+                                                <span>Global Settings</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    if (!task) return;
+                                                    const duplicateData = {
+                                                        form_name: task.form_name,
+                                                        client_id: task.client?.id,
+                                                        work_type_id: task.work_type?.id,
+                                                        remarks: task.remarks,
+                                                        dynamic_fields: task.dynamic_fields,
+                                                        created_at: task.created_at,
+                                                        status: task.status,
+                                                        allow_attachments: task.allow_attachments,
+                                                        allow_checklist: task.allow_checklist,
+                                                        allow_notes: task.allow_notes,
+                                                        is_billable: task.is_billable,
+                                                        is_after_sales: task.is_after_sales,
+                                                        allow_duplicate_clients: task.allow_duplicate_clients,
+                                                        subtasks: (task.sub_tasks || []).map(st => ({
+                                                            title: st.title,
+                                                            assigned_to: st.assigned_to?.id,
+                                                            priority: st.priority,
+                                                            status: st.status,
+                                                            due_date: st.due_date,
+                                                            remarks: st.remarks
+                                                        }))
+                                                    };
+                                                    navigate(isStaff ? '/staff/tasks/builder' : '/ca/tasks/builder', { state: { duplicateData, isEditing: true, taskId: task.id } });
+                                                }}
+                                                className="flex items-center gap-1.5 text-violet-755 bg-violet-50/75 hover:bg-violet-100/80 border border-violet-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                            >
+                                                <Edit2 size={12} className="text-violet-600" /> 
+                                                <span>Layout Builder</span>
+                                            </button>
+                                        </>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -4766,9 +4944,68 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 )}
                                             </td>
                                             {renderCell('Sheet Name', row.form_name)}
-                                            {renderCell('Client', row.client_name)}
+                                            {row.client_id ? (
+                                                renderCell('Client', row.client_name)
+                                            ) : (
+                                                <td className="px-4 py-3 min-w-[200px] bg-rose-50/40 border border-rose-100/50">
+                                                    <div className="flex flex-col gap-1.5 py-1">
+                                                        <div className="flex items-center gap-1.5 text-rose-600 font-bold bg-rose-50 border border-rose-100 rounded-lg px-2 py-0.5 w-max text-[9px] uppercase tracking-wider">
+                                                            <AlertCircle size={9} /> Not Found
+                                                        </div>
+                                                        <div className="font-semibold text-slate-700">
+                                                            {row.client_name || '—'}
+                                                            {row.parsed_client_pan && (
+                                                                <span className="text-[10px] text-slate-450 block font-bold mt-0.5">
+                                                                    PAN: <span className="font-black text-slate-600">{row.parsed_client_pan}</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleQuickAddClient(row)}
+                                                            className="inline-flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-xl transition shadow-md shadow-indigo-100 cursor-pointer w-max"
+                                                        >
+                                                            <Plus size={10} /> Add Client
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
                                             {renderCell('Work Type', row.work_type_name)}
-                                            {renderCell('Assigned To', row.assigned_to_name)}
+                                            <td className="px-4 py-3 min-w-[160px]">
+                                                <select
+                                                    value={row.allocated_to || ''}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        const matchedStaff = staff.find(s => String(s.id) === String(val));
+                                                        const assignedToName = matchedStaff ? matchedStaff.name : 'Unassigned';
+
+                                                        setPreviewRows(prev => prev.map((pr, pIdx) => {
+                                                            if (pIdx === idx) {
+                                                                const existingRow = pr.row_id ? rows.find(r => String(r.row_id) === String(pr.row_id)) : null;
+                                                                const isChanged = String(val) !== String(existingRow?.allocated_to || '');
+                                                                const changedFields = isChanged
+                                                                    ? [...(pr.changedFields || []), 'Assigned To'].filter((value, index, self) => self.indexOf(value) === index)
+                                                                    : (pr.changedFields || []).filter(f => f !== 'Assigned To');
+
+                                                                return {
+                                                                    ...pr,
+                                                                    allocated_to: val,
+                                                                    assigned_to_name: assignedToName,
+                                                                    allocated_type: 'user',
+                                                                    changedFields
+                                                                };
+                                                            }
+                                                            return pr;
+                                                        }));
+                                                    }}
+                                                    className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-550 font-semibold text-slate-700 cursor-pointer"
+                                                >
+                                                    <option value="">Unassigned</option>
+                                                    {staff.map(s => (
+                                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
                                             {renderCell('Create Date', formatDate(row.date_allocated))}
                                             {renderCell('Sheet Status', row.status)}
                                             {renderCell('Sub Status', row.sub_status)}
@@ -4798,6 +5035,357 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md shadow-indigo-100 cursor-pointer"
                         >
                             Confirm Import
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Quick Add Client Modal */}
+            <Modal
+                open={isQuickAddClientOpen}
+                onClose={() => {
+                    setIsQuickAddClientOpen(false);
+                    setQuickAddClientForm(EMPTY_CLIENT_FORM);
+                    setQuickAddClientErrors({});
+                }}
+                title="Register New CA Business Client"
+                width="max-w-4xl"
+            >
+                <div className="space-y-6 px-1">
+                    {/* Main Form Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Client Name */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Client Name *</label>
+                            <input 
+                                type="text" 
+                                value={quickAddClientForm.name} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, name: e.target.value }))} 
+                                placeholder="Enter Client Name" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.name && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.name[0]}</p>}
+                        </div>
+
+                        {/* Client Type */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Type *</label>
+                            <select 
+                                value={quickAddClientForm.type} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, type: e.target.value }))} 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
+                            >
+                                <option value="">Select Type...</option>
+                                {clientTypes.map(t => (
+                                    <option key={t.id} value={t.name}>{t.name}</option>
+                                ))}
+                            </select>
+                            {quickAddClientErrors.type && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.type[0]}</p>}
+                        </div>
+
+                        {/* Client Name As per PAN */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Client Name As Per PAN</label>
+                            <input 
+                                type="text" 
+                                value={quickAddClientForm.name_as_per_pan} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, name_as_per_pan: e.target.value }))} 
+                                placeholder="Enter Name exactly as printed on PAN" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.name_as_per_pan && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.name_as_per_pan[0]}</p>}
+                        </div>
+
+                        {/* PAN Number with Validation Indicator */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">PAN No</label>
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    maxLength={10}
+                                    value={quickAddClientForm.pan_no} 
+                                    onChange={e => setQuickAddClientForm(f => ({ ...f, pan_no: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} 
+                                    placeholder="Enter 10-Digit PAN (e.g. BIBPB1899L)" 
+                                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 uppercase pr-8" 
+                                />
+                                {quickAddClientForm.pan_no && (
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                        {getQuickClientPanValidation()?.valid ? (
+                                            <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                                        ) : (
+                                            <ShieldAlert className="text-rose-500 w-4 h-4" />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            {quickAddClientForm.pan_no && (
+                                <p className={`text-[9px] font-bold mt-1 ${getQuickClientPanValidation()?.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {getQuickClientPanValidation()?.msg}
+                                </p>
+                            )}
+                            {quickAddClientErrors.pan_no && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.pan_no[0]}</p>}
+                        </div>
+
+                        {/* Group */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Group *</label>
+                            <select 
+                                value={quickAddClientForm.group} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, group: e.target.value }))} 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400"
+                            >
+                                <option value="">Select Group...</option>
+                                {clientGroups.map(g => (
+                                    <option key={g.id} value={g.name}>{g.name}</option>
+                                ))}
+                            </select>
+                            {quickAddClientErrors.group && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.group[0]}</p>}
+                        </div>
+
+                        {/* Contact No */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Contact No</label>
+                            <input 
+                                type="text" 
+                                maxLength={10}
+                                value={quickAddClientForm.contact} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, contact: e.target.value.replace(/\D/g, '') }))} 
+                                placeholder="10-digit mobile number" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.contact && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.contact[0]}</p>}
+                        </div>
+
+                        {/* Alternative Contact No */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Alternative Contact No</label>
+                            <input 
+                                type="text" 
+                                maxLength={10}
+                                value={quickAddClientForm.alternative_contact} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, alternative_contact: e.target.value.replace(/\D/g, '') }))} 
+                                placeholder="Alternative 10-digit number" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.alternative_contact && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.alternative_contact[0]}</p>}
+                        </div>
+
+                        {/* Email Address */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Email ID</label>
+                            <input 
+                                type="email" 
+                                value={quickAddClientForm.email} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, email: e.target.value }))} 
+                                placeholder="client@example.com" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.email && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.email[0]}</p>}
+                        </div>
+
+                        {/* Reference No */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Reference No</label>
+                            <input 
+                                type="text" 
+                                value={quickAddClientForm.reference_no} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, reference_no: e.target.value }))} 
+                                placeholder="Enter reference details" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.reference_no && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.reference_no[0]}</p>}
+                        </div>
+
+                        {/* City */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">City</label>
+                            <input 
+                                type="text" 
+                                value={quickAddClientForm.city} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, city: e.target.value }))} 
+                                placeholder="Enter City" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.city && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.city[0]}</p>}
+                        </div>
+
+                        {/* Pin Code */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Pin Code</label>
+                            <input 
+                                type="text" 
+                                maxLength={6} 
+                                value={quickAddClientForm.pin_code} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, pin_code: e.target.value.replace(/\D/g, '') }))} 
+                                placeholder="6-digit postal code" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.pin_code && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.pin_code[0]}</p>}
+                        </div>
+
+                        {/* State */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">State</label>
+                            <input 
+                                type="text" 
+                                value={quickAddClientForm.state} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, state: e.target.value }))} 
+                                placeholder="Enter State" 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.state && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.state[0]}</p>}
+                        </div>
+
+                        {/* Date of Birth */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">Date Of Birth</label>
+                            <input 
+                                type="date" 
+                                value={quickAddClientForm.dob} 
+                                onChange={e => setQuickAddClientForm(f => ({ ...f, dob: e.target.value }))} 
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400" 
+                            />
+                            {quickAddClientErrors.dob && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.dob[0]}</p>}
+                        </div>
+
+                        {/* GST Number */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1 font-bold">GST No</label>
+                            <div className="relative">
+                                <input 
+                                    type="text" 
+                                    value={quickAddClientForm.gst_number || ''} 
+                                    onChange={e => setQuickAddClientForm(f => ({ ...f, gst_number: e.target.value.toUpperCase() }))} 
+                                    placeholder="GST Identification Number" 
+                                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition font-semibold text-slate-700 placeholder-slate-400 pr-8" 
+                                    autoComplete="off"
+                                />
+                                {quickAddClientForm.gst_number && (
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                        {getQuickClientGstValidation()?.valid ? (
+                                            <ShieldCheck className="text-emerald-500 w-4 h-4" />
+                                        ) : (
+                                            <ShieldAlert className="text-rose-500 w-4 h-4" />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            {quickAddClientForm.gst_number && (
+                                <p className={`text-[9px] font-bold mt-1 ${getQuickClientGstValidation()?.valid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {getQuickClientGstValidation()?.msg}
+                                </p>
+                            )}
+                            {quickAddClientErrors.gst_number && <p className="text-[10px] text-red-500 mt-1">{quickAddClientErrors.gst_number[0]}</p>}
+                        </div>
+                    </div>
+
+                    {/* Portal Credentials Section */}
+                    <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Key className="text-indigo-500 w-4 h-4" />
+                                <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Portal Credentials (Passwords)</h4>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                className="text-xs text-[#1F5C99] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                                {showPasswords ? <EyeOff size={13} className="inline mr-1" /> : <Eye size={13} className="inline mr-1" />}
+                                <span>{showPasswords ? 'Hide Credentials' : 'Reveal Credentials'}</span>
+                            </button>
+                        </div>
+
+                        <div className="overflow-hidden border border-slate-200/60 rounded-2xl bg-white shadow-sm">
+                            <table className="w-full text-xs text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                                        <th className="px-4 py-3">Portal URL</th>
+                                        <th className="px-4 py-3">Auth Type</th>
+                                        <th className="px-4 py-3">User ID</th>
+                                        <th className="px-4 py-3">Password</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {/* EFILING row */}
+                                    <tr>
+                                        <td className="px-4 py-3 font-semibold text-slate-650">
+                                            <a href="https://eportal.incometax.gov.in/iec/foservices/#/login" target="_blank" rel="noopener noreferrer" className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1">
+                                                WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                            </a>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-slate-200">
+                                                IT login
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 font-mono font-bold text-slate-605">{quickAddClientForm.pan_no || 'ENTER PAN ABOVE'}</td>
+                                        <td className="px-4 py-3">
+                                            <input 
+                                                type={showPasswords ? "text" : "password"} 
+                                                value={quickAddClientForm.credentials.efiling_password} 
+                                                onChange={e => setQuickAddClientForm(f => ({ ...f, credentials: { ...f.credentials, efiling_password: e.target.value } }))} 
+                                                placeholder="Enter IT Password" 
+                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none" 
+                                                autoComplete="new-password"
+                                            />
+                                        </td>
+                                    </tr>
+
+                                    {/* AIS & TIS row */}
+                                    <tr>
+                                        <td className="px-4 py-3 font-semibold text-slate-650">
+                                            <a href="https://eportal.incometax.gov.in/iec/foservices/#/login" target="_blank" rel="noopener noreferrer" className="text-[#1F5C99] hover:underline font-bold flex items-center gap-1">
+                                                WWW.EFILING INCOME TAX <ExternalLink size={12} />
+                                            </a>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-100">
+                                                AIS & TIS
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 font-mono font-bold text-slate-605">{quickAddClientForm.pan_no || 'ENTER PAN ABOVE'}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col">
+                                                <input 
+                                                    type={showPasswords ? "text" : "password"} 
+                                                    value={quickAddClientForm.credentials.ais_tis_password} 
+                                                    onChange={e => setQuickAddClientForm(f => ({ ...f, credentials: { ...f.credentials, ais_tis_password: e.target.value } }))} 
+                                                    placeholder="Enter AIS/TIS Password" 
+                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none" 
+                                                    autoComplete="new-password"
+                                                />
+                                                <span className="text-[9px] font-bold text-slate-400 mt-1">
+                                                    Auto Generated format: lower(PAN) + DOB (e.g. abcde1234f01011990)
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Bottom Action Buttons */}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsQuickAddClientOpen(false);
+                                setQuickAddClientForm(EMPTY_CLIENT_FORM);
+                                setQuickAddClientErrors({});
+                            }}
+                            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-xl text-xs font-black uppercase tracking-wider transition cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveQuickClient}
+                            disabled={savingQuickClient}
+                            className="px-6 py-2.5 bg-[#1F5C99] hover:bg-[#154675] text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md disabled:opacity-60 cursor-pointer"
+                        >
+                            {savingQuickClient ? 'Registering...' : 'Register Client'}
                         </button>
                     </div>
                 </div>

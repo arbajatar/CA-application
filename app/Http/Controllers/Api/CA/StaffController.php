@@ -20,7 +20,7 @@ class StaffController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $staff = User::staff()
-            ->with('roles')
+            ->with(['roles', 'specialPermissions'])
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
                     ->orWhere('username', 'like', '%' . $request->search . '%');
@@ -49,16 +49,31 @@ class StaffController extends Controller
             'mobile' => $request->mobile,
         ]);
         $staff->roles()->sync($request->input('role_ids', []));
+        $staff->specialPermissions()->create($request->only([
+            'create_sheet',
+            'edit_sheet',
+            'delete_sheet',
+            'import_export_sheet',
+        ]));
 
-        return response()->json(['message' => 'Staff member created successfully.', 'data' => new StaffResource($staff->load('roles'))], 201);
+        return response()->json(['message' => 'Staff member created successfully.', 'data' => new StaffResource($staff->load(['roles', 'specialPermissions']))], 201);
     }
 
     public function update(UpdateStaffRequest $request, User $staff): JsonResponse
     {
         $staff->update($request->only(['name', 'username', 'employee_code', 'address', 'email', 'mobile']));
         $staff->roles()->sync($request->input('role_ids', []));
+        $staff->specialPermissions()->updateOrCreate(
+            ['staff_id' => $staff->id],
+            $request->only([
+                'create_sheet',
+                'edit_sheet',
+                'delete_sheet',
+                'import_export_sheet',
+            ])
+        );
 
-        return response()->json(['message' => 'Staff member updated successfully.', 'data' => new StaffResource($staff->load('roles'))]);
+        return response()->json(['message' => 'Staff member updated successfully.', 'data' => new StaffResource($staff->load(['roles', 'specialPermissions']))]);
     }
 
     public function deactivate(User $staff): JsonResponse

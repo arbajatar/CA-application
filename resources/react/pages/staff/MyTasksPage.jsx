@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock, Plus } from 'lucide-react'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -324,6 +324,15 @@ export default function MyTasksPage() {
         <div className="space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
+                {user?.special_permissions?.create_sheet && (
+                    <button
+                        onClick={() => navigate('/staff/tasks/builder')}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[#0f1c2e] text-white hover:bg-[#1a2f4a] rounded-xl text-sm font-semibold shadow-sm transition-all"
+                    >
+                        <Plus size={16} />
+                        Create New Sheet
+                    </button>
+                )}
             </div>
 
             {/* Summary Cards */}
@@ -421,6 +430,43 @@ export default function MyTasksPage() {
                                                     <button onClick={(e) => { e.stopPropagation(); openView(t); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
                                                     {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && t.user_permissions?.can_write !== false && (
                                                         <button onClick={(e) => { e.stopPropagation(); openUpdate(t); }} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
+                                                    )}
+                                                    {user?.special_permissions?.delete_sheet && (
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                setConfirmState({
+                                                                    open: true,
+                                                                    title: 'Delete Sheet',
+                                                                    message: `Are you sure you want to delete the sheet "${t.form_name}"? This action cannot be undone.`,
+                                                                    confirmLabel: 'Delete',
+                                                                    danger: true,
+                                                                    onConfirm: async () => {
+                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                        try {
+                                                                            await api.delete(`/staff/tasks/${t.id}`);
+                                                                            toast.success("Sheet deleted successfully!");
+                                                                            await Promise.all([fetchSummary(), fetchTasks()]);
+                                                                        } catch (err) {
+                                                                            toast.error(err.response?.data?.message || "Failed to delete sheet");
+                                                                        } finally {
+                                                                            setConfirmState({
+                                                                                open: false,
+                                                                                title: '',
+                                                                                message: '',
+                                                                                confirmLabel: '',
+                                                                                onConfirm: null,
+                                                                                danger: false,
+                                                                                loading: false
+                                                                            });
+                                                                        }
+                                                                    }
+                                                                });
+                                                            }} 
+                                                            className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 transition"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
                                                     )}
                                                 </div>
                                             </td>

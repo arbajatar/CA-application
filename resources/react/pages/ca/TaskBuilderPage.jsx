@@ -10,6 +10,7 @@ import {
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Sortable from 'sortablejs';
 import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -294,6 +295,11 @@ function MultiSearchableSelect({ value = [], options, placeholder, onChange }) {
 }
 
 export default function TaskBuilderPage() {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
+  const apiPrefix = isStaff ? '/staff' : '/ca';
+  const tasksPrefix = isStaff ? '/staff/tasks' : '/ca/tasks';
+
   const location = useLocation();
   const navigate = useNavigate();
   const handleCopy = (text, fieldName) => {
@@ -1335,7 +1341,7 @@ export default function TaskBuilderPage() {
       }));
 
       if (isEditing) {
-        await api.patch(`/ca/tasks/${taskId}`, {
+        await api.patch(`${apiPrefix}/tasks/${taskId}`, {
           ...staticFields,
           dynamic_fields: dynamicFields,
           remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Updated via Task Builder',
@@ -1343,10 +1349,12 @@ export default function TaskBuilderPage() {
           allow_attachments: !!allowAttachments,
           allow_checklist: !!allowChecklist,
           allow_notes: !!allowNotes,
+          is_billable: !!isBillableEnabled,
+          is_after_sales: !!isAfterSalesEnabled,
         });
         showToast('Sheet layout updated successfully!');
       } else {
-        await api.post('/ca/tasks', {
+        await api.post(`${apiPrefix}/tasks`, {
           ...staticFields,
           dynamic_fields: dynamicFields,
           remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
@@ -1354,6 +1362,8 @@ export default function TaskBuilderPage() {
           allow_attachments: !!allowAttachments,
           allow_checklist: !!allowChecklist,
           allow_notes: !!allowNotes,
+          is_billable: !!isBillableEnabled,
+          is_after_sales: !!isAfterSalesEnabled,
         });
         showToast('Sheet created successfully!');
       }
@@ -1361,9 +1371,9 @@ export default function TaskBuilderPage() {
       // Redirect back to sheets or detail
       setTimeout(() => {
         if (isEditing) {
-          window.location.href = `/ca/tasks/${taskId}`;
+          window.location.href = `${tasksPrefix}/${taskId}`;
         } else {
-          window.location.href = '/ca/tasks';
+          window.location.href = tasksPrefix;
         }
       }, 1500);
     } catch (err) {
@@ -1389,7 +1399,7 @@ export default function TaskBuilderPage() {
 
   const fetchWorkTypes = async (selectNewId = null) => {
     try {
-      const res = await api.get('/ca/work-types');
+      const res = await api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types');
       const options = res.data.data.map(w => ({ value: w.id, label: w.name }));
       setFormSchema(prev => prev.map(field => {
         if (field.id === 'static_work_type') {
@@ -1499,10 +1509,10 @@ export default function TaskBuilderPage() {
       try {
         const [clientsRes, workTypesRes, staffRes, statusesRes, rolesRes, typesRes, groupsRes] = await Promise.all([
           api.get('/ca/clients?per_page=-1'),
-          api.get('/ca/work-types'),
-          api.get('/ca/staff?per_page=-1'),
+          api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types'),
+          api.get(isStaff ? '/staff/staff-members' : '/ca/staff?per_page=-1'),
           api.get('/task-statuses'),
-          api.get('/ca/roles'),
+          api.get(isStaff ? '/staff/roles' : '/ca/roles'),
           api.get('/ca/client-types'),
           api.get('/ca/client-groups')
         ]);
@@ -1541,8 +1551,8 @@ export default function TaskBuilderPage() {
       setFormSchema(prev => {
         // If the task has a structured schema, reconstruct from it directly
         if (data.dynamic_fields && Array.isArray(data.dynamic_fields.schema)) {
-          const isBillable = !!data.dynamic_fields.is_billable;
-          const isAfterSales = !!data.dynamic_fields.is_after_sales;
+          const isBillable = data.is_billable !== undefined ? !!data.is_billable : !!data.dynamic_fields.is_billable;
+          const isAfterSales = data.is_after_sales !== undefined ? !!data.is_after_sales : !!data.dynamic_fields.is_after_sales;
           return data.dynamic_fields.schema
             .filter(f => {
               let resolvedSection = f.section;
@@ -1697,10 +1707,8 @@ export default function TaskBuilderPage() {
       if (data.allow_notes !== undefined) {
         setAllowNotes(!!data.allow_notes);
       }
-      if (data.dynamic_fields) {
-        setIsBillableEnabled(!!data.dynamic_fields.is_billable);
-        setIsAfterSalesEnabled(!!data.dynamic_fields.is_after_sales);
-      }
+      setIsBillableEnabled(data.is_billable !== undefined ? !!data.is_billable : !!data.dynamic_fields?.is_billable);
+      setIsAfterSalesEnabled(data.is_after_sales !== undefined ? !!data.is_after_sales : !!data.dynamic_fields?.is_after_sales);
       if (data.permissions) {
         setSheetPermissions(data.permissions);
       }
@@ -1852,7 +1860,7 @@ export default function TaskBuilderPage() {
 
                 <div className="flex-1 min-w-0 flex items-center gap-3 relative z-10">
                   <button
-                    onClick={() => navigate('/ca/tasks')}
+                    onClick={() => navigate(tasksPrefix)}
                     className="w-10 h-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 transition flex items-center justify-center shrink-0 shadow-sm hover:shadow"
                     title="Back to Tasks"
                   >
@@ -1863,7 +1871,7 @@ export default function TaskBuilderPage() {
                   </div>
                   <div className="min-w-0">
                     <nav className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                      <Link to="/ca/tasks" className="hover:text-indigo-600 transition">Sheets</Link>
+                      <Link to={tasksPrefix} className="hover:text-indigo-600 transition">Sheets</Link>
                       <ChevronRight size={8} className="text-slate-400" />
                       <span className="text-slate-800 font-extrabold">Sheet Creator</span>
                     </nav>

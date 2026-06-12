@@ -186,7 +186,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Roles (read-only for assignment)
         Route::get('/roles', [\App\Http\Controllers\Api\CA\RoleController::class, 'index']);
-
         // Tasks
         Route::get('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'index']);
         Route::post('/tasks', [App\Http\Controllers\Api\Staff\TaskController::class, 'store']);
@@ -194,8 +193,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'show']);
         Route::patch('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'update']);
         Route::patch('/tasks/{task}/status', [App\Http\Controllers\Api\Staff\TaskController::class, 'updateStatus']);
-
-        // Sub Tasks
+        Route::delete('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'destroy']);
         Route::get('/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'index']);
         Route::post('/tasks/{task}/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'store']);
         Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'update']);

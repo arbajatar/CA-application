@@ -9,7 +9,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Tooltip from '../../components/ui/Tooltip'
 import CustomSelect from '../../components/ui/CustomSelect'
 
-const EMPTY_FORM = { name: '', username: '', password: '', role_ids: [], employee_code: '', address: '', email: '', mobile: '' }
+const EMPTY_FORM = { name: '', username: '', password: '', role_ids: [], employee_code: '', address: '', email: '', mobile: '', create_sheet: false, edit_sheet: false, delete_sheet: false, import_export_sheet: false }
 
 export default function StaffPage() {
     const [staff, setStaff] = useState([])
@@ -185,6 +185,10 @@ export default function StaffPage() {
                 address: form.address,
                 email: form.email,
                 mobile: form.mobile,
+                create_sheet: form.create_sheet,
+                edit_sheet: form.edit_sheet,
+                delete_sheet: form.delete_sheet,
+                import_export_sheet: form.import_export_sheet,
             })
             toast.success('Staff member updated successfully')
             setEditOpen(false); fetchStaff()
@@ -402,7 +406,7 @@ export default function StaffPage() {
                                         <td className="px-6 py-4">
                                              <div className="flex items-center gap-2">
                                                  <Tooltip content="Edit Member">
-                                                     <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_ids: s.role_ids || [], password: '', employee_code: s.employee_code || '', address: s.address || '', email: s.email || '', mobile: s.mobile || '' }); setErrors({}); setEditOpen(true) }}
+                                                     <button onClick={() => { setSelected(s); setForm({ name: s.name, username: s.username, role_ids: s.role_ids || [], password: '', employee_code: s.employee_code || '', address: s.address || '', email: s.email || '', mobile: s.mobile || '', create_sheet: s.special_permissions?.create_sheet || false, edit_sheet: s.special_permissions?.edit_sheet || false, delete_sheet: s.special_permissions?.delete_sheet || false, import_export_sheet: s.special_permissions?.import_export_sheet || false }); setErrors({}); setEditOpen(true) }}
                                                          className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-805 hover:scale-110 active:scale-95 transition-all"><Pencil size={15} /></button>
                                                  </Tooltip>
                                                  <Tooltip content="Reset Password">
@@ -490,10 +494,46 @@ export default function StaffPage() {
                                         );
                                     })}
                                 </div>
-                                <div className="flex items-start gap-2 mt-2 bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-300 font-medium shadow-sm">
-                                    <span className="text-amber-400 font-bold shrink-0">💡 Note:</span>
-                                    <span>If multiple roles are assigned, the <strong className="text-amber-300">highest role's permissions</strong> will be applicable.</span>
-                                </div>
+                            </div>
+                        ))}
+                        {renderField("Special Permissions", null, (
+                            <div className="grid grid-cols-2 gap-2 border border-gray-150 rounded-xl p-3 bg-gray-50/50">
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.create_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, create_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Create Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.edit_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, edit_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Edit/Update Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.delete_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, delete_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Delete Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.import_export_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, import_export_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Import/Export Sheet
+                                </label>
                             </div>
                         ))}
                         {renderField("Password *", errors.password?.[0], (
@@ -572,6 +612,46 @@ export default function StaffPage() {
                                     <span className="text-amber-400 font-bold shrink-0">💡 Note:</span>
                                     <span>If multiple roles are assigned, the <strong className="text-amber-300">highest role's permissions</strong> will be applicable.</span>
                                 </div>
+                            </div>
+                        ))}
+                        {renderField("Special Permissions", null, (
+                            <div className="grid grid-cols-2 gap-2 border border-gray-150 rounded-xl p-3 bg-gray-50/50">
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.create_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, create_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Create Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.edit_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, edit_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Edit/Update Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.delete_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, delete_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Delete Sheet
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
+                                    <input 
+                                        type="checkbox"
+                                        checked={form.import_export_sheet || false}
+                                        onChange={e => setForm(f => ({ ...f, import_export_sheet: e.target.checked }))}
+                                        className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
+                                    />
+                                    Import/Export Sheet
+                                </label>
                             </div>
                         ))}
                         <div className="flex justify-end gap-3 pt-2">

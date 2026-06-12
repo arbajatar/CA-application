@@ -28,6 +28,10 @@ class UpdateStaffRequest extends FormRequest
             'address' => ['nullable', 'string'],
             'email' => ['nullable', 'email', 'max:255'],
             'mobile' => ['nullable', 'string', 'max:20'],
+            'create_sheet' => ['nullable', 'boolean'],
+            'edit_sheet' => ['nullable', 'boolean'],
+            'delete_sheet' => ['nullable', 'boolean'],
+            'import_export_sheet' => ['nullable', 'boolean'],
         ];
     }
 }

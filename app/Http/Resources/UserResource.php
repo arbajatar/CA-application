@@ -30,6 +30,17 @@ class UserResource extends JsonResource
             'complete' => $this->complete ?? 0,
             'not_to_be_done' => $this->not_to_be_done ?? 0,
             'other' => $this->other ?? 0,
+            'special_permissions' => $this->specialPermissions ? [
+                'create_sheet' => (bool)$this->specialPermissions->create_sheet,
+                'edit_sheet' => (bool)$this->specialPermissions->edit_sheet,
+                'delete_sheet' => (bool)$this->specialPermissions->delete_sheet,
+                'import_export_sheet' => (bool)$this->specialPermissions->import_export_sheet,
+            ] : [
+                'create_sheet' => false,
+                'edit_sheet' => false,
+                'delete_sheet' => false,
+                'import_export_sheet' => false,
+            ],
         ];
     }
 }

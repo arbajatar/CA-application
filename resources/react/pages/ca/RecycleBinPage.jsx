@@ -56,15 +56,13 @@ export default function RecycleBinPage() {
 
     const loadData = useCallback(async () => {
         setLoading(true)
-        if (activeTab === 'clients') {
-            await fetchDeletedClients()
-        } else if (activeTab === 'tasks') {
-            await fetchDeletedTasks()
-        } else {
-            await fetchDeletedWorkTypes()
-        }
+        await Promise.all([
+            fetchDeletedClients(),
+            fetchDeletedTasks(),
+            fetchDeletedWorkTypes()
+        ])
         setLoading(false)
-    }, [activeTab, fetchDeletedClients, fetchDeletedTasks, fetchDeletedWorkTypes])
+    }, [fetchDeletedClients, fetchDeletedTasks, fetchDeletedWorkTypes])
 
     useEffect(() => {
         loadData()

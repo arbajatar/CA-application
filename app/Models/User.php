@@ -53,6 +53,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class);
     }
 
+    public function specialPermissions()
+    {
+        return $this->hasOne(StaffSpecialPermission::class, 'staff_id');
+    }
+
     public function assignedTasks()
     {
         return $this->hasMany(Task::class, 'allocated_to');

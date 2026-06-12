@@ -183,6 +183,13 @@ class TaskController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $user->loadMissing('specialPermissions');
+
+        if (!$user->specialPermissions || !$user->specialPermissions->create_sheet) {
+            return response()->json(['message' => 'You do not have permission to create a sheet.'], 403);
+        }
+
         $validated = $request->validate([
             'client_id' => ['nullable', 'exists:clients,id'],
             'work_type_id' => ['required', 'exists:work_types,id'],
@@ -193,29 +200,91 @@ class TaskController extends Controller
             'task_particular' => ['nullable', 'string'],
             'sub_status' => ['nullable', 'string'],
             'entry_date' => ['nullable', 'date'],
+            'dynamic_fields' => ['nullable', 'array'],
+            'allow_attachments' => ['nullable', 'boolean'],
+            'allow_checklist' => ['nullable', 'boolean'],
+            'allow_notes' => ['nullable', 'boolean'],
+            'is_billable' => ['nullable', 'boolean'],
+            'is_after_sales' => ['nullable', 'boolean'],
+            'allow_duplicate_clients' => ['nullable', 'boolean'],
         ]);
 
-        $user = $request->user();
+        $dynamicFields = $request->input('dynamic_fields');
+        $isBillable = $request->has('is_billable')
+            ? $request->boolean('is_billable')
+            : filter_var($dynamicFields['is_billable'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $isAfterSales = $request->has('is_after_sales')
+            ? $request->boolean('is_after_sales')
+            : filter_var($dynamicFields['is_after_sales'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $allowDuplicateClients = $request->has('allow_duplicate_clients')
+            ? $request->boolean('allow_duplicate_clients')
+            : filter_var($dynamicFields['allow_duplicate_clients'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (is_array($dynamicFields)) {
+            unset($dynamicFields['is_billable']);
+            unset($dynamicFields['is_after_sales']);
+            unset($dynamicFields['allow_duplicate_clients']);
+        }
 
         $task = Task::create([
             'client_id' => $validated['client_id'] ?? null,
             'work_type_id' => $validated['work_type_id'],
             'form_name' => $validated['form_name'],
             'date_inward' => $validated['date_inward'] ?? now()->toDateString(),
-            'allocated_to' => $user->id, // Force allocation to themselves
+            'allocated_to' => $request->has('allocated_to') ? $request->allocated_to : $user->id,
             'created_by' => $user->id,
             'date_allocated' => $validated['date_allocated'] ?? now()->toDateString(),
             'status' => TaskStatus::Pending,
             'remarks' => $validated['remarks'] ?? null,
+            'dynamic_fields' => $dynamicFields,
             'task_particular' => $validated['task_particular'] ?? null,
             'sub_status' => $validated['sub_status'] ?? null,
             'entry_date' => $validated['entry_date'] ?? now()->toDateString(),
-            'allow_attachments' => true, // default to true for staff created tasks
+            'allow_attachments' => $request->boolean('allow_attachments', true),
+            'allow_checklist' => $request->boolean('allow_checklist', true),
+            'allow_notes' => $request->boolean('allow_notes', true),
+            'is_billable' => $isBillable,
+            'is_after_sales' => $isAfterSales,
+            'allow_duplicate_clients' => $allowDuplicateClients,
+        ]);
+
+        // Handle detailed subtasks assignment
+        if ($request->has('subtasks') && is_array($request->subtasks)) {
+            foreach ($request->subtasks as $stData) {
+                $task->subTasks()->create([
+                    'title' => $stData['title'],
+                    'assigned_to' => $stData['assigned_to'] ?? null,
+                    'status' => $stData['status'] ?? TaskStatus::Pending,
+                    'priority' => $stData['priority'] ?? 'medium',
+                    'due_date' => $stData['due_date'] ?? null,
+                    'remarks' => $stData['remarks'] ?? null,
+                ]);
+            }
+        }
+
+        // Handle permissions assignment
+        if ($request->has('permissions') && is_array($request->permissions)) {
+            foreach ($request->permissions as $perm) {
+                $task->permissions()->create([
+                    'role_id' => $perm['role_id'],
+                    'can_read' => $perm['can_read'] ?? false,
+                    'can_write' => $perm['can_write'] ?? false,
+                    'can_delete' => $perm['can_delete'] ?? false,
+                ]);
+            }
+        }
+
+        TaskLog::create([
+            'task_id' => $task->id,
+            'changed_by' => $user->id,
+            'old_status' => null,
+            'new_status' => TaskStatus::Pending->value,
+            'remarks' => 'Task created with ' . count($request->subtasks ?? []) . ' assigned subtasks.',
         ]);
 
         return response()->json([
             'message' => 'Task created successfully.',
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo'])),
+            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role'])),
         ], 201);
     }
 
@@ -292,10 +361,50 @@ class TaskController extends Controller
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role'])),
         ]);
     }
-
     public function update(Request $request, Task $task): JsonResponse
     {
         $user = $request->user();
+        $user->loadMissing('specialPermissions');
+
+        // Check if attempting to update template/global settings
+        $isUpdatingTemplate = false;
+        if ($request->has('form_name') && $request->input('form_name') !== $task->form_name) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('work_type_id') && $request->input('work_type_id') !== $task->work_type_id) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('allow_attachments') && $request->input('allow_attachments') !== $task->allow_attachments) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('allow_checklist') && $request->input('allow_checklist') !== $task->allow_checklist) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('allow_notes') && $request->input('allow_notes') !== $task->allow_notes) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('is_billable') && $request->input('is_billable') !== $task->is_billable) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('is_after_sales') && $request->input('is_after_sales') !== $task->is_after_sales) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('allow_duplicate_clients') && $request->input('allow_duplicate_clients') !== $task->allow_duplicate_clients) {
+            $isUpdatingTemplate = true;
+        }
+        if ($request->has('dynamic_fields.schema')) {
+            $newSchema = $request->input('dynamic_fields.schema');
+            $oldSchema = is_array($task->dynamic_fields) && isset($task->dynamic_fields['schema']) ? $task->dynamic_fields['schema'] : null;
+            if (json_encode($newSchema) !== json_encode($oldSchema)) {
+                $isUpdatingTemplate = true;
+            }
+        }
+
+        if ($isUpdatingTemplate) {
+            if (!$user->specialPermissions || !$user->specialPermissions->edit_sheet) {
+                return response()->json(['message' => 'You do not have permission to update the template or global settings of this sheet.'], 403);
+            }
+        }
 
         $perms = (new TaskResource($task))->getUserPermissions($user);
 
@@ -408,6 +517,20 @@ class TaskController extends Controller
 
         $task->update($validated);
 
+        if ($request->has('permissions')) {
+            $task->permissions()->delete();
+            if (is_array($request->permissions)) {
+                foreach ($request->permissions as $perm) {
+                    $task->permissions()->create([
+                        'role_id' => $perm['role_id'],
+                        'can_read' => $perm['can_read'] ?? false,
+                        'can_write' => $perm['can_write'] ?? false,
+                        'can_delete' => $perm['can_delete'] ?? false,
+                    ]);
+                }
+            }
+        }
+
         if (isset($validated['status']) && $task->status !== $oldStatus) {
             TaskLog::create([
                 'task_id' => $task->id,
@@ -422,6 +545,25 @@ class TaskController extends Controller
             'message' => 'Task updated successfully.',
             'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo'])),
         ]);
+    }
+
+    public function destroy(Request $request, Task $task): JsonResponse
+    {
+        $user = $request->user();
+        $user->loadMissing('specialPermissions');
+
+        if (!$user->specialPermissions || !$user->specialPermissions->delete_sheet) {
+            return response()->json(['message' => 'You do not have permission to delete this sheet.'], 403);
+        }
+
+        if (!self::doesUserHaveAccessToTask($task, $user)) {
+            return response()->json(['message' => 'You do not have access to this task.'], 403);
+        }
+
+        $task->subTasks()->delete();
+        $task->delete();
+
+        return response()->json(['message' => 'Task deleted successfully.']);
     }
 
     public function uploadFile(Request $request): JsonResponse
