@@ -48,7 +48,7 @@ const parseTime24Hour = (time12) => {
     return `${String(hours).padStart(2, '0')}:${minutes}`
 }
 
-function TimePicker12Hour({ value, onChange, label, className = "", position = "bottom" }) {
+function TimePicker12Hour({ value, onChange, label, className = "", position = "bottom", disabled = false }) {
     // Parse initial value (24h format e.g., "14:30")
     const getInitialState = (val) => {
         if (!val) return { h: '', m: '', a: 'AM' };
@@ -139,9 +139,10 @@ function TimePicker12Hour({ value, onChange, label, className = "", position = "
                         type="text"
                         placeholder="12"
                         value={state.h}
+                        disabled={disabled}
                         onChange={handleHour}
                         onBlur={handleBlurHour}
-                        className="w-7 text-center bg-transparent text-sm font-semibold focus:outline-none focus:bg-gray-200 rounded"
+                        className="w-7 text-center bg-transparent text-sm font-semibold focus:outline-none focus:bg-gray-200 rounded disabled:opacity-60"
                         style={className.includes('!py-1') ? { fontSize: '12px' } : {}}
                     />
                     <span className="font-bold text-gray-400 mx-0.5">:</span>
@@ -149,16 +150,18 @@ function TimePicker12Hour({ value, onChange, label, className = "", position = "
                         type="text"
                         placeholder="00"
                         value={state.m}
+                        disabled={disabled}
                         onChange={handleMinute}
                         onBlur={handleBlurMinute}
-                        className="w-7 text-center bg-transparent text-sm font-semibold focus:outline-none focus:bg-gray-200 rounded"
+                        className="w-7 text-center bg-transparent text-sm font-semibold focus:outline-none focus:bg-gray-200 rounded disabled:opacity-60"
                         style={className.includes('!py-1') ? { fontSize: '12px' } : {}}
                     />
                 </div>
                 <select
                     value={state.a}
+                    disabled={disabled}
                     onChange={handleAmpm}
-                    className="bg-transparent border-l border-gray-200 px-1 py-2 text-sm font-bold text-gray-600 focus:outline-none cursor-pointer hover:bg-gray-100 transition rounded-r-xl"
+                    className="bg-transparent border-l border-gray-200 px-1 py-2 text-sm font-bold text-gray-600 focus:outline-none cursor-pointer hover:bg-gray-100 transition rounded-r-xl disabled:opacity-60"
                     style={className.includes('!py-1') ? { padding: '4px 4px', fontSize: '11px' } : {}}
                 >
                     <option value="AM">AM</option>
@@ -686,6 +689,7 @@ export default function TeamReportPage() {
 
     // Modals
     const [logModalOpen, setLogModalOpen] = useState(false)
+    const [isViewOnly, setIsViewOnly] = useState(false)
     const [reviewModalOpen, setReviewModalOpen] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [newClientModalOpen, setNewClientModalOpen] = useState(false)
@@ -900,6 +904,7 @@ export default function TeamReportPage() {
     }
 
     const openCreateModal = () => {
+        setIsViewOnly(false)
         setSelectedReport(null)
         setIsManualClient(false)
         setLogForm({
@@ -924,6 +929,7 @@ export default function TeamReportPage() {
     }
 
     const openEditModal = (report) => {
+        setIsViewOnly(false)
         setSelectedReport(report)
         setIsManualClient(!!report.client_name_custom)
         setLogForm({
@@ -945,6 +951,43 @@ export default function TeamReportPage() {
         })
         setFormErrors({})
         setLogModalOpen(true)
+    }
+
+    const openViewModal = (report) => {
+        openEditModal(report)
+        setIsViewOnly(true)
+    }
+
+    const handleDuplicateLog = async (report) => {
+        if (!report) return
+        setSaving(true)
+        try {
+            const payload = {
+                date: report.date,
+                main_task: report.main_task,
+                sub_task: report.sub_task,
+                duration: report.duration,
+                start_time: report.start_time,
+                end_time: report.end_time,
+                client_id: report.client_id || null,
+                client_name_custom: report.client_name_custom || '',
+                sub_task_description: report.sub_task_description || '',
+                status: report.status,
+                pct_completion: report.pct_completion,
+                final_remark: report.final_remark || '',
+                user_id: report.user_id,
+                ca_review: report.ca_review || '',
+                ca_remark: report.ca_remark || ''
+            }
+            await api.post('/daily-reports', payload)
+            toast.success('Log duplicated successfully!')
+            fetchReports()
+        } catch (e) {
+            console.error(e)
+            toast.error(e.response?.data?.message || 'Failed to duplicate log')
+        } finally {
+            setSaving(false)
+        }
     }
 
     const handleSaveLog = async (e) => {
@@ -1587,52 +1630,52 @@ export default function TeamReportPage() {
             )}
 
             {/* Premium Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-gradient-to-br from-white to-blue-50/20 p-4 rounded-2xl border border-blue-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-blue-100 transition-all duration-200">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1F5C99] to-[#3b82f6] text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <Clock size={20} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <div className="bg-gradient-to-br from-white to-blue-50/20 px-3 py-2 rounded-xl border border-blue-100/50 shadow-sm flex items-center justify-between gap-3 hover:shadow hover:border-blue-100 transition-all duration-200">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-[#1F5C99] to-[#3b82f6] text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <Clock size={12} />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Hours</span>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Hours Logged</p>
-                        <p className="text-xl font-bold text-gray-900 mt-0.5">{totalHours.toFixed(1)} hrs</p>
-                    </div>
+                    <span className="text-xs font-black text-gray-900">{totalHours.toFixed(1)} hrs</span>
                 </div>
 
-                <div className="bg-gradient-to-br from-white to-emerald-50/20 p-4 rounded-2xl border border-emerald-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-emerald-100 transition-all duration-200">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <CheckSquare size={20} />
+                <div className="bg-gradient-to-br from-white to-emerald-50/20 px-3 py-2 rounded-xl border border-emerald-100/50 shadow-sm flex items-center justify-between gap-3 hover:shadow hover:border-emerald-100 transition-all duration-200">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-emerald-500 to-teal-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <CheckSquare size={12} />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Logged Activities</span>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Logged Activities</p>
-                        <p className="text-xl font-bold text-gray-900 mt-0.5">{displayedReports.length}</p>
-                    </div>
+                    <span className="text-xs font-black text-gray-900">{displayedReports.length}</span>
                 </div>
 
-                <div className="bg-gradient-to-br from-white to-amber-50/20 p-4 rounded-2xl border border-amber-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-amber-100 transition-all duration-200">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <UserCheck size={20} />
+                <div className="bg-gradient-to-br from-white to-amber-50/20 px-3 py-2 rounded-xl border border-amber-100/50 shadow-sm flex items-center justify-between gap-3 hover:shadow hover:border-amber-100 transition-all duration-200">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <UserCheck size={12} />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pending Reviews</span>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Reviews</p>
-                        <p className="text-xl font-bold text-gray-900 mt-0.5">{pendingReviews}</p>
-                    </div>
+                    <span className="text-xs font-black text-gray-900">{pendingReviews}</span>
                 </div>
 
-                <div className="bg-gradient-to-br from-white to-[#F9F7FC] p-4 rounded-2xl border border-purple-100/50 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-purple-100 transition-all duration-200">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <Briefcase size={20} />
+                <div className="bg-gradient-to-br from-white to-[#F9F7FC] px-3 py-2 rounded-xl border border-purple-100/50 shadow-sm flex items-center justify-between gap-3 hover:shadow hover:border-purple-100 transition-all duration-200">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-indigo-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <Briefcase size={12} />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Avg Completion</span>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Avg Completion %</p>
-                        <p className="text-xl font-bold text-gray-900 mt-0.5">{completionAvg}%</p>
-                    </div>
+                    <span className="text-xs font-black text-gray-900">{completionAvg}%</span>
                 </div>
             </div>
 
             {/* Interactive Status Cards Grid */}
-            <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-slate-650 uppercase tracking-wider px-1">Filter by Status</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2">
+            <div className="space-y-2">
+                <p className="text-[10px] font-extrabold text-slate-650 uppercase tracking-wider px-1">Filter by Status</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {[
                         {
                             status: '',
@@ -1664,16 +1707,16 @@ export default function TeamReportPage() {
                             key={c.status}
                             type="button"
                             onClick={() => setFilterStatus(c.status)}
-                            className={`flex items-center justify-between px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-sm ${filterStatus === c.status
-                                ? `${c.activeBorder} ${c.activeBg} ring-1 ${c.ring} font-bold`
-                                : 'bg-white border-slate-200 hover:border-slate-350 hover:shadow'
+                            className={`flex flex-col items-stretch justify-between p-3.5 rounded-2xl border transition-all duration-150 shadow-sm hover:shadow-md cursor-pointer text-left ${filterStatus === c.status
+                                ? `${c.activeBorder} ${c.activeBg} ring-2 ${c.ring} font-bold`
+                                : 'bg-white border-slate-200 hover:border-slate-350'
                                 }`}
                         >
-                            <div className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${c.colorClass} shadow-sm`}></span>
-                                <span className="text-[10px] font-bold text-slate-750 uppercase tracking-wider">{c.label}</span>
+                            <span className={`text-2xl font-black mb-1.5 ${c.textClass}`}>{c.count}</span>
+                            <div className="flex items-center gap-1.5 border-t border-gray-100/70 pt-1.5">
+                                <span className={`w-2.5 h-2.5 rounded-full ${c.colorClass} shadow-sm shrink-0`}></span>
+                                <span className="text-[10px] font-extrabold text-slate-750 uppercase tracking-wider leading-tight">{c.label}</span>
                             </div>
-                            <span className={`text-xs font-extrabold ${c.textClass}`}>{c.count}</span>
                         </button>
                     ))}
                 </div>
@@ -2222,11 +2265,19 @@ export default function TeamReportPage() {
                                                             <>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => openEditModal(report)}
-                                                                    className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-100/40 text-blue-600 hover:bg-blue-100 hover:text-blue-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
-                                                                    title="Edit Daily Work Log"
+                                                                    onClick={() => openViewModal(report)}
+                                                                    className="p-1.5 rounded-lg bg-indigo-50/70 border border-indigo-100/40 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                                    title="View Daily Work Log"
                                                                 >
-                                                                    <Edit3 size={15} />
+                                                                    <Eye size={15} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDuplicateLog(report)}
+                                                                    className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                                                                    title="Duplicate Daily Work Log"
+                                                                >
+                                                                    <Copy size={15} />
                                                                 </button>
                                                                 <button
                                                                     type="button"
@@ -2470,7 +2521,7 @@ export default function TeamReportPage() {
             <Modal
                 open={logModalOpen}
                 onClose={() => setLogModalOpen(false)}
-                title={selectedReport ? "Update Daily Progress Log" : "Log Daily Work Progress Activity"}
+                title={selectedReport ? (isViewOnly ? "View Daily Progress Log" : "Update Daily Progress Log") : "Log Daily Work Progress Activity"}
                 width="max-w-2xl"
             >
                 <form onSubmit={handleSaveLog} className="space-y-5">
@@ -2482,8 +2533,9 @@ export default function TeamReportPage() {
                                 type="date"
                                 name="date"
                                 value={logForm.date}
+                                disabled={isViewOnly}
                                 onChange={handleLogFormChange}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
+                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold disabled:opacity-60"
                                 required
                             />
                             {formErrors.date && <p className="text-xs text-red-500 mt-1">{formErrors.date[0]}</p>}
@@ -2496,8 +2548,9 @@ export default function TeamReportPage() {
                                 <select
                                     name="user_id"
                                     value={logForm.user_id}
+                                    disabled={isViewOnly}
                                     onChange={handleLogFormChange}
-                                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
+                                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold disabled:opacity-60"
                                     required
                                 >
                                     <option value={user?.id}>{user?.role === 'ca' ? `${user?.name} (Admin / Me)` : `${user?.name} (Me)`}</option>
@@ -2516,17 +2569,20 @@ export default function TeamReportPage() {
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Main Task / Work Type</label>
-                                <button
-                                    type="button"
-                                    onClick={() => setNewWorkTypeModalOpen(true)}
-                                    className="text-[10px] font-bold text-[#1F5C99] hover:underline"
-                                >
-                                    + Add New Work Type
-                                </button>
+                                {!isViewOnly && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewWorkTypeModalOpen(true)}
+                                        className="text-[10px] font-bold text-[#1F5C99] hover:underline"
+                                    >
+                                        + Add New Work Type
+                                    </button>
+                                )}
                             </div>
                             <select
                                 name="main_task"
                                 value={logForm.main_task}
+                                disabled={isViewOnly}
                                 onChange={e => {
                                     if (e.target.value === 'ADD_NEW') {
                                         setNewWorkTypeModalOpen(true)
@@ -2534,7 +2590,7 @@ export default function TeamReportPage() {
                                         handleLogFormChange(e)
                                     }
                                 }}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold disabled:opacity-60"
                                 required
                             >
                                 <option value="">Select Main Task</option>
@@ -2554,8 +2610,9 @@ export default function TeamReportPage() {
                                 name="sub_task"
                                 placeholder="e.g. MCA Search, Audit preparation"
                                 value={logForm.sub_task}
+                                disabled={isViewOnly}
                                 onChange={handleLogFormChange}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold disabled:opacity-60"
                                 required
                             />
                             {formErrors.sub_task && <p className="text-xs text-red-500 mt-1">{formErrors.sub_task[0]}</p>}
@@ -2567,6 +2624,7 @@ export default function TeamReportPage() {
                             <select
                                 name="duration"
                                 value={logForm.duration}
+                                disabled={isViewOnly}
                                 onChange={e => {
                                     if (e.target.value === 'ADD_NEW') {
                                         const custom = prompt('Enter custom duration label (e.g. Full Day, 4 Hours, etc.):')
@@ -2579,7 +2637,7 @@ export default function TeamReportPage() {
                                         handleLogFormChange(e)
                                     }
                                 }}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold disabled:opacity-60"
                             >
                                 {combinedDurations.map(d => (
                                     <option key={d.value} value={d.value}>{d.label}</option>
@@ -2592,11 +2650,13 @@ export default function TeamReportPage() {
                         <div className="grid grid-cols-2 gap-4 md:col-span-2">
                             <TimePicker12Hour
                                 value={logForm.start_time}
+                                disabled={isViewOnly}
                                 onChange={val => setLogForm(prev => ({ ...prev, start_time: val }))}
                                 label="Start Time"
                             />
                             <TimePicker12Hour
                                 value={logForm.end_time}
+                                disabled={isViewOnly}
                                 onChange={val => setLogForm(prev => ({ ...prev, end_time: val }))}
                                 label="End Time"
                             />
@@ -2613,25 +2673,27 @@ export default function TeamReportPage() {
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                                     Name of Client <span className="text-gray-300 font-normal">(Optional)</span>
                                 </label>
-                                <div className="flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setNewClientModalOpen(true)}
-                                        className="text-[10px] font-bold text-[#1F5C99] hover:underline"
-                                    >
-                                        + Register New Client
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsManualClient(!isManualClient)
-                                            setLogForm(prev => ({ ...prev, client_id: '', client_name_custom: '' }))
-                                        }}
-                                        className="text-[10px] font-bold text-slate-400 hover:text-slate-600 underline"
-                                    >
-                                        {isManualClient ? 'Choose from registry' : 'Type manual text instead'}
-                                    </button>
-                                </div>
+                                {!isViewOnly && (
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewClientModalOpen(true)}
+                                            className="text-[10px] font-bold text-[#1F5C99] hover:underline"
+                                        >
+                                            + Register New Client
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsManualClient(!isManualClient)
+                                                setLogForm(prev => ({ ...prev, client_id: '', client_name_custom: '' }))
+                                            }}
+                                            className="text-[10px] font-bold text-slate-400 hover:text-slate-650 underline"
+                                        >
+                                            {isManualClient ? 'Choose from registry' : 'Type manual text instead'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {isManualClient ? (
@@ -2640,12 +2702,14 @@ export default function TeamReportPage() {
                                     name="client_name_custom"
                                     placeholder="Enter client name as text..."
                                     value={logForm.client_name_custom}
+                                    disabled={isViewOnly}
                                     onChange={handleLogFormChange}
-                                    className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold"
+                                    className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition font-semibold disabled:opacity-60"
                                 />
                             ) : (
                                 <SearchableSelect
                                     value={logForm.client_id}
+                                    disabled={isViewOnly}
                                     options={clients.map(c => ({ value: c.id, label: c.name }))}
                                     placeholder="Select Client (Optional)"
                                     onChange={val => setLogForm(prev => ({ ...prev, client_id: val }))}
@@ -2661,8 +2725,9 @@ export default function TeamReportPage() {
                             <select
                                 name="status"
                                 value={logForm.status}
+                                disabled={isViewOnly}
                                 onChange={handleLogFormChange}
-                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold"
+                                className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition text-gray-700 font-semibold disabled:opacity-60"
                                 required
                             >
                                 {STATUS_OPTIONS.map(s => (
@@ -2684,8 +2749,9 @@ export default function TeamReportPage() {
                                     max="100"
                                     step="5"
                                     value={logForm.pct_completion}
+                                    disabled={isViewOnly}
                                     onChange={handleLogFormChange}
-                                    className="w-full accent-[#0f1c2e] cursor-pointer"
+                                    className="w-full accent-[#0f1c2e] cursor-pointer disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -2698,8 +2764,9 @@ export default function TeamReportPage() {
                                 rows={2}
                                 placeholder="Describe details of the task performed..."
                                 value={logForm.sub_task_description}
+                                disabled={isViewOnly}
                                 onChange={handleLogFormChange}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20"
+                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 disabled:opacity-60"
                             />
                         </div>
 
@@ -2711,8 +2778,9 @@ export default function TeamReportPage() {
                                 rows={2}
                                 placeholder="Any additional notes or problems faced..."
                                 value={logForm.final_remark}
+                                disabled={isViewOnly}
                                 onChange={handleLogFormChange}
-                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2"
+                                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 disabled:opacity-60"
                             />
                         </div>
 
@@ -2724,6 +2792,7 @@ export default function TeamReportPage() {
                                     <select
                                         name="ca_review"
                                         value={logForm.ca_review}
+                                        disabled={isViewOnly}
                                         onChange={e => {
                                             if (e.target.value === 'ADD_NEW') {
                                                 handleAddCustomReview(logForm.ca_review, val => setLogForm(prev => ({ ...prev, ca_review: val })))
@@ -2731,7 +2800,7 @@ export default function TeamReportPage() {
                                                 handleLogFormChange(e)
                                             }
                                         }}
-                                        className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 text-gray-700 font-semibold"
+                                        className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 text-gray-700 font-semibold disabled:opacity-60"
                                     >
                                         <option value="">Awaiting Review</option>
                                         {combinedReviewOptions.map(r => (
@@ -2748,32 +2817,52 @@ export default function TeamReportPage() {
                                         rows={2}
                                         placeholder="Admin feedback or remarks regarding the work quality..."
                                         value={logForm.ca_remark}
+                                        disabled={isViewOnly}
                                         onChange={handleLogFormChange}
-                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2"
+                                        className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 disabled:opacity-60"
                                     />
                                 </div>
                             </>
                         )}
                     </div>
 
-
-
                     {/* Buttons */}
                     <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
-                        <button
-                            type="button"
-                            onClick={() => setLogModalOpen(false)}
-                            className="px-5 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-bold transition"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className="px-6 py-2 text-sm bg-[#0f1c2e] hover:bg-[#1c324e] text-white rounded-xl font-bold transition disabled:opacity-50"
-                        >
-                            {saving ? 'Saving...' : 'Save Log'}
-                        </button>
+                        {isViewOnly ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setLogModalOpen(false)}
+                                    className="px-5 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-bold transition cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsViewOnly(false)}
+                                    className="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-blue-100/50 border border-blue-600"
+                                >
+                                    <Edit3 size={13} /> Edit
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setLogModalOpen(false)}
+                                    className="px-5 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 font-bold transition cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="px-6 py-2 text-sm bg-[#0f1c2e] hover:bg-[#1c324e] text-white rounded-xl font-bold transition disabled:opacity-50 cursor-pointer"
+                                >
+                                    {saving ? 'Saving...' : 'Save Log'}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </form>
             </Modal>

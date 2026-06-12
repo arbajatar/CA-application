@@ -161,7 +161,7 @@ class DailyWorkReportController extends Controller
         $validated['hours_taken'] = $hours;
 
         if (!$isActualCA) {
-            $validated['user_id'] = $user->id;
+            $validated['user_id'] = $request->input('user_id') ?? $user->id;
         }
 
         $report = DailyWorkReport::create($validated);
