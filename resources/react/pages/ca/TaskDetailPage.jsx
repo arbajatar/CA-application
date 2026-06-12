@@ -1370,16 +1370,25 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 const clientName = clientObj?.name || 'N/A';
                 const clientPan = clientObj?.pan_no || 'N/A';
                 const workTypeName = workTypes.find(w => w.id === r.work_type_id || w.id === task.work_type?.id)?.name || 'N/A';
-                const getAssignedToName = (val) => {
-                    if (!val) return null;
-                    const idToFind = typeof val === 'object' ? val.id : val;
-                    if (!idToFind) return null;
-                    return staff.find(s => String(s.id) === String(idToFind))?.name || null;
-                };
-                const hasExplicitAllocation = r.allocated_to !== undefined && r.allocated_to !== null && r.allocated_to !== '';
-                const assignedToName = hasExplicitAllocation
-                    ? (getAssignedToName(r.allocated_to) || 'Unassigned')
-                    : (getAssignedToName(task.allocated_to) || 'Unassigned');
+                const allocType = r.allocated_type || 'user';
+                let assignedToName = 'Unassigned';
+                if (allocType === 'user' && r.allocated_to) {
+                    const idToFind = typeof r.allocated_to === 'object' ? r.allocated_to.id : r.allocated_to;
+                    const sMember = staff.find(s => String(s.id) === String(idToFind));
+                    assignedToName = sMember ? sMember.name : 'Unassigned';
+                } else if (allocType === 'users' && Array.isArray(r.allocated_to)) {
+                    const names = r.allocated_to
+                        .map(id => {
+                            const idToFind = typeof id === 'object' ? id.id : id;
+                            return staff.find(s => String(s.id) === String(idToFind))?.name;
+                        })
+                        .filter(Boolean);
+                    assignedToName = names.length > 0 ? names.join(', ') : 'Unassigned';
+                } else if (allocType === 'role' && r.allocated_to) {
+                    const idToFind = typeof r.allocated_to === 'object' ? r.allocated_to.id : r.allocated_to;
+                    const roleObj = availableRoles.find(role => String(role.id) === String(idToFind));
+                    assignedToName = roleObj ? `Dept: ${roleObj.name}` : 'Unassigned';
+                }
                 const dynamicData = r.dynamic_data || {};
 
                 return [

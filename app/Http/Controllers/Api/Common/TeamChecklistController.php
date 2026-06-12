@@ -17,7 +17,7 @@ class TeamChecklistController extends Controller
 
         $query = TeamChecklist::query();
 
-        if ($user && $user->role === 'staff') {
+        if ($user && $user->role === \App\Enums\UserRole::Staff) {
             // Staff can see notes belonging to them OR assigned to them
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)

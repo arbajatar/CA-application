@@ -118,7 +118,7 @@ class DailyWorkReportController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        $isActualCA = $user->role === 'ca';
+        $isActualCA = $user->role === \App\Enums\UserRole::CA;
 
         $rules = [
             'date' => 'required|date',
@@ -179,7 +179,7 @@ class DailyWorkReportController extends Controller
     {
         $user = $request->user();
         $isCA = true; // Both CA and Staff get the same view/privileges
-        $isActualCA = $user->role === 'ca';
+        $isActualCA = $user->role === \App\Enums\UserRole::CA;
 
         $report = DailyWorkReport::findOrFail($id);
 
@@ -240,7 +240,7 @@ class DailyWorkReportController extends Controller
     public function destroy(Request $request, $id): JsonResponse
     {
         $user = $request->user();
-        $isActualCA = $user->role === 'ca';
+        $isActualCA = $user->role === \App\Enums\UserRole::CA;
 
         $report = DailyWorkReport::findOrFail($id);
 
