@@ -339,6 +339,20 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     // Multi-row state
     const [formName, setFormName] = useState('');
     const [rows, setRows] = useState([]);
+    const clientOptions = useMemo(() => {
+        return (clients || []).map(c => ({
+            value: c.id,
+            label: c.name
+        }));
+    }, [clients]);
+
+    const workTypeOptions = useMemo(() => {
+        return (workTypes || []).map(w => ({
+            value: w.id,
+            label: w.name
+        }));
+    }, [workTypes]);
+
     const duplicateClientIds = useMemo(() => {
         if (allowDuplicateClients) return [];
         // Find duplicate client IDs
@@ -372,10 +386,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [customColumnOrder, setCustomColumnOrder] = useState(null);
     const [draggedColumnIndex, setDraggedColumnIndex] = useState(null);
     const [dragOverColumnIndex, setDragOverColumnIndex] = useState(null);
-    const [sortField, setSortField] = useState(null);
+        const [sortField, setSortField] = useState(null);
     const [sortDirection, setSortDirection] = useState('default'); // 'default' | 'asc' | 'desc'
     const [dynamicFilters, setDynamicFilters] = useState({});
     const [showColumnFilters, setShowColumnFilters] = useState(false);
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedStatusFilter, selectedSubStatusFilter, sheetSearch, sheetStatusFilter, sheetWorkTypeFilter, dynamicFilters]);
+
 
     const handleSort = (fieldId) => {
         if (sortField !== fieldId) {
@@ -635,6 +657,64 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }
     };
 
+    const renderCurrencyCell = (row, originalIndex, field, isRowEditable) => {
+        let finalVal = row.dynamic_data?.[field.label] ?? '';
+        const isReadOnly = field.readOnly;
+        if (isReadOnly && field.label === 'BALANCE AMOUNT') {
+            const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+            const total = parseAmt(row.dynamic_data?.['TOTAL INVOICE AMOUNT']);
+            const p1 = parseAmt(row.dynamic_data?.['PAYMENT-1']);
+            const p2 = parseAmt(row.dynamic_data?.['PAYMENT-2']);
+            const p3 = parseAmt(row.dynamic_data?.['PAYMENT-3']);
+            const balance = total - (p1 + p2 + p3);
+            finalVal = formatIndianCurrencyWithDecimals(balance.toString());
+        }
+
+        if (isRowEditable && !isReadOnly) {
+            return (
+                <input
+                    type="text"
+                    value={finalVal}
+                    disabled={!isRowEditable || isReadOnly}
+                    onChange={(e) => {
+                        if (isReadOnly) return;
+                        const formatted = formatIndianCurrency(e.target.value);
+                        const newRows = [...rows];
+                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                        newRows[originalIndex].dynamic_data[field.label] = formatted;
+                        setRows(newRows);
+                    }}
+                    onBlur={(e) => {
+                        if (isReadOnly) return;
+                        const formattedBlur = formatIndianCurrencyWithDecimals(e.target.value);
+                        const newRows = [...rows];
+                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                        newRows[originalIndex].dynamic_data[field.label] = formattedBlur;
+                        
+                        // Also update balance amount dynamically if total or payments changed
+                        const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+                        const total = parseAmt(newRows[originalIndex].dynamic_data?.['TOTAL INVOICE AMOUNT']);
+                        const p1 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-1']);
+                        const p2 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-2']);
+                        const p3 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-3']);
+                        const balance = total - (p1 + p2 + p3);
+                        newRows[originalIndex].dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
+                        
+                        setRows(newRows);
+                    }}
+                    placeholder={field.placeholder || "0.00"}
+                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                />
+            );
+        } else {
+            return (
+                <div className={`flex items-center min-h-[38px] px-2.5 py-1.5 text-xs font-semibold leading-tight ${isReadOnly ? 'text-indigo-700 font-extrabold' : 'text-slate-900 font-semibold'}`}>
+                    {finalVal || '—'}
+                </div>
+            );
+        }
+    };
+
     const startAddingField = (fieldType) => {
         const baseName = `New ${fieldType.name}`;
         let label = baseName;
@@ -774,7 +854,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 date_allocated: firstRow.date_allocated || task.date_allocated || null,
                 form_name: firstRow.form_name || task.form_name || '',
                 status: task.status,
-                dynamic_fields: nextDynamicFields
+                dynamic_fields: nextDynamicFields,
+                last_updated_at: task.updated_at
             };
 
             const res = await api.patch(`${apiPrefix}/tasks/${id}`, payload);
@@ -836,6 +917,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         } catch (e) {
             console.error(e);
             let msg = e.response?.data?.message || 'Failed to save row changes';
+            if (e.response?.status === 409) {
+                toast.error(msg, { duration: 8000 });
+                return;
+            }
             if (msg.includes('SQLSTATE') || msg.includes('Integrity constraint violation')) {
                 msg = 'A database error occurred. Please ensure all required fields are filled correctly.';
             }
@@ -2260,6 +2345,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         })
         : filteredRows;
 
+    const totalPages = Math.ceil(sortedRows.length / (rowsPerPage === 'All' ? sortedRows.length || 1 : rowsPerPage));
+    const safeCurrentPage = Math.min(currentPage, totalPages || 1);
+
+    const paginatedRows = rowsPerPage === 'All' 
+        ? sortedRows 
+        : sortedRows.slice((safeCurrentPage - 1) * rowsPerPage, (safeCurrentPage - 1) * rowsPerPage + rowsPerPage);
+
     return (
         <div className="space-y-6 max-w-[100vw] pb-12 relative">
             <style dangerouslySetInnerHTML={{__html: `
@@ -2407,6 +2499,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 />
                                             </label>
                                         </>
+                                    )}
+                                    {isAdmin && (
+                                        <Link 
+                                            to={`/logs?task_id=${id}`}
+                                            className="flex items-center gap-1.5 text-slate-755 bg-slate-50/75 hover:bg-slate-100/80 border border-slate-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
+                                        >
+                                            <Clock size={12} className="text-[#1F5C99]" />
+                                            <span>View Logs</span>
+                                        </Link>
                                     )}
                                     {(!isStaff || user?.special_permissions?.edit_sheet) && (
                                         <>
@@ -3133,9 +3234,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     </td>
                                 </tr>
                             ) : (
-                                sortedRows.map((row, idx) => {
+                                paginatedRows.map((row, idx) => {
                                     const originalIndex = rows.indexOf(row);
                                     if (originalIndex === -1) return null;
+
+                                    const globalIndex = rowsPerPage === 'All' 
+                                        ? idx 
+                                        : (safeCurrentPage - 1) * rowsPerPage + idx;
 
                                     const hasSheetPermissions = Array.isArray(task?.permissions) && task.permissions.length > 0;
                                     const isRowLocked = !isAdmin && (
@@ -3154,32 +3259,36 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             {/* # column with hover delete */}
                                             <td className="px-2 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50 sticky left-0 z-20 w-[60px] min-w-[60px]">
                                                 <span>
-                                                    {String(idx + 1).padStart(2, '0')}
+                                                    {String(globalIndex + 1).padStart(2, '0')}
                                                 </span>
                                             </td>
 
                                             {activeColumns.map(col => {
                                                 if (col.id === 'client') {
                                                     const isDuplicate = !!row.client_id && duplicateClientIds.includes(row.client_id);
+                                                    const clientObj = clients.find(c => String(c.id) === String(row.client_id));
                                                     return (
                                                         <td key={col.id} className={`px-6 py-4 border-r border-b border-slate-350 min-w-[240px] sticky left-[60px] z-20 bg-white group-hover:bg-slate-200 transition ${isDuplicate ? '!bg-red-50/80 border-red-300' : ''}`}>
                                                             <div className="flex flex-col gap-1">
-                                                                <SearchableSelect
-                                                                    value={row.client_id || ''}
-                                                                    disabled={!isRowEditable}
-                                                                    options={clients.map(c => ({
-                                                                        value: c.id,
-                                                                        label: c.name
-                                                                    }))}
-                                                                    placeholder="Select Client..."
-                                                                    onChange={(val) => {
-                                                                        const newRows = [...rows];
-                                                                        newRows[originalIndex].client_id = val || null;
-                                                                        setRows(newRows);
-                                                                    }}
-                                                                    size="sm"
-                                                                    direction={originalIndex > 3 ? 'up' : 'down'}
-                                                                />
+                                                                {isRowEditable ? (
+                                                                    <SearchableSelect
+                                                                        value={row.client_id || ''}
+                                                                        disabled={!isRowEditable}
+                                                                        options={clientOptions}
+                                                                        placeholder="Select Client..."
+                                                                        onChange={(val) => {
+                                                                            const newRows = [...rows];
+                                                                            newRows[originalIndex].client_id = val || null;
+                                                                            setRows(newRows);
+                                                                        }}
+                                                                        size="sm"
+                                                                        direction={originalIndex > 3 ? 'up' : 'down'}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="flex items-center min-h-[38px] px-4 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                        {clientObj ? clientObj.name : '—'}
+                                                                    </div>
+                                                                )}
                                                                 {isDuplicate && (
                                                                     <span className="text-[10px] font-bold text-red-600 animate-pulse mt-0.5">
                                                                         Same client can't be used
@@ -3201,22 +3310,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 }
 
                                                 if (col.id === 'work_type') {
+                                                    const wtObj = workTypes.find(w => String(w.id) === String(row.work_type_id));
                                                     return (
-                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
-                                                            <select
-                                                                disabled={!isRowEditable}
-                                                                value={row.work_type_id || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].work_type_id = val || null;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            >
-                                                                <option value="">— Select Work Type —</option>
-                                                                {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                                            </select>
+                                                        <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 min-w-[240px]">
+                                                            {isRowEditable ? (
+                                                                <SearchableSelect
+                                                                    value={row.work_type_id || ''}
+                                                                    disabled={!isRowEditable}
+                                                                    options={workTypeOptions}
+                                                                    placeholder="Select Work Type..."
+                                                                    onChange={(val) => {
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].work_type_id = val || null;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    size="sm"
+                                                                    direction={originalIndex > 3 ? 'up' : 'down'}
+                                                                />
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-4 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                    {wtObj ? wtObj.name : '—'}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     );
                                                 }
@@ -3251,48 +3366,68 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 if (col.id === 'date_allocated') {
                                                     return (
                                                         <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
-                                                            <input
-                                                                type="date"
-                                                                disabled={!isRowEditable}
-                                                                value={row.date_allocated || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].date_allocated = val;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                onFocus={(e) => setFocusedValue(e.target.value)}
-                                                                onBlur={(e) => {
-                                                                    // No auto-save on blur
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            />
+                                                            {isRowEditable ? (
+                                                                <input
+                                                                    type="date"
+                                                                    disabled={!isRowEditable}
+                                                                    value={row.date_allocated || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].date_allocated = val;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    onFocus={(e) => setFocusedValue(e.target.value)}
+                                                                    onBlur={(e) => {
+                                                                        // No auto-save on blur
+                                                                    }}
+                                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                    {row.date_allocated ? formatDate(row.date_allocated) : '—'}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     );
                                                 }
 
                                                 if (col.id === 'status') {
+                                                    const statusLabelMap = {
+                                                        complete: 'Complete',
+                                                        work_in_progress: 'Work In Progress',
+                                                        pending: 'Pending',
+                                                        assigned: 'Assigned',
+                                                        not_to_be_done: 'Not To Be Done',
+                                                        other: 'Other'
+                                                    };
                                                     return (
                                                         <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
-                                                            <select
-                                                                disabled={!isRowEditable}
-                                                                value={row.status || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].status = val;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            >
-                                                                <option value="">— Select Status —</option>
-                                                                <option value="assigned">Assigned</option>
-                                                                <option value="complete">Complete</option>
-                                                                <option value="work_in_progress">Work In Progress</option>
-                                                                <option value="pending">Pending</option>
-                                                                <option value="not_to_be_done">Not To Be Done</option>
-                                                                <option value="other">Other</option>
-                                                            </select>
+                                                            {isRowEditable ? (
+                                                                <select
+                                                                    disabled={!isRowEditable}
+                                                                    value={row.status || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].status = val;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer capitalize w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                >
+                                                                    <option value="">— Select Status —</option>
+                                                                    <option value="assigned">Assigned</option>
+                                                                    <option value="complete">Complete</option>
+                                                                    <option value="work_in_progress">Work In Progress</option>
+                                                                    <option value="pending">Pending</option>
+                                                                    <option value="not_to_be_done">Not To Be Done</option>
+                                                                    <option value="other">Other</option>
+                                                                </select>
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-tight capitalize">
+                                                                    {statusLabelMap[row.status] || row.status || '—'}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     );
                                                 }
@@ -3300,22 +3435,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 if (col.id === 'sub_status') {
                                                     return (
                                                         <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350">
-                                                            <select
-                                                                disabled={!isRowEditable}
-                                                                value={row.sub_status || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].sub_status = val || null;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            >
-                                                                <option value="">— Set Sub Status —</option>
-                                                                {getSubStatusOptions(task, schema).map((opt, i) => (
-                                                                    <option key={i} value={opt}>{opt}</option>
-                                                                ))}
-                                                            </select>
+                                                            {isRowEditable ? (
+                                                                <select
+                                                                    disabled={!isRowEditable}
+                                                                    value={row.sub_status || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].sub_status = val || null;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                >
+                                                                    <option value="">— Set Sub Status —</option>
+                                                                    {getSubStatusOptions(task, schema).map((opt, i) => (
+                                                                        <option key={i} value={opt}>{opt}</option>
+                                                                    ))}
+                                                                </select>
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                    {row.sub_status || '—'}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     );
                                                 }
@@ -3323,19 +3464,25 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 if (col.id === 'remarks') {
                                                     return (
                                                         <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350 min-w-[250px]">
-                                                            <textarea
-                                                                rows={1}
-                                                                disabled={!isRowEditable}
-                                                                value={row.remarks || ''}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    const newRows = [...rows];
-                                                                    newRows[originalIndex].remarks = val;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                placeholder="Enter remarks..."
-                                                                className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            />
+                                                            {isRowEditable ? (
+                                                                <textarea
+                                                                    rows={1}
+                                                                    disabled={!isRowEditable}
+                                                                    value={row.remarks || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const newRows = [...rows];
+                                                                        newRows[originalIndex].remarks = val;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    placeholder="Enter remarks..."
+                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 hover:border-slate-350 focus:border-slate-400 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-snug break-words whitespace-pre-wrap">
+                                                                    {row.remarks || '—'}
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     );
                                                 }
@@ -3830,123 +3977,105 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                 )}
                                                             </div>
                                                         ) : isDate ? (
-                                                            <input
-                                                                type="date"
-                                                                value={value || ''}
-                                                                disabled={!isRowEditable}
-                                                                onChange={(e) => {
-                                                                    const newRows = [...rows];
-                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                    newRows[originalIndex].dynamic_data[field.label] = e.target.value;
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            />
-                                                        ) : isTime ? (
-                                                            <TimePicker12Hour
-                                                                value={convertTo24Hour(value || '')}
-                                                                disabled={!isRowEditable}
-                                                                onChange={(val) => {
-                                                                    const newRows = [...rows];
-                                                                    if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                    newRows[originalIndex].dynamic_data[field.label] = convertTo12Hour(val);
-                                                                    setRows(newRows);
-                                                                }}
-                                                                className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                            />
-                                                        ) : isCurrency ? (
-                                                            (() => {
-                                                                let finalVal = value || '';
-                                                                const isReadOnly = field.readOnly;
-                                                                if (isReadOnly && field.label === 'BALANCE AMOUNT') {
-                                                                    const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
-                                                                    const total = parseAmt(row.dynamic_data?.['TOTAL INVOICE AMOUNT']);
-                                                                    const p1 = parseAmt(row.dynamic_data?.['PAYMENT-1']);
-                                                                    const p2 = parseAmt(row.dynamic_data?.['PAYMENT-2']);
-                                                                    const p3 = parseAmt(row.dynamic_data?.['PAYMENT-3']);
-                                                                    const balance = total - (p1 + p2 + p3);
-                                                                    finalVal = formatIndianCurrencyWithDecimals(balance.toString());
-                                                                }
-                                                                return (
-                                                                    <input
-                                                                        type="text"
-                                                                        value={finalVal}
-                                                                        disabled={!isRowEditable || isReadOnly}
-                                                                        onChange={(e) => {
-                                                                            if (isReadOnly) return;
-                                                                            const formatted = formatIndianCurrency(e.target.value);
-                                                                            const newRows = [...rows];
-                                                                            if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                            newRows[originalIndex].dynamic_data[field.label] = formatted;
-                                                                            setRows(newRows);
-                                                                        }}
-                                                                        onBlur={(e) => {
-                                                                            if (isReadOnly) return;
-                                                                            const formattedBlur = formatIndianCurrencyWithDecimals(e.target.value);
-                                                                            const newRows = [...rows];
-                                                                            if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                            newRows[originalIndex].dynamic_data[field.label] = formattedBlur;
-                                                                            
-                                                                            // Also update balance amount dynamically if total or payments changed
-                                                                            const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
-                                                                            const total = parseAmt(newRows[originalIndex].dynamic_data?.['TOTAL INVOICE AMOUNT']);
-                                                                            const p1 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-1']);
-                                                                            const p2 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-2']);
-                                                                            const p3 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-3']);
-                                                                            const balance = total - (p1 + p2 + p3);
-                                                                            newRows[originalIndex].dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
-                                                                            
-                                                                            setRows(newRows);
-                                                                        }}
-                                                                        placeholder={field.placeholder || "0.00"}
-                                                                        className={`bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed ${isReadOnly ? 'bg-slate-100 border-slate-200 font-extrabold text-indigo-700 cursor-not-allowed' : ''}`}
-                                                                    />
-                                                                );
-                                                            })()
-                                                        ) : (
-                                                            <div className="flex items-center justify-between group/cell w-full">
-                                                                <textarea
-                                                                     ref={(el) => {
-                                                                         if (el) {
-                                                                             el.style.height = 'auto';
-                                                                             el.style.height = el.scrollHeight + 'px';
-                                                                         }
-                                                                     }}
-                                                                     rows={1}
-                                                                     value={value || ''}
-                                                                     disabled={!isRowEditable}
-                                                                     onChange={(e) => {
-                                                                         const val = e.target.value;
-                                                                         const newRows = [...rows];
-                                                                         if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                                                                         newRows[originalIndex].dynamic_data[field.label] = val;
-                                                                         e.target.style.height = 'auto';
-                                                                         e.target.style.height = e.target.scrollHeight + 'px';
-                                                                         setRows(newRows);
-                                                                     }}
-                                                                     onFocus={(e) => {
-                                                                         setFocusedValue(e.target.value);
-                                                                         e.target.style.height = 'auto';
-                                                                         e.target.style.height = e.target.scrollHeight + 'px';
-                                                                     }}
-                                                                     onBlur={(e) => {
-                                                                         e.target.style.height = 'auto';
-                                                                         e.target.style.height = e.target.scrollHeight + 'px';
-                                                                     }}
-                                                                    placeholder={field.placeholder || `Enter ${field.label}...`}
-                                                                    className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                                                                    style={{ minHeight: '34px' }}
+                                                            isRowEditable ? (
+                                                                <input
+                                                                    type="date"
+                                                                    value={value || ''}
+                                                                    disabled={!isRowEditable}
+                                                                    onChange={(e) => {
+                                                                        const newRows = [...rows];
+                                                                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                        newRows[originalIndex].dynamic_data[field.label] = e.target.value;
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-650 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                                                                 />
-                                                                {value && (
-                                                                    <button
-                                                                        onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
-                                                                        className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
-                                                                        title="Copy"
-                                                                    >
-                                                                        <Copy size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                    {value ? formatDate(value) : '—'}
+                                                                </div>
+                                                            )
+                                                        ) : isTime ? (
+                                                            isRowEditable ? (
+                                                                <TimePicker12Hour
+                                                                    value={convertTo24Hour(value || '')}
+                                                                    disabled={!isRowEditable}
+                                                                    onChange={(val) => {
+                                                                        const newRows = [...rows];
+                                                                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                        newRows[originalIndex].dynamic_data[field.label] = convertTo12Hour(val);
+                                                                        setRows(newRows);
+                                                                    }}
+                                                                    className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-655 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex items-center min-h-[38px] px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-tight">
+                                                                    {value || '—'}
+                                                                </div>
+                                                            )
+                                                        ) : isCurrency ? (
+                                                            renderCurrencyCell(row, originalIndex, field, isRowEditable)
+                                                        ) : (
+                                                            isRowEditable ? (
+                                                                <div className="flex items-center justify-between group/cell w-full">
+                                                                    <textarea
+                                                                         ref={(el) => {
+                                                                             if (el) {
+                                                                                 el.style.height = 'auto';
+                                                                                 el.style.height = el.scrollHeight + 'px';
+                                                                             }
+                                                                         }}
+                                                                         rows={1}
+                                                                         value={value || ''}
+                                                                         disabled={!isRowEditable}
+                                                                         onChange={(e) => {
+                                                                             const val = e.target.value;
+                                                                             const newRows = [...rows];
+                                                                             if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+                                                                             newRows[originalIndex].dynamic_data[field.label] = val;
+                                                                             e.target.style.height = 'auto';
+                                                                             e.target.style.height = e.target.scrollHeight + 'px';
+                                                                             setRows(newRows);
+                                                                         }}
+                                                                         onFocus={(e) => {
+                                                                             setFocusedValue(e.target.value);
+                                                                             e.target.style.height = 'auto';
+                                                                             e.target.style.height = e.target.scrollHeight + 'px';
+                                                                         }}
+                                                                         onBlur={(e) => {
+                                                                             e.target.style.height = 'auto';
+                                                                             e.target.style.height = e.target.scrollHeight + 'px';
+                                                                         }}
+                                                                        placeholder={field.placeholder || `Enter ${field.label}...`}
+                                                                        className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                                                        style={{ minHeight: '34px' }}
+                                                                    />
+                                                                    {value && (
+                                                                        <button
+                                                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                                                            className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
+                                                                            title="Copy"
+                                                                        >
+                                                                            <Copy size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center justify-between group/cell w-full min-h-[38px]">
+                                                                    <div className="px-2.5 py-1.5 text-slate-900 font-semibold text-xs leading-snug break-words whitespace-pre-wrap">
+                                                                        {value || '—'}
+                                                                    </div>
+                                                                    {value && (
+                                                                        <button
+                                                                            onClick={() => handleCopy(Array.isArray(value) ? value.join(', ') : value.toString())}
+                                                                            className="p-1 text-slate-300 hover:text-indigo-600 opacity-0 group-hover/cell:opacity-100 transition shadow-sm ml-1"
+                                                                            title="Copy"
+                                                                        >
+                                                                            <Copy size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )
                                                         )}
                                                     </td>
                                                 );
@@ -4086,6 +4215,84 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Premium Styled Pagination Controls */}
+                {sortedRows.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 border-t border-slate-100 px-2 mt-4 select-none">
+                        <div className="text-xs font-semibold text-slate-500">
+                            Showing <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? 1 : Math.min((safeCurrentPage - 1) * rowsPerPage + 1, sortedRows.length)}</span> to <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? sortedRows.length : Math.min(safeCurrentPage * rowsPerPage, sortedRows.length)}</span> of <span className="font-extrabold text-slate-800">{sortedRows.length}</span> records
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Rows per page:</span>
+                                <select
+                                    value={rowsPerPage}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setRowsPerPage(val === 'All' ? 'All' : Number(val));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value="All">All</option>
+                                </select>
+                            </div>
+
+                            {rowsPerPage !== 'All' && totalPages > 1 && (
+                                <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/60 shadow-sm">
+                                    <button
+                                        type="button"
+                                        disabled={safeCurrentPage === 1}
+                                        onClick={() => setCurrentPage(1)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:hover:shadow-none transition cursor-pointer disabled:cursor-not-allowed flex items-center"
+                                        title="First Page"
+                                    >
+                                        <ChevronLeft size={14} className="stroke-[2.5]" />
+                                        <ChevronLeft size={14} className="-ml-2 inline stroke-[2.5]" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={safeCurrentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:hover:shadow-none transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 text-xs font-extrabold"
+                                    >
+                                        <ChevronLeft size={14} className="stroke-[2.5]" />
+                                        <span>Prev</span>
+                                    </button>
+
+                                    <div className="flex items-center px-2 text-xs font-extrabold text-slate-700">
+                                        Page <span className="mx-1 text-indigo-600 font-black">{safeCurrentPage}</span> of <span className="ml-1 text-slate-500">{totalPages}</span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={safeCurrentPage === totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:hover:shadow-none transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 text-xs font-extrabold"
+                                    >
+                                        <span>Next</span>
+                                        <ChevronRight size={14} className="stroke-[2.5]" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={safeCurrentPage === totalPages}
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        className="p-1.5 rounded-lg text-slate-500 hover:bg-white hover:text-slate-800 hover:shadow-sm disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:hover:shadow-none transition cursor-pointer disabled:cursor-not-allowed flex items-center"
+                                        title="Last Page"
+                                    >
+                                        <ChevronRight size={14} className="inline stroke-[2.5]" />
+                                        <ChevronRight size={14} className="-ml-2 inline stroke-[2.5]" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Tasks Section */}
@@ -5524,104 +5731,106 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 </div>
             )}
 
-            <AddTaskModal
-                isOpen={isAddTaskModalOpen}
-                onClose={() => setIsAddTaskModalOpen(false)}
-                allFields={allFields}
-                isBillableEnabled={isBillableEnabled}
-                isAfterSalesEnabled={isAfterSalesEnabled}
-                clients={clients
-                    .filter(c => {
-                        if (allowDuplicateClients) return true;
-                        if (viewingRowIndex !== null && String(c.id) === String(rows[viewingRowIndex]?.client_id)) return true;
-                        return !rows.some((r, rIdx) => rIdx !== viewingRowIndex && String(r.client_id) === String(c.id));
-                    })
-                    .map(c => ({
-                        id: c.id,
-                        name: c.name
-                    }))
-                }
-                workTypes={workTypes}
-                staff={staff}
-                newTaskData={newTaskData}
-                setNewTaskData={setNewTaskData}
-                isViewMode={viewingRowIndex !== null}
-                isEditable={modalEditable}
-                setIsEditable={setModalEditable}
-                isAdmin={isAdmin}
-                isStaff={isStaff}
-                task={task}
-                canEdit={viewingRowIndex !== null ? !(!isAdmin && (
-                    rows[viewingRowIndex]?.is_verified || 
-                    !canWrite || 
-                    (isStaff && !doesStaffMatchRow(rows[viewingRowIndex], user))
-                )) : true}
-                onUploadAttachment={async (fileList) => {
-                    if (viewingRowIndex !== null) {
-                        await handleUploadMultipleRowAttachments(viewingRowIndex, fileList);
-                        setNewTaskData(prev => ({
-                            ...prev,
-                            attachments: rows[viewingRowIndex]?.attachments || []
-                        }));
+            {isAddTaskModalOpen && (
+                <AddTaskModal
+                    isOpen={isAddTaskModalOpen}
+                    onClose={() => setIsAddTaskModalOpen(false)}
+                    allFields={allFields}
+                    isBillableEnabled={isBillableEnabled}
+                    isAfterSalesEnabled={isAfterSalesEnabled}
+                    clients={clients
+                        .filter(c => {
+                            if (allowDuplicateClients) return true;
+                            if (viewingRowIndex !== null && String(c.id) === String(rows[viewingRowIndex]?.client_id)) return true;
+                            return !rows.some((r, rIdx) => rIdx !== viewingRowIndex && String(r.client_id) === String(c.id));
+                        })
+                        .map(c => ({
+                            id: c.id,
+                            name: c.name
+                        }))
                     }
-                }}
-                onDeleteAttachment={async (idx, filePath) => {
-                    if (viewingRowIndex !== null) {
-                        await handleDeleteRowAttachment(viewingRowIndex, filePath);
-                        setNewTaskData(prev => ({
-                            ...prev,
-                            attachments: rows[viewingRowIndex]?.attachments?.filter(att => att.path !== filePath) || []
-                        }));
-                    }
-                }}
-                onToggleVerification={async () => {
-                    if (viewingRowIndex !== null) {
-                        const targetRow = rows[viewingRowIndex];
-                        const nextVerified = !targetRow?.is_verified;
-                        
-                        setConfirmState({
-                            open: true,
-                            title: nextVerified ? 'Verify & Lock Row' : 'Unverify & Unlock Row',
-                            message: nextVerified 
-                                ? 'Are you sure you want to verify and lock this sheet row? Once verified, staff members cannot modify its details.'
-                                : 'Are you sure you want to unverify and unlock this sheet row? This will allow the assigned staff member to edit it again.',
-                            confirmLabel: nextVerified ? 'Verify & Lock' : 'Unverify & Unlock',
-                            danger: !nextVerified,
-                            onConfirm: async () => {
-                                setConfirmState(prev => ({ ...prev, loading: true }));
-                                try {
-                                    const newRows = [...rows];
-                                    newRows[viewingRowIndex].is_verified = nextVerified;
-                                    setRows(newRows);
-                                    await handleSaveRows(newRows);
-                                    setNewTaskData(prev => ({
-                                        ...prev,
-                                        is_verified: nextVerified
-                                    }));
-                                    toast.success(nextVerified ? "Row verified and locked successfully!" : "Row unverified and unlocked successfully!");
-                                } catch (err) {
-                                    toast.error(nextVerified ? "Failed to verify row" : "Failed to unverify row");
-                                } finally {
-                                    setConfirmState({ open: false });
+                    workTypes={workTypes}
+                    staff={staff}
+                    newTaskData={newTaskData}
+                    setNewTaskData={setNewTaskData}
+                    isViewMode={viewingRowIndex !== null}
+                    isEditable={modalEditable}
+                    setIsEditable={setModalEditable}
+                    isAdmin={isAdmin}
+                    isStaff={isStaff}
+                    task={task}
+                    canEdit={viewingRowIndex !== null ? !(!isAdmin && (
+                        rows[viewingRowIndex]?.is_verified || 
+                        !canWrite || 
+                        (isStaff && !doesStaffMatchRow(rows[viewingRowIndex], user))
+                    )) : true}
+                    onUploadAttachment={async (fileList) => {
+                        if (viewingRowIndex !== null) {
+                            await handleUploadMultipleRowAttachments(viewingRowIndex, fileList);
+                            setNewTaskData(prev => ({
+                                ...prev,
+                                attachments: rows[viewingRowIndex]?.attachments || []
+                            }));
+                        }
+                    }}
+                    onDeleteAttachment={async (idx, filePath) => {
+                        if (viewingRowIndex !== null) {
+                            await handleDeleteRowAttachment(viewingRowIndex, filePath);
+                            setNewTaskData(prev => ({
+                                ...prev,
+                                attachments: rows[viewingRowIndex]?.attachments?.filter(att => att.path !== filePath) || []
+                            }));
+                        }
+                    }}
+                    onToggleVerification={async () => {
+                        if (viewingRowIndex !== null) {
+                            const targetRow = rows[viewingRowIndex];
+                            const nextVerified = !targetRow?.is_verified;
+                            
+                            setConfirmState({
+                                open: true,
+                                title: nextVerified ? 'Verify & Lock Row' : 'Unverify & Unlock Row',
+                                message: nextVerified 
+                                    ? 'Are you sure you want to verify and lock this sheet row? Once verified, staff members cannot modify its details.'
+                                    : 'Are you sure you want to unverify and unlock this sheet row? This will allow the assigned staff member to edit it again.',
+                                confirmLabel: nextVerified ? 'Verify & Lock' : 'Unverify & Unlock',
+                                danger: nextVerified,
+                                onConfirm: async () => {
+                                    setConfirmState(prev => ({ ...prev, loading: true }));
+                                    try {
+                                        const newRows = [...rows];
+                                        newRows[viewingRowIndex].is_verified = nextVerified;
+                                        setRows(newRows);
+                                        await handleSaveRows(newRows);
+                                        setNewTaskData(prev => ({
+                                            ...prev,
+                                            is_verified: nextVerified
+                                        }));
+                                        toast.success(nextVerified ? "Row verified and locked successfully!" : "Row unverified and unlocked successfully!");
+                                    } catch (err) {
+                                        toast.error(nextVerified ? "Failed to verify row" : "Failed to unverify row");
+                                    } finally {
+                                        setConfirmState({ open: false });
+                                    }
                                 }
-                            }
-                        });
-                    }
-                }}
-                onSave={(newRow) => {
-                    if (viewingRowIndex !== null) {
-                        const updatedRows = [...rows];
-                        updatedRows[viewingRowIndex] = newRow;
-                        setRows(updatedRows);
-                        handleSaveRows(updatedRows, 'Row updated successfully');
-                        setViewingRowIndex(null);
-                    } else {
-                        const updatedRows = [...rows, newRow];
-                        setRows(updatedRows);
-                        handleSaveRows(updatedRows, 'Row added successfully via Add Task');
-                    }
-                }}
-            />
+                            });
+                        }
+                    }}
+                    onSave={(newRow) => {
+                        if (viewingRowIndex !== null) {
+                            const updatedRows = [...rows];
+                            updatedRows[viewingRowIndex] = newRow;
+                            setRows(updatedRows);
+                            handleSaveRows(updatedRows, 'Row updated successfully');
+                            setViewingRowIndex(null);
+                        } else {
+                            const updatedRows = [...rows, newRow];
+                            setRows(updatedRows);
+                            handleSaveRows(updatedRows, 'Row added successfully via Add Task');
+                        }
+                    }}
+                />
+            )}
 
         </div>
     );

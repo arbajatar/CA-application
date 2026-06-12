@@ -176,6 +176,16 @@ class TaskController extends Controller
 
     public function update(UpdateTaskRequest $request, Task $task): JsonResponse
     {
+        if ($request->filled('last_updated_at')) {
+            $clientTime = \Carbon\Carbon::parse($request->input('last_updated_at'));
+            $dbTime = $task->updated_at;
+            if ($dbTime->gt($clientTime->addSeconds(1))) {
+                return response()->json([
+                    'message' => 'This sheet has been modified by another user in the meantime. Please reload the page to load the latest data and try again to avoid overwriting changes.'
+                ], 409);
+            }
+        }
+
         $oldStatus = $task->status;
         $validated = $request->validated();
 
@@ -203,6 +213,7 @@ class TaskController extends Controller
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
             $validated['dynamic_fields'] = $dynamicFields;
+            \App\Helpers\SheetLogger::log($task, $request->user(), $dynamicFields);
         }
 
         $task->update($validated);
@@ -423,5 +434,15 @@ class TaskController extends Controller
             'path' => $path,
             'name' => $request->file('file')->getClientOriginalName(),
         ]);
+    }
+
+    public function sheetLogs(Request $request): JsonResponse
+    {
+        $logs = \App\Models\SheetLog::with('user')
+            ->when($request->filled('task_id'), fn($q) => $q->where('task_id', $request->task_id))
+            ->latest()
+            ->paginate(50);
+            
+        return response()->json($logs);
     }
 }

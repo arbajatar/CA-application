@@ -129,6 +129,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/tasks/{task}/reassign', [TaskController::class, 'reassign']);
         Route::post('/tasks/import', [TaskController::class, 'import']);
         Route::post('/tasks/upload-file', [TaskController::class, 'uploadFile']);
+        Route::get('/tasks/sheet-logs', [TaskController::class, 'sheetLogs']);
         Route::apiResource('/tasks', TaskController::class);
         
         // Task Notes

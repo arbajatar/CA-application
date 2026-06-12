@@ -24,6 +24,7 @@ import ThingsToKnowPage from './pages/common/ThingsToKnowPage'
 import ReportsPage from './pages/ca/ReportsPage'
 import TeamReportPage from './pages/ca/TeamReportPage'
 import RecycleBinPage from './pages/ca/RecycleBinPage'
+import SheetLogsPage from './pages/ca/SheetLogsPage'
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -189,6 +190,11 @@ export default function App() {
           <Route path="/ca/recycle-bin" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><RecycleBinPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/logs" element={
+            <ProtectedRoute><RoleRoute role="ca">
+              <CALayout><SheetLogsPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
 

@@ -61,22 +61,14 @@ export default function AddTaskModal({
     onDeleteAttachment,
     onToggleVerification
 }) {
-    if (!isOpen) return null;
+    // Memoize options to prevent recreating arrays of thousands of items on every render/keystroke
+    const clientOptions = React.useMemo(() => {
+        return (clients || []).map(c => ({ value: c.id, label: c.name }));
+    }, [clients]);
 
-    // Deduplicate fields by key (trimmed and case-insensitive)
-    const uniqueFields = [];
-    const seenKeys = new Set();
-    for (const f of allFields) {
-        if (f && f.key) {
-            const normalizedKey = String(f.key).trim().toUpperCase();
-            if (!seenKeys.has(normalizedKey)) {
-                seenKeys.add(normalizedKey);
-                uniqueFields.push(f);
-            }
-        }
-    }
-
-    const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
+    const workTypeOptions = React.useMemo(() => {
+        return (workTypes || []).map(w => ({ value: w.id, label: w.name }));
+    }, [workTypes]);
 
     // Auto calculate Balance Amount live when Total Invoice Amount or payments change
     React.useEffect(() => {
@@ -105,6 +97,23 @@ export default function AddTaskModal({
         isOpen
     ]);
 
+    if (!isOpen) return null;
+
+    // Deduplicate fields by key (trimmed and case-insensitive)
+    const uniqueFields = [];
+    const seenKeys = new Set();
+    for (const f of allFields) {
+        if (f && f.key) {
+            const normalizedKey = String(f.key).trim().toUpperCase();
+            if (!seenKeys.has(normalizedKey)) {
+                seenKeys.add(normalizedKey);
+                uniqueFields.push(f);
+            }
+        }
+    }
+
+    const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
+
     const renderField = (field) => {
         if (field.key === 'allocated_to') return null;
         
@@ -122,7 +131,7 @@ export default function AddTaskModal({
                 {field.key === 'client_id' ? (
                     <SearchableSelect
                         value={newTaskData.client_id || ''}
-                        options={clients.map(c => ({ value: c.id, label: c.name }))}
+                        options={clientOptions}
                         placeholder="Select Client..."
                         onChange={(val) => {
                             const selectedClient = clients.find(c => String(c.id) === String(val));
@@ -136,15 +145,14 @@ export default function AddTaskModal({
                         disabled={!isCurrentlyEditable}
                     />
                 ) : field.key === 'work_type_id' ? (
-                    <select
+                    <SearchableSelect
                         value={newTaskData.work_type_id || ''}
-                        onChange={(e) => setNewTaskData({...newTaskData, work_type_id: e.target.value})}
+                        options={workTypeOptions}
+                        placeholder="Select Work Type..."
+                        onChange={(val) => setNewTaskData({...newTaskData, work_type_id: val})}
+                        size="md"
                         disabled={!isCurrentlyEditable}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                        <option value="">— Select Work Type —</option>
-                        {workTypes.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
+                    />
                 ) : field.key === 'status' ? (
                     <select
                         value={newTaskData.status || ''}

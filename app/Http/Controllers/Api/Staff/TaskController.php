@@ -363,6 +363,16 @@ class TaskController extends Controller
     }
     public function update(Request $request, Task $task): JsonResponse
     {
+        if ($request->filled('last_updated_at')) {
+            $clientTime = \Carbon\Carbon::parse($request->input('last_updated_at'));
+            $dbTime = $task->updated_at;
+            if ($dbTime->gt($clientTime->addSeconds(1))) {
+                return response()->json([
+                    'message' => 'This sheet has been modified by another user in the meantime. Please reload the page to load the latest data and try again to avoid overwriting changes.'
+                ], 409);
+            }
+        }
+
         $user = $request->user();
         $user->loadMissing('specialPermissions');
 
@@ -431,24 +441,43 @@ class TaskController extends Controller
                 $oldRows = $task->dynamic_fields['multi_rows'] ?? [];
                 $newRows = $request->input('dynamic_fields.multi_rows') ?? [];
 
-                $length = max(count($oldRows), count($newRows));
-                for ($i = 0; $i < $length; $i++) {
-                    $oldRow = $oldRows[$i] ?? null;
-                    $newRow = $newRows[$i] ?? null;
+                // Index old rows by their row_id/id
+                $oldMap = [];
+                foreach ($oldRows as $idx => $r) {
+                    $rowId = $r['row_id'] ?? $r['id'] ?? "idx_$idx";
+                    $oldMap[$rowId] = $r;
+                }
 
-                    if ($oldRow != $newRow) {
-                        // If it's an existing row, it must have been allocated to the user
-                        if ($oldRow) {
-                            $oldRowNoAlloc = $oldRow;
-                            $newRowNoAlloc = $newRow;
-                            unset($oldRowNoAlloc['allocated_to'], $oldRowNoAlloc['allocated_type'], $oldRowNoAlloc['date_allocated']);
-                            unset($newRowNoAlloc['allocated_to'], $newRowNoAlloc['allocated_type'], $newRowNoAlloc['date_allocated']);
+                // Index new rows by their row_id/id
+                $newMap = [];
+                foreach ($newRows as $idx => $r) {
+                    $rowId = $r['row_id'] ?? $r['id'] ?? "idx_$idx";
+                    $newMap[$rowId] = $r;
+                }
 
-                            if ($oldRowNoAlloc != $newRowNoAlloc) {
-                                if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
-                                    return response()->json(['message' => 'You do not have permission to modify rows assigned to other staff.'], 403);
-                                }
+                // 1. Check for modified rows
+                foreach ($newMap as $rowId => $newRow) {
+                    if (isset($oldMap[$rowId])) {
+                        $oldRow = $oldMap[$rowId];
+                        
+                        $oldRowNoAlloc = $oldRow;
+                        $newRowNoAlloc = $newRow;
+                        unset($oldRowNoAlloc['allocated_to'], $oldRowNoAlloc['allocated_type'], $oldRowNoAlloc['date_allocated']);
+                        unset($newRowNoAlloc['allocated_to'], $newRowNoAlloc['allocated_type'], $newRowNoAlloc['date_allocated']);
+
+                        if ($oldRowNoAlloc != $newRowNoAlloc) {
+                            if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
+                                return response()->json(['message' => 'You do not have permission to modify rows assigned to other staff.'], 403);
                             }
+                        }
+                    }
+                }
+
+                // 2. Check for deleted rows
+                foreach ($oldMap as $rowId => $oldRow) {
+                    if (!isset($newMap[$rowId])) {
+                        if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
+                            return response()->json(['message' => 'You do not have permission to delete rows assigned to other staff.'], 403);
                         }
                     }
                 }
@@ -475,6 +504,7 @@ class TaskController extends Controller
             'is_billable' => ['nullable', 'boolean'],
             'is_after_sales' => ['nullable', 'boolean'],
             'allow_duplicate_clients' => ['nullable', 'boolean'],
+            'last_updated_at' => ['sometimes', 'nullable', 'string'],
         ]);
 
         $dynamicFields = $request->input('dynamic_fields');
@@ -501,6 +531,7 @@ class TaskController extends Controller
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
             $validated['dynamic_fields'] = $dynamicFields;
+            \App\Helpers\SheetLogger::log($task, $request->user(), $dynamicFields);
         }
 
         $oldStatus = $task->status;

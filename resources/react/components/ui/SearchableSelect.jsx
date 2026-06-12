@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, PlusCircle } from 'lucide-react';
 
-export default function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md', disabled = false }) {
+const SearchableSelect = React.memo(function SearchableSelect({ value, options, placeholder, onChange, onAddNew, addNewLabel, direction = 'down', size = 'md', disabled = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
@@ -172,4 +172,6 @@ export default function SearchableSelect({ value, options, placeholder, onChange
       )}
     </div>
   );
-}
+});
+
+export default SearchableSelect;

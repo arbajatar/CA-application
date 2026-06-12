@@ -38,6 +38,7 @@ class UpdateTaskRequest extends FormRequest
             'permissions.*.can_read' => ['required', 'boolean'],
             'permissions.*.can_write' => ['required', 'boolean'],
             'permissions.*.can_delete' => ['required', 'boolean'],
+            'last_updated_at' => ['sometimes', 'nullable', 'string'],
         ];
     }
 }

@@ -49,6 +49,7 @@ class TaskResource extends JsonResource
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
             'created_at' => $this->created_at->toDateTimeString(),
+            'updated_at' => $this->updated_at->toDateTimeString(),
             'permissions' => $this->permissions ? $this->permissions->map(function ($perm) {
                 return [
                     'role_id' => $perm->role_id,
