@@ -28,7 +28,7 @@ api.interceptors.response.use(
             toast.error("Unable to connect to the server. Please check your network connection.", {
                 id: 'global-network-error'
             });
-        } else if (status === 401 || status === 419) {
+        } else if (status === 401) {
             localStorage.removeItem('token')
             localStorage.removeItem('user')
             // Only redirect if not already on login page to avoid loops
