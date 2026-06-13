@@ -115,7 +115,30 @@ export default function AddTaskModal({
     const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
 
     const renderField = (field) => {
-        if (field.key === 'allocated_to') return null;
+        if (field.key === 'allocated_to') {
+            return (
+                <div key={field.key} className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">{field.label}</label>
+                    <SearchableSelect
+                        value={
+                            (newTaskData.allocated_to && typeof newTaskData.allocated_to === 'object')
+                                ? newTaskData.allocated_to.id
+                                : (newTaskData.allocated_to || '')
+                        }
+                        options={(staff || []).map(s => ({ value: s.id, label: s.name }))}
+                        placeholder="Select Assigned To..."
+                        onChange={(val) => {
+                            setNewTaskData({
+                                ...newTaskData,
+                                allocated_to: val
+                            });
+                        }}
+                        size="md"
+                        disabled={!isCurrentlyEditable}
+                    />
+                </div>
+            );
+        }
         
         const isFullWidth = ['client_id', 'remarks', 'form_name', 'task_particular', 'feedback', 'attachments', 'is_verified', 'CLIENT FEED BACK', 'OTHER REMARK'].includes(field.key) || 
                            (field.label && (field.label.toLowerCase().includes('remarks') || field.label.toLowerCase().includes('name') || field.label.toLowerCase().includes('text') || field.label.toLowerCase().includes('particular') || field.label.toLowerCase().includes('remark') || field.label.toLowerCase().includes('feedback')));

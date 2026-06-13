@@ -1074,7 +1074,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             const payload = {
                 client_id: updates.client_id !== undefined ? updates.client_id : (task.client?.id || null),
                 work_type_id: updates.work_type_id !== undefined ? updates.work_type_id : (task.work_type?.id || null),
-                allocated_to: updates.allocated_to !== undefined ? updates.allocated_to : (task.allocated_to?.id || null),
+                allocated_to: updates.allocated_to !== undefined ? updates.allocated_to : ((task.allocated_to && typeof task.allocated_to === 'object') ? task.allocated_to.id : (task.allocated_to || null)),
                 date_allocated: updates.date_allocated !== undefined ? updates.date_allocated : task.date_allocated,
                 form_name: updates.form_name !== undefined ? updates.form_name : task.form_name,
                 status: updates.status !== undefined ? updates.status : task.status,
