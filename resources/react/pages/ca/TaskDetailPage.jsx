@@ -483,11 +483,22 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [totalRows, setTotalRows] = useState(0);
+    const [statusCounts, setStatusCounts] = useState(null);
+    const [subStatusCounts, setSubStatusCounts] = useState(null);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [staticDataLoaded, setStaticDataLoaded] = useState(false);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(sheetSearch);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [sheetSearch]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedStatusFilter, selectedSubStatusFilter, sheetSearch, sheetStatusFilter, sheetWorkTypeFilter, dynamicFilters]);
-
+    }, [selectedStatusFilter, selectedSubStatusFilter, debouncedSearch, sheetStatusFilter, sheetWorkTypeFilter, dynamicFilters]);
 
     const handleSort = (fieldId) => {
         if (sortField !== fieldId) {
@@ -505,53 +516,44 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }
     };
 
-    useEffect(() => {
-        fetchInitialData();
-    }, [id]);
-
-    const fetchInitialData = async () => {
-        setLoading(true);
+    const fetchTaskData = async (isInitial = false) => {
+        if (isInitial) setLoading(true);
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
-            const [taskRes, clientsRes, staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
-                api.get(`${apiPrefix}/tasks/${id}`),
-                api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { per_page: 10000 } }),
-                api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { per_page: 10000 } }),
-                api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { per_page: 10000 } }),
-                api.get('/ca/client-types'),
-                api.get('/ca/client-groups')
-            ]);
+            
+            const params = {
+                page: currentPage,
+                per_page: rowsPerPage,
+                search: debouncedSearch || undefined,
+                status: selectedStatusFilter || sheetStatusFilter || undefined,
+                sub_status: selectedSubStatusFilter || undefined,
+                work_type_id: sheetWorkTypeFilter || undefined,
+                sort_field: sortField || undefined,
+                sort_direction: sortDirection || undefined
+            };
 
+            const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
             const data = taskRes.data.data;
             setTask(data);
+            setTotalRows(taskRes.data.meta?.total || 0);
+            setStatusCounts(taskRes.data.meta?.status_counts || null);
+            setSubStatusCounts(taskRes.data.meta?.sub_status_counts || null);
+
             setGlobalStatus(data.status || 'assigned');
             setGlobalRemarks(data.remarks || '');
             setCaFeedback(data.dynamic_fields?.['CA Feedback'] || '');
             setCaRating(data.dynamic_fields?.['CA Rating'] || '');
             setInlineFeedbackValue(data.dynamic_fields?.['CA Feedback'] || '');
             setFormName(data.form_name || 'Untitled Form');
-            setClients(clientsRes.data.data || clientsRes.data || []);
-            setStaff(staffRes.data.data || staffRes.data || []);
-            setWorkTypes(workTypesRes.data.data || workTypesRes.data || []);
-            setClientTypes(typesRes.data.data || []);
-            setClientGroups(groupsRes.data.data || []);
             setSheetPermissions(data.permissions || []);
             setAllowAttachments(!!data.allow_attachments);
             setAllowChecklist(!!data.allow_checklist);
             setAllowNotes(!!data.allow_notes);
+
             const parseBoolSetting = (val) => val === true || val === 1 || String(val).toLowerCase() === 'true' || String(val) === '1';
             setIsBillableEnabled(parseBoolSetting(data.is_billable ?? data.dynamic_fields?.is_billable));
             setIsAfterSalesEnabled(parseBoolSetting(data.is_after_sales ?? data.dynamic_fields?.is_after_sales));
             setAllowDuplicateClients(parseBoolSetting(data.allow_duplicate_clients ?? data.dynamic_fields?.allow_duplicate_clients));
-
-            let rolesData = [];
-            try {
-                const rolesRes = await api.get(isStaff ? '/staff/roles' : '/ca/roles');
-                rolesData = rolesRes.data.data || [];
-            } catch (roleErr) {
-                console.error("Failed to load roles", roleErr);
-            }
-            setAvailableRoles(rolesData);
 
             const getTopLevelData = (df) => {
                 const topLevel = {};
@@ -640,7 +642,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
                 setRows(loadedRows);
                 if (needsSave) {
-                    const apiPrefix = isStaff ? '/staff' : '/ca';
                     const firstRow = loadedRows[0] || {};
                     const firstRowData = {};
                     if (firstRow.dynamic_data) {
@@ -710,7 +711,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
                 setRows(loadedRows);
                 if (needsSave) {
-                    const apiPrefix = isStaff ? '/staff' : '/ca';
                     const firstRow = loadedRows[0] || {};
                     const firstRowData = {};
                     if (firstRow.dynamic_data) {
@@ -740,12 +740,116 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             }
         } catch (e) {
             console.error(e);
-            toast.error('Error loading dashboard data');
-            navigate(isStaff ? '/staff/tasks' : '/ca/tasks');
+            toast.error('Error loading task details');
         } finally {
-            setLoading(false);
+            if (isInitial) setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const fetchInitialAllData = async () => {
+            setLoading(true);
+            try {
+                const apiPrefix = isStaff ? '/staff' : '/ca';
+                
+                let clientsData = null;
+                let staffData = null;
+                let workTypesData = null;
+                let clientTypesData = null;
+                let clientGroupsData = null;
+                let rolesData = null;
+
+                try {
+                    clientsData = JSON.parse(sessionStorage.getItem('cached_clients'));
+                    staffData = JSON.parse(sessionStorage.getItem('cached_staff'));
+                    workTypesData = JSON.parse(sessionStorage.getItem('cached_work_types'));
+                    clientTypesData = JSON.parse(sessionStorage.getItem('cached_client_types'));
+                    clientGroupsData = JSON.parse(sessionStorage.getItem('cached_client_groups'));
+                    rolesData = JSON.parse(sessionStorage.getItem('cached_roles'));
+                } catch (e) {
+                    console.error("Session storage parse failed", e);
+                }
+
+                if (clientsData && staffData && workTypesData && clientTypesData && clientGroupsData && rolesData) {
+                    setClients(clientsData);
+                    setStaff(staffData);
+                    setWorkTypes(workTypesData);
+                    setClientTypes(clientTypesData);
+                    setClientGroups(clientGroupsData);
+                    setAvailableRoles(rolesData);
+                } else {
+                    const [clientsRes, staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
+                        api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } }),
+                        api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } }),
+                        api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { simple: 1 } }),
+                        api.get('/ca/client-types'),
+                        api.get('/ca/client-groups')
+                    ]);
+
+                    clientsData = clientsRes.data.data || clientsRes.data || [];
+                    staffData = staffRes.data.data || staffRes.data || [];
+                    workTypesData = workTypesRes.data.data || workTypesRes.data || [];
+                    clientTypesData = typesRes.data.data || [];
+                    clientGroupsData = groupsRes.data.data || [];
+
+                    try {
+                        const rolesRes = await api.get(isStaff ? '/staff/roles' : '/ca/roles');
+                        rolesData = rolesRes.data.data || [];
+                    } catch (roleErr) {
+                        console.error("Failed to load roles", roleErr);
+                        rolesData = [];
+                    }
+
+                    try {
+                        sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+                        sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
+                        sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+                        sessionStorage.setItem('cached_client_types', JSON.stringify(clientTypesData));
+                        sessionStorage.setItem('cached_client_groups', JSON.stringify(clientGroupsData));
+                        sessionStorage.setItem('cached_roles', JSON.stringify(rolesData));
+                    } catch (e) {
+                        console.error("Session storage set failed", e);
+                    }
+
+                    setClients(clientsData);
+                    setStaff(staffData);
+                    setWorkTypes(workTypesData);
+                    setClientTypes(clientTypesData);
+                    setClientGroups(clientGroupsData);
+                    setAvailableRoles(rolesData);
+                }
+                
+                await fetchTaskData(false);
+                setStaticDataLoaded(true);
+            } catch (err) {
+                console.error("Failed to load initial data", err);
+                toast.error("Failed to load initial page data");
+                navigate(isStaff ? '/staff/tasks' : '/ca/tasks');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialAllData();
+    }, [id]);
+
+    useEffect(() => {
+        if (staticDataLoaded) {
+            fetchTaskData(false);
+        }
+    }, [
+        id,
+        currentPage,
+        rowsPerPage,
+        debouncedSearch,
+        sheetStatusFilter,
+        sheetWorkTypeFilter,
+        selectedStatusFilter,
+        selectedSubStatusFilter,
+        sortField,
+        sortDirection,
+        staticDataLoaded
+    ]);
 
     const renderCurrencyCell = (row, originalIndex, field, isRowEditable) => {
         let finalVal = row.dynamic_data?.[field.label] ?? '';
@@ -862,7 +966,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }
     };
 
-    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully') => {
+    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = []) => {
         // Validate for duplicate clients within the same sheet
         if (!allowDuplicateClients) {
             // Check if this is a deletion (no new client added/modified)
@@ -949,64 +1053,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 form_name: firstRow.form_name || task.form_name || '',
                 status: task.status,
                 dynamic_fields: nextDynamicFields,
+                deleted_row_ids: deletedRowIds,
                 last_updated_at: task.updated_at
             };
 
-            const res = await api.patch(`${apiPrefix}/tasks/${id}`, payload);
-            const nextData = res.data.data;
-            setTask(prev => ({
-                ...nextData,
-                sub_tasks: nextData.sub_tasks !== undefined ? nextData.sub_tasks : (prev?.sub_tasks || [])
-            }));
-
-            // Process nextData rows to merge top-level fields
-            const savedDynamicFields = nextData.dynamic_fields || {};
-            const savedTopLevelData = {};
-            Object.keys(savedDynamicFields).forEach(k => {
-                if (!['schema', 'multi_rows', 'field_names', 'field_types'].includes(k)) {
-                    const trimmedK = k.trim();
-                    const val = savedDynamicFields[k];
-                    if (val !== null && val !== undefined && val !== '') {
-                        savedTopLevelData[trimmedK] = val;
-                    } else if (savedTopLevelData[trimmedK] === undefined) {
-                        savedTopLevelData[trimmedK] = val;
-                    }
-                }
-            });
-
-            const mergeDynamicData = (rowDynamicData, topLevel) => {
-                let parsedRow = rowDynamicData;
-                if (typeof parsedRow === 'string') {
-                    try { parsedRow = JSON.parse(parsedRow); } catch(e) {}
-                }
-                const merged = {};
-                if (parsedRow) {
-                    Object.keys(parsedRow).forEach(k => {
-                        const trimmedK = k.trim();
-                        const val = parsedRow[k];
-                        if (val !== null && val !== undefined && val !== '') {
-                            merged[trimmedK] = val;
-                        } else if (merged[trimmedK] === undefined) {
-                            merged[trimmedK] = val;
-                        }
-                    });
-                }
-                Object.keys(topLevel || {}).forEach(k => {
-                    const trimmedK = k.trim();
-                    const topVal = topLevel[k];
-                    if (topVal !== null && topVal !== undefined && topVal !== '') {
-                        const rowVal = merged[trimmedK];
-                        if (rowVal === null || rowVal === undefined || rowVal === '') {
-                            merged[trimmedK] = topVal;
-                        }
-                    }
-                });
-                return merged;
-            };
-
-            let savedRows = savedDynamicFields.multi_rows || [];
-            setRows(savedRows);
-
+            await api.patch(`${apiPrefix}/tasks/${id}`, payload);
+            await fetchTaskData(false);
             toast.success(successMessage);
         } catch (e) {
             console.error(e);
@@ -1061,9 +1113,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 try {
                     const updatedRows = [...rows];
-                    updatedRows.splice(index, 1);
+                    const deletedRow = updatedRows.splice(index, 1)[0];
+                    const deletedId = deletedRow?.row_id || deletedRow?.id;
                     setRows(updatedRows);
-                    await handleSaveRows(updatedRows, 'Row deleted successfully');
+                    await handleSaveRows(updatedRows, 'Row deleted successfully', deletedId ? [deletedId] : []);
                 } catch (err) {
                     toast.error("Failed to delete row");
                 } finally {
@@ -2089,7 +2142,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             const newClient = res.data.data;
             
             // Add new client to local list
-            setClients(prev => [...prev, newClient]);
+            setClients(prev => {
+                const next = [...prev, newClient];
+                try {
+                    sessionStorage.setItem('cached_clients', JSON.stringify(next));
+                } catch (e) {}
+                return next;
+            });
             
             // Map new client to matching preview rows
             setPreviewRows(prev => prev.map(r => {
@@ -2327,128 +2386,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         return null;
     }).filter(Boolean);
 
-    const filteredRows = rows.filter(row => {
-        if (selectedStatusFilter) {
-            const rowStatus = row.status?.toLowerCase();
-            if (selectedStatusFilter === 'pending') {
-                if (rowStatus !== 'pending' && rowStatus !== 'assigned' && rowStatus) return false;
-            } else {
-                if (rowStatus !== selectedStatusFilter) return false;
-            }
-        }
-        if (sheetStatusFilter) {
-            const rowStatus = row.status?.toLowerCase();
-            if (sheetStatusFilter === 'pending') {
-                if (rowStatus !== 'pending' && rowStatus !== 'assigned' && rowStatus) return false;
-            } else {
-                if (rowStatus !== sheetStatusFilter) return false;
-            }
-        }
-        if (sheetWorkTypeFilter && String(row.work_type_id) !== String(sheetWorkTypeFilter)) {
-            return false;
-        }
-        if (sheetSearch) {
-            const query = sheetSearch.toLowerCase();
-            const clientName = clients.find(c => String(c.id) === String(row.client_id))?.name || '';
-            const workTypeName = workTypes.find(wt => String(wt.id) === String(row.work_type_id))?.name || '';
-            const assigneeName = staff.find(s => String(s.id) === String(row.allocated_to))?.name || '';
-            const formName = row.form_name || '';
-            const statusLabel = row.status || '';
-            const subStatusLabel = row.sub_status || row.dynamic_data?.['Sub Status'] || row.dynamic_data?.['static_sub_status'] || '';
-            
-            const matchesStatic = [clientName, workTypeName, assigneeName, formName, statusLabel, subStatusLabel]
-                .some(val => val.toLowerCase().includes(query));
-                
-            const matchesDynamic = Object.values(row.dynamic_data || {})
-                .some(val => (val || '').toString().toLowerCase().includes(query));
-                
-            if (!matchesStatic && !matchesDynamic) return false;
-        }
-        if (selectedSubStatusFilter) {
-            const rowSubStatus = row.sub_status || row.dynamic_data?.['Sub Status'] || row.dynamic_data?.['static_sub_status'];
-            if (selectedSubStatusFilter === 'Unassigned') {
-                if (rowSubStatus) return false;
-            } else {
-                if (rowSubStatus !== selectedSubStatusFilter) return false;
-            }
-        }
-        
-        return allFields.every(field => {
-            const query = dynamicFilters[field.key];
-            if (!query) return true;
-
-            let value = '';
-            if (field.isStatic) {
-                if (field.key === 'form_name') {
-                    value = row.form_name;
-                } else if (field.key === 'client_id') {
-                    value = clients.find(c => String(c.id) === String(row.client_id))?.name;
-                } else if (field.key === 'work_type_id') {
-                    value = workTypes.find(wt => String(wt.id) === String(row.work_type_id))?.name;
-                } else if (field.key === 'allocated_to') {
-                    value = staff.find(s => String(s.id) === String(row.allocated_to))?.name;
-                } else if (field.key === 'date_allocated') {
-                    value = row.date_allocated;
-                } else if (field.key === 'status') {
-                    value = row.status;
-                } else if (field.key === 'sub_status') {
-                    value = row.sub_status;
-                }
-            } else {
-                value = row.dynamic_data?.[field.key];
-            }
-
-            return (value || '').toString().toLowerCase().includes(query.toLowerCase());
-        });
-    });
-
-    const sortedRows = sortField && sortDirection !== 'default'
-        ? [...filteredRows].sort((a, b) => {
-            let valA = '';
-            let valB = '';
-
-            if (sortField === 'form_name') {
-                valA = a.form_name || '';
-                valB = b.form_name || '';
-            } else if (sortField === 'client') {
-                valA = clients.find(c => String(c.id) === String(a.client_id))?.name || '';
-                valB = clients.find(c => String(c.id) === String(b.client_id))?.name || '';
-            } else if (sortField === 'work_type') {
-                valA = workTypes.find(wt => String(wt.id) === String(a.work_type_id))?.name || '';
-                valB = workTypes.find(wt => String(wt.id) === String(b.work_type_id))?.name || '';
-            } else if (sortField === 'assigned_to') {
-                valA = staff.find(s => String(s.id) === String(a.allocated_to))?.name || '';
-                valB = staff.find(s => String(s.id) === String(b.allocated_to))?.name || '';
-            } else if (sortField === 'date_allocated') {
-                valA = a.date_allocated || '';
-                valB = b.date_allocated || '';
-            } else if (sortField === 'status') {
-                valA = a.status || '';
-                valB = b.status || '';
-            } else if (sortField === 'sub_status') {
-                valA = a.sub_status || '';
-                valB = b.sub_status || '';
-            } else if (sortField.startsWith('dynamic_')) {
-                const fieldLabel = sortField.replace('dynamic_', '');
-                valA = a.dynamic_data?.[fieldLabel] || '';
-                valB = b.dynamic_data?.[fieldLabel] || '';
-            }
-
-            const strA = (valA ?? '').toString().toLowerCase();
-            const strB = (valB ?? '').toString().toLowerCase();
-
-            if (strA < strB) return sortDirection === 'asc' ? -1 : 1;
-            if (strA > strB) return sortDirection === 'asc' ? 1 : -1;
-            return 0;
-        })
-        : filteredRows;
-
-    const totalPages = Math.ceil(sortedRows.length / (rowsPerPage === 'All' ? sortedRows.length || 1 : rowsPerPage));
+    const filteredRows = rows;
+    const sortedRows = rows;
+    const totalPages = Math.ceil(totalRows / (rowsPerPage === 'All' ? totalRows || 1 : rowsPerPage));
     const safeCurrentPage = Math.min(currentPage, totalPages || 1);
-
-    const paginatedRows = rowsPerPage === 'All' 
-        ? sortedRows 
-        : sortedRows.slice((safeCurrentPage - 1) * rowsPerPage, (safeCurrentPage - 1) * rowsPerPage + rowsPerPage);
+    const paginatedRows = rows;
 
     return (
         <div className="space-y-6 max-w-[100vw] pb-12 relative">
@@ -2973,12 +2915,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             {showMainStatusFilters && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full animate-fade-in">
                     {[
-                        { label: 'Pending', count: rows.filter(r => r.status?.toLowerCase() === 'pending' || r.status?.toLowerCase() === 'assigned' || !r.status).length || 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
-                        { label: 'Work In Progress', count: rows.filter(r => r.status?.toLowerCase() === 'work_in_progress').length || 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
-                        { label: 'Complete', count: rows.filter(r => r.status?.toLowerCase() === 'complete').length || 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
-                        { label: 'Not To Be Done', count: rows.filter(r => r.status?.toLowerCase() === 'not_to_be_done').length || 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
-                        { label: 'Other', count: rows.filter(r => r.status?.toLowerCase() === 'other').length || 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
-                        { label: 'Total Sheets', count: rows.length || 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All rows of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
+                        { label: 'Pending', count: statusCounts?.pending ?? 0, icon: CircleDashed, iconBg: 'bg-amber-50', iconColor: 'text-amber-500', sub: 'Waiting to start', subColor: 'text-amber-500 font-semibold', active: selectedStatusFilter === 'pending', filterVal: 'pending' },
+                        { label: 'Work In Progress', count: statusCounts?.work_in_progress ?? 0, icon: Clock, iconBg: 'bg-blue-50', iconColor: 'text-blue-500', sub: 'Currently active', subColor: 'text-blue-500 font-semibold', active: selectedStatusFilter === 'work_in_progress', filterVal: 'work_in_progress' },
+                        { label: 'Complete', count: statusCounts?.complete ?? 0, icon: CheckCircle2, iconBg: 'bg-green-50', iconColor: 'text-green-500', sub: 'Completed successfully', subColor: 'text-green-500 font-semibold', active: selectedStatusFilter === 'complete', filterVal: 'complete' },
+                        { label: 'Not To Be Done', count: statusCounts?.not_to_be_done ?? 0, icon: Circle, iconBg: 'bg-red-50', iconColor: 'text-red-500', sub: 'Cancelled / Skipped', subColor: 'text-red-500 font-semibold', active: selectedStatusFilter === 'not_to_be_done', filterVal: 'not_to_be_done' },
+                        { label: 'Other', count: statusCounts?.other ?? 0, icon: Sliders, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Other status', subColor: 'text-slate-500', active: selectedStatusFilter === 'other', filterVal: 'other' },
+                        { label: 'Total Sheets', count: statusCounts?.total ?? 0, icon: FileText, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'All rows of this sheet', subColor: 'text-slate-500', active: !selectedStatusFilter, filterVal: null }
                     ].map((card, i) => (
                         <SummaryCard 
                             key={i} 
@@ -3023,8 +2965,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 w-full">
                         {[
-                            { label: 'All Sub Statuses', count: rows.length || 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
-                            { label: 'Unassigned', count: getSubStatusCount('Unassigned'), value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
+                            { label: 'All Sub Statuses', count: statusCounts?.total ?? 0, value: null, icon: Zap, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-500', sub: 'Show all rows', subColor: 'text-indigo-500 font-semibold' },
+                            { label: 'Unassigned', count: subStatusCounts?.Unassigned ?? 0, value: 'Unassigned', icon: UserPlus, iconBg: 'bg-slate-50', iconColor: 'text-slate-500', sub: 'Not allocated to anyone', subColor: 'text-slate-500' },
                             ...subStatusOptions.map(opt => {
                                 const lowerOpt = opt.toLowerCase();
                                 let icon = SlidersHorizontal;
@@ -3055,7 +2997,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 
                                 return {
                                     label: opt,
-                                    count: getSubStatusCount(opt),
+                                    count: subStatusCounts?.[opt] ?? 0,
                                     value: opt,
                                     icon,
                                     iconBg,
@@ -4296,10 +4238,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 </div>
 
                 {/* Premium Styled Pagination Controls */}
-                {sortedRows.length > 0 && (
+                {totalRows > 0 && (
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 border-t border-slate-100 px-2 mt-4 select-none">
                         <div className="text-xs font-semibold text-slate-500">
-                            Showing <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? 1 : Math.min((safeCurrentPage - 1) * rowsPerPage + 1, sortedRows.length)}</span> to <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? sortedRows.length : Math.min(safeCurrentPage * rowsPerPage, sortedRows.length)}</span> of <span className="font-extrabold text-slate-800">{sortedRows.length}</span> records
+                            Showing <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? 1 : Math.min((safeCurrentPage - 1) * rowsPerPage + 1, totalRows)}</span> to <span className="font-extrabold text-slate-800">{rowsPerPage === 'All' ? totalRows : Math.min(safeCurrentPage * rowsPerPage, totalRows)}</span> of <span className="font-extrabold text-slate-800">{totalRows}</span> records
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -4308,8 +4250,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 <select
                                     value={rowsPerPage}
                                     onChange={(e) => {
-                                        const val = e.target.value;
-                                        setRowsPerPage(val === 'All' ? 'All' : Number(val));
+                                        setRowsPerPage(Number(e.target.value));
                                         setCurrentPage(1);
                                     }}
                                     className="bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm"
@@ -4319,7 +4260,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
                                     <option value={100}>100</option>
-                                    <option value="All">All</option>
                                 </select>
                             </div>
 

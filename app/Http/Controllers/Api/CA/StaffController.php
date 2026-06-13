@@ -17,8 +17,16 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class StaffController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request)
     {
+        if ($request->boolean('simple')) {
+            $staff = User::staff()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+            return response()->json(['data' => $staff]);
+        }
+
         $staff = User::staff()
             ->with(['roles', 'specialPermissions'])
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {

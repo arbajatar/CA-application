@@ -15,8 +15,15 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ClientController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request)
     {
+        if ($request->boolean('simple')) {
+            $clients = Client::where('status', \App\Enums\ClientStatus::Active)
+                ->orderBy('name')
+                ->get(['id', 'name', 'pan_no']);
+            return response()->json(['data' => $clients]);
+        }
+
         $clients = Client::query()
             ->when($request->filled('status'), fn($q) => $q->where('status', ClientStatus::from($request->status)))
             ->when($request->filled('group'), fn($q) => $q->where('group', $request->input('group')))

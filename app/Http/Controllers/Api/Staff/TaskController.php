@@ -176,8 +176,210 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
+        $task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role', 'subTasks.assignedTo']);
+
+        $dynamicFields = $task->dynamic_fields;
+        $multiRows = $dynamicFields['multi_rows'] ?? [];
+
+        // Calculate status counts on the full dataset before filtering
+        $statusCounts = [
+            'pending' => 0,
+            'work_in_progress' => 0,
+            'complete' => 0,
+            'not_to_be_done' => 0,
+            'other' => 0,
+            'total' => count($multiRows)
+        ];
+        $subStatusCounts = [
+            'Unassigned' => 0
+        ];
+        foreach ($multiRows as $row) {
+            $rowStatus = strtolower($row['status'] ?? '');
+            if ($rowStatus === 'pending' || $rowStatus === 'assigned' || !$rowStatus) {
+                $statusCounts['pending']++;
+            } else if (isset($statusCounts[$rowStatus])) {
+                $statusCounts[$rowStatus]++;
+            } else {
+                $statusCounts['other']++;
+            }
+
+            $rowSubStatus = $row['sub_status'] ?? $row['dynamic_data']['Sub Status'] ?? $row['dynamic_data']['static_sub_status'] ?? '';
+            if (empty($rowSubStatus)) {
+                $subStatusCounts['Unassigned']++;
+            } else {
+                if (!isset($subStatusCounts[$rowSubStatus])) {
+                    $subStatusCounts[$rowSubStatus] = 0;
+                }
+                $subStatusCounts[$rowSubStatus]++;
+            }
+        }
+
+        // 1. Filtering
+        $statusFilter = $request->get('status') ?: $request->get('selectedStatusFilter');
+        if ($statusFilter) {
+            $statusFilter = strtolower($statusFilter);
+            $multiRows = array_filter($multiRows, function($row) use ($statusFilter) {
+                $rowStatus = strtolower($row['status'] ?? '');
+                if ($statusFilter === 'pending') {
+                    return $rowStatus === 'pending' || $rowStatus === 'assigned' || !$rowStatus;
+                }
+                return $rowStatus === $statusFilter;
+            });
+        }
+
+        $subStatusFilter = $request->get('sub_status') ?: $request->get('selectedSubStatusFilter');
+        if ($subStatusFilter) {
+            $multiRows = array_filter($multiRows, function($row) use ($subStatusFilter) {
+                $rowSubStatus = $row['sub_status'] ?? $row['dynamic_data']['Sub Status'] ?? $row['dynamic_data']['static_sub_status'] ?? '';
+                if ($subStatusFilter === 'Unassigned') {
+                    return empty($rowSubStatus);
+                }
+                return $rowSubStatus === $subStatusFilter;
+            });
+        }
+
+        if ($request->filled('work_type_id')) {
+            $wtId = $request->work_type_id;
+            $multiRows = array_filter($multiRows, function($row) use ($wtId) {
+                return (string)($row['work_type_id'] ?? '') === (string)$wtId;
+            });
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $searchLower = strtolower($search);
+
+            $matchingClientIds = \App\Models\Client::where('name', 'like', '%' . $search . '%')
+                ->orWhere('contact', 'like', '%' . $search . '%')
+                ->pluck('id')
+                ->toArray();
+
+            $matchingWorkTypeIds = \App\Models\WorkType::where('name', 'like', '%' . $search . '%')
+                ->pluck('id')
+                ->toArray();
+
+            $matchingStaffIds = \App\Models\User::where('name', 'like', '%' . $search . '%')
+                ->pluck('id')
+                ->toArray();
+
+            $multiRows = array_filter($multiRows, function($row) use ($searchLower, $matchingClientIds, $matchingWorkTypeIds, $matchingStaffIds) {
+                $clientId = $row['client_id'] ?? null;
+                $workTypeId = $row['work_type_id'] ?? null;
+                $allocatedTo = $row['allocated_to'] ?? null;
+
+                if ($clientId && in_array($clientId, $matchingClientIds)) return true;
+                if ($workTypeId && in_array($workTypeId, $matchingWorkTypeIds)) return true;
+                if ($allocatedTo && in_array($allocatedTo, $matchingStaffIds)) return true;
+
+                $formName = strtolower($row['form_name'] ?? '');
+                $rowStatus = strtolower($row['status'] ?? '');
+                $rowSubStatus = strtolower($row['sub_status'] ?? $row['dynamic_data']['Sub Status'] ?? $row['dynamic_data']['static_sub_status'] ?? '');
+
+                if (strpos($formName, $searchLower) !== false ||
+                    strpos($rowStatus, $searchLower) !== false ||
+                    strpos($rowSubStatus, $searchLower) !== false) {
+                    return true;
+                }
+
+                if (isset($row['dynamic_data']) && is_array($row['dynamic_data'])) {
+                    foreach ($row['dynamic_data'] as $val) {
+                        if (is_array($val)) {
+                            foreach ($val as $subVal) {
+                                if (strpos(strtolower((string)$subVal), $searchLower) !== false) return true;
+                            }
+                        } else {
+                            if (strpos(strtolower((string)$val), $searchLower) !== false) return true;
+                        }
+                    }
+                }
+                return false;
+            });
+        }
+
+        // 2. Sorting
+        $sortField = $request->get('sort_field');
+        $sortDirection = $request->get('sort_direction', 'asc');
+        if ($sortField && $sortDirection !== 'default') {
+            $clientsMap = [];
+            $workTypesMap = [];
+            $staffMap = [];
+
+            if ($sortField === 'client') {
+                $clientIds = array_values(array_unique(array_filter(array_column($multiRows, 'client_id'))));
+                $clientsMap = count($clientIds) ? \App\Models\Client::whereIn('id', $clientIds)->pluck('name', 'id')->toArray() : [];
+            } else if ($sortField === 'work_type') {
+                $workTypeIds = array_values(array_unique(array_filter(array_column($multiRows, 'work_type_id'))));
+                $workTypesMap = count($workTypeIds) ? \App\Models\WorkType::whereIn('id', $workTypeIds)->pluck('name', 'id')->toArray() : [];
+            } else if ($sortField === 'assigned_to') {
+                $staffIds = array_values(array_unique(array_filter(array_column($multiRows, 'allocated_to'))));
+                $staffMap = count($staffIds) ? \App\Models\User::whereIn('id', $staffIds)->pluck('name', 'id')->toArray() : [];
+            }
+
+            usort($multiRows, function($a, $b) use ($sortField, $sortDirection, $clientsMap, $workTypesMap, $staffMap) {
+                $valA = '';
+                $valB = '';
+
+                if ($sortField === 'client') {
+                    $valA = isset($a['client_id']) ? ($clientsMap[$a['client_id']] ?? '') : '';
+                    $valB = isset($b['client_id']) ? ($clientsMap[$b['client_id']] ?? '') : '';
+                } else if ($sortField === 'work_type') {
+                    $valA = isset($a['work_type_id']) ? ($workTypesMap[$a['work_type_id']] ?? '') : '';
+                    $valB = isset($b['work_type_id']) ? ($workTypesMap[$b['work_type_id']] ?? '') : '';
+                } else if ($sortField === 'assigned_to') {
+                    $valA = isset($a['allocated_to']) ? ($staffMap[$a['allocated_to']] ?? '') : '';
+                    $valB = isset($b['allocated_to']) ? ($staffMap[$b['allocated_to']] ?? '') : '';
+                } else if ($sortField === 'date_allocated') {
+                    $valA = $a['date_allocated'] ?? '';
+                    $valB = $b['date_allocated'] ?? '';
+                } else if ($sortField === 'status') {
+                    $valA = $a['status'] ?? '';
+                    $valB = $b['status'] ?? '';
+                } else if ($sortField === 'sub_status') {
+                    $valA = $a['sub_status'] ?? '';
+                    $valB = $b['sub_status'] ?? '';
+                } else if (strpos($sortField, 'dynamic_') === 0) {
+                    $fieldLabel = substr($sortField, 8);
+                    $valA = $a['dynamic_data'][$fieldLabel] ?? '';
+                    $valB = $b['dynamic_data'][$fieldLabel] ?? '';
+                }
+
+                $strA = strtolower((string)$valA);
+                $strB = strtolower((string)$valB);
+
+                if ($strA === $strB) return 0;
+                if ($sortDirection === 'asc') {
+                    return ($strA < $strB) ? -1 : 1;
+                } else {
+                    return ($strA > $strB) ? -1 : 1;
+                }
+            });
+        }
+
+        // 3. Paginate
+        $totalRows = count($multiRows);
+        $page = (int)$request->get('page', 1);
+        $perPage = $request->get('per_page', 10);
+
+        if ($perPage !== 'all' && $perPage !== 'All') {
+            $perPage = (int)$perPage;
+            $offset = ($page - 1) * $perPage;
+            $paginatedRows = array_slice(array_values($multiRows), $offset, $perPage);
+        } else {
+            $paginatedRows = array_values($multiRows);
+        }
+
+        $dynamicFields['multi_rows'] = $paginatedRows;
+        $task->dynamic_fields = $dynamicFields;
+
         return response()->json([
-            'data' => new TaskResource($task->load(['client', 'workType', 'assignedTo', 'logs.changedBy', 'permissions.role', 'subTasks.assignedTo'])),
+            'data' => new TaskResource($task),
+            'meta' => [
+                'total' => $totalRows,
+                'page' => $page,
+                'per_page' => $perPage,
+                'status_counts' => $statusCounts,
+                'sub_status_counts' => $subStatusCounts,
+            ]
         ]);
     }
 
@@ -363,16 +565,6 @@ class TaskController extends Controller
     }
     public function update(Request $request, Task $task): JsonResponse
     {
-        if ($request->filled('last_updated_at')) {
-            $clientTime = \Carbon\Carbon::parse($request->input('last_updated_at'));
-            $dbTime = $task->updated_at;
-            if ($dbTime->gt($clientTime->addSeconds(1))) {
-                return response()->json([
-                    'message' => 'This sheet has been modified by another user in the meantime. Please reload the page to load the latest data and try again to avoid overwriting changes.'
-                ], 409);
-            }
-        }
-
         $user = $request->user();
         $user->loadMissing('specialPermissions');
 
@@ -474,10 +666,16 @@ class TaskController extends Controller
                 }
 
                 // 2. Check for deleted rows
-                foreach ($oldMap as $rowId => $oldRow) {
-                    if (!isset($newMap[$rowId])) {
-                        if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
-                            return response()->json(['message' => 'You do not have permission to delete rows assigned to other staff.'], 403);
+                if ($request->has('deleted_row_ids')) {
+                    $deletedIds = $request->input('deleted_row_ids');
+                    if (is_array($deletedIds)) {
+                        foreach ($deletedIds as $dId) {
+                            if (isset($oldMap[$dId])) {
+                                $oldRow = $oldMap[$dId];
+                                if (!self::doesUserMatchRowAllocation($oldRow, $user)) {
+                                    return response()->json(['message' => 'You do not have permission to delete rows assigned to other staff.'], 403);
+                                }
+                            }
                         }
                     }
                 }
@@ -530,6 +728,44 @@ class TaskController extends Controller
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
+
+            $incomingRows = $dynamicFields['multi_rows'] ?? null;
+            if (is_array($incomingRows)) {
+                $currentDynamicFields = $task->dynamic_fields;
+                $masterRows = $currentDynamicFields['multi_rows'] ?? [];
+
+                $masterRowsByRowId = [];
+                foreach ($masterRows as $mr) {
+                    $rowId = $mr['row_id'] ?? $mr['id'] ?? null;
+                    if ($rowId) {
+                        $masterRowsByRowId[$rowId] = $mr;
+                    }
+                }
+
+                foreach ($incomingRows as $ir) {
+                    $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
+                    if ($rowId) {
+                        $masterRowsByRowId[$rowId] = $ir;
+                    } else {
+                        $newId = 'row_' . time() . '_' . rand(1000, 9999);
+                        $ir['row_id'] = $newId;
+                        $masterRowsByRowId[$newId] = $ir;
+                    }
+                }
+
+                if ($request->has('deleted_row_ids')) {
+                    $deletedIds = $request->input('deleted_row_ids');
+                    if (is_array($deletedIds)) {
+                        foreach ($deletedIds as $dId) {
+                            unset($masterRowsByRowId[$dId]);
+                        }
+                    }
+                }
+
+                $currentDynamicFields['multi_rows'] = array_values($masterRowsByRowId);
+                $dynamicFields = $currentDynamicFields;
+            }
+
             $validated['dynamic_fields'] = $dynamicFields;
             \App\Helpers\SheetLogger::log($task, $request->user(), $dynamicFields);
         }

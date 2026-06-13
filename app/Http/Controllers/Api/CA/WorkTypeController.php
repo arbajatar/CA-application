@@ -13,8 +13,13 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class WorkTypeController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(\Illuminate\Http\Request $request)
     {
+        if ($request->boolean('simple')) {
+            $workTypes = WorkType::orderBy('name')->get(['id', 'name']);
+            return response()->json(['data' => $workTypes]);
+        }
+
         $workTypes = WorkType::orderBy('name')->get();
 
         return WorkTypeResource::collection($workTypes);
