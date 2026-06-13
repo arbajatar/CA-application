@@ -747,6 +747,17 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     };
 
     useEffect(() => {
+        // Reset pagination, search, and filter states when switching to a different sheet
+        setCurrentPage(1);
+        setSheetSearch('');
+        setDebouncedSearch('');
+        setSelectedStatusFilter(null);
+        setSelectedSubStatusFilter(null);
+        setSheetStatusFilter('');
+        setSheetWorkTypeFilter('');
+        setSortField(null);
+        setSortDirection('default');
+
         const fetchInitialAllData = async () => {
             setLoading(true);
             try {
@@ -838,7 +849,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             fetchTaskData(false);
         }
     }, [
-        id,
         currentPage,
         rowsPerPage,
         debouncedSearch,
