@@ -119,6 +119,96 @@ const IconMap = {
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, Globe
 };
 
+const BufferedTextarea = ({ value, onChange, placeholder, className, style, disabled, rows = 1, ...props }) => {
+    const [localVal, setLocalVal] = useState(value || '');
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        setLocalVal(value || '');
+    }, [value]);
+
+    const adjustHeight = (el) => {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    };
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            adjustHeight(textareaRef.current);
+        }
+    }, [localVal]);
+
+    const handleBlur = (e) => {
+        if (e.target.value !== (value || '')) {
+            onChange(e.target.value);
+        }
+    };
+
+    return (
+        <textarea
+            {...props}
+            ref={textareaRef}
+            rows={rows}
+            value={localVal}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={className}
+            style={style}
+            onChange={(e) => {
+                setLocalVal(e.target.value);
+            }}
+            onBlur={handleBlur}
+        />
+    );
+};
+
+const BufferedCurrencyInput = ({ value, onChange, placeholder, className, style, disabled, isReadOnly, originalIndex, field, rows, setRows, ...props }) => {
+    const [localVal, setLocalVal] = useState(value || '');
+
+    useEffect(() => {
+        setLocalVal(value || '');
+    }, [value]);
+
+    const handleBlur = (e) => {
+        if (isReadOnly) return;
+        const formattedBlur = formatIndianCurrencyWithDecimals(e.target.value);
+        setLocalVal(formattedBlur);
+        
+        const newRows = [...rows];
+        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
+        newRows[originalIndex].dynamic_data[field.label] = formattedBlur;
+
+        const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+        const total = parseAmt(newRows[originalIndex].dynamic_data?.['TOTAL INVOICE AMOUNT']);
+        const p1 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-1']);
+        const p2 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-2']);
+        const p3 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-3']);
+        const balance = total - (p1 + p2 + p3);
+        newRows[originalIndex].dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
+        
+        setRows(newRows);
+    };
+
+    return (
+        <input
+            {...props}
+            type="text"
+            value={localVal}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={className}
+            style={style}
+            onChange={(e) => {
+                if (isReadOnly) return;
+                const formatted = formatIndianCurrency(e.target.value);
+                setLocalVal(formatted);
+            }}
+            onBlur={handleBlur}
+        />
+    );
+};
+
 
 
 const doesStaffMatchRow = (row, currentUser) => {
@@ -392,7 +482,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [showColumnFilters, setShowColumnFilters] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -672,36 +762,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
         if (isRowEditable && !isReadOnly) {
             return (
-                <input
-                    type="text"
+                <BufferedCurrencyInput
                     value={finalVal}
                     disabled={!isRowEditable || isReadOnly}
-                    onChange={(e) => {
-                        if (isReadOnly) return;
-                        const formatted = formatIndianCurrency(e.target.value);
-                        const newRows = [...rows];
-                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                        newRows[originalIndex].dynamic_data[field.label] = formatted;
-                        setRows(newRows);
-                    }}
-                    onBlur={(e) => {
-                        if (isReadOnly) return;
-                        const formattedBlur = formatIndianCurrencyWithDecimals(e.target.value);
-                        const newRows = [...rows];
-                        if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
-                        newRows[originalIndex].dynamic_data[field.label] = formattedBlur;
-                        
-                        // Also update balance amount dynamically if total or payments changed
-                        const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
-                        const total = parseAmt(newRows[originalIndex].dynamic_data?.['TOTAL INVOICE AMOUNT']);
-                        const p1 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-1']);
-                        const p2 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-2']);
-                        const p3 = parseAmt(newRows[originalIndex].dynamic_data?.['PAYMENT-3']);
-                        const balance = total - (p1 + p2 + p3);
-                        newRows[originalIndex].dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
-                        
-                        setRows(newRows);
-                    }}
+                    isReadOnly={isReadOnly}
+                    originalIndex={originalIndex}
+                    field={field}
+                    rows={rows}
+                    setRows={setRows}
                     placeholder={field.placeholder || "0.00"}
                     className="bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition focus:ring-2 focus:ring-indigo-500/20 focus:outline-none cursor-pointer w-full min-w-full disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
@@ -3495,12 +3563,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                     return (
                                                         <td key={col.id} className="px-4 py-2.5 border-r border-b border-slate-350 min-w-[250px]">
                                                             {isRowEditable ? (
-                                                                <textarea
+                                                                <BufferedTextarea
                                                                     rows={1}
                                                                     disabled={!isRowEditable}
                                                                     value={row.remarks || ''}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
+                                                                    onChange={(val) => {
                                                                         const newRows = [...rows];
                                                                         newRows[originalIndex].remarks = val;
                                                                         setRows(newRows);
@@ -4048,33 +4115,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         ) : (
                                                             isRowEditable ? (
                                                                 <div className="flex items-center justify-between group/cell w-full">
-                                                                    <textarea
-                                                                         ref={(el) => {
-                                                                             if (el) {
-                                                                                 el.style.height = 'auto';
-                                                                                 el.style.height = el.scrollHeight + 'px';
-                                                                             }
-                                                                         }}
+                                                                    <BufferedTextarea
                                                                          rows={1}
                                                                          value={value || ''}
                                                                          disabled={!isRowEditable}
-                                                                         onChange={(e) => {
-                                                                             const val = e.target.value;
+                                                                         onChange={(val) => {
                                                                              const newRows = [...rows];
                                                                              if (!newRows[originalIndex].dynamic_data) newRows[originalIndex].dynamic_data = {};
                                                                              newRows[originalIndex].dynamic_data[field.label] = val;
-                                                                             e.target.style.height = 'auto';
-                                                                             e.target.style.height = e.target.scrollHeight + 'px';
                                                                              setRows(newRows);
-                                                                         }}
-                                                                         onFocus={(e) => {
-                                                                             setFocusedValue(e.target.value);
-                                                                             e.target.style.height = 'auto';
-                                                                             e.target.style.height = e.target.scrollHeight + 'px';
-                                                                         }}
-                                                                         onBlur={(e) => {
-                                                                             e.target.style.height = 'auto';
-                                                                             e.target.style.height = e.target.scrollHeight + 'px';
                                                                          }}
                                                                         placeholder={field.placeholder || `Enter ${field.label}...`}
                                                                         className="bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-slate-350 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 w-full min-w-full outline-none transition resize-none overflow-hidden leading-snug break-words whitespace-pre-wrap block disabled:opacity-60 disabled:bg-slate-100 disabled:cursor-not-allowed"
@@ -4265,6 +4314,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     }}
                                     className="bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm"
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -5093,8 +5143,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             />
 
             {/* Excel Import Preview Modal */}
-            <Modal
-                open={isImportPreviewOpen}
+            {isImportPreviewOpen && (
+                <Modal
+                    open={isImportPreviewOpen}
                 onClose={() => setIsImportPreviewOpen(false)}
                 closeOnOutsideClick={false}
                 title="Excel Import Registry Preview"
@@ -5276,6 +5327,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
                 </div>
             </Modal>
+            )}
 
             {/* Quick Add Client Modal */}
             <Modal
