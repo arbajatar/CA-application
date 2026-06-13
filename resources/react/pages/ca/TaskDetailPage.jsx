@@ -797,24 +797,50 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully') => {
         // Validate for duplicate clients within the same sheet
         if (!allowDuplicateClients) {
-            // Check client ID duplicates
-            const clientIds = updatedRows.map(r => r.client_id).filter(id => id !== null && id !== undefined && id !== '');
-            const duplicateClientId = clientIds.find((id, idx) => clientIds.indexOf(id) !== idx);
-            if (duplicateClientId) {
-                const clientName = clients.find(c => String(c.id) === String(duplicateClientId))?.name || 'Selected client';
-                toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
-                return;
-            }
+            // Check if this is a deletion (no new client added/modified)
+            if (updatedRows.length >= rows.length) {
+                // Find indices of rows that are new or had their client_id modified
+                const modifiedIndices = [];
+                updatedRows.forEach((r, idx) => {
+                    const oldRow = rows[idx];
+                    if (!oldRow || String(r.client_id) !== String(oldRow?.client_id)) {
+                        modifiedIndices.push(idx);
+                    }
+                });
 
-            // Check client PAN duplicates
-            const pans = updatedRows.map(r => {
-                const cObj = clients.find(c => String(c.id) === String(r.client_id));
-                return cObj?.pan_no ? cObj.pan_no.trim().toUpperCase() : '';
-            }).filter(pan => pan !== '');
-            const duplicatePan = pans.find((pan, idx) => pans.indexOf(pan) !== idx);
-            if (duplicatePan) {
-                toast.error(`A client with PAN "${duplicatePan}" is already assigned to another row in this sheet.`);
-                return;
+                for (const mIdx of modifiedIndices) {
+                    const mRow = updatedRows[mIdx];
+                    const cid = mRow.client_id;
+                    if (cid && cid !== 'null' && cid !== 'undefined' && cid !== '0' && cid !== 0) {
+                        // Check if this client_id is used in any OTHER row in updatedRows
+                        const otherRows = updatedRows.filter((r, rIdx) => rIdx !== mIdx);
+                        const isDuplicateId = otherRows.some(r => {
+                            const rCid = r.client_id;
+                            return rCid && String(rCid) === String(cid);
+                        });
+                        if (isDuplicateId) {
+                            const clientName = clients.find(c => String(c.id) === String(cid))?.name || 'Selected client';
+                            toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
+                            return;
+                        }
+
+                        // Check if this client's PAN is used in any OTHER row in updatedRows
+                        const mClient = clients.find(c => String(c.id) === String(cid));
+                        const mPan = mClient?.pan_no ? mClient.pan_no.trim().toUpperCase() : '';
+                        if (mPan) {
+                            const hasDuplicatePan = otherRows.some(r => {
+                                if (!r.client_id || r.client_id === 'null' || r.client_id === 'undefined' || r.client_id === '0' || r.client_id === 0) return false;
+                                const cObj = clients.find(c => String(c.id) === String(r.client_id));
+                                const rPan = cObj?.pan_no ? cObj.pan_no.trim().toUpperCase() : '';
+                                return rPan === mPan;
+                            });
+                            if (hasDuplicatePan) {
+                                toast.error(`A client with PAN "${mPan}" is already assigned to another row in this sheet.`);
+                                return;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -950,6 +976,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         const updatedRows = [...rows, newRow];
         setRows(updatedRows);
         handleSaveRows(updatedRows, 'Row added successfully');
+
+        const nextTotalRows = updatedRows.length;
+        const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
+        setCurrentPage(nextTotalPages);
     };
 
     const removeRow = (index) => {
@@ -5827,6 +5857,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             const updatedRows = [...rows, newRow];
                             setRows(updatedRows);
                             handleSaveRows(updatedRows, 'Row added successfully via Add Task');
+                            
+                            const nextTotalRows = updatedRows.length;
+                            const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
+                            setCurrentPage(nextTotalPages);
                         }
                     }}
                 />
