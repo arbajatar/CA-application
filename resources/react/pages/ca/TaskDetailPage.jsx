@@ -2500,7 +2500,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             </label>
                                         </>
                                     )}
-                                    {isAdmin && (
+                                    {/* {isAdmin && (
                                         <Link 
                                             to={`/logs?task_id=${id}`}
                                             className="flex items-center gap-1.5 text-slate-755 bg-slate-50/75 hover:bg-slate-100/80 border border-slate-200/50 px-2.5 py-1.5 rounded-lg text-[10px] font-black transition cursor-pointer shadow-sm active:scale-95 duration-200 shrink-0"
@@ -2508,7 +2508,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             <Clock size={12} className="text-[#1F5C99]" />
                                             <span>View Logs</span>
                                         </Link>
-                                    )}
+                                    )} */}
                                     {(!isStaff || user?.special_permissions?.edit_sheet) && (
                                         <>
                                             <button 
