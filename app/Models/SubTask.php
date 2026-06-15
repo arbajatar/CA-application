@@ -50,11 +50,18 @@ class SubTask extends Model
                 $filePath = 'sub_tasks_screenshots/attachments_' . uniqid() . '_' . time() . '.json';
             }
 
-            $fullDir = storage_path('app/public/sub_tasks_screenshots');
+            $uploadPath = env('UPLOAD_PATH');
+            if ($uploadPath) {
+                $fullPath = public_path(rtrim($uploadPath, '/') . '/storage/' . $filePath);
+            } else {
+                $fullPath = storage_path('app/public/' . $filePath);
+            }
+
+            $fullDir = dirname($fullPath);
             if (!file_exists($fullDir)) {
                 mkdir($fullDir, 0755, true);
             }
-            file_put_contents(storage_path('app/public/' . $filePath), json_encode($decoded, JSON_PRETTY_PRINT));
+            file_put_contents($fullPath, json_encode($decoded, JSON_PRETTY_PRINT));
 
             $this->attributes['screenshot'] = $filePath;
         } else {
@@ -69,7 +76,12 @@ class SubTask extends Model
         }
 
         if (str_ends_with($value, '.json') && str_starts_with($value, 'sub_tasks_screenshots/')) {
-            $fullPath = storage_path('app/public/' . $value);
+            $uploadPath = env('UPLOAD_PATH');
+            if ($uploadPath) {
+                $fullPath = public_path(rtrim($uploadPath, '/') . '/storage/' . $value);
+            } else {
+                $fullPath = storage_path('app/public/' . $value);
+            }
             if (file_exists($fullPath)) {
                 return file_get_contents($fullPath);
             }

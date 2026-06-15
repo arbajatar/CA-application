@@ -464,6 +464,7 @@ class TaskController extends Controller
 
     public function update(UpdateTaskRequest $request, Task $task): JsonResponse
     {
+        \Illuminate\Support\Facades\Log::info('Incoming task update payload: ' . json_encode($request->all()));
         $oldStatus = $task->status;
         $validated = $request->validated();
 
@@ -507,6 +508,10 @@ class TaskController extends Controller
                 foreach ($incomingRows as $ir) {
                     $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
                     if ($rowId) {
+                        $existing = $masterRowsByRowId[$rowId] ?? [];
+                        if ((!array_key_exists('attachments', $ir) || is_null($ir['attachments'])) && isset($existing['attachments'])) {
+                            $ir['attachments'] = $existing['attachments'];
+                        }
                         $masterRowsByRowId[$rowId] = $ir;
                     } else {
                         $newId = 'row_' . time() . '_' . rand(1000, 9999);

@@ -637,7 +637,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         row_id: r.row_id || r.id || `row_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`
                     };
                 });
-                if (loadedRows.length === 0) {
+                const isSheetEmpty = (taskRes.data.meta?.status_counts?.total ?? 0) === 0;
+                if (loadedRows.length === 0 && isSheetEmpty) {
                     const initialRow = {
                         row_id: `row_${Date.now()}_0_${Math.random().toString(36).substr(2, 5)}`,
                         form_name: data.form_name || '',
@@ -659,7 +660,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             : topLevelData
                     };
                     loadedRows = [initialRow];
-                    needsSave = true;
+                    // Do not auto-save a blank initial row to the database
+                    needsSave = false;
                 }
                 setRows(loadedRows);
                 if (needsSave) {
@@ -717,7 +719,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         dynamic_data: mergeDynamicData(r.dynamic_data, topLevelData)
                     };
                 });
-                if (loadedRows.length === 0) {
+                const isSheetEmpty = (taskRes.data.meta?.status_counts?.total ?? 0) === 0;
+                if (loadedRows.length === 0 && isSheetEmpty) {
                     const initialRow = {
                         row_id: `row_${Date.now()}_0_${Math.random().toString(36).substr(2, 5)}`,
                         client_id: data.client?.id || '',
@@ -728,7 +731,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         dynamic_data: topLevelData
                     };
                     loadedRows = [initialRow];
-                    needsSave = true;
+                    // Do not auto-save a blank initial row to the database
+                    needsSave = false;
                 }
                 setRows(loadedRows);
                 if (needsSave) {
@@ -1074,18 +1078,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
             });
  
-            // Optimize: Only send modified or new rows in the payload
-            const modifiedRows = updatedRows.filter(row => {
-                const rowId = row.row_id || row.id;
-                const oldRow = rows.find(r => (r.row_id || r.id) === rowId);
-                if (!oldRow) return true; // New row
-                return JSON.stringify(row) !== JSON.stringify(oldRow);
-            });
-
             const nextDynamicFields = {
                 ...cleanDynamicFields,
                 ...firstRowData,
-                multi_rows: modifiedRows
+                multi_rows: updatedRows
             };
  
             const payload = {
@@ -2448,14 +2444,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }).filter(Boolean),
         ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
         ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        ...(allowAttachments ? [{ id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' }] : []),
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ] : [
         { id: 'client', label: 'Client', minWidth: 'min-w-[240px]' },
         { id: 'client_pan', label: 'PAN No', minWidth: 'min-w-[130px]' },
         ...(isBillableEnabled && !filteredSchema.some(f => Number(f.section) === 3 || billingSchema.some(b => b.label.toUpperCase() === f.label.toUpperCase())) ? billingSchema : []),
         ...(isAfterSalesEnabled && !filteredSchema.some(f => Number(f.section) === 4 || afterSalesSchema.some(a => a.label.toUpperCase() === f.label.toUpperCase())) ? afterSalesSchema : []),
-        { id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' },
+        ...(allowAttachments ? [{ id: 'attachments', label: 'Attachments', minWidth: 'min-w-[120px]' }] : []),
         { id: 'is_verified', label: 'Verification', minWidth: 'min-w-[120px]' }
     ];
  
@@ -5946,19 +5942,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     onUploadAttachment={async (fileList) => {
                         if (viewingRowIndex !== null) {
                             await handleUploadMultipleRowAttachments(viewingRowIndex, fileList);
-                            setNewTaskData(prev => ({
-                                ...prev,
-                                attachments: rows[viewingRowIndex]?.attachments || []
-                            }));
                         }
                     }}
                     onDeleteAttachment={async (idx, filePath) => {
                         if (viewingRowIndex !== null) {
                             await handleDeleteRowAttachment(viewingRowIndex, filePath);
-                            setNewTaskData(prev => ({
-                                ...prev,
-                                attachments: rows[viewingRowIndex]?.attachments?.filter(att => att.path !== filePath) || []
-                            }));
                         }
                     }}
                     onToggleVerification={async () => {
