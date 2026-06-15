@@ -231,6 +231,7 @@ const doesStaffMatchRow = (row, currentUser) => {
 
 export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const { user } = useAuth();
+    const fetchCounterRef = useRef(0);
     const isAdmin = user?.role === 'ca';
     const isStaff = user?.role === 'staff';
     const { id: paramId } = useParams();
@@ -516,13 +517,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }
     };
 
-    const fetchTaskData = async (isInitial = false) => {
+    const fetchTaskData = async (isInitial = false, overridePage = null) => {
         if (isInitial) setLoading(true);
+        const currentFetchId = ++fetchCounterRef.current;
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             
             const params = {
-                page: currentPage,
+                page: overridePage !== null ? overridePage : currentPage,
                 per_page: rowsPerPage,
                 search: debouncedSearch || undefined,
                 status: selectedStatusFilter || sheetStatusFilter || undefined,
@@ -531,8 +533,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 sort_field: sortField || undefined,
                 sort_direction: sortDirection || undefined
             };
-
+ 
             const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
+            if (currentFetchId !== fetchCounterRef.current) {
+                return;
+            }
             const data = taskRes.data.data;
             setTask(data);
             setTotalRows(taskRes.data.meta?.total || 0);
@@ -974,9 +979,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setIsSidebarOpen(false);
             setActiveFieldId(null);
         }
-    };
-
-    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = []) => {
+    };    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = [], overridePage = null) => {
         // Validate for duplicate clients within the same sheet
         if (!allowDuplicateClients) {
             // Check if this is a deletion (no new client added/modified)
@@ -989,7 +992,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         modifiedIndices.push(idx);
                     }
                 });
-
+ 
                 for (const mIdx of modifiedIndices) {
                     const mRow = updatedRows[mIdx];
                     const cid = mRow.client_id;
@@ -1005,7 +1008,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             toast.error(`Client "${clientName}" is already assigned to another row in this sheet.`);
                             return;
                         }
-
+ 
                         // Check if this client's PAN is used in any OTHER row in updatedRows
                         const mClient = clients.find(c => String(c.id) === String(cid));
                         const mPan = mClient?.pan_no ? mClient.pan_no.trim().toUpperCase() : '';
@@ -1025,7 +1028,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
             }
         }
-
+ 
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             const firstRow = updatedRows[0] || {};
@@ -1040,7 +1043,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             delete firstRowData.multi_rows;
             delete firstRowData.field_names;
             delete firstRowData.field_types;
-
+ 
             // Preserve special keys from current task.dynamic_fields
             const cleanDynamicFields = {};
             ['schema', 'field_names', 'field_types'].forEach(k => {
@@ -1048,13 +1051,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     cleanDynamicFields[k] = task.dynamic_fields[k];
                 }
             });
-
+ 
             const nextDynamicFields = {
                 ...cleanDynamicFields,
                 ...firstRowData,
                 multi_rows: updatedRows
             };
-
+ 
             const payload = {
                 client_id: (task.client && typeof task.client === 'object') ? task.client.id : (task.client_id ? Number(task.client_id) : null),
                 work_type_id: (task.work_type && typeof task.work_type === 'object') ? task.work_type.id : (task.work_type_id ? Number(task.work_type_id) : null),
@@ -1066,9 +1069,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 deleted_row_ids: deletedRowIds,
                 last_updated_at: task.updated_at
             };
-
+ 
             await api.patch(`${apiPrefix}/tasks/${id}`, payload);
-            await fetchTaskData(false);
+            
+            if (overridePage !== null) {
+                if (currentPage === overridePage) {
+                    await fetchTaskData(false);
+                } else {
+                    setCurrentPage(overridePage);
+                }
+            } else {
+                await fetchTaskData(false);
+            }
             toast.success(successMessage);
         } catch (e) {
             console.error(e);
@@ -1103,13 +1115,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 return { ...acc, [f.label]: defaultVal };
             }, {})
         };
+        const nextTotalRows = totalRows + 1;
+        const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
+        
         const updatedRows = [...rows, newRow];
         setRows(updatedRows);
-        handleSaveRows(updatedRows, 'Row added successfully');
-
-        const nextTotalRows = updatedRows.length;
-        const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
-        setCurrentPage(nextTotalPages);
+        handleSaveRows(updatedRows, 'Row added successfully', [], nextTotalPages);
     };
 
     const removeRow = (index) => {
@@ -5856,13 +5867,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                             handleSaveRows(updatedRows, 'Row updated successfully');
                             setViewingRowIndex(null);
                         } else {
+                            const nextTotalRows = totalRows + 1;
+                            const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
+ 
                             const updatedRows = [...rows, newRow];
                             setRows(updatedRows);
-                            handleSaveRows(updatedRows, 'Row added successfully via Add Task');
-                            
-                            const nextTotalRows = updatedRows.length;
-                            const nextTotalPages = Math.ceil(nextTotalRows / (rowsPerPage === 'All' ? nextTotalRows || 1 : rowsPerPage));
-                            setCurrentPage(nextTotalPages);
+                            handleSaveRows(updatedRows, 'Row added successfully via Add Task', [], nextTotalPages);
                         }
                     }}
                 />
