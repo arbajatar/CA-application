@@ -22,6 +22,7 @@ import { formatDate, convertTo12Hour, convertTo24Hour } from '../../utils/dateHe
 import TimePicker12Hour from '../../components/ui/TimePicker12Hour';
 import { formatIndianCurrency, formatIndianCurrencyWithDecimals } from '../../utils/currencyHelper';
 import AddTaskModal from '../../components/ca/AddTaskModal';
+import BulkEditTaskModal from '../../components/ca/BulkEditTaskModal';
 import SearchableSelect from '../../components/ui/SearchableSelect';
 import { exportToExcel } from '../../utils/excelExport';
 import Modal from '../../components/ui/Modal';
@@ -303,6 +304,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [inlineFeedbackValue, setInlineFeedbackValue] = useState('');
     const [selectedTaskIds, setSelectedTaskIds] = useState([]);
     const [focusedValue, setFocusedValue] = useState('');
+    const [selectedRowIds, setSelectedRowIds] = useState([]);
+    const [bulkEditOpen, setBulkEditOpen] = useState(false);
+    const [bulkUpdateTargets, setBulkUpdateTargets] = useState({ client_id: false, allocated_to: false, status: false, sub_status: false, date_allocated: false, remarks: false });
+    const [bulkMainFields, setBulkMainFields] = useState({ client_id: '', allocated_to: '', status: 'assigned', sub_status: '', date_allocated: '', remarks: '' });
 
     // Custom Confirm Dialog State
     const [confirmState, setConfirmState] = useState({
@@ -776,6 +781,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         setSheetWorkTypeFilter('');
         setSortField(null);
         setSortDirection('default');
+        setSelectedRowIds([]);
 
         const fetchInitialAllData = async () => {
             setLoading(true);
@@ -1044,6 +1050,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             }
         }
  
+        const loadingToast = toast.loading('Saving changes... Please wait.');
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             const firstRow = updatedRows[0] || {};
@@ -1067,10 +1074,18 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
             });
  
+            // Optimize: Only send modified or new rows in the payload
+            const modifiedRows = updatedRows.filter(row => {
+                const rowId = row.row_id || row.id;
+                const oldRow = rows.find(r => (r.row_id || r.id) === rowId);
+                if (!oldRow) return true; // New row
+                return JSON.stringify(row) !== JSON.stringify(oldRow);
+            });
+
             const nextDynamicFields = {
                 ...cleanDynamicFields,
                 ...firstRowData,
-                multi_rows: updatedRows
+                multi_rows: modifiedRows
             };
  
             const payload = {
@@ -1096,18 +1111,19 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             } else {
                 await fetchTaskData(false);
             }
-            toast.success(successMessage);
+            toast.success(successMessage, { id: loadingToast });
         } catch (e) {
             console.error(e);
             let msg = e.response?.data?.message || 'Failed to save row changes';
             if (e.response?.status === 409) {
-                toast.error(msg, { duration: 8000 });
+                toast.error(msg, { id: loadingToast, duration: 8000 });
                 return;
             }
             if (msg.includes('SQLSTATE') || msg.includes('Integrity constraint violation')) {
                 msg = 'A database error occurred. Please ensure all required fields are filled correctly.';
             }
-            toast.error(msg);
+            toast.error(msg, { id: loadingToast });
+            throw e; // Rethrow to let the caller modal handle it if needed
         }
     };
 
@@ -1227,6 +1243,68 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setSaving(false);
         }
     };
+    const handleBulkDelete = () => {
+        if (selectedRowIds.length === 0) return;
+        setConfirmState({
+            open: true,
+            title: 'Delete Selected Rows',
+            message: `Are you sure you want to delete the ${selectedRowIds.length} selected rows? This action cannot be undone.`,
+            confirmLabel: 'Delete Rows',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    const updatedRows = rows.filter(r => !selectedRowIds.includes(r.row_id || r.id));
+                    const idsToDelete = selectedRowIds;
+                    setRows(updatedRows);
+                    setSelectedRowIds([]);
+                    await handleSaveRows(updatedRows, 'Selected rows deleted successfully', idsToDelete);
+                } catch (err) {
+                    toast.error("Failed to delete rows");
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const handleApplyBulkUpdates = async () => {
+        if (selectedRowIds.length === 0) return;
+        
+        const nextRows = rows.map(r => {
+            const rid = r.row_id || r.id;
+            if (selectedRowIds.includes(rid)) {
+                const updatedRow = { ...r };
+                if (bulkUpdateTargets.client_id) {
+                    updatedRow.client_id = bulkMainFields.client_id ? Number(bulkMainFields.client_id) : null;
+                }
+                if (bulkUpdateTargets.allocated_to) {
+                    updatedRow.allocated_to = bulkMainFields.allocated_to ? Number(bulkMainFields.allocated_to) : null;
+                    updatedRow.allocated_type = 'user';
+                }
+                if (bulkUpdateTargets.status) {
+                    updatedRow.status = bulkMainFields.status || 'assigned';
+                }
+                if (bulkUpdateTargets.sub_status) {
+                    updatedRow.sub_status = bulkMainFields.sub_status || null;
+                }
+                if (bulkUpdateTargets.date_allocated) {
+                    updatedRow.date_allocated = bulkMainFields.date_allocated || null;
+                }
+                if (bulkUpdateTargets.remarks) {
+                    updatedRow.remarks = bulkMainFields.remarks || '';
+                }
+                return updatedRow;
+            }
+            return r;
+        });
+        
+        setRows(nextRows);
+        setBulkEditOpen(false);
+        setSelectedRowIds([]);
+        await handleSaveRows(nextRows, `Bulk updated ${selectedRowIds.length} rows successfully`);
+    };
+
     const handleUpdateSingleDynamicField = async (key, val) => {
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
@@ -3234,7 +3312,31 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[12px] font-black uppercase tracking-widest">
-                                <th className="px-2 py-4 text-center border-r border-[#154673] w-[60px] min-w-[60px] text-white bg-[#1F5C99] sticky left-0 z-30">#</th>
+                                <th className="px-2 py-4 text-center border-r border-[#154673] w-[75px] min-w-[75px] text-white bg-[#1F5C99] sticky left-0 z-30">
+                                    <div className="flex items-center justify-center gap-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={paginatedRows.length > 0 && paginatedRows.every(r => selectedRowIds.includes(r.row_id || r.id))}
+                                            onChange={() => {
+                                                const currentPageRowIds = paginatedRows.map(r => r.row_id || r.id).filter(Boolean);
+                                                const allSelected = currentPageRowIds.every(id => selectedRowIds.includes(id));
+                                                if (allSelected) {
+                                                    setSelectedRowIds(prev => prev.filter(id => !currentPageRowIds.includes(id)));
+                                                } else {
+                                                    setSelectedRowIds(prev => {
+                                                        const copy = [...prev];
+                                                        currentPageRowIds.forEach(id => {
+                                                            if (!copy.includes(id)) copy.push(id);
+                                                        });
+                                                        return copy;
+                                                    });
+                                                }
+                                            }}
+                                            className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                        />
+                                        <span>#</span>
+                                    </div>
+                                </th>
                                 {activeColumns.map((col, idx) => {
                                     const handleColumnDrop = (targetIdx) => {
                                         if (draggedColumnIndex === null || draggedColumnIndex === targetIdx) return;
@@ -3339,10 +3441,23 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                 : 'hover:bg-slate-200'
                                         }`}>
                             {/* # column with hover delete */}
-                                            <td className="px-2 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50 sticky left-0 z-20 w-[60px] min-w-[60px]">
-                                                <span>
-                                                    {String(globalIndex + 1).padStart(2, '0')}
-                                                </span>
+                                            <td className="px-2 py-2.5 text-center font-bold text-slate-400 border-r border-b border-slate-350 bg-slate-50 sticky left-0 z-20 w-[75px] min-w-[75px]">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedRowIds.includes(row.row_id || row.id)}
+                                                        onChange={() => {
+                                                            const rid = row.row_id || row.id;
+                                                            setSelectedRowIds(prev =>
+                                                                prev.includes(rid) ? prev.filter(id => id !== rid) : [...prev, rid]
+                                                            );
+                                                        }}
+                                                        className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
+                                                    />
+                                                    <span>
+                                                        {String(globalIndex + 1).padStart(2, '0')}
+                                                    </span>
+                                                </div>
                                             </td>
 
                                             {activeColumns.map(col => {
@@ -5899,7 +6014,104 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 />
             )}
 
+            {bulkEditOpen && (
+                <BulkEditTaskModal
+                    isOpen={bulkEditOpen}
+                    onClose={() => setBulkEditOpen(false)}
+                    allFields={allFields}
+                    isBillableEnabled={isBillableEnabled}
+                    isAfterSalesEnabled={isAfterSalesEnabled}
+                    clients={clients}
+                    workTypes={workTypes}
+                    staff={staff}
+                    task={task}
+                    isAdmin={isAdmin}
+                    onSave={async (fields, targets) => {
+                        const nextRows = rows.map(r => {
+                            const rid = r.row_id || r.id;
+                            if (selectedRowIds.includes(rid)) {
+                                const updatedRow = { ...r, dynamic_data: { ...(r.dynamic_data || {}) } };
+                                
+                                // Map static fields
+                                if (targets.client_id) updatedRow.client_id = fields.client_id ? Number(fields.client_id) : null;
+                                if (targets.allocated_to) {
+                                    updatedRow.allocated_to = fields.allocated_to ? Number(fields.allocated_to) : null;
+                                    updatedRow.allocated_type = 'user';
+                                }
+                                if (targets.status) updatedRow.status = fields.status || 'assigned';
+                                if (targets.sub_status) updatedRow.sub_status = fields.sub_status || null;
+                                if (targets.date_allocated) updatedRow.date_allocated = fields.date_allocated || null;
+                                if (targets.remarks) updatedRow.remarks = fields.remarks || '';
+                                if (targets.is_verified) updatedRow.is_verified = !!fields.is_verified;
+                                if (targets.form_name) updatedRow.form_name = fields.form_name || '';
+                                if (targets.work_type_id) updatedRow.work_type_id = fields.work_type_id ? Number(fields.work_type_id) : null;
+                                
+                                // Map dynamic fields
+                                Object.keys(targets).forEach(k => {
+                                    const staticKeys = ['client_id', 'allocated_to', 'status', 'sub_status', 'date_allocated', 'remarks', 'is_verified', 'form_name', 'work_type_id', 'attachments'];
+                                    if (!staticKeys.includes(k)) {
+                                        updatedRow.dynamic_data[k] = fields.dynamic_data[k];
+                                    }
+                                });
+
+                                // Recalculate balance amount if any billing fields are updated
+                                const parseAmt = (val) => parseFloat(String(val || '0').replace(/,/g, '')) || 0;
+                                const total = parseAmt(updatedRow.dynamic_data?.['TOTAL INVOICE AMOUNT']);
+                                const p1 = parseAmt(updatedRow.dynamic_data?.['PAYMENT-1']);
+                                const p2 = parseAmt(updatedRow.dynamic_data?.['PAYMENT-2']);
+                                const p3 = parseAmt(updatedRow.dynamic_data?.['PAYMENT-3']);
+                                const balance = total - (p1 + p2 + p3);
+                                updatedRow.dynamic_data['BALANCE AMOUNT'] = formatIndianCurrencyWithDecimals(balance.toString());
+
+                                return updatedRow;
+                            }
+                            return r;
+                        });
+                        
+                        setRows(nextRows);
+                        setSelectedRowIds([]);
+                        await handleSaveRows(nextRows, `Bulk updated ${selectedRowIds.length} rows successfully`);
+                    }}
+                />
+            )}
+
+            {selectedRowIds.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white border border-slate-800 rounded-2xl shadow-2xl py-3 px-6 flex items-center gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <p className="text-xs font-semibold text-slate-200">
+                            <span className="font-extrabold text-blue-400">{selectedRowIds.length}</span> rows selected
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setSelectedRowIds([])}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
+                        >
+                            Clear Selection
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setBulkMainFields({ client_id: '', allocated_to: '', status: 'assigned', sub_status: '', date_allocated: '', remarks: '' });
+                                setBulkUpdateTargets({ client_id: false, allocated_to: false, status: false, sub_status: false, date_allocated: false, remarks: false });
+                                setBulkEditOpen(true);
+                            }}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/20"
+                        >
+                            Bulk Edit
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-2 bg-red-650 hover:bg-red-700 text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-red-650/20"
+                        >
+                            Bulk Delete
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
-

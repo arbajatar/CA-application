@@ -853,7 +853,10 @@ class TaskController extends Controller
             }
 
             $validated['dynamic_fields'] = $dynamicFields;
-            \App\Helpers\SheetLogger::log($task, $request->user(), $dynamicFields);
+            $currentUser = $request->user();
+            dispatch(function () use ($task, $currentUser, $dynamicFields) {
+                \App\Helpers\SheetLogger::log($task, $currentUser, $dynamicFields);
+            })->afterResponse();
         }
 
         $oldStatus = $task->status;
@@ -869,6 +872,23 @@ class TaskController extends Controller
         }
 
         $task->update($validated);
+
+        // Paginate dynamic_fields['multi_rows'] to avoid returning a huge response payload (e.g. 10,500 rows)
+        $dynamicFields = $task->dynamic_fields;
+        if (is_array($dynamicFields) && isset($dynamicFields['multi_rows'])) {
+            $multiRows = $dynamicFields['multi_rows'];
+            $page = (int)$request->get('page', 1);
+            $perPage = $request->get('per_page', 10);
+            if ($perPage !== 'all' && $perPage !== 'All') {
+                $perPage = (int)$perPage;
+                $offset = ($page - 1) * $perPage;
+                $paginatedRows = array_slice(array_values($multiRows), $offset, $perPage);
+            } else {
+                $paginatedRows = array_values($multiRows);
+            }
+            $dynamicFields['multi_rows'] = $paginatedRows;
+            $task->dynamic_fields = $dynamicFields;
+        }
 
         if ($request->has('permissions')) {
             $task->permissions()->delete();

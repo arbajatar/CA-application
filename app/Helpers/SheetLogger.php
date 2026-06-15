@@ -9,6 +9,10 @@ use App\Models\User;
 
 class SheetLogger
 {
+    private static $clientsCache = null;
+    private static $workTypesCache = null;
+    private static $usersCache = null;
+
     public static function log($task, $user, $newDynamicFields)
     {
         if (!$task) return;
@@ -35,6 +39,53 @@ class SheetLogger
             $newMap[$id] = $r;
         }
 
+        // Gather all IDs for bulk querying
+        $changedClientIds = [];
+        $changedWorkTypeIds = [];
+        $changedUserIds = [];
+
+        foreach ($newMap as $id => $newRow) {
+            if (isset($oldMap[$id])) {
+                $oldRow = $oldMap[$id];
+                if ($newRow === $oldRow) {
+                    continue;
+                }
+                
+                if (!empty($oldRow['client_id'])) $changedClientIds[] = $oldRow['client_id'];
+                if (!empty($newRow['client_id'])) $changedClientIds[] = $newRow['client_id'];
+                
+                if (!empty($oldRow['work_type_id'])) $changedWorkTypeIds[] = $oldRow['work_type_id'];
+                if (!empty($newRow['work_type_id'])) $changedWorkTypeIds[] = $newRow['work_type_id'];
+                
+                if (!empty($oldRow['allocated_to'])) {
+                    if (is_array($oldRow['allocated_to'])) {
+                        $changedUserIds = array_merge($changedUserIds, $oldRow['allocated_to']);
+                    } else {
+                        $changedUserIds[] = $oldRow['allocated_to'];
+                    }
+                }
+                if (!empty($newRow['allocated_to'])) {
+                    if (is_array($newRow['allocated_to'])) {
+                        $changedUserIds = array_merge($changedUserIds, $newRow['allocated_to']);
+                    } else {
+                        $changedUserIds[] = $newRow['allocated_to'];
+                    }
+                }
+            } else {
+                if (!empty($newRow['client_id'])) $changedClientIds[] = $newRow['client_id'];
+            }
+        }
+        
+        foreach ($oldMap as $id => $row) {
+            if (!isset($newMap[$id])) {
+                if (!empty($row['client_id'])) $changedClientIds[] = $row['client_id'];
+            }
+        }
+
+        self::$clientsCache = count($changedClientIds) ? Client::whereIn('id', array_unique($changedClientIds))->get()->keyBy('id') : collect();
+        self::$workTypesCache = count($changedWorkTypeIds) ? WorkType::whereIn('id', array_unique($changedWorkTypeIds))->get()->keyBy('id') : collect();
+        self::$usersCache = count($changedUserIds) ? User::whereIn('id', array_unique($changedUserIds))->get()->keyBy('id') : collect();
+
         $changes = [];
 
         // 1. Added Rows
@@ -42,7 +93,7 @@ class SheetLogger
             if (!isset($oldMap[$id])) {
                 $clientName = 'No Client';
                 if (!empty($row['client_id'])) {
-                    $clientName = Client::find($row['client_id'])?->name ?? "Client #{$row['client_id']}";
+                    $clientName = self::$clientsCache->get($row['client_id'])?->name ?? "Client #{$row['client_id']}";
                 }
                 $changes[] = [
                     'type' => 'row_added',
@@ -56,7 +107,7 @@ class SheetLogger
             if (!isset($newMap[$id])) {
                 $clientName = 'No Client';
                 if (!empty($row['client_id'])) {
-                    $clientName = Client::find($row['client_id'])?->name ?? "Client #{$row['client_id']}";
+                    $clientName = self::$clientsCache->get($row['client_id'])?->name ?? "Client #{$row['client_id']}";
                 }
                 $changes[] = [
                     'type' => 'row_deleted',
@@ -69,14 +120,17 @@ class SheetLogger
         foreach ($newMap as $id => $newRow) {
             if (isset($oldMap[$id])) {
                 $oldRow = $oldMap[$id];
+                if ($newRow === $oldRow) {
+                    continue;
+                }
                 $diffs = [];
 
                 // Compare client_id
                 $oldClientVal = $oldRow['client_id'] ?? null;
                 $newClientVal = $newRow['client_id'] ?? null;
                 if ($oldClientVal != $newClientVal) {
-                    $oldName = $oldClientVal ? (Client::find($oldClientVal)?->name ?? "Client #$oldClientVal") : 'None';
-                    $newName = $newClientVal ? (Client::find($newClientVal)?->name ?? "Client #$newClientVal") : 'None';
+                    $oldName = $oldClientVal ? (self::$clientsCache->get($oldClientVal)?->name ?? "Client #$oldClientVal") : 'None';
+                    $newName = $newClientVal ? (self::$clientsCache->get($newClientVal)?->name ?? "Client #$newClientVal") : 'None';
                     $diffs[] = "Client changed from \"$oldName\" to \"$newName\"";
                 }
 
@@ -84,8 +138,8 @@ class SheetLogger
                 $oldWtVal = $oldRow['work_type_id'] ?? null;
                 $newWtVal = $newRow['work_type_id'] ?? null;
                 if ($oldWtVal != $newWtVal) {
-                    $oldName = $oldWtVal ? (WorkType::find($oldWtVal)?->name ?? "WorkType #$oldWtVal") : 'None';
-                    $newName = $newWtVal ? (WorkType::find($newWtVal)?->name ?? "WorkType #$newWtVal") : 'None';
+                    $oldName = $oldWtVal ? (self::$workTypesCache->get($oldWtVal)?->name ?? "WorkType #$oldWtVal") : 'None';
+                    $newName = $newWtVal ? (self::$workTypesCache->get($newWtVal)?->name ?? "WorkType #$newWtVal") : 'None';
                     $diffs[] = "Work Type changed from \"$oldName\" to \"$newName\"";
                 }
 
@@ -136,7 +190,7 @@ class SheetLogger
                 if (!empty($diffs)) {
                     $clientName = 'No Client';
                     if (!empty($newRow['client_id'])) {
-                        $clientName = Client::find($newRow['client_id'])?->name ?? "Client #{$newRow['client_id']}";
+                        $clientName = self::$clientsCache->get($newRow['client_id'])?->name ?? "Client #{$newRow['client_id']}";
                     }
                     $changes[] = [
                         'type' => 'row_updated',
@@ -157,23 +211,28 @@ class SheetLogger
                 'details' => $changes,
             ]);
         }
+
+        // Clean up static caches
+        self::$clientsCache = null;
+        self::$workTypesCache = null;
+        self::$usersCache = null;
     }
 
     private static function formatAllocated($val, $type)
     {
         if (empty($val)) return 'None';
         if ($type === 'user') {
-            return User::find($val)?->name ?? "Staff #$val";
+            return self::$usersCache->get($val)?->name ?? "Staff #$val";
         }
         if ($type === 'users') {
             if (is_array($val)) {
                 $names = [];
                 foreach ($val as $id) {
-                    $names[] = User::find($id)?->name ?? "Staff #$id";
+                    $names[] = self::$usersCache->get($id)?->name ?? "Staff #$id";
                 }
                 return implode(', ', $names);
             }
-            return User::find($val)?->name ?? "Staff #$val";
+            return self::$usersCache->get($val)?->name ?? "Staff #$val";
         }
         if ($type === 'role') {
             $roleObj = \Illuminate\Support\Facades\DB::table('roles')->where('id', $val)->first();
