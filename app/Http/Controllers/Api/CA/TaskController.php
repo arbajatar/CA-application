@@ -288,7 +288,93 @@ class TaskController extends Controller
                 return false;
             });
         }
+ 
+        // 1.5. Dynamic Column Filtering
+        $columnFiltersJson = $request->get('column_filters');
+        if ($columnFiltersJson) {
+            $colFilters = json_decode($columnFiltersJson, true);
+            if (is_array($colFilters)) {
+                $clientIdsForFilter = array_values(array_unique(array_filter(array_column($multiRows, 'client_id'))));
+                $clientsFilterMap = count($clientIdsForFilter) ? \App\Models\Client::whereIn('id', $clientIdsForFilter)->pluck('name', 'id')->toArray() : [];
+                $clientsPanFilterMap = count($clientIdsForFilter) ? \App\Models\Client::whereIn('id', $clientIdsForFilter)->pluck('pan_no', 'id')->toArray() : [];
 
+                $workTypeIdsForFilter = array_values(array_unique(array_filter(array_column($multiRows, 'work_type_id'))));
+                $workTypesFilterMap = count($workTypeIdsForFilter) ? \App\Models\WorkType::whereIn('id', $workTypeIdsForFilter)->pluck('name', 'id')->toArray() : [];
+
+                $staffIdsForFilter = array_values(array_unique(array_filter(array_column($multiRows, 'allocated_to'))));
+                $staffFilterMap = count($staffIdsForFilter) ? \App\Models\User::whereIn('id', $staffIdsForFilter)->pluck('name', 'id')->toArray() : [];
+
+                foreach ($colFilters as $colKey => $colVal) {
+                    $colVal = trim($colVal);
+                    if ($colVal === '') {
+                        continue;
+                    }
+                    $colValLower = strtolower($colVal);
+                    $multiRows = array_filter($multiRows, function($row) use ($colKey, $colValLower, $clientsFilterMap, $clientsPanFilterMap, $workTypesFilterMap, $staffFilterMap) {
+                        if ($colKey === 'client_id') {
+                            $cid = $row['client_id'] ?? null;
+                            $name = $cid ? ($clientsFilterMap[$cid] ?? '') : '';
+                            return strpos(strtolower($name), $colValLower) !== false;
+                        }
+                        if ($colKey === 'client_pan') {
+                            $cid = $row['client_id'] ?? null;
+                            $pan = $cid ? ($clientsPanFilterMap[$cid] ?? '') : '';
+                            return strpos(strtolower($pan), $colValLower) !== false;
+                        }
+                        if ($colKey === 'work_type_id') {
+                            $wtid = $row['work_type_id'] ?? null;
+                            $name = $wtid ? ($workTypesFilterMap[$wtid] ?? '') : '';
+                            return strpos(strtolower($name), $colValLower) !== false;
+                        }
+                        if ($colKey === 'allocated_to') {
+                            $allocType = $row['allocated_type'] ?? 'user';
+                            $allocTo = $row['allocated_to'] ?? null;
+                            $namesStr = '';
+                            if ($allocType === 'user' && $allocTo) {
+                                $namesStr = $staffFilterMap[$allocTo] ?? '';
+                            } else if ($allocType === 'users' && is_array($allocTo)) {
+                                $names = [];
+                                foreach ($allocTo as $uid) {
+                                    if (isset($staffFilterMap[$uid])) {
+                                        $names[] = $staffFilterMap[$uid];
+                                    }
+                                }
+                                $namesStr = implode(', ', $names);
+                            }
+                            return strpos(strtolower($namesStr), $colValLower) !== false;
+                        }
+                        if ($colKey === 'date_allocated') {
+                            $val = $row['date_allocated'] ?? '';
+                            return strpos(strtolower($val), $colValLower) !== false;
+                        }
+                        if ($colKey === 'status') {
+                            $val = $row['status'] ?? '';
+                            return strpos(strtolower($val), $colValLower) !== false;
+                        }
+                        if ($colKey === 'sub_status') {
+                            $val = $row['sub_status'] ?? $row['dynamic_data']['Sub Status'] ?? $row['dynamic_data']['static_sub_status'] ?? '';
+                            return strpos(strtolower($val), $colValLower) !== false;
+                        }
+                        if ($colKey === 'remarks') {
+                            $val = $row['remarks'] ?? '';
+                            return strpos(strtolower($val), $colValLower) !== false;
+                        }
+
+                        $dynVal = $row['dynamic_data'][$colKey] ?? '';
+                        if (is_array($dynVal)) {
+                            foreach ($dynVal as $subVal) {
+                                if (strpos(strtolower((string)$subVal), $colValLower) !== false) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                        return strpos(strtolower((string)$dynVal), $colValLower) !== false;
+                    });
+                }
+            }
+        }
+ 
         // 2. Sorting
         $sortField = $request->get('sort_field');
         $sortDirection = $request->get('sort_direction', 'asc');

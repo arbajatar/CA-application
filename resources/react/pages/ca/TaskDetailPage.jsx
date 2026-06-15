@@ -243,6 +243,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const canWrite = isAdmin || !!task?.user_permissions?.can_write;
     const canDelete = isAdmin || !!task?.user_permissions?.can_delete;
     const [loading, setLoading] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
@@ -488,6 +489,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [statusCounts, setStatusCounts] = useState(null);
     const [subStatusCounts, setSubStatusCounts] = useState(null);
     const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [debouncedFilters, setDebouncedFilters] = useState({});
     const [staticDataLoaded, setStaticDataLoaded] = useState(false);
 
     useEffect(() => {
@@ -498,8 +500,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     }, [sheetSearch]);
 
     useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedFilters(dynamicFilters);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [dynamicFilters]);
+
+    useEffect(() => {
         setCurrentPage(1);
-    }, [selectedStatusFilter, selectedSubStatusFilter, debouncedSearch, sheetStatusFilter, sheetWorkTypeFilter, dynamicFilters]);
+    }, [selectedStatusFilter, selectedSubStatusFilter, debouncedSearch, sheetStatusFilter, sheetWorkTypeFilter, debouncedFilters]);
 
     const handleSort = (fieldId) => {
         if (sortField !== fieldId) {
@@ -519,6 +528,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
     const fetchTaskData = async (isInitial = false, overridePage = null) => {
         if (isInitial) setLoading(true);
+        else setIsSearching(true);
         const currentFetchId = ++fetchCounterRef.current;
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
@@ -531,7 +541,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 sub_status: selectedSubStatusFilter || undefined,
                 work_type_id: sheetWorkTypeFilter || undefined,
                 sort_field: sortField || undefined,
-                sort_direction: sortDirection || undefined
+                sort_direction: sortDirection || undefined,
+                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined
             };
  
             const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
@@ -748,6 +759,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             toast.error('Error loading task details');
         } finally {
             if (isInitial) setLoading(false);
+            if (currentFetchId === fetchCounterRef.current) {
+                setIsSearching(false);
+            }
         }
     };
 
@@ -863,6 +877,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         selectedSubStatusFilter,
         sortField,
         sortDirection,
+        debouncedFilters,
         staticDataLoaded
     ]);
 
@@ -3209,7 +3224,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
                 )}
 
-                <div className="overflow-x-auto border border-slate-350 rounded-2xl shadow-sm">
+                <div className="overflow-x-auto border border-slate-350 rounded-2xl shadow-sm relative min-h-[200px]">
+                    {isSearching && (
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex flex-col items-center justify-center z-40 transition-all duration-200">
+                            <Spinner className="w-8 h-8 text-[#1F5C99]" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2 animate-pulse">Searching Sheet...</span>
+                        </div>
+                    )}
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-[#1F5C99] border-b border-[#154673] text-white text-[12px] font-black uppercase tracking-widest">
