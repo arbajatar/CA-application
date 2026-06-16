@@ -5936,7 +5936,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         })
                         .map(c => ({
                             id: c.id,
-                            name: c.name
+                            name: c.name,
+                            pan_no: c.pan_no
                         }))
                     }
                     workTypes={workTypes}

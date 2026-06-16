@@ -70,6 +70,22 @@ export default function AddTaskModal({
         return (workTypes || []).map(w => ({ value: w.id, label: w.name }));
     }, [workTypes]);
 
+    // Deduplicate fields by key (trimmed and case-insensitive)
+    const uniqueFields = React.useMemo(() => {
+        const unique = [];
+        const seenKeys = new Set();
+        for (const f of allFields) {
+            if (f && f.key) {
+                const normalizedKey = String(f.key).trim().toUpperCase();
+                if (!seenKeys.has(normalizedKey)) {
+                    seenKeys.add(normalizedKey);
+                    unique.push(f);
+                }
+            }
+        }
+        return unique;
+    }, [allFields]);
+
     // Auto calculate Balance Amount live when Total Invoice Amount or payments change
     React.useEffect(() => {
         if (!isOpen) return;
@@ -97,20 +113,35 @@ export default function AddTaskModal({
         isOpen
     ]);
 
-    if (!isOpen) return null;
-
-    // Deduplicate fields by key (trimmed and case-insensitive)
-    const uniqueFields = [];
-    const seenKeys = new Set();
-    for (const f of allFields) {
-        if (f && f.key) {
-            const normalizedKey = String(f.key).trim().toUpperCase();
-            if (!seenKeys.has(normalizedKey)) {
-                seenKeys.add(normalizedKey);
-                uniqueFields.push(f);
+    // Auto populate empty PAN fields on modal open or client change
+    React.useEffect(() => {
+        if (isOpen && newTaskData.client_id) {
+            const selectedClient = clients.find(c => String(c.id) === String(newTaskData.client_id));
+            if (selectedClient?.pan_no) {
+                let changed = false;
+                const updatedDynamicData = { ...(newTaskData.dynamic_data || {}) };
+                uniqueFields.forEach(f => {
+                    if (f && f.key) {
+                        const cleanKey = String(f.key).trim().toUpperCase();
+                        if (cleanKey === 'PAN NO' || cleanKey === 'PAN_NO' || cleanKey === 'PAN' || (f.label && f.label.toUpperCase() === 'PAN NO')) {
+                            if (!updatedDynamicData[f.key]) {
+                                updatedDynamicData[f.key] = selectedClient.pan_no;
+                                changed = true;
+                            }
+                        }
+                    }
+                });
+                if (changed) {
+                    setNewTaskData(prev => ({
+                        ...prev,
+                        dynamic_data: updatedDynamicData
+                    }));
+                }
             }
         }
-    }
+    }, [isOpen, newTaskData.client_id, clients, uniqueFields]);
+
+    if (!isOpen) return null;
 
     const isCurrentlyEditable = (!isViewMode || isEditable) && canEdit;
 
@@ -140,6 +171,22 @@ export default function AddTaskModal({
             );
         }
         
+        if (field.key === 'client_pan') {
+            const selectedClient = clients.find(c => String(c.id) === String(newTaskData.client_id));
+            return (
+                <div key={field.key} className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700">{field.label}</label>
+                    <input
+                        type="text"
+                        value={selectedClient?.pan_no || ''}
+                        disabled={true}
+                        placeholder="Client PAN..."
+                        className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                    />
+                </div>
+            );
+        }
+        
         const isFullWidth = ['client_id', 'remarks', 'form_name', 'task_particular', 'feedback', 'attachments', 'is_verified', 'CLIENT FEED BACK', 'OTHER REMARK'].includes(field.key) || 
                            (field.label && (field.label.toLowerCase().includes('remarks') || field.label.toLowerCase().includes('name') || field.label.toLowerCase().includes('text') || field.label.toLowerCase().includes('particular') || field.label.toLowerCase().includes('remark') || field.label.toLowerCase().includes('feedback')));
         
@@ -158,10 +205,23 @@ export default function AddTaskModal({
                         placeholder="Select Client..."
                         onChange={(val) => {
                             const selectedClient = clients.find(c => String(c.id) === String(val));
+                            const updatedDynamicData = { ...(newTaskData.dynamic_data || {}) };
+                            
+                            // Automatically find and populate any dynamic PAN fields with the client's PAN
+                            uniqueFields.forEach(f => {
+                                if (f && f.key) {
+                                    const cleanKey = String(f.key).trim().toUpperCase();
+                                    if (cleanKey === 'PAN NO' || cleanKey === 'PAN_NO' || cleanKey === 'PAN' || (f.label && f.label.toUpperCase() === 'PAN NO')) {
+                                        updatedDynamicData[f.key] = selectedClient?.pan_no || '';
+                                    }
+                                }
+                            });
+
                             setNewTaskData({
                                 ...newTaskData,
                                 client_id: val,
-                                client_pan: selectedClient?.pan_no || ''
+                                client_pan: selectedClient?.pan_no || '',
+                                dynamic_data: updatedDynamicData
                             });
                         }}
                         size="md"
