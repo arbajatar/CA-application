@@ -792,15 +792,33 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             try {
                 const apiPrefix = isStaff ? '/staff' : '/ca';
                 
-                let clientsData = null;
+                let clientsData = [];
                 let staffData = null;
                 let workTypesData = null;
                 let clientTypesData = null;
                 let clientGroupsData = null;
                 let rolesData = null;
 
+                // 1. Fetch clients fresh from API to ensure newly added clients from the registry are always searchable
                 try {
-                    clientsData = JSON.parse(sessionStorage.getItem('cached_clients'));
+                    const clientsRes = await api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } });
+                    clientsData = clientsRes.data.data || clientsRes.data || [];
+                    try {
+                        sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+                    } catch (cacheErr) {
+                        console.error("Failed to write clients to session storage", cacheErr);
+                    }
+                } catch (clientsErr) {
+                    console.error("Failed to fetch clients fresh, falling back to cache", clientsErr);
+                    try {
+                        clientsData = JSON.parse(sessionStorage.getItem('cached_clients')) || [];
+                    } catch (_) {
+                        clientsData = [];
+                    }
+                }
+
+                // 2. Load other static resources (using cache where available)
+                try {
                     staffData = JSON.parse(sessionStorage.getItem('cached_staff'));
                     workTypesData = JSON.parse(sessionStorage.getItem('cached_work_types'));
                     clientTypesData = JSON.parse(sessionStorage.getItem('cached_client_types'));
@@ -810,7 +828,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     console.error("Session storage parse failed", e);
                 }
 
-                if (clientsData && staffData && workTypesData && clientTypesData && clientGroupsData && rolesData) {
+                if (staffData && workTypesData && clientTypesData && clientGroupsData && rolesData) {
                     setClients(clientsData);
                     setStaff(staffData);
                     setWorkTypes(workTypesData);
@@ -818,15 +836,13 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     setClientGroups(clientGroupsData);
                     setAvailableRoles(rolesData);
                 } else {
-                    const [clientsRes, staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
-                        api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } }),
+                    const [staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
                         api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } }),
                         api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { simple: 1 } }),
                         api.get('/ca/client-types'),
                         api.get('/ca/client-groups')
                     ]);
 
-                    clientsData = clientsRes.data.data || clientsRes.data || [];
                     staffData = staffRes.data.data || staffRes.data || [];
                     workTypesData = workTypesRes.data.data || workTypesRes.data || [];
                     clientTypesData = typesRes.data.data || [];
@@ -841,7 +857,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
 
                     try {
-                        sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
                         sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
                         sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
                         sessionStorage.setItem('cached_client_types', JSON.stringify(clientTypesData));
@@ -5942,11 +5957,48 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     onUploadAttachment={async (fileList) => {
                         if (viewingRowIndex !== null) {
                             await handleUploadMultipleRowAttachments(viewingRowIndex, fileList);
+                        } else {
+                            const files = Array.from(fileList || []);
+                            const loadingToast = toast.loading("Uploading attachment...");
+                            try {
+                                const apiPrefix = isStaff ? '/staff' : '/ca';
+                                const uploadedFiles = [];
+                                for (const file of files) {
+                                    if (file.size > 5 * 1024 * 1024) {
+                                        toast.error(`File "${file.name}" size must be under 5MB.`);
+                                        continue;
+                                    }
+                                    const formData = new FormData();
+                                    formData.append('file', file);
+                                    const res = await api.post(`${apiPrefix}/tasks/upload-file`, formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+                                    uploadedFiles.push({
+                                        name: res.data.name,
+                                        url: res.data.url,
+                                        path: res.data.path
+                                    });
+                                }
+                                setNewTaskData(prev => ({
+                                    ...prev,
+                                    attachments: [...(prev.attachments || []), ...uploadedFiles]
+                                }));
+                                toast.success("Attachment(s) uploaded successfully!", { id: loadingToast });
+                            } catch (e) {
+                                console.error(e);
+                                toast.error("Failed to upload attachment(s)", { id: loadingToast });
+                            }
                         }
                     }}
                     onDeleteAttachment={async (idx, filePath) => {
                         if (viewingRowIndex !== null) {
                             await handleDeleteRowAttachment(viewingRowIndex, filePath);
+                        } else {
+                            setNewTaskData(prev => ({
+                                ...prev,
+                                attachments: (prev.attachments || []).filter((_, i) => i !== idx)
+                            }));
+                            toast.success("Attachment removed successfully!");
                         }
                     }}
                     onToggleVerification={async () => {
