@@ -113,33 +113,7 @@ export default function AddTaskModal({
         isOpen
     ]);
 
-    // Auto populate empty PAN fields on modal open or client change
-    React.useEffect(() => {
-        if (isOpen && newTaskData.client_id) {
-            const selectedClient = clients.find(c => String(c.id) === String(newTaskData.client_id));
-            if (selectedClient?.pan_no) {
-                let changed = false;
-                const updatedDynamicData = { ...(newTaskData.dynamic_data || {}) };
-                uniqueFields.forEach(f => {
-                    if (f && f.key) {
-                        const cleanKey = String(f.key).trim().toUpperCase();
-                        if (cleanKey === 'PAN NO' || cleanKey === 'PAN_NO' || cleanKey === 'PAN' || (f.label && f.label.toUpperCase() === 'PAN NO')) {
-                            if (!updatedDynamicData[f.key]) {
-                                updatedDynamicData[f.key] = selectedClient.pan_no;
-                                changed = true;
-                            }
-                        }
-                    }
-                });
-                if (changed) {
-                    setNewTaskData(prev => ({
-                        ...prev,
-                        dynamic_data: updatedDynamicData
-                    }));
-                }
-            }
-        }
-    }, [isOpen, newTaskData.client_id, clients, uniqueFields]);
+
 
     if (!isOpen) return null;
 
@@ -178,10 +152,16 @@ export default function AddTaskModal({
                     <label className="text-xs font-bold text-slate-700">{field.label}</label>
                     <input
                         type="text"
-                        value={selectedClient?.pan_no || ''}
-                        disabled={true}
+                        value={newTaskData.client_pan !== undefined ? newTaskData.client_pan : (selectedClient?.pan_no || '')}
+                        onChange={(e) => {
+                            setNewTaskData({
+                                ...newTaskData,
+                                client_pan: e.target.value
+                            });
+                        }}
+                        disabled={!isCurrentlyEditable}
                         placeholder="Client PAN..."
-                        className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 cursor-not-allowed"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                 </div>
             );

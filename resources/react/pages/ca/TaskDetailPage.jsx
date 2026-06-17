@@ -2440,9 +2440,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             if (f.id === 'static_client_name') return null;
             if (f.id === 'static_form_name') return null;
             if (f.id === 'static_work_type') return null;
-            if (f.id === 'static_created_date') return null;
-            if (f.id === 'static_remarks') return null;
-            if (f.id === 'static_sheet_status') return null;
+            if (f.id === 'static_created_date') return { id: 'date_allocated', label: 'Create Date', minWidth: 'min-w-[150px]' };
+            if (f.id === 'static_remarks') return { id: 'remarks', label: 'Remarks', minWidth: 'min-w-[200px]' };
+            if (f.id === 'static_sheet_status') return { id: 'status', label: 'Status', minWidth: 'min-w-[150px]' };
             if (f.id === 'static_assignee') {
                 return { id: 'assigned_to', label: 'Assigned To', minWidth: 'min-w-[150px]' };
             }
