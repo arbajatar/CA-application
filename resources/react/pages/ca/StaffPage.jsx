@@ -505,7 +505,7 @@ export default function StaffPage() {
                                         onChange={e => setForm(f => ({ ...f, create_sheet: e.target.checked }))}
                                         className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
                                     />
-                                    Create Sheet
+                                    Create / Clone Sheet
                                 </label>
                                 <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
                                     <input 
@@ -623,7 +623,7 @@ export default function StaffPage() {
                                         onChange={e => setForm(f => ({ ...f, create_sheet: e.target.checked }))}
                                         className="rounded border-gray-305 text-[#1F5C99] focus:ring-[#1F5C99]/20"
                                     />
-                                    Create Sheet
+                                    Create / Clone Sheet
                                 </label>
                                 <label className="flex items-center gap-2 text-xs text-gray-700 font-semibold cursor-pointer select-none py-1 px-1.5 hover:bg-slate-100 rounded-md transition">
                                     <input 

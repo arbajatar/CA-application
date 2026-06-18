@@ -1193,6 +1193,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         const rowToDuplicate = rows[index];
         const duplicatedRow = {
             ...rowToDuplicate,
+            row_id: `row_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
             is_verified: false,
             client_id: '',
             allocated_to: '',

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock, Plus, Trash2 } from 'lucide-react'
+import { ClipboardList, Activity, Info, CheckCircle, Search, Eye, ChevronDown, Lock, Unlock, Plus, Trash2, Folder as FolderIcon, ChevronLeft, Sliders, X, FileText, CircleDashed, Clock, CheckCircle2, Circle, Copy } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ import Modal from '../../components/ui/Modal'
 import SubStatusPicker from '../../components/ui/SubStatusPicker'
 import CustomSelect from '../../components/ui/CustomSelect'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import Tooltip from '../../components/ui/Tooltip'
 import { formatDate } from '../../utils/dateHelper'
 
 const DEFAULT_SUB_STATUSES = [
@@ -43,33 +44,56 @@ const statusFilters = [
     { value: 'other', label: 'Other' },
 ]
 
-function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, active, onClick }) {
+function SummaryCard({ icon: Icon, iconBg, iconColor, label, value, sub, subColor, onClick, active }) {
+    let inactiveBgClass = '';
+    let activeClass = '';
+
+    if (iconColor.includes('blue')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0F7FF] border-blue-100 text-slate-750 hover:border-blue-300';
+        activeClass = 'active-card-blue ring-4 ring-blue-500/5 shadow-lg shadow-blue-500/5 scale-[1.02]';
+    } else if (iconColor.includes('amber') || iconColor.includes('yellow')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFFBEB] border-amber-100 text-slate-750 hover:border-amber-300';
+        activeClass = 'active-card-amber ring-4 ring-amber-500/5 shadow-lg shadow-amber-500/5 scale-[1.02]';
+    } else if (iconColor.includes('green') || iconColor.includes('emerald')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F0FDF4] border-emerald-100 text-slate-750 hover:border-emerald-300';
+        activeClass = 'active-card-emerald ring-4 ring-emerald-500/5 shadow-lg shadow-emerald-500/5 scale-[1.02]';
+    } else if (iconColor.includes('red') || iconColor.includes('rose')) {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#FFF5F5] border-red-100 text-slate-750 hover:border-red-300';
+        activeClass = 'active-card-rose ring-4 ring-red-500/5 shadow-lg shadow-red-500/5 scale-[1.02]';
+    } else {
+        inactiveBgClass = 'bg-gradient-to-br from-white to-[#F8FAFC] border-slate-200 text-slate-750 hover:border-slate-400';
+        activeClass = 'active-card-slate ring-4 ring-slate-500/5 shadow-lg shadow-slate-500/5 scale-[1.02]';
+    }
+
     return (
         <div 
             onClick={onClick}
-            className={`rounded-2xl p-6 transition-all duration-200 flex flex-col gap-3 group relative overflow-hidden border
+            className={`rounded-2xl p-4.5 transition-all duration-300 flex flex-col gap-3.5 cursor-pointer select-none border
                 ${active 
-                    ? 'bg-[#1F5C99]/5 border-[#1F5C99] shadow-md ring-4 ring-[#1F5C99]/10 -translate-y-1' 
-                    : 'bg-white border-slate-200/80 shadow-sm hover:border-[#1F5C99]/40 hover:-translate-y-0.5 hover:shadow-md'}`}
+                    ? `${activeClass} -translate-y-0.5` 
+                    : `${inactiveBgClass} shadow-sm hover:-translate-y-0.5 hover:shadow-md`}`}
         >
             <div className="flex items-center justify-between">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${iconBg}`}>
-                    <Icon size={22} className={iconColor} />
+                <div className={`p-2 rounded-xl transition-colors ${iconBg}`}>
+                    <Icon size={18} className={iconColor} />
                 </div>
-                <div className="text-slate-300 opacity-0 group-hover:opacity-100 group-hover:text-[#1F5C99] transition-all duration-300 absolute top-4 right-4 animate-in fade-in duration-200">
-                    <Eye size={16} />
-                </div>
+                <span className="text-3xl font-bold text-slate-900 tracking-tight">{value}</span>
             </div>
-            <p className="text-xs font-bold text-slate-900 uppercase tracking-wider">{label}</p>
-            <p className="text-4xl font-extrabold text-slate-900">{String(value).padStart(2, '0')}</p>
-            <p className="text-xs text-slate-600">{sub}</p>
+            <div>
+                <p className="text-xs font-semibold text-slate-900">{label}</p>
+                <p className={`text-[10px] font-medium mt-0.5 ${subColor || 'text-slate-600'}`}>{sub}</p>
+            </div>
         </div>
-    )
+    );
 }
 
 export default function MyTasksPage() {
     const { user } = useAuth()
     const navigate = useNavigate()
+
+    const [currentFolder, setCurrentFolder] = useState(null)
+    const [duplicateOpen, setDuplicateOpen] = useState(false)
+    const [duplicateSheetName, setDuplicateSheetName] = useState('')
 
     // Inline Add Subtask State
     const [isAddingSubTask, setIsAddingSubTask] = useState(false)
@@ -210,7 +234,13 @@ export default function MyTasksPage() {
         setLoading(true)
         try {
             const [tasksRes, subTasksRes] = await Promise.all([
-                api.get('/staff/tasks', { params: { search, status: statusFilter, per_page: 50 } }),
+                api.get('/staff/tasks', { 
+                    params: { 
+                        search, 
+                        status: statusFilter, 
+                        per_page: 50 
+                    } 
+                }),
                 api.get('/staff/sub-tasks', { params: { search, status: statusFilter } })
             ])
             setTasks(tasksRes.data.data || [])
@@ -220,7 +250,7 @@ export default function MyTasksPage() {
             setTasks([])
             setSubTasks([])
         } finally { setLoading(false) }
-    }, [search, statusFilter])
+    }, [search, statusFilter, activeTab])
 
     const fetchTransitions = async () => {
         const res = await api.get('/task-status-transitions')
@@ -228,10 +258,84 @@ export default function MyTasksPage() {
     }
 
     useEffect(() => {
-        Promise.all([fetchSummary(), fetchTransitions()])
+        Promise.all([fetchSummary(), fetchTransitions(), fetchMetadataForCreation()])
     }, [])
 
     useEffect(() => { fetchTasks() }, [fetchTasks])
+
+    const openDuplicateModal = (task) => {
+        setSelected(task);
+        setDuplicateSheetName(`${task.form_name} (Copy)`);
+        setDuplicateOpen(true);
+    };
+
+    const handleDuplicate = async (withData) => {
+        setDuplicateOpen(false);
+        setSaving(true);
+        try {
+            const res = await api.get(`/staff/tasks/${selected.id}`);
+            const fullTask = res.data.data;
+
+            const newName = duplicateSheetName;
+            const trimmedName = (newName || '').trim();
+            if (!trimmedName) {
+                toast.error("Sheet Name cannot be empty.");
+                setSaving(false);
+                return;
+            }
+
+            const payload = {
+                form_name: trimmedName,
+                client_id: withData ? (fullTask.client?.id || null) : null,
+                work_type_id: fullTask.work_type?.id || null,
+                date_inward: new Date().toISOString().split('T')[0],
+                allocated_to: withData ? (fullTask.allocated_to?.id || null) : null,
+                date_allocated: withData ? (fullTask.date_allocated || null) : null,
+                due_date: withData ? (fullTask.due_date || null) : null,
+                status: 'pending',
+                remarks: withData ? (fullTask.remarks || '') : '',
+                task_particular: withData ? (fullTask.task_particular || '') : '',
+                sub_status: withData ? (fullTask.sub_status || '') : '',
+                feedback: withData ? (fullTask.feedback || '') : '',
+                entry_date: withData ? (fullTask.entry_date || null) : null,
+                allow_attachments: !!fullTask.allow_attachments,
+                allow_checklist: !!fullTask.allow_checklist,
+                allow_notes: !!fullTask.allow_notes,
+                permissions: (fullTask.permissions || []).map(p => ({
+                    role_id: Number(p.role_id),
+                    can_read: !!p.can_read,
+                    can_write: !!p.can_write,
+                    can_delete: !!p.can_delete
+                })),
+                dynamic_fields: withData ? fullTask.dynamic_fields : {
+                    ...(fullTask.dynamic_fields || {}),
+                    multi_rows: [],
+                    ...Object.fromEntries(
+                        Object.keys(fullTask.dynamic_fields || {})
+                            .filter(k => !['schema', 'multi_rows', 'field_names', 'field_types', 'CA Feedback', 'CA Rating'].includes(k))
+                            .map(k => [k, ''])
+                    )
+                },
+                subtasks: (fullTask.sub_tasks || []).map(st => ({
+                    title: st.title,
+                    assigned_to: withData ? st.assigned_to?.id : null,
+                    priority: withData ? st.priority : 'medium',
+                    status: 'pending',
+                    due_date: withData ? st.due_date : null,
+                    remarks: withData ? st.remarks : ''
+                }))
+            };
+
+            await api.post('/staff/tasks', payload);
+            toast.success('Sheet duplicated successfully!');
+            await Promise.all([fetchSummary(), fetchTasks()]);
+        } catch (err) {
+            console.error('Duplication Error:', err);
+            toast.error('Failed to duplicate sheet');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     const openUpdate = (task) => {
         setSelected(task)
@@ -260,12 +364,10 @@ export default function MyTasksPage() {
             formData.append('_method', 'PATCH')
 
             if (selected.task_id) {
-                // It's a subtask (it has task_id)
                 await api.post(`/staff/sub-tasks/${selected.id}/status`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 })
             } else {
-                // It's a main task
                 await api.post(`/staff/tasks/${selected.id}/status`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 })
@@ -287,74 +389,129 @@ export default function MyTasksPage() {
 
     const cards = summary ? [
         { 
-            icon: ClipboardList, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_sheets ?? 0,      sub: 'All sheets assigned',
+            icon: FileText, iconBg: 'bg-slate-50',  iconColor: 'text-slate-500',  label: 'Total Sheets',     value: summary.total_sheets ?? 0,      sub: 'All sheets assigned',
             active: activeTab === 'tasks' && statusFilter === '',
             onClick: () => { setActiveTab('tasks'); setStatusFilter(''); }
         },
         { 
-            icon: Activity,     iconBg: 'bg-yellow-50', iconColor: 'text-yellow-500', label: 'Pending',          value: summary.pending_sheets ?? 0,          sub: 'Waiting to start',
+            icon: CircleDashed, iconBg: 'bg-amber-55', iconColor: 'text-amber-500', label: 'Pending',          value: summary.pending_sheets ?? 0,          sub: 'Waiting to start',
+            subColor: 'text-amber-500 font-medium',
             active: activeTab === 'tasks' && statusFilter === 'pending',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('pending'); }
         },
         { 
-            icon: Info,         iconBg: 'bg-blue-50',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress_sheets ?? 0,  sub: 'Currently active',
+            icon: Clock, iconBg: 'bg-blue-55',   iconColor: 'text-blue-500',   label: 'Work In Progress', value: summary.work_in_progress_sheets ?? 0,  sub: 'Currently active',
+            subColor: 'text-blue-500 font-medium',
             active: activeTab === 'tasks' && statusFilter === 'work_in_progress',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('work_in_progress'); }
         },
         { 
-            icon: CheckCircle,  iconBg: 'bg-green-50',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete_sheets ?? 0,         sub: 'Finalized tasks',
+            icon: CheckCircle2, iconBg: 'bg-green-55',  iconColor: 'text-green-500',  label: 'Complete',         value: summary.complete_sheets ?? 0,         sub: 'Finalized tasks',
+            subColor: 'text-green-500 font-medium',
             active: activeTab === 'tasks' && statusFilter === 'complete',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('complete'); }
         },
         { 
-            icon: ClipboardList,iconBg: 'bg-red-50',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done_sheets ?? 0,   sub: 'Excluded tasks',
+            icon: Circle, iconBg: 'bg-red-55',    iconColor: 'text-red-500',    label: 'Not To Be Done',   value: summary.not_to_be_done_sheets ?? 0,   sub: 'Excluded tasks',
+            subColor: 'text-red-500 font-medium',
             active: activeTab === 'tasks' && statusFilter === 'not_to_be_done',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('not_to_be_done'); }
         },
         { 
-            icon: ClipboardList,iconBg: 'bg-gray-50',   iconColor: 'text-gray-500',   label: 'Other',            value: summary.other_sheets ?? 0,            sub: 'Other tasks',
+            icon: Sliders, iconBg: 'bg-slate-50',   iconColor: 'text-slate-500',   label: 'Other',            value: summary.other_sheets ?? 0,            sub: 'Other tasks',
             active: activeTab === 'tasks' && statusFilter === 'other',
             onClick: () => { setActiveTab('tasks'); setStatusFilter('other'); }
         },
     ] : []
 
+    const FolderCard = ({ name, iconBg, iconColor, onClick }) => {
+        const borderClasses = {
+            'text-slate-500': 'border-slate-200 hover:border-slate-500',
+            'text-blue-500': 'border-blue-200 hover:border-blue-500',
+            'text-orange-500': 'border-orange-200 hover:border-orange-500',
+            'text-emerald-500': 'border-emerald-200 hover:border-emerald-500',
+            'text-sky-500': 'border-sky-200 hover:border-sky-500',
+            'text-teal-500': 'border-teal-200 hover:border-teal-500',
+            'text-red-500': 'border-red-200 hover:border-red-500',
+            'text-indigo-500': 'border-indigo-200 hover:border-indigo-500',
+            'text-purple-500': 'border-purple-200 hover:border-purple-500',
+            'text-pink-500': 'border-pink-200 hover:border-pink-500',
+        };
+        const colorClasses = borderClasses[iconColor] || 'border-slate-200 hover:border-[#1F5C99]';
+
+        return (
+            <div
+                onClick={onClick}
+                className={`group cursor-pointer p-5 bg-white rounded-2xl border ${colorClasses} shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center gap-4 text-center select-none`}
+            >
+                <div className={`w-16 h-16 rounded-2xl ${iconBg} flex items-center justify-center group-hover:scale-105 transition-transform duration-200 shadow-sm`}>
+                    <FolderIcon size={32} className={iconColor} fill="currentColor" fillOpacity={0.2} />
+                </div>
+                <div>
+                    <h3 className="font-bold text-gray-800 text-sm leading-tight group-hover:text-[#1F5C99] transition-colors">{name}</h3>
+                </div>
+            </div>
+        );
+    };
+
+    const SheetSmallCard = ({ task }) => (
+        <Tooltip content={`${task.form_name || 'Unnamed Sheet'} — ${task.client?.name || 'No Client'}`}>
+            <div 
+                onClick={() => navigate(`/staff/tasks/${task.id}`)}
+                className="group cursor-pointer bg-white rounded-xl p-3 border border-slate-200 hover:border-[#1F5C99] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none w-full"
+            >
+                <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">
+                    <FileText size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <h4 className="font-semibold text-gray-800 text-xs truncate group-hover:text-[#1F5C99] transition-colors">
+                        {task.form_name || 'Unnamed Sheet'}
+                    </h4>
+                </div>
+            </div>
+        </Tooltip>
+    );
+
     const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] transition"
 
     return (
-        <div className="space-y-8">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <h1 className="text-3xl font-bold text-gray-900">My Sheets</h1>
-                {user?.special_permissions?.create_sheet && (
-                    <button
-                        onClick={() => navigate('/staff/tasks/builder')}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-[#0f1c2e] text-white hover:bg-[#1a2f4a] rounded-xl text-sm font-semibold shadow-sm transition-all"
-                    >
-                        <Plus size={16} />
-                        Create New Sheet
-                    </button>
-                )}
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Sheets</h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">Monitor, assign, and manage all your office work entries.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    {user?.special_permissions?.create_sheet && (
+                        <button 
+                            onClick={() => navigate('/staff/tasks/builder')}
+                            className="flex items-center justify-center gap-2 bg-[#0f1c2e] hover:bg-[#1a2f4a] text-white px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider shadow-sm transition duration-200 active:scale-95 w-full sm:w-auto cursor-pointer"
+                        >
+                            <Plus size={15} /> Create Sheet
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* Summary Cards */}
-            {summary ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 animate-fade-in">
-                    {cards.map((c, i) => <SummaryCard key={i} {...c} />)}
-                    <SummaryCard
-                        icon={ClipboardList}
-                        iconBg="bg-indigo-50"
-                        iconColor="text-indigo-500"
-                        label="My Tasks"
-                        value={subTasks.length}
-                        sub="Assigned tasks"
-                        active={activeTab === 'subtasks'}
-                        onClick={() => { setActiveTab('subtasks'); setStatusFilter(''); }}
-                    />
+
+
+            {/* Sheets Quick Overview */}
+            {activeTab === 'tasks' && tasks && tasks.length > 0 && (
+                <div className="my-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm animate-fade-in">
+                    <h3 className="text-sm font-extrabold text-slate-800 tracking-wide mb-3 flex items-center gap-2">
+                        <FileText size={16} className="text-[#1F5C99]" />
+                        Sheets Quick Overview
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                        {tasks.map(t => (
+                            <SheetSmallCard key={t.id} task={t} />
+                        ))}
+                    </div>
                 </div>
-            ) : <Spinner />}
+            )}
 
-            {/* Task List */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-
+            {/* Main content box */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 min-h-[400px]">
                 {/* Tabs */}
                 <div className="flex border-b border-gray-100 px-6">
                     <button
@@ -371,203 +528,216 @@ export default function MyTasksPage() {
                     </button>
                 </div>
 
-                {/* Filters */}
-                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
-                    <div className="relative">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-48 transition"
+                <>
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    className="pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-48 transition"
+                                />
+                            </div>
+                        </div>
+                        <CustomSelect
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
+                            options={statusFilters}
+                            widthClass="w-full sm:w-auto min-w-[125px]"
+                            className="flex-1 sm:flex-none"
                         />
                     </div>
-                    <CustomSelect
-                        value={statusFilter}
-                        onChange={e => setStatusFilter(e.target.value)}
-                        options={statusFilters}
-                        widthClass="w-full sm:w-auto min-w-[125px]"
-                        className="flex-1 sm:flex-none"
-                    />
-                </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                    {loading ? <Spinner /> : (
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                        {/* Table */}
+                        <div className="overflow-x-auto relative">
+                            {loading && (
+                                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-50">
+                                    <Spinner />
+                                </div>
+                            )}
+                            <table className={`w-full text-sm ${loading ? 'opacity-40 pointer-events-none' : ''}`}>
+                                <thead>
+                                    <tr className="text-xs font-bold text-white uppercase tracking-wider border-b border-[#154673] bg-[#1F5C99]">
+                                        {activeTab === 'tasks' ? (
+                                            ['#', 'Sheet Name', 'Work Type', 'Remark', 'Actions'].map(h => (
+                                                <th key={h} className="px-4 py-3 text-left whitespace-nowrap text-white font-bold">{h}</th>
+                                            ))
+                                        ) : (
+                                            ['#', 'Task Title', 'Parent Sheet', 'Priority', 'Status', 'Sub Status', 'Actions'].map(h => (
+                                                <th key={h} className="px-4 py-3 text-left whitespace-nowrap text-white font-bold">{h}</th>
+                                            ))
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
                                     {activeTab === 'tasks' ? (
-                                        ['#', 'Sheet Name', 'Work Type', 'Inward', 'Status', 'Remarks', 'Actions'].map(h => (
-                                            <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
+                                        tasks?.length === 0 ? (
+                                            <tr><td colSpan={5} className="text-center py-12 text-gray-400">No sheets found</td></tr>
+                                        ) : tasks?.map((t, i) => (
+                                            <tr 
+                                                key={t.id} 
+                                                className="hover:bg-slate-50 transition duration-150 border-b border-gray-100 cursor-pointer"
+                                                onClick={() => openView(t)}
+                                            >
+                                                <td className="px-4 py-3 text-gray-400 font-semibold text-xs">{i + 1}</td>
+                                                <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || 'N/A'}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap font-medium">{t.work_type?.name || 'N/A'}</td>
+                                                <td className="px-4 py-3 text-gray-650 max-w-[300px] truncate">{t.remarks ?? '—'}</td>
+                                                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Tooltip content="View Sheet Details">
+                                                            <button onClick={(e) => { e.stopPropagation(); openView(t); }} className="p-1.5 rounded-lg hover:bg-gray-150 text-gray-500 hover:text-gray-900 transition cursor-pointer"><Eye size={15} /></button>
+                                                        </Tooltip>
+                                                        
+                                                        {user?.special_permissions?.create_sheet && (
+                                                            <Tooltip content="Duplicate Sheet">
+                                                                <button onClick={(e) => { e.stopPropagation(); openDuplicateModal(t); }} className="p-1.5 rounded-lg hover:bg-gray-150 text-gray-500 hover:text-[#1F5C99] transition cursor-pointer"><Copy size={15} /></button>
+                                                            </Tooltip>
+                                                        )}
+
+                                                        {user?.special_permissions?.delete_sheet && (
+                                                            <Tooltip content="Delete Sheet">
+                                                                <button 
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setConfirmState({
+                                                                            open: true,
+                                                                            title: 'Delete Sheet',
+                                                                            message: `Are you sure you want to delete the sheet "${t.form_name}"? This action cannot be undone.`,
+                                                                            confirmLabel: 'Delete',
+                                                                            danger: true,
+                                                                            onConfirm: async () => {
+                                                                                setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                try {
+                                                                                    await api.delete(`/staff/tasks/${t.id}`);
+                                                                                    toast.success("Sheet deleted successfully!");
+                                                                                    await Promise.all([fetchSummary(), fetchTasks()]);
+                                                                                } catch (err) {
+                                                                                    toast.error(err.response?.data?.message || "Failed to delete sheet");
+                                                                                } finally {
+                                                                                    setConfirmState({
+                                                                                        open: false,
+                                                                                        title: '',
+                                                                                        message: '',
+                                                                                        confirmLabel: '',
+                                                                                        onConfirm: null,
+                                                                                        danger: false,
+                                                                                        loading: false
+                                                                                    });
+                                                                                }
+                                                                            }
+                                                                        });
+                                                                    }} 
+                                                                    className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 transition cursor-pointer"
+                                                                >
+                                                                    <Trash2 size={15} />
+                                                                </button>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         ))
                                     ) : (
-                                        ['#', 'Task Title', 'Parent Sheet', 'Priority', 'Status', 'Sub Status', 'Actions'].map(h => (
-                                            <th key={h} className="px-6 py-3 text-left whitespace-nowrap">{h}</th>
+                                        subTasks?.length === 0 ? (
+                                            <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
+                                        ) : subTasks?.map((st, i) => (
+                                            <tr 
+                                                key={st.id} 
+                                                className="hover:bg-slate-50 transition duration-150 border-b border-gray-100 cursor-pointer"
+                                                onClick={() => openView(st)}
+                                            >
+                                                <td className="px-4 py-3 text-gray-400 font-semibold text-xs">{i + 1}</td>
+                                                <td className="px-4 py-3 font-semibold text-gray-800">{st.title}</td>
+                                                <td className="px-4 py-3 text-gray-600 whitespace-nowrap font-medium">{st.task?.work_type || 'N/A'}</td>
+                                                <td className="px-4 py-3 capitalize font-bold text-gray-650">{st.priority}</td>
+                                                <td className="px-4 py-3"><StatusBadge status={st.status} /></td>
+                                                <td className="px-4 py-3 whitespace-nowrap font-bold text-gray-700">
+                                                    {st.sub_status || <span className="text-gray-300 italic font-normal">—</span>}
+                                                </td>
+                                                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <Tooltip content="View Task Details">
+                                                            <button onClick={(e) => { e.stopPropagation(); openView(st); }} className="p-1.5 rounded-lg hover:bg-gray-150 text-gray-500 hover:text-gray-900 transition cursor-pointer"><Eye size={15} /></button>
+                                                        </Tooltip>
+                                                        {st.user_permissions?.can_write !== false && (
+                                                            <div className="flex items-center gap-1.5">
+                                                                {st.is_verified ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold select-none shrink-0" title="Verified and Locked">
+                                                                        <Lock size={12} className="text-rose-600 animate-pulse" />
+                                                                        Verified
+                                                                    </span>
+                                                                ) : (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); openUpdate(st); }}
+                                                                            className="px-3 py-1 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition shrink-0 cursor-pointer"
+                                                                        >
+                                                                            Update
+                                                                        </button>
+                                                                        {st.status === 'complete' ? (
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setConfirmState({
+                                                                                        open: true,
+                                                                                        title: 'Verify & Lock Task',
+                                                                                        message: 'Are you sure you want to verify and lock this task? Once verified, you cannot modify its status or details again.',
+                                                                                        confirmLabel: 'Verify & Lock',
+                                                                                        danger: false,
+                                                                                        onConfirm: async () => {
+                                                                                            setConfirmState(prev => ({ ...prev, loading: true }));
+                                                                                            try {
+                                                                                                await api.patch(`/staff/sub-tasks/${st.id}/status`, { 
+                                                                                                    status: st.status,
+                                                                                                    is_verified: true 
+                                                                                                });
+                                                                                                toast.success("Task verified and locked successfully!");
+                                                                                                await Promise.all([fetchSummary(), fetchTasks()]);
+                                                                                            } catch (err) {
+                                                                                                toast.error(err.response?.data?.message || "Failed to verify task");
+                                                                                            } finally {
+                                                                                                setConfirmState({
+                                                                                                    open: false,
+                                                                                                    title: '',
+                                                                                                    message: '',
+                                                                                                    confirmLabel: '',
+                                                                                                    onConfirm: null,
+                                                                                                    danger: false,
+                                                                                                    loading: false
+                                                                                                });
+                                                                                            }
+                                                                                        }
+                                                                                    });
+                                                                                }}
+                                                                                className="px-2.5 py-1 text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition flex items-center gap-1 shrink-0 cursor-pointer"
+                                                                            >
+                                                                                <Unlock size={12} className="text-green-600" />
+                                                                                Verify
+                                                                            </button>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold select-none shrink-0" title="Unlocked">
+                                                                                <Unlock size={12} className="text-green-600" />
+                                                                                Unlocked
+                                                                            </span>
+                                                                        )}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         ))
                                     )}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-black">
-                                {activeTab === 'tasks' ? (
-                                    tasks?.length === 0 ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No sheets found</td></tr>
-                                    ) : tasks?.map((t, i) => (
-                                        <tr 
-                                            key={t.id} 
-                                            className="hover:bg-slate-50 transition-all cursor-pointer"
-                                            onClick={() => openView(t)}
-                                        >
-                                            <td className="px-6 py-4 text-gray-400">{i + 1}</td>
-                                            <td className="px-6 py-4 font-semibold text-gray-800 whitespace-nowrap">{t.form_name || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{t.work_type?.name || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(t.date_inward)}</td>
-                                            <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
-                                            <td className="px-6 py-4 text-gray-400 max-w-[160px] truncate">{t.remarks ?? '—'}</td>
-                                            <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={(e) => { e.stopPropagation(); openView(t); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
-                                                    {t.status !== 'completed' && (transitions[t.status] ?? []).length > 0 && t.user_permissions?.can_write !== false && (
-                                                        <button onClick={(e) => { e.stopPropagation(); openUpdate(t); }} className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition">Update</button>
-                                                    )}
-                                                    {user?.special_permissions?.delete_sheet && (
-                                                        <button 
-                                                            onClick={(e) => { 
-                                                                e.stopPropagation(); 
-                                                                setConfirmState({
-                                                                    open: true,
-                                                                    title: 'Delete Sheet',
-                                                                    message: `Are you sure you want to delete the sheet "${t.form_name}"? This action cannot be undone.`,
-                                                                    confirmLabel: 'Delete',
-                                                                    danger: true,
-                                                                    onConfirm: async () => {
-                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
-                                                                        try {
-                                                                            await api.delete(`/staff/tasks/${t.id}`);
-                                                                            toast.success("Sheet deleted successfully!");
-                                                                            await Promise.all([fetchSummary(), fetchTasks()]);
-                                                                        } catch (err) {
-                                                                            toast.error(err.response?.data?.message || "Failed to delete sheet");
-                                                                        } finally {
-                                                                            setConfirmState({
-                                                                                open: false,
-                                                                                title: '',
-                                                                                message: '',
-                                                                                confirmLabel: '',
-                                                                                onConfirm: null,
-                                                                                danger: false,
-                                                                                loading: false
-                                                                            });
-                                                                        }
-                                                                    }
-                                                                });
-                                                            }} 
-                                                            className="p-1.5 rounded-lg bg-rose-50/70 border border-rose-100/40 text-rose-600 hover:bg-rose-100 hover:text-rose-800 transition"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    subTasks?.length === 0 ? (
-                                        <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
-                                    ) : subTasks?.map((st, i) => (
-                                        <tr 
-                                            key={st.id} 
-                                            className="hover:bg-slate-50 transition-all cursor-pointer"
-                                            onClick={() => openView(st)}
-                                        >
-                                            <td className="px-6 py-4 text-gray-400">{i + 1}</td>
-                                            <td className="px-6 py-4 font-semibold text-gray-800">{st.title}</td>
-                                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{st.task?.work_type || 'N/A'}</td>
-                                            <td className="px-6 py-4 capitalize font-medium">{st.priority}</td>
-                                            <td className="px-6 py-4"><StatusBadge status={st.status} /></td>
-                                            <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-700">
-                                                {st.sub_status || <span className="text-gray-300 italic">—</span>}
-                                            </td>
-                                            <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <button onClick={(e) => { e.stopPropagation(); openView(st); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition"><Eye size={15} /></button>
-                                                    {st.user_permissions?.can_write !== false && (
-                                                        <div className="flex items-center gap-2">
-                                                            {st.is_verified ? (
-                                                                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold select-none shrink-0" title="Verified and Locked">
-                                                                    <Lock size={12} className="text-rose-600 animate-pulse animate-duration-1000" />
-                                                                    Verified
-                                                                </span>
-                                                            ) : (
-                                                                <>
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); openUpdate(st); }}
-                                                                        className="px-3 py-1.5 text-xs font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] transition shrink-0 cursor-pointer"
-                                                                        style={{ cursor: 'pointer' }}
-                                                                    >
-                                                                        Update
-                                                                    </button>
-                                                                    {st.status === 'complete' ? (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setConfirmState({
-                                                                                    open: true,
-                                                                                    title: 'Verify & Lock Task',
-                                                                                    message: 'Are you sure you want to verify and lock this task? Once verified, you cannot modify its status or details again.',
-                                                                                    confirmLabel: 'Verify & Lock',
-                                                                                    danger: false,
-                                                                                    onConfirm: async () => {
-                                                                                        setConfirmState(prev => ({ ...prev, loading: true }));
-                                                                                        try {
-                                                                                            await api.patch(`/staff/sub-tasks/${st.id}/status`, { 
-                                                                                                status: st.status,
-                                                                                                is_verified: true 
-                                                                                            });
-                                                                                            toast.success("Task verified and locked successfully!");
-                                                                                            await Promise.all([fetchSummary(), fetchTasks()]);
-                                                                                        } catch (err) {
-                                                                                            toast.error(err.response?.data?.message || "Failed to verify task");
-                                                                                        } finally {
-                                                                                            setConfirmState({
-                                                                                                open: false,
-                                                                                                title: '',
-                                                                                                message: '',
-                                                                                                confirmLabel: '',
-                                                                                                onConfirm: null,
-                                                                                                danger: false,
-                                                                                                loading: false
-                                                                                            });
-                                                                                        }
-                                                                                    }
-                                                                                });
-                                                                            }}
-                                                                            className="px-2.5 py-1.5 text-xs font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition flex items-center gap-1 shrink-0 cursor-pointer"
-                                                                            style={{ cursor: 'pointer' }}
-                                                                        >
-                                                                            <Unlock size={12} className="text-green-600" />
-                                                                            Verify
-                                                                        </button>
-                                                                    ) : (
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold select-none shrink-0" title="Unlocked">
-                                                                            <Unlock size={12} className="text-green-600" />
-                                                                            Unlocked
-                                                                        </span>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
             </div>
 
             {/* Update Status Modal */}
@@ -579,8 +749,6 @@ export default function MyTasksPage() {
             >
                 {selected && (
                     <div className="space-y-4">
-
-                        {/* Task info */}
                         <div className="bg-gray-50 rounded-xl p-4 space-y-1">
                             <p className="text-sm font-semibold text-gray-800">
                                 {selected.task_id ? selected.title : (selected.client?.name || 'N/A')}
@@ -594,7 +762,6 @@ export default function MyTasksPage() {
                             </div>
                         </div>
 
-                        {/* New status */}
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                 New Status
@@ -650,7 +817,6 @@ export default function MyTasksPage() {
                             )}
                         </div>
 
-                        {/* Sub Status (only for subtasks) */}
                         {selected.task_id && (
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">
@@ -664,7 +830,6 @@ export default function MyTasksPage() {
                             </div>
                         )}
 
-                        {/* Auto-complete note */}
                         {newStatus === 'complete' && (
                             <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
                                 <CheckCircle size={15} className="text-green-500 mt-0.5 shrink-0" />
@@ -674,7 +839,6 @@ export default function MyTasksPage() {
                             </div>
                         )}
 
-                        {/* Remarks */}
                         <div className="space-y-1">
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                 Remarks <span className="text-gray-300 font-normal">(Optional)</span>
@@ -688,7 +852,6 @@ export default function MyTasksPage() {
                             />
                         </div>
 
-                        {/* Screenshot */}
                         {attachmentsAllowed && (
                             <div className="space-y-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -712,14 +875,14 @@ export default function MyTasksPage() {
                         <div className="flex justify-end gap-3 pt-2">
                             <button
                                 onClick={() => setUpdateOpen(false)}
-                                className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition"
+                                className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleUpdateStatus}
                                 disabled={saving || !newStatus}
-                                className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition"
+                                className="px-5 py-2 text-sm bg-[#0f1c2e] text-white rounded-xl hover:bg-[#1a2f4a] disabled:opacity-60 transition cursor-pointer"
                             >
                                 {saving ? 'Updating...' : 'Update Status'}
                             </button>
@@ -728,210 +891,63 @@ export default function MyTasksPage() {
                 )}
             </Modal>
 
-            {/* View Modal */}
-            <Modal open={viewOpen} onClose={() => setViewOpen(false)} title="Sheet Details" width="max-w-3xl">
-                {selected && (
-                    viewLoading ? <Spinner /> : (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Client</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.client?.name || selected.task?.client || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Work Type</h4>
-                                    <p className="text-sm font-bold text-gray-900">{selected.work_type?.name || selected.task?.work_type || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
-                                    <StatusBadge status={selected.status} />
-                                </div>
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Inward Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_inward || selected.task?.date_inward)}</p>
-                                </div>
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Allocation / Due Date</h4>
-                                    <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_allocated || selected.due_date)}</p>
-                                </div>
-                                {(selected.date_completed || selected.completed_at || selected.task?.date_completed) && (
-                                    <div>
-                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Completion Date</h4>
-                                        <p className="text-sm font-bold text-gray-900">{formatDate(selected.date_completed || selected.completed_at || selected.task?.date_completed)}</p>
-                                    </div>
-                                )}
-                                {selected.task_id && selected.sub_status && (
-                                    <div>
-                                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Sub Status</h4>
-                                        <p className="text-sm font-bold text-gray-900">{selected.sub_status}</p>
-                                    </div>
-                                )}
+            {/* Duplicate Modal */}
+            <Modal open={duplicateOpen} onClose={() => setDuplicateOpen(false)} title="Duplicate Sheet" width="max-w-sm">
+                <div className="space-y-4">
+                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <h3 className="text-sm font-bold text-emerald-900 mb-1">
+                                    Duplicate sheet: <span className="font-bold underline">{selected?.form_name}</span>
+                                </h3>
                             </div>
-
-                            {selected.remarks && (
-                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Remarks</h4>
-                                    <p className="text-sm text-gray-600 leading-relaxed">{selected.remarks}</p>
-                                </div>
-                            )}
-
-                            {selected.dynamic_fields && Object.keys(selected.dynamic_fields).filter(key => !['schema', 'multi_rows', 'field_names', 'field_types'].includes(key)).length > 0 && (
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Custom Fields Information</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {Object.entries(selected.dynamic_fields)
-                                            .filter(([key]) => !['schema', 'multi_rows', 'field_names', 'field_types'].includes(key))
-                                            .map(([key, val]) => (
-                                                <div key={key} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                                    <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{key}</h5>
-                                                    <p className="text-sm font-semibold text-gray-800">
-                                                        {typeof val === 'boolean' 
-                                                            ? (val ? 'Yes' : 'No') 
-                                                            : Array.isArray(val)
-                                                                ? val.join(', ')
-                                                                : typeof val === 'object' && val !== null
-                                                                    ? JSON.stringify(val)
-                                                                    : (val || '—')
-                                                        }
-                                                    </p>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Checklist / Subtasks Section for Main Sheet */}
-                            {!selected.task_id && (
-                                <div className="space-y-4 pt-4 border-t border-gray-100">
-                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                        <h4 className="text-xs font-bold text-gray-900">Checklist / Tasks</h4>
-                                        {selected.allocated_to?.id === user?.id && (
-                                            <button
-                                                onClick={() => setIsAddingSubTask(true)}
-                                                className="flex items-center gap-1 text-[11px] font-black text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/70 border border-blue-100 rounded-lg px-2.5 py-1 transition cursor-pointer select-none"
-                                            >
-                                                <Plus size={12} /> Add Task Item
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Add Subtask Form inline */}
-                                    {isAddingSubTask && (
-                                        <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-100 space-y-3">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Task Title *</label>
-                                                    <input
-                                                        type="text"
-                                                        value={newSubTaskTitle}
-                                                        onChange={e => setNewSubTaskTitle(e.target.value)}
-                                                        placeholder="e.g. Verification of GST Portal..."
-                                                        className="w-full px-3 py-1.8 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700"
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Assignee</label>
-                                                    <select
-                                                        value={newSubTaskAssignee}
-                                                        onChange={e => setNewSubTaskAssignee(e.target.value)}
-                                                        className="w-full px-3 py-1.8 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-gray-700 cursor-pointer"
-                                                    >
-                                                        <option value="">Unassigned</option>
-                                                        <option value={user?.id}>{user?.name} (Myself)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        setIsAddingSubTask(false);
-                                                        setNewSubTaskTitle('');
-                                                        setNewSubTaskAssignee('');
-                                                    }}
-                                                    className="px-3 py-1.5 text-[11px] font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition cursor-pointer"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={handleAddSubTask}
-                                                    disabled={submittingSubTask || !newSubTaskTitle.trim()}
-                                                    className="px-4 py-1.5 text-[11px] font-semibold bg-[#0f1c2e] text-white rounded-lg hover:bg-[#1a2f4a] disabled:opacity-60 transition cursor-pointer"
-                                                >
-                                                    {submittingSubTask ? 'Adding...' : 'Add Item'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Subtask list */}
-                                    {selected.sub_tasks?.length === 0 ? (
-                                        <p className="text-xs text-gray-400 italic py-4 text-center bg-gray-50/30 rounded-xl border border-gray-100">No subtasks defined for this sheet.</p>
-                                    ) : (
-                                        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                                            <table className="w-full text-xs">
-                                                <thead>
-                                                    <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase text-[9px] tracking-wider">
-                                                        <th className="px-4 py-2 text-left">Task</th>
-                                                        <th className="px-4 py-2 text-left">Assignee</th>
-                                                        <th className="px-4 py-2 text-left">Priority</th>
-                                                        <th className="px-4 py-2 text-left">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-black bg-white">
-                                                    {selected.sub_tasks?.map(st => (
-                                                        <tr key={st.id} className="hover:bg-slate-50/30 transition">
-                                                            <td className="px-4 py-2.5 font-semibold text-gray-700">{st.title}</td>
-                                                            <td className="px-4 py-2.5 text-gray-650 font-medium">{st.assigned_to?.name || 'Unassigned'}</td>
-                                                            <td className="px-4 py-2.5 capitalize font-bold text-gray-650">{st.priority}</td>
-                                                            <td className="px-4 py-2.5"><StatusBadge status={st.status} /></td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Task Logs */}
-                            {selected.logs && selected.logs.length > 0 && (
-                                <div className="space-y-4">
-                                    <h4 className="text-xs font-bold text-gray-900 border-b border-gray-100 pb-2">Status History</h4>
-                                    <div className="space-y-3">
-                                        {selected.logs.map((log) => (
-                                            <div key={log.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <StatusBadge status={log.old_status} />
-                                                        <span className="text-gray-400 text-xs">→</span>
-                                                        <StatusBadge status={log.new_status} />
-                                                    </div>
-                                                    <span className="text-[10px] text-gray-400 font-medium">{log.changed_at}</span>
-                                                </div>
-                                                {log.remarks && <p className="text-xs text-gray-600 mb-2 italic">"{log.remarks}"</p>}
-                                                {log.screenshot_url && (
-                                                    <div className="mt-2">
-                                                        <a href={log.screenshot_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:underline">
-                                                            <Eye size={12} /> View Screenshot
-                                                        </a>
-                                                    </div>
-                                                )}
-                                                <p className="text-[10px] text-gray-400 mt-2">— {log.changed_by}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
-                    )
-                )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">New Sheet Name</label>
+                        <input
+                            type="text"
+                            value={duplicateSheetName}
+                            onChange={e => setDuplicateSheetName(e.target.value)}
+                            placeholder="Enter new sheet name..."
+                            className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition font-semibold"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                        <button
+                            onClick={() => handleDuplicate(true)}
+                            disabled={saving}
+                            className="flex flex-col items-start p-4 bg-white border border-gray-200 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50/30 transition group text-left w-full cursor-pointer"
+                        >
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-emerald-700">Duplicate with Data</span>
+                            <span className="text-[11px] text-gray-400 mt-1">Copies all dynamic fields and tasks</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleDuplicate(false)}
+                            disabled={saving}
+                            className="flex flex-col items-start p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-500 hover:bg-blue-50/30 transition group text-left w-full cursor-pointer"
+                        >
+                            <span className="text-sm font-bold text-gray-900 group-hover:text-blue-700">Duplicate without Data</span>
+                            <span className="text-[11px] text-gray-400 mt-1">Only copies core structure (Client, Work Type)</span>
+                        </button>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                        <button onClick={() => setDuplicateOpen(false)} className="px-5 py-2 text-sm text-gray-500 hover:text-gray-800 font-semibold transition cursor-pointer">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             {/* Create Sheet Modal */}
             <Modal
                 open={createOpen}
                 onClose={() => setCreateOpen(false)}
-                title="Create New Sheet"
+                title="Create Sheet"
                 width="max-w-2xl"
             >
                 <div className="space-y-4">
@@ -1057,5 +1073,5 @@ export default function MyTasksPage() {
                 danger={confirmState.danger}
             />
         </div>
-    )
+    );
 }

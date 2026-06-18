@@ -123,6 +123,11 @@ class TaskController extends Controller
                 $q->where('status', TaskStatus::from($request->status))
             )
             ->when(
+                $request->filled('work_type_id'),
+                fn($q) =>
+                $q->where('work_type_id', $request->work_type_id)
+            )
+            ->when(
                 $request->filled('search'),
                 function ($q) use ($request) {
                     $search = $request->search;
@@ -809,16 +814,22 @@ class TaskController extends Controller
         } elseif (is_array($dynamicFields) && array_key_exists('allow_duplicate_clients', $dynamicFields)) {
             $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'], FILTER_VALIDATE_BOOLEAN);
         }
-
         if (is_array($dynamicFields)) {
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
-
             $incomingRows = $dynamicFields['multi_rows'] ?? null;
             if (is_array($incomingRows)) {
                 $currentDynamicFields = $task->dynamic_fields;
                 $masterRows = $currentDynamicFields['multi_rows'] ?? [];
+
+                $deletedIds = [];
+                if ($request->has('deleted_row_ids')) {
+                    $deletedIds = $request->input('deleted_row_ids');
+                    if (!is_array($deletedIds)) {
+                        $deletedIds = [];
+                    }
+                }
 
                 $masterRowsByRowId = [];
                 foreach ($masterRows as $mr) {
@@ -828,31 +839,86 @@ class TaskController extends Controller
                     }
                 }
 
-                foreach ($incomingRows as $ir) {
+                // First, ensure all incoming rows have row_id and handle attachments merge
+                foreach ($incomingRows as &$ir) {
                     $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
-                    if ($rowId) {
+                    if (!$rowId) {
+                        $rowId = 'row_' . time() . '_' . rand(1000, 9999);
+                        $ir['row_id'] = $rowId;
+                    } else {
                         $existing = $masterRowsByRowId[$rowId] ?? [];
                         if ((!array_key_exists('attachments', $ir) || is_null($ir['attachments'])) && isset($existing['attachments'])) {
                             $ir['attachments'] = $existing['attachments'];
                         }
-                        $masterRowsByRowId[$rowId] = $ir;
-                    } else {
-                        $newId = 'row_' . time() . '_' . rand(1000, 9999);
-                        $ir['row_id'] = $newId;
-                        $masterRowsByRowId[$newId] = $ir;
+                    }
+                    $masterRowsByRowId[$rowId] = $ir;
+                }
+                unset($ir);
+
+                // Build filtered master rows preserving order
+                $newMasterRows = [];
+                foreach ($masterRows as $mr) {
+                    $rowId = $mr['row_id'] ?? $mr['id'] ?? null;
+                    if ($rowId && !in_array($rowId, $deletedIds)) {
+                        $newMasterRows[] = $masterRowsByRowId[$rowId] ?? $mr;
                     }
                 }
 
-                if ($request->has('deleted_row_ids')) {
-                    $deletedIds = $request->input('deleted_row_ids');
-                    if (is_array($deletedIds)) {
-                        foreach ($deletedIds as $dId) {
-                            unset($masterRowsByRowId[$dId]);
+                // Insert new/duplicated rows at their relative positions
+                foreach ($incomingRows as $idx => $ir) {
+                    $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
+                    if (!$rowId) continue;
+
+                    $isNew = true;
+                    foreach ($masterRows as $mr) {
+                        $mrId = $mr['row_id'] ?? $mr['id'] ?? null;
+                        if ($mrId === $rowId) {
+                            $isNew = false;
+                            break;
+                        }
+                    }
+
+                    if ($isNew) {
+                        $inserted = false;
+                        // 1. Find predecessor in $incomingRows already in $newMasterRows
+                        for ($i = $idx - 1; $i >= 0; $i--) {
+                            $predId = $incomingRows[$i]['row_id'] ?? $incomingRows[$i]['id'] ?? null;
+                            if ($predId) {
+                                foreach ($newMasterRows as $key => $nmr) {
+                                    $nmrId = $nmr['row_id'] ?? $nmr['id'] ?? null;
+                                    if ($nmrId === $predId) {
+                                        array_splice($newMasterRows, $key + 1, 0, [$ir]);
+                                        $inserted = true;
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Find successor in $incomingRows already in $newMasterRows
+                        if (!$inserted) {
+                            for ($i = $idx + 1; $i < count($incomingRows); $i++) {
+                                $succId = $incomingRows[$i]['row_id'] ?? $incomingRows[$i]['id'] ?? null;
+                                if ($succId) {
+                                    foreach ($newMasterRows as $key => $nmr) {
+                                        $nmrId = $nmr['row_id'] ?? $nmr['id'] ?? null;
+                                        if ($nmrId === $succId) {
+                                            array_splice($newMasterRows, $key, 0, [$ir]);
+                                            $inserted = true;
+                                            break 2;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!$inserted) {
+                            $newMasterRows[] = $ir;
                         }
                     }
                 }
 
-                $currentDynamicFields['multi_rows'] = array_values($masterRowsByRowId);
+                $currentDynamicFields['multi_rows'] = $newMasterRows;
                 $dynamicFields = $currentDynamicFields;
             }
 

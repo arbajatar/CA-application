@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SubTaskResource;
 use App\Models\SubTask;
 use App\Models\Task;
+use App\Http\Controllers\Api\Staff\TaskController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -47,8 +48,8 @@ class SubTaskController extends Controller
     {
         $user = $request->user();
 
-        // Ensure staff can only create subtasks for tasks allocated to them
-        if ($task->allocated_to !== $user->id) {
+        // Ensure staff has access to this task
+        if (!TaskController::doesUserHaveAccessToTask($task, $user)) {
             return response()->json(['message' => 'Unauthorized access to this task.'], 403);
         }
 
