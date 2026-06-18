@@ -127,19 +127,95 @@ class BackupController extends Controller
 
         try {
             $file = $request->file('sql_file');
-            $sql = file_get_contents($file->getRealPath());
+            $tempSqlPath = storage_path('app/temp_restore_' . time() . '.sql');
 
-            if (empty($sql)) {
-                return response()->json(['message' => 'The uploaded file is empty.'], 400);
+            $fileHandle = fopen($file->getRealPath(), 'r');
+            $tempSqlHandle = fopen($tempSqlPath, 'w');
+
+            if (!$fileHandle || !$tempSqlHandle) {
+                throw new \Exception("Could not open files for restoring.");
             }
 
-            // Strip out backup_logs operations to preserve the existing database logs
-            $sql = preg_replace('/DROP TABLE IF EXISTS `backup_logs`;/i', '', $sql);
-            $sql = preg_replace('/CREATE TABLE `backup_logs` .*?;/is', '', $sql);
-            $sql = preg_replace('/INSERT INTO `backup_logs` .*?;/is', '', $sql);
+            // Strip out operations for tables we want to preserve (logs and active login sessions)
+            $tablesToPreserve = ['backup_logs', 'personal_access_tokens', 'sessions'];
+            $inPreservedCreate = false;
+
+            while (($line = fgets($fileHandle)) !== false) {
+                $trimmedLine = trim($line);
+                if ($trimmedLine === '') {
+                    if (!$inPreservedCreate) {
+                        fwrite($tempSqlHandle, $line);
+                    }
+                    continue;
+                }
+
+                // Check for DROP TABLE
+                $isDrop = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?`?' . $table . '`?/i', $trimmedLine)) {
+                        $isDrop = true;
+                        break;
+                    }
+                }
+                if ($isDrop) {
+                    continue;
+                }
+
+                // Check for CREATE TABLE start
+                $isCreateStart = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^CREATE\s+TABLE\s+`?' . $table . '`?/i', $trimmedLine)) {
+                        $isCreateStart = true;
+                        break;
+                    }
+                }
+                if ($isCreateStart) {
+                    $inPreservedCreate = true;
+                    continue;
+                }
+
+                // Check for CREATE TABLE end (if we are inside a preserved CREATE block)
+                if ($inPreservedCreate) {
+                    if (preg_match('/;\s*$/', $trimmedLine)) {
+                        $inPreservedCreate = false;
+                    }
+                    continue;
+                }
+
+                // Check for INSERT INTO
+                $isInsert = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^INSERT\s+INTO\s+`?' . $table . '`?/i', $trimmedLine)) {
+                        $isInsert = true;
+                        break;
+                    }
+                }
+                if ($isInsert) {
+                    if (!preg_match('/;\s*$/', $trimmedLine)) {
+                        while (($subLine = fgets($fileHandle)) !== false) {
+                            if (preg_match('/;\s*$/', trim($subLine))) {
+                                break;
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                fwrite($tempSqlHandle, $line);
+            }
+
+            fclose($fileHandle);
+            fclose($tempSqlHandle);
+
+            $filteredSql = file_get_contents($tempSqlPath);
+            @unlink($tempSqlPath);
+
+            if (empty(trim($filteredSql))) {
+                return response()->json(['message' => 'The uploaded file contains no restore data.'], 400);
+            }
 
             // Execute SQL in unprepared format (ignores standard single query limits)
-            DB::unprepared($sql);
+            DB::unprepared($filteredSql);
 
             // Log the restore event into the preserved backup_logs table
             DB::table('backup_logs')->insert([
