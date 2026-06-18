@@ -28,6 +28,18 @@ class BackupController extends Controller
     public function export(Request $request)
     {
         try {
+            $filename = 'CA_Application_Backup_' . date('Y-m-d') . '.sql';
+            $tempPath = storage_path('app/' . $filename);
+
+            // Set memory limit and execution time to prevent timeouts for large databases
+            @ini_set('memory_limit', '512M');
+            @set_time_limit(0);
+
+            $out = fopen($tempPath, 'w');
+            if (!$out) {
+                throw new \Exception("Could not open file for writing: " . $tempPath);
+            }
+
             $pdo = DB::connection()->getPdo();
             $tables = [];
             $result = $pdo->query('SHOW TABLES');
@@ -35,33 +47,38 @@ class BackupController extends Controller
                 $tables[] = $row[0];
             }
 
-            $sql = "-- Database Backup\n";
-            $sql .= "-- Generated at: " . date('Y-m-d H:i:s') . "\n";
-            $sql .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+            fwrite($out, "-- Database Backup\n");
+            fwrite($out, "-- Generated at: " . date('Y-m-d H:i:s') . "\n");
+            fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
                 // Drop table statement
-                $sql .= "DROP TABLE IF EXISTS `" . $table . "`;\n";
+                fwrite($out, "DROP TABLE IF EXISTS `" . $table . "`;\n");
 
                 // Show Create Table statement
                 $createTableResult = $pdo->query("SHOW CREATE TABLE `" . $table . "`");
                 $createTableRow = $createTableResult->fetch(\PDO::FETCH_ASSOC);
-                $sql .= $createTableRow['Create Table'] . ";\n\n";
+                fwrite($out, $createTableRow['Create Table'] . ";\n\n");
 
-                // Insert statements
+                // Insert statements using bulk insertion
                 $rowsResult = $pdo->query("SELECT * FROM `" . $table . "`");
-                $columnCount = $rowsResult->columnCount();
-
-                // Get column names
-                $columns = [];
-                for ($i = 0; $i < $columnCount; $i++) {
-                    $meta = $rowsResult->getColumnMeta($i);
-                    $columns[] = "`" . $meta['name'] . "`";
-                }
-
-                $columnsStr = implode(', ', $columns);
+                $hasRows = false;
+                $batchValues = [];
+                $batchSize = 250; // Write up to 250 rows in a single INSERT statement
+                $columnsStr = '';
 
                 while ($row = $rowsResult->fetch(\PDO::FETCH_NUM)) {
+                    if (!$hasRows) {
+                        $hasRows = true;
+                        $columnCount = $rowsResult->columnCount();
+                        $columns = [];
+                        for ($i = 0; $i < $columnCount; $i++) {
+                            $meta = $rowsResult->getColumnMeta($i);
+                            $columns[] = "`" . $meta['name'] . "`";
+                        }
+                        $columnsStr = implode(', ', $columns);
+                    }
+
                     $values = [];
                     foreach ($row as $val) {
                         if (is_null($val)) {
@@ -70,31 +87,32 @@ class BackupController extends Controller
                             $values[] = $pdo->quote($val);
                         }
                     }
-                    $sql .= "INSERT INTO `" . $table . "` (" . $columnsStr . ") VALUES (" . implode(', ', $values) . ");\n";
+                    fwrite($out, "INSERT INTO `" . $table . "` (" . $columnsStr . ") VALUES (" . implode(', ', $values) . ");\n");
                 }
-                $sql .= "\n";
+                fwrite($out, "\n");
             }
 
-            $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
+            fclose($out);
 
-            $filename = 'CA_Application_Backup_' . date('Y-m-d') . '.sql';
+            $fileSize = filesize($tempPath);
 
             // Insert backup log entry
             DB::table('backup_logs')->insert([
                 'filename' => $filename,
                 'backup_by' => $request->query('backup_by') ?: ($request->user()?->name ?: 'Super Admin'),
                 'action' => 'backup',
-                'file_size' => $this->formatBytes(strlen($sql)),
+                'file_size' => $this->formatBytes($fileSize),
                 'created_by' => $request->user()?->id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            return response($sql, 200, [
-                'Content-Type' => 'application/sql',
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-            ]);
+            return response()->download($tempPath, $filename)->deleteFileAfterSend(true);
         } catch (\Exception $e) {
+            if (isset($tempPath) && file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
             Log::error('Backup Export Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Backup export failed: ' . $e->getMessage()], 500);
         }
@@ -115,10 +133,15 @@ class BackupController extends Controller
                 return response()->json(['message' => 'The uploaded file is empty.'], 400);
             }
 
+            // Strip out backup_logs operations to preserve the existing database logs
+            $sql = preg_replace('/DROP TABLE IF EXISTS `backup_logs`;/i', '', $sql);
+            $sql = preg_replace('/CREATE TABLE `backup_logs` .*?;/is', '', $sql);
+            $sql = preg_replace('/INSERT INTO `backup_logs` .*?;/is', '', $sql);
+
             // Execute SQL in unprepared format (ignores standard single query limits)
             DB::unprepared($sql);
 
-            // Log the restore event into the newly restored backup_logs table
+            // Log the restore event into the preserved backup_logs table
             DB::table('backup_logs')->insert([
                 'filename' => $file->getClientOriginalName(),
                 'backup_by' => $request->input('restore_by') ?: ($request->user()?->name ?: 'Super Admin'),

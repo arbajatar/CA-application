@@ -22,5 +22,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        // Convert query parameter 'token' to 'Authorization' header for download/direct access routes
+        if (request()->has('token') && !request()->headers->has('Authorization')) {
+            request()->headers->set('Authorization', 'Bearer ' . request()->query('token'));
+        }
     }
 }

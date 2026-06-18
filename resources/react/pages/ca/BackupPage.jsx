@@ -113,31 +113,24 @@ export default function BackupPage() {
         }
         setShowBackupNameModal(false);
         setBackingUp(true);
-        const loadingToast = toast.loading('Generating database backup...');
+        const loadingToast = toast.loading('Initiating database backup download...');
         try {
-            const response = await api.get('/ca/backup/export', {
-                params: { backup_by: backupByName.trim() },
-                responseType: 'blob'
-            });
-
-            // Create download link for SQL file
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
+            const token = localStorage.getItem('token');
+            const backupByEscaped = encodeURIComponent(backupByName.trim());
+            const downloadUrl = `/api/ca/backup/export?backup_by=${backupByEscaped}&token=${token}`;
             
-            const dateStr = new Date().toISOString().split('T')[0];
-            const filename = `CA_Application_Backup_${dateStr}.sql`;
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
+            // Trigger native browser download directly
+            window.location.href = downloadUrl;
             
-            toast.success('Database backup downloaded successfully!', { id: loadingToast });
-            // Re-fetch logs to show the new backup entry
-            fetchBackupLogs();
+            toast.success('Database backup download initiated!', { id: loadingToast });
+            
+            // Re-fetch logs after a short delay to allow the server to write the log entry
+            setTimeout(() => {
+                fetchBackupLogs();
+            }, 3000);
         } catch (error) {
             console.error(error);
-            toast.error('Failed to generate database backup.', { id: loadingToast });
+            toast.error('Failed to initiate database backup.', { id: loadingToast });
         } finally {
             setBackingUp(false);
         }
