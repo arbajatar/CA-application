@@ -5,7 +5,8 @@ export default function RoleRoute({ role, children }) {
     const { user } = useAuth()
     if (!user) return <Navigate to="/login" replace />
     if (user.role !== role) {
-        return <Navigate to={user.role === 'ca' ? '/ca/dashboard' : '/staff/tasks'} replace />
+        const dest = user.role === 'super_admin' ? '/backup' : (user.role === 'ca' ? '/ca/dashboard' : '/staff/tasks');
+        return <Navigate to={dest} replace />
     }
     return children
 }

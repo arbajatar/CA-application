@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe, Info, BarChart3, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Users, UserCog, Settings, LogOut, Menu, Globe, Info, BarChart3, ChevronDown, ChevronUp, Trash2, Database } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ConfirmDialog from '../ui/ConfirmDialog'
 
@@ -25,11 +25,16 @@ const navItems = [
 ]
 
 export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setIsMobileOpen }) {
-    const { logout } = useAuth()
+    const { user, logout } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
     const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
     const [reportsExpanded, setReportsExpanded] = useState(location.pathname.startsWith('/ca/reports'))
+
+    const isSuperAdmin = user?.role === 'super_admin'
+    const activeNavItems = isSuperAdmin
+        ? [{ to: '/backup', icon: Database, label: 'Backup & Restore' }]
+        : navItems
 
     const handleLogout = async () => {
         setLogoutConfirmOpen(false)
@@ -54,8 +59,8 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
                             <img src="/CA_LOGO-png.png" alt="CA Logo" className="w-full h-full object-contain" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-white whitespace-nowrap">CA Office</p>
-                            <p className="text-xs text-slate-400 uppercase tracking-wider whitespace-nowrap">Admin Suite</p>
+                            <p className="text-sm font-bold text-white whitespace-nowrap">{isSuperAdmin ? 'Super Admin' : 'CA Office'}</p>
+                            <p className="text-xs text-slate-400 uppercase tracking-wider whitespace-nowrap">{isSuperAdmin ? 'System Suite' : 'Admin Suite'}</p>
                         </div>
                     </div>
                 )}
@@ -76,7 +81,7 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
 
             {/* Nav */}
             <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto overflow-x-hidden">
-                {navItems.map((item) => {
+                {activeNavItems.map((item) => {
                     if (item.children) {
                         const Icon = item.icon
                         const isExpanded = reportsExpanded

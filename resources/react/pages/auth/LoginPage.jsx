@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function LoginPage() {
-    const { login } = useAuth()
+    const { user, login } = useAuth()
     const navigate = useNavigate()
 
     const [username, setUsername] = useState('')
@@ -13,13 +13,19 @@ export default function LoginPage() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
+    useEffect(() => {
+        if (user) {
+            navigate(user.role === 'super_admin' ? '/backup' : (user.role === 'ca' ? '/ca/dashboard' : '/staff/tasks'))
+        }
+    }, [user, navigate])
+
     const handleSubmit = async (e) => {
         e.preventDefault()
         setError('')
         setLoading(true)
         try {
-            const user = await login(username, password)
-            navigate(user.role === 'ca' ? '/ca/dashboard' : '/staff/dashboard')
+            const loggedInUser = await login(username, password)
+            navigate(loggedInUser.role === 'super_admin' ? '/backup' : (loggedInUser.role === 'ca' ? '/ca/dashboard' : '/staff/tasks'))
         } catch (err) {
             setError(err.response?.data?.message ?? 'Something went wrong. Please try again.')
         } finally {

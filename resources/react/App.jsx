@@ -25,6 +25,7 @@ import ReportsPage from './pages/ca/ReportsPage'
 import TeamReportPage from './pages/ca/TeamReportPage'
 import RecycleBinPage from './pages/ca/RecycleBinPage'
 import SheetLogsPage from './pages/ca/SheetLogsPage'
+import BackupPage from './pages/ca/BackupPage'
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -195,6 +196,11 @@ export default function App() {
           <Route path="/logs" element={
             <ProtectedRoute><RoleRoute role="ca">
               <CALayout><SheetLogsPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/backup" element={
+            <ProtectedRoute><RoleRoute role="super_admin">
+              <CALayout><BackupPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
 

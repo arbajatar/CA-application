@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CA\RoleController;
 use App\Http\Controllers\Api\CA\TaskController;
 use App\Http\Controllers\Api\CA\SubTaskController as CASubTaskController;
 use App\Http\Controllers\Api\CA\WorkTypeController;
+use App\Http\Controllers\Api\CA\BackupController;
 use Illuminate\Support\Facades\Route;
 
 // ── Public routes ──────────────────────────────────────────────────────────
@@ -91,6 +92,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/work-types', [WorkTypeController::class, 'store']);
     });
 
+    // ── Super Admin routes ────────────────────────────────────────
+    Route::middleware('role:super_admin')->prefix('ca')->group(function () {
+        Route::get('/backup/logs', [BackupController::class, 'logs']);
+        Route::get('/backup/export', [BackupController::class, 'export']);
+        Route::post('/backup/restore', [BackupController::class, 'restore']);
+    });
+
     // ── CA / Admin routes ────────────────────────────────────────
     Route::middleware('role:ca')->prefix('ca')->name('ca.')->group(function () {
 
@@ -120,6 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/recycle-bin/work-types', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'indexWorkTypes']);
         Route::post('/recycle-bin/work-types/{id}/restore', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'restoreWorkType']);
         Route::delete('/recycle-bin/work-types/{id}/force-delete', [\App\Http\Controllers\Api\CA\RecycleBinController::class, 'forceDeleteWorkType']);
+
 
         // Reports
         Route::get('/reports/timesheet', [\App\Http\Controllers\Api\CA\ReportController::class, 'timesheet']);
