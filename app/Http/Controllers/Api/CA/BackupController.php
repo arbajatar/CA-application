@@ -16,7 +16,16 @@ class BackupController extends Controller
                 ->leftJoin('users', 'backup_logs.created_by', '=', 'users.id')
                 ->select('backup_logs.*', 'users.name as user_name')
                 ->orderBy('backup_logs.created_at', 'desc')
-                ->get();
+                ->get()
+                ->map(function ($log) {
+                    $exists = false;
+                    if ($log->filename) {
+                        $filePath = storage_path('app/' . $log->filename);
+                        $exists = file_exists($filePath);
+                    }
+                    $log->file_exists = $exists;
+                    return $log;
+                });
 
             return response()->json(['data' => $logs]);
         } catch (\Exception $e) {

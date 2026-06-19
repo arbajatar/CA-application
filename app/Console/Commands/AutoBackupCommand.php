@@ -213,8 +213,7 @@ class AutoBackupCommand extends Command
                             if (file_exists($oldFilePath)) {
                                 @unlink($oldFilePath);
                             }
-                            DB::table('backup_logs')->where('id', $oldBackup->id)->delete();
-                            $this->info("Deleted old backup file and log (count limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
+                            $this->info("Deleted old backup file (count limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
                         }
                     }
                 } else {
@@ -232,8 +231,7 @@ class AutoBackupCommand extends Command
                         if (file_exists($oldFilePath)) {
                             @unlink($oldFilePath);
                         }
-                        DB::table('backup_logs')->where('id', $oldBackup->id)->delete();
-                        $this->info("Deleted old backup file and log (days limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
+                        $this->info("Deleted old backup file (days limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
                     }
                 }
             }

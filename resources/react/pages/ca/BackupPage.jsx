@@ -703,9 +703,9 @@ export default function BackupPage() {
                             <p className="text-[11px] text-slate-400 mt-0.5">Database backups have not been logged yet.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto max-h-[450px] overflow-y-auto">
                             <table className="w-full text-xs text-left border-collapse">
-                                <thead>
+                                <thead className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                                     <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-150">
                                         <th className="px-6 py-3 w-[160px]">Timestamp</th>
                                         <th className="px-6 py-3 w-[100px]">Action</th>
@@ -743,26 +743,32 @@ export default function BackupPage() {
                                             </td>
                                             <td className="px-6 py-3.5 text-right whitespace-nowrap">
                                                 {log.filename.startsWith('backups/') && (
-                                                    <div className="inline-flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => handleDownloadSaved(log)}
-                                                            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 w-[88px] bg-[#1F5C99]/10 hover:bg-[#1F5C99]/20 text-[#1F5C99] font-extrabold text-[11px] rounded-lg transition cursor-pointer"
-                                                            title="Download backup file from server"
-                                                        >
-                                                            <Download size={12} />
-                                                            <span>Download</span>
-                                                        </button>
-                                                        {log.action === 'backup' && (
+                                                    log.file_exists ? (
+                                                        <div className="inline-flex items-center justify-end gap-2">
                                                             <button
-                                                                onClick={() => handlePreviewSaved(log)}
-                                                                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 w-[88px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-extrabold text-[11px] rounded-lg transition cursor-pointer"
-                                                                title="Restore database using this backup file"
+                                                                onClick={() => handleDownloadSaved(log)}
+                                                                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 w-[88px] bg-[#1F5C99]/10 hover:bg-[#1F5C99]/20 text-[#1F5C99] font-extrabold text-[11px] rounded-lg transition cursor-pointer"
+                                                                title="Download backup file from server"
                                                             >
-                                                                <RefreshCw size={12} />
-                                                                <span>Restore</span>
+                                                                <Download size={12} />
+                                                                <span>Download</span>
                                                             </button>
-                                                        )}
-                                                    </div>
+                                                            {log.action === 'backup' && (
+                                                                <button
+                                                                    onClick={() => handlePreviewSaved(log)}
+                                                                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 w-[88px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-extrabold text-[11px] rounded-lg transition cursor-pointer"
+                                                                    title="Restore database using this backup file"
+                                                                >
+                                                                    <RefreshCw size={12} />
+                                                                    <span>Restore</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-slate-400 italic bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                                            Cleaned Up
+                                                        </span>
+                                                    )
                                                 )}
                                             </td>
                                         </tr>
