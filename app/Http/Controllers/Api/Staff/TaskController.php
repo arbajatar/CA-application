@@ -924,8 +924,9 @@ class TaskController extends Controller
 
             $validated['dynamic_fields'] = $dynamicFields;
             $currentUser = $request->user();
-            dispatch(function () use ($task, $currentUser, $dynamicFields) {
-                \App\Helpers\SheetLogger::log($task, $currentUser, $dynamicFields);
+            $oldDynamicFields = $task->dynamic_fields;
+            dispatch(function () use ($task, $currentUser, $dynamicFields, $oldDynamicFields) {
+                \App\Helpers\SheetLogger::log($task, $currentUser, $dynamicFields, $oldDynamicFields);
             })->afterResponse();
         }
 

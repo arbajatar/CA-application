@@ -13,11 +13,13 @@ class SheetLogger
     private static $workTypesCache = null;
     private static $usersCache = null;
 
-    public static function log($task, $user, $newDynamicFields)
+    public static function log($task, $user, $newDynamicFields, $oldDynamicFields = null)
     {
         if (!$task) return;
 
-        $oldDynamicFields = $task->dynamic_fields;
+        if ($oldDynamicFields === null) {
+            $oldDynamicFields = $task->dynamic_fields;
+        }
         $oldRows = $oldDynamicFields['multi_rows'] ?? [];
         $newRows = $newDynamicFields['multi_rows'] ?? [];
 
