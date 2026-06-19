@@ -1726,7 +1726,23 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             toast.error("Access Denied: Export is not allowed.");
             return;
         }
+        const exportToast = toast.loading("Preparing sheet data for export...");
         try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const params = {
+                page: 1,
+                per_page: 'all',
+                search: debouncedSearch || undefined,
+                status: selectedStatusFilter || sheetStatusFilter || undefined,
+                sub_status: selectedSubStatusFilter || undefined,
+                work_type_id: sheetWorkTypeFilter || undefined,
+                sort_field: sortField || undefined,
+                sort_direction: sortDirection || undefined,
+                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined
+            };
+            const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
+            const exportRows = taskRes.data.data.dynamic_fields?.multi_rows || [];
+
             const formatVal = (val, fieldType) => {
                 if (Array.isArray(val)) return val.join(', ');
                 if (typeof val === 'boolean') return val ? 'Yes' : 'No';
@@ -1795,7 +1811,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 'Remarks'
             ];
 
-            const sheetInfoRows = rows.map((r, index) => {
+            const sheetInfoRows = exportRows.map((r, index) => {
                 const clientObj = clients.find(c => c.id === r.client_id || c.id === task.client?.id);
                 const clientName = clientObj?.name || 'N/A';
                 const clientPan = clientObj?.pan_no || 'N/A';
@@ -1897,9 +1913,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
                 ]
             });
+            toast.success("Excel sheet generated successfully!", { id: exportToast });
         } catch (err) {
             console.error('Export Error:', err);
-            toast.error('Failed to export sheet details');
+            toast.error('Failed to export sheet details', { id: exportToast });
         }
     };
 
