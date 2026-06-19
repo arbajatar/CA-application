@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class AutoBackupCommand extends Command
 {
@@ -187,9 +188,21 @@ class AutoBackupCommand extends Command
             $fileSize = filesize($tempPath);
             $formattedSize = $this->formatBytes($fileSize);
 
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                $s3Path = "ca_application/db_backup/" . $filename;
+                Storage::disk('s3')->put($s3Path, file_get_contents($tempPath), [
+                    'visibility'  => 'public',
+                ]);
+                @unlink($tempPath);
+                $filenameForLog = $s3Path;
+            } else {
+                $filenameForLog = 'backups/' . $filename;
+            }
+
             // Insert backup log entry
             DB::table('backup_logs')->insert([
-                'filename' => 'backups/' . $filename, // Save path relative to storage/app for easy downloads
+                'filename' => $filenameForLog,
                 'backup_by' => 'System (Auto)',
                 'action' => 'backup',
                 'file_size' => $formattedSize,
@@ -209,16 +222,25 @@ class AutoBackupCommand extends Command
                     // Find all automated backups, ordered by created_at desc
                     $allAutoBackups = DB::table('backup_logs')
                         ->where('action', 'backup')
-                        ->where('filename', 'like', 'backups/%')
+                        ->where(function($q) {
+                            $q->where('filename', 'like', 'backups/%')
+                              ->orWhere('filename', 'like', 'ca_application/db_backup/%');
+                        })
                         ->orderBy('created_at', 'desc')
                         ->get();
 
                     if ($allAutoBackups->count() > $keepLimit) {
                         $oldBackups = $allAutoBackups->slice($keepLimit);
                         foreach ($oldBackups as $oldBackup) {
-                            $oldFilePath = storage_path('app/' . $oldBackup->filename);
-                            if (file_exists($oldFilePath)) {
-                                @unlink($oldFilePath);
+                            if ($disk === 's3') {
+                                if (Storage::disk('s3')->exists($oldBackup->filename)) {
+                                    Storage::disk('s3')->delete($oldBackup->filename);
+                                }
+                            } else {
+                                $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                                if (file_exists($oldFilePath)) {
+                                    @unlink($oldFilePath);
+                                }
                             }
                             $this->info("Deleted old backup file (count limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
                         }
@@ -229,14 +251,23 @@ class AutoBackupCommand extends Command
 
                     $oldBackups = DB::table('backup_logs')
                         ->where('action', 'backup')
-                        ->where('filename', 'like', 'backups/%')
+                        ->where(function($q) {
+                            $q->where('filename', 'like', 'backups/%')
+                              ->orWhere('filename', 'like', 'ca_application/db_backup/%');
+                        })
                         ->where('created_at', '<', $cutoffDate)
                         ->get();
 
                     foreach ($oldBackups as $oldBackup) {
-                        $oldFilePath = storage_path('app/' . $oldBackup->filename);
-                        if (file_exists($oldFilePath)) {
-                            @unlink($oldFilePath);
+                        if ($disk === 's3') {
+                            if (Storage::disk('s3')->exists($oldBackup->filename)) {
+                                Storage::disk('s3')->delete($oldBackup->filename);
+                            }
+                        } else {
+                            $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                            if (file_exists($oldFilePath)) {
+                                @unlink($oldFilePath);
+                            }
                         }
                         $this->info("Deleted old backup file (days limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
                     }

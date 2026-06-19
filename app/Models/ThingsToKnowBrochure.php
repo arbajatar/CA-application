@@ -16,6 +16,6 @@ class ThingsToKnowBrochure extends Model
 
     public function getFileUrlAttribute()
     {
-        return $this->file_path ? asset('storage/' . $this->file_path) : null;
+        return $this->file_path ? \App\Helpers\UploadHelper::resolveUrl($this->file_path) : null;
     }
 }

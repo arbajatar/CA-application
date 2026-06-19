@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class BackupController extends Controller
 {
@@ -20,8 +21,13 @@ class BackupController extends Controller
                 ->map(function ($log) {
                     $exists = false;
                     if ($log->filename) {
-                        $filePath = storage_path('app/' . $log->filename);
-                        $exists = file_exists($filePath);
+                        $disk = env('FILESYSTEM_DISK', 'public');
+                        if ($disk === 's3') {
+                            $exists = Storage::disk('s3')->exists($log->filename);
+                        } else {
+                            $filePath = storage_path('app/' . $log->filename);
+                            $exists = file_exists($filePath);
+                        }
                     }
                     $log->file_exists = $exists;
                     return $log;
@@ -106,9 +112,20 @@ class BackupController extends Controller
 
             $fileSize = filesize($tempPath);
 
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                $s3Path = "ca_application/db_backup/" . $filename;
+                Storage::disk('s3')->put($s3Path, file_get_contents($tempPath), [
+                    'visibility'  => 'public',
+                ]);
+                $filenameForLog = $s3Path;
+            } else {
+                $filenameForLog = $filename;
+            }
+
             // Insert backup log entry
             DB::table('backup_logs')->insert([
-                'filename' => $filename,
+                'filename' => $filenameForLog,
                 'backup_by' => $request->query('backup_by') ?: ($request->user()?->name ?: 'Super Admin'),
                 'action' => 'backup',
                 'file_size' => $this->formatBytes($fileSize),
@@ -291,15 +308,28 @@ class BackupController extends Controller
 
     public function previewSaved(Request $request, $id)
     {
+        $filePath = null;
+        $isTemp = false;
         try {
             $log = DB::table('backup_logs')->where('id', $id)->first();
             if (!$log) {
                 return response()->json(['message' => 'Backup log record not found.'], 404);
             }
 
-            $filePath = storage_path('app/' . $log->filename);
-            if (!file_exists($filePath)) {
-                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                if (!Storage::disk('s3')->exists($log->filename)) {
+                    return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
+                }
+                $tempPath = storage_path('app/temp_preview_' . time() . '.sql');
+                file_put_contents($tempPath, Storage::disk('s3')->get($log->filename));
+                $filePath = $tempPath;
+                $isTemp = true;
+            } else {
+                $filePath = storage_path('app/' . $log->filename);
+                if (!file_exists($filePath)) {
+                    return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+                }
             }
 
             $fileHandle = fopen($filePath, 'r');
@@ -333,6 +363,9 @@ class BackupController extends Controller
             }
 
             fclose($fileHandle);
+            if ($isTemp && file_exists($filePath)) {
+                @unlink($filePath);
+            }
 
             $data = [];
             foreach ($tableMap as $table => $rows) {
@@ -351,6 +384,9 @@ class BackupController extends Controller
 
             return response()->json(['data' => $data]);
         } catch (\Exception $e) {
+            if ($isTemp && $filePath && file_exists($filePath)) {
+                @unlink($filePath);
+            }
             Log::error('Preview Saved Backup Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to preview backup: ' . $e->getMessage()], 500);
         }
@@ -364,14 +400,20 @@ class BackupController extends Controller
                 return response()->json(['message' => 'Backup log record not found.'], 404);
             }
 
-            $filePath = storage_path('app/' . $log->filename);
-            if (!file_exists($filePath)) {
-                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                if (!Storage::disk('s3')->exists($log->filename)) {
+                    return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
+                }
+                return Storage::disk('s3')->download($log->filename, basename($log->filename));
+            } else {
+                $filePath = storage_path('app/' . $log->filename);
+                if (!file_exists($filePath)) {
+                    return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+                }
+                $downloadName = basename($log->filename);
+                return response()->download($filePath, $downloadName);
             }
-
-            $downloadName = basename($log->filename);
-
-            return response()->download($filePath, $downloadName);
         } catch (\Exception $e) {
             Log::error('Download Saved Backup Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to download backup file.'], 500);
@@ -384,15 +426,28 @@ class BackupController extends Controller
             'restore_by' => 'required|string',
         ]);
 
+        $filePath = null;
+        $isTemp = false;
         try {
             $log = DB::table('backup_logs')->where('id', $id)->first();
             if (!$log) {
                 return response()->json(['message' => 'Backup log record not found.'], 404);
             }
 
-            $filePath = storage_path('app/' . $log->filename);
-            if (!file_exists($filePath)) {
-                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                if (!Storage::disk('s3')->exists($log->filename)) {
+                    return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
+                }
+                $tempPath = storage_path('app/temp_restore_download_' . time() . '.sql');
+                file_put_contents($tempPath, Storage::disk('s3')->get($log->filename));
+                $filePath = $tempPath;
+                $isTemp = true;
+            } else {
+                $filePath = storage_path('app/' . $log->filename);
+                if (!file_exists($filePath)) {
+                    return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+                }
             }
 
             $tempSqlPath = storage_path('app/temp_restore_' . time() . '.sql');
@@ -473,6 +528,9 @@ class BackupController extends Controller
 
             fclose($fileHandle);
             fclose($tempSqlHandle);
+            if ($isTemp && file_exists($filePath)) {
+                @unlink($filePath);
+            }
 
             $filteredSql = file_get_contents($tempSqlPath);
             @unlink($tempSqlPath);
@@ -497,6 +555,9 @@ class BackupController extends Controller
 
             return response()->json(['message' => 'Database successfully restored from saved backup!']);
         } catch (\Exception $e) {
+            if ($isTemp && $filePath && file_exists($filePath)) {
+                @unlink($filePath);
+            }
             Log::error('Restore Saved Backup Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Restore failed: ' . $e->getMessage()], 500);
         }

@@ -153,7 +153,7 @@ class TeamChecklistController extends Controller
         ]);
         $path = \App\Helpers\UploadHelper::upload($request->file('file'), 'sub_tasks_screenshots');
         return response()->json([
-            'url' => asset('storage/' . $path),
+            'url' => \App\Helpers\UploadHelper::resolveUrl($path),
             'path' => $path,
             'name' => $request->file('file')->getClientOriginalName(),
         ]);

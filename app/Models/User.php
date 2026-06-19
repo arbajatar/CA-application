@@ -35,7 +35,7 @@ class User extends Authenticatable
 
     public function getProfilePhotoUrlAttribute()
     {
-        return $this->profile_photo ? asset('storage/' . $this->profile_photo) : null;
+        return $this->profile_photo ? \App\Helpers\UploadHelper::resolveUrl($this->profile_photo) : null;
     }
 
     protected function casts(): array

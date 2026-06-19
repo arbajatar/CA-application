@@ -25,7 +25,7 @@ class TaskLog extends Model
 
     public function getScreenshotUrlAttribute()
     {
-        return $this->screenshot ? asset('storage/' . $this->screenshot) : null;
+        return $this->screenshot ? \App\Helpers\UploadHelper::resolveUrl($this->screenshot) : null;
     }
 
     public function task()

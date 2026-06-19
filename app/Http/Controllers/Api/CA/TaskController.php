@@ -835,7 +835,7 @@ class TaskController extends Controller
         ]);
         $path = \App\Helpers\UploadHelper::upload($request->file('file'), 'sheet_attachments');
         return response()->json([
-            'url' => asset('storage/' . $path),
+            'url' => \App\Helpers\UploadHelper::resolveUrl($path),
             'path' => $path,
             'name' => $request->file('file')->getClientOriginalName(),
         ]);

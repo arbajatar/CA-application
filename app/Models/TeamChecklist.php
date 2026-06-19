@@ -33,7 +33,7 @@ class TeamChecklist extends Model
         }
 
         // If it's already a relative path to the json file, keep it
-        if (is_string($value) && str_ends_with($value, '.json') && str_starts_with($value, 'sub_tasks_screenshots/')) {
+        if (is_string($value) && (str_starts_with($value, 'ca_application/attachments/') || (str_ends_with($value, '.json') && str_starts_with($value, 'sub_tasks_screenshots/')))) {
             $this->attributes['screenshot'] = $value;
             return;
         }
@@ -41,19 +41,28 @@ class TeamChecklist extends Model
         $decoded = is_string($value) ? json_decode($value, true) : $value;
         if (is_array($decoded)) {
             $existingPath = $this->attributes['screenshot'] ?? null;
-            if ($existingPath && str_ends_with($existingPath, '.json') && str_starts_with($existingPath, 'sub_tasks_screenshots/')) {
+            if ($existingPath && (str_starts_with($existingPath, 'ca_application/attachments/') || (str_ends_with($existingPath, '.json') && str_starts_with($existingPath, 'sub_tasks_screenshots/')))) {
                 $filePath = $existingPath;
             } else {
                 $filePath = 'sub_tasks_screenshots/attachments_' . uniqid() . '_' . time() . '.json';
             }
 
-            $fullDir = storage_path('app/public/sub_tasks_screenshots');
-            if (!file_exists($fullDir)) {
-                mkdir($fullDir, 0755, true);
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3') {
+                $s3Path = str_starts_with($filePath, 'ca_application/attachments/') ? $filePath : "ca_application/attachments/{$filePath}";
+                \Illuminate\Support\Facades\Storage::disk('s3')->put($s3Path, json_encode($decoded, JSON_PRETTY_PRINT), [
+                    'visibility'  => 'public',
+                    'ContentType' => 'application/json',
+                ]);
+                $this->attributes['screenshot'] = $s3Path;
+            } else {
+                $fullDir = storage_path('app/public/sub_tasks_screenshots');
+                if (!file_exists($fullDir)) {
+                    mkdir($fullDir, 0755, true);
+                }
+                file_put_contents(storage_path('app/public/' . $filePath), json_encode($decoded, JSON_PRETTY_PRINT));
+                $this->attributes['screenshot'] = $filePath;
             }
-            file_put_contents(storage_path('app/public/' . $filePath), json_encode($decoded, JSON_PRETTY_PRINT));
-
-            $this->attributes['screenshot'] = $filePath;
         } else {
             $this->attributes['screenshot'] = $value;
         }
@@ -65,12 +74,20 @@ class TeamChecklist extends Model
             return null;
         }
 
-        if (str_ends_with($value, '.json') && str_starts_with($value, 'sub_tasks_screenshots/')) {
-            $fullPath = storage_path('app/public/' . $value);
-            if (file_exists($fullPath)) {
-                return file_get_contents($fullPath);
+        if (str_starts_with($value, 'ca_application/attachments/') || (str_ends_with($value, '.json') && str_starts_with($value, 'sub_tasks_screenshots/'))) {
+            $disk = env('FILESYSTEM_DISK', 'public');
+            if ($disk === 's3' && str_starts_with($value, 'ca_application/attachments/')) {
+                if (\Illuminate\Support\Facades\Storage::disk('s3')->exists($value)) {
+                    return \Illuminate\Support\Facades\Storage::disk('s3')->get($value);
+                }
+                return '[]';
+            } else {
+                $fullPath = storage_path('app/public/' . $value);
+                if (file_exists($fullPath)) {
+                    return file_get_contents($fullPath);
+                }
+                return '[]';
             }
-            return '[]';
         }
 
         return $value;
@@ -80,9 +97,9 @@ class TeamChecklist extends Model
     {
         $decoded = json_decode($this->screenshot, true);
         if (is_array($decoded)) {
-            return !empty($decoded) ? asset('storage/' . $decoded[0]) : null;
+            return !empty($decoded) ? \App\Helpers\UploadHelper::resolveUrl($decoded[0]) : null;
         }
-        return $this->screenshot ? asset('storage/' . $this->screenshot) : null;
+        return $this->screenshot ? \App\Helpers\UploadHelper::resolveUrl($this->screenshot) : null;
     }
 
     public function getAttachmentsAttribute()
@@ -94,7 +111,7 @@ class TeamChecklist extends Model
         foreach ($files as $file) {
             $result[] = [
                 'name' => basename($file),
-                'url' => asset('storage/' . $file),
+                'url' => \App\Helpers\UploadHelper::resolveUrl($file),
                 'path' => $file
             ];
         }
