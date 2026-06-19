@@ -65,9 +65,19 @@ export default function BackupPage() {
         e.preventDefault();
         setSavingSettings(true);
         const loadingToast = toast.loading('Saving backup settings...');
+        const payload = {
+            ...settings,
+            day_of_month: settings.frequency === 'minutely' && (settings.day_of_month === '' || !settings.day_of_month)
+                ? 1
+                : settings.day_of_month
+        };
         try {
-            await api.post('/ca/backup/settings', settings);
+            await api.post('/ca/backup/settings', payload);
             toast.success('Backup settings updated successfully!', { id: loadingToast });
+            // Sync frontend state if it was defaulted to 1
+            if (settings.frequency === 'minutely' && (settings.day_of_month === '' || !settings.day_of_month)) {
+                setSettings(prev => ({ ...prev, day_of_month: 1 }));
+            }
         } catch (error) {
             console.error(error);
             toast.error('Failed to update backup settings.', { id: loadingToast });
@@ -535,10 +545,18 @@ export default function BackupPage() {
                                                      type="number"
                                                      min="1"
                                                      max="59"
-                                                     value={settings.day_of_month || 1}
+                                                     value={settings.day_of_month ?? ''}
                                                      onChange={(e) => {
-                                                         const val = Math.max(1, Math.min(59, parseInt(e.target.value) || 1));
-                                                         setSettings({...settings, day_of_month: val});
+                                                         const raw = e.target.value;
+                                                         if (raw === '') {
+                                                             setSettings({...settings, day_of_month: ''});
+                                                         } else {
+                                                             const parsed = parseInt(raw);
+                                                             if (!isNaN(parsed)) {
+                                                                 const val = Math.max(1, Math.min(59, parsed));
+                                                                 setSettings({...settings, day_of_month: val});
+                                                             }
+                                                         }
                                                      }}
                                                      className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
                                                      placeholder="e.g. 5 minutes"
