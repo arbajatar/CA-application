@@ -235,6 +235,264 @@ class BackupController extends Controller
         }
     }
 
+    public function getSettings(Request $request)
+    {
+        try {
+            $settings = DB::table('backup_settings')->first();
+            return response()->json(['data' => $settings]);
+        } catch (\Exception $e) {
+            Log::error('Fetch Backup Settings Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to load backup settings.'], 500);
+        }
+    }
+
+    public function updateSettings(Request $request)
+    {
+        $request->validate([
+            'auto_backup_enabled' => 'required|boolean',
+            'frequency' => 'required|string|in:minutely,hourly,daily,weekly,monthly,quarterly,half_yearly,yearly',
+            'time' => 'required|string|regex:/^\d{2}:\d{2}$/',
+            'keep_backups_days' => 'required|integer|min:1',
+            'day_of_week' => 'nullable|integer|between:0,6',
+            'day_of_month' => 'nullable|integer|between:1,31',
+            'month_of_year' => 'nullable|integer|between:1,12',
+        ]);
+
+        try {
+            DB::table('backup_settings')->updateOrInsert(
+                ['id' => 1],
+                [
+                    'auto_backup_enabled' => $request->auto_backup_enabled,
+                    'frequency' => $request->frequency,
+                    'time' => $request->time,
+                    'keep_backups_days' => $request->keep_backups_days,
+                    'day_of_week' => $request->input('day_of_week', 0),
+                    'day_of_month' => $request->input('day_of_month', 1),
+                    'month_of_year' => $request->input('month_of_year', 1),
+                    'updated_at' => now(),
+                ]
+            );
+
+            return response()->json(['message' => 'Backup settings updated successfully!']);
+        } catch (\Exception $e) {
+            Log::error('Update Backup Settings Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to update backup settings.'], 500);
+        }
+    }
+
+    public function previewSaved(Request $request, $id)
+    {
+        try {
+            $log = DB::table('backup_logs')->where('id', $id)->first();
+            if (!$log) {
+                return response()->json(['message' => 'Backup log record not found.'], 404);
+            }
+
+            $filePath = storage_path('app/' . $log->filename);
+            if (!file_exists($filePath)) {
+                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            }
+
+            $fileHandle = fopen($filePath, 'r');
+            if (!$fileHandle) {
+                throw new \Exception("Could not open backup file for preview.");
+            }
+
+            $tableMap = [];
+
+            while (($line = fgets($fileHandle)) !== false) {
+                $trimmedLine = trim($line);
+                if ($trimmedLine === '') {
+                    continue;
+                }
+
+                if (preg_match('/^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`([^`]+)`/i', $trimmedLine, $matches)) {
+                    $tableName = $matches[1];
+                    if (!isset($tableMap[$tableName])) {
+                        $tableMap[$tableName] = 0;
+                    }
+                }
+
+                if (preg_match('/^INSERT\s+INTO\s+`([^`]+)`/i', $trimmedLine, $matches)) {
+                    $tableName = $matches[1];
+                    if (!isset($tableMap[$tableName])) {
+                        $tableMap[$tableName] = 1;
+                    } else {
+                        $tableMap[$tableName]++;
+                    }
+                }
+            }
+
+            fclose($fileHandle);
+
+            $data = [];
+            foreach ($tableMap as $table => $rows) {
+                $data[] = [
+                    'table' => $table,
+                    'rows' => $rows
+                ];
+            }
+
+            usort($data, function ($a, $b) {
+                if ($b['rows'] === $a['rows']) {
+                    return strcmp($a['table'], $b['table']);
+                }
+                return $b['rows'] - $a['rows'];
+            });
+
+            return response()->json(['data' => $data]);
+        } catch (\Exception $e) {
+            Log::error('Preview Saved Backup Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to preview backup: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function downloadSaved(Request $request, $id)
+    {
+        try {
+            $log = DB::table('backup_logs')->where('id', $id)->first();
+            if (!$log) {
+                return response()->json(['message' => 'Backup log record not found.'], 404);
+            }
+
+            $filePath = storage_path('app/' . $log->filename);
+            if (!file_exists($filePath)) {
+                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            }
+
+            $downloadName = basename($log->filename);
+
+            return response()->download($filePath, $downloadName);
+        } catch (\Exception $e) {
+            Log::error('Download Saved Backup Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to download backup file.'], 500);
+        }
+    }
+
+    public function restoreSaved(Request $request, $id)
+    {
+        $request->validate([
+            'restore_by' => 'required|string',
+        ]);
+
+        try {
+            $log = DB::table('backup_logs')->where('id', $id)->first();
+            if (!$log) {
+                return response()->json(['message' => 'Backup log record not found.'], 404);
+            }
+
+            $filePath = storage_path('app/' . $log->filename);
+            if (!file_exists($filePath)) {
+                return response()->json(['message' => 'Backup file does not exist on the server.'], 404);
+            }
+
+            $tempSqlPath = storage_path('app/temp_restore_' . time() . '.sql');
+
+            $fileHandle = fopen($filePath, 'r');
+            $tempSqlHandle = fopen($tempSqlPath, 'w');
+
+            if (!$fileHandle || !$tempSqlHandle) {
+                throw new \Exception("Could not open files for restoring.");
+            }
+
+            $tablesToPreserve = ['backup_logs', 'personal_access_tokens', 'sessions'];
+            $inPreservedCreate = false;
+
+            while (($line = fgets($fileHandle)) !== false) {
+                $trimmedLine = trim($line);
+                if ($trimmedLine === '') {
+                    if (!$inPreservedCreate) {
+                        fwrite($tempSqlHandle, $line);
+                    }
+                    continue;
+                }
+
+                // Check for DROP TABLE
+                $isDrop = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?`?' . $table . '`?/i', $trimmedLine)) {
+                        $isDrop = true;
+                        break;
+                    }
+                }
+                if ($isDrop) {
+                    continue;
+                }
+
+                // Check for CREATE TABLE start
+                $isCreateStart = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^CREATE\s+TABLE\s+`?' . $table . '`?/i', $trimmedLine)) {
+                        $isCreateStart = true;
+                        break;
+                    }
+                }
+                if ($isCreateStart) {
+                    $inPreservedCreate = true;
+                    continue;
+                }
+
+                // Check for CREATE TABLE end (if we are inside a preserved CREATE block)
+                if ($inPreservedCreate) {
+                    if (preg_match('/;\s*$/', $trimmedLine)) {
+                        $inPreservedCreate = false;
+                    }
+                    continue;
+                }
+
+                // Check for INSERT INTO
+                $isInsert = false;
+                foreach ($tablesToPreserve as $table) {
+                    if (preg_match('/^INSERT\s+INTO\s+`?' . $table . '`?/i', $trimmedLine)) {
+                        $isInsert = true;
+                        break;
+                    }
+                }
+                if ($isInsert) {
+                    if (!preg_match('/;\s*$/', $trimmedLine)) {
+                        while (($subLine = fgets($fileHandle)) !== false) {
+                            if (preg_match('/;\s*$/', trim($subLine))) {
+                                break;
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                fwrite($tempSqlHandle, $line);
+            }
+
+            fclose($fileHandle);
+            fclose($tempSqlHandle);
+
+            $filteredSql = file_get_contents($tempSqlPath);
+            @unlink($tempSqlPath);
+
+            if (empty(trim($filteredSql))) {
+                return response()->json(['message' => 'The backup file contains no restore data.'], 400);
+            }
+
+            // Execute SQL in unprepared format (ignores standard single query limits)
+            DB::unprepared($filteredSql);
+
+            // Log the restore event
+            DB::table('backup_logs')->insert([
+                'filename' => basename($log->filename),
+                'backup_by' => $request->input('restore_by'),
+                'action' => 'restore',
+                'file_size' => $this->formatBytes(filesize($filePath)),
+                'created_by' => $request->user()?->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['message' => 'Database successfully restored from saved backup!']);
+        } catch (\Exception $e) {
+            Log::error('Restore Saved Backup Failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Restore failed: ' . $e->getMessage()], 500);
+        }
+    }
+
     private function formatBytes($bytes, $precision = 2)
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];

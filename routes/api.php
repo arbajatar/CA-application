@@ -97,6 +97,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/backup/logs', [BackupController::class, 'logs']);
         Route::get('/backup/export', [BackupController::class, 'export']);
         Route::post('/backup/restore', [BackupController::class, 'restore']);
+        Route::get('/backup/settings', [BackupController::class, 'getSettings']);
+        Route::post('/backup/settings', [BackupController::class, 'updateSettings']);
+        Route::get('/backup/download/{id}', [BackupController::class, 'downloadSaved']);
+        Route::get('/backup/preview-saved/{id}', [BackupController::class, 'previewSaved']);
+        Route::post('/backup/restore-saved/{id}', [BackupController::class, 'restoreSaved']);
     });
 
     // ── CA / Admin routes ────────────────────────────────────────
