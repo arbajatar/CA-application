@@ -306,8 +306,12 @@ export default function BackupPage() {
         };
 
         switch (frequency) {
-            case 'minutely':
-                return 'Backup runs automatically every single minute.';
+            case 'minutely': {
+                const interval = day_of_month || 1;
+                return interval > 1
+                    ? `Backup runs automatically every ${interval} minutes.`
+                    : 'Backup runs automatically every single minute.';
+            }
             case 'hourly': {
                 const min = timeStr.split(':')[1] || '00';
                 return `Backup runs at minute ${min} of every hour.`;
@@ -523,6 +527,24 @@ export default function BackupPage() {
                                                  <option value="yearly">Yearly</option>
                                              </select>
                                          </div>
+
+                                         {settings.frequency === 'minutely' && (
+                                             <div className="space-y-0.5">
+                                                 <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Minute Interval (1-59)</label>
+                                                 <input
+                                                     type="number"
+                                                     min="1"
+                                                     max="59"
+                                                     value={settings.day_of_month || 1}
+                                                     onChange={(e) => {
+                                                         const val = Math.max(1, Math.min(59, parseInt(e.target.value) || 1));
+                                                         setSettings({...settings, day_of_month: val});
+                                                     }}
+                                                     className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                     placeholder="e.g. 5 minutes"
+                                                 />
+                                             </div>
+                                         )}
 
                                          {settings.frequency !== 'minutely' && (
                                              <div className="grid grid-cols-2 gap-2">

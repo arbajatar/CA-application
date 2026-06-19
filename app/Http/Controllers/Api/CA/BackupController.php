@@ -263,7 +263,7 @@ class BackupController extends Controller
             'time' => 'required|string|regex:/^\d{2}:\d{2}$/',
             'keep_backups_days' => 'required|integer|min:1',
             'day_of_week' => 'nullable|integer|between:0,6',
-            'day_of_month' => 'nullable|integer|between:1,31',
+            'day_of_month' => 'nullable|integer|between:1,59',
             'month_of_year' => 'nullable|integer|between:1,12',
         ]);
 

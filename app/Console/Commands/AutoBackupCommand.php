@@ -51,7 +51,14 @@ class AutoBackupCommand extends Command
 
                 // Check time based on frequency
                 if ($settings->frequency === 'minutely') {
-                    // Minutely runs every time
+                    $interval = isset($settings->day_of_month) ? intval($settings->day_of_month) : 1;
+                    if ($interval <= 0) {
+                        $interval = 1;
+                    }
+                    if (intval($currentMinute) % $interval !== 0) {
+                        $this->info("Not the configured backup minute interval (Current minute: {$currentMinute}, Interval: {$interval}).");
+                        return 0;
+                    }
                 } elseif ($settings->frequency === 'hourly') {
                     if ($currentMinute !== $targetMinute) {
                         $this->info('Not the configured backup minute (Current minute: ' . $currentMinute . ', Target minute: ' . $targetMinute . ').');
