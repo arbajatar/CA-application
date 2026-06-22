@@ -19,10 +19,18 @@ export default function BackupPage() {
         keep_backups_days: 7,
         day_of_week: 0,
         day_of_month: 1,
-        month_of_year: 1
+        month_of_year: 1,
+        s3_backup_enabled: false,
+        s3_frequency: 'daily',
+        s3_time: '02:00',
+        s3_keep_backups_days: 7,
+        s3_day_of_week: 0,
+        s3_day_of_month: 1,
+        s3_month_of_year: 1
     });
     const [savingSettings, setSavingSettings] = useState(false);
     const [loadingSettings, setLoadingSettings] = useState(true);
+    const [activeTab, setActiveTab] = useState('local'); // 'local' or 's3'
 
     // Selected Saved Backup log for restore state
     const [selectedSavedLog, setSelectedSavedLog] = useState(null);
@@ -50,7 +58,14 @@ export default function BackupPage() {
                     keep_backups_days: response.data.data.keep_backups_days || 7,
                     day_of_week: response.data.data.day_of_week || 0,
                     day_of_month: response.data.data.day_of_month || 1,
-                    month_of_year: response.data.data.month_of_year || 1
+                    month_of_year: response.data.data.month_of_year || 1,
+                    s3_backup_enabled: !!response.data.data.s3_backup_enabled,
+                    s3_frequency: response.data.data.s3_frequency || 'daily',
+                    s3_time: response.data.data.s3_time || '02:00',
+                    s3_keep_backups_days: response.data.data.s3_keep_backups_days || 7,
+                    s3_day_of_week: response.data.data.s3_day_of_week || 0,
+                    s3_day_of_month: response.data.data.s3_day_of_month || 1,
+                    s3_month_of_year: response.data.data.s3_month_of_year || 1
                 });
             }
         } catch (error) {
@@ -69,7 +84,10 @@ export default function BackupPage() {
             ...settings,
             day_of_month: settings.frequency === 'minutely' && (settings.day_of_month === '' || !settings.day_of_month)
                 ? 1
-                : settings.day_of_month
+                : settings.day_of_month,
+            s3_day_of_month: settings.s3_frequency === 'minutely' && (settings.s3_day_of_month === '' || !settings.s3_day_of_month)
+                ? 1
+                : settings.s3_day_of_month
         };
         try {
             await api.post('/ca/backup/settings', payload);
@@ -77,6 +95,9 @@ export default function BackupPage() {
             // Sync frontend state if it was defaulted to 1
             if (settings.frequency === 'minutely' && (settings.day_of_month === '' || !settings.day_of_month)) {
                 setSettings(prev => ({ ...prev, day_of_month: 1 }));
+            }
+            if (settings.s3_frequency === 'minutely' && (settings.s3_day_of_month === '' || !settings.s3_day_of_month)) {
+                setSettings(prev => ({ ...prev, s3_day_of_month: 1 }));
             }
         } catch (error) {
             console.error(error);
@@ -300,9 +321,15 @@ export default function BackupPage() {
         }
     };
 
-    const getScheduleDescription = () => {
-        const { frequency, time, day_of_week, day_of_month, month_of_year } = settings;
-        const timeStr = time || '02:00';
+    const getScheduleDescription = (type = 'local') => {
+        const isS3 = type === 's3';
+        const freq = isS3 ? settings.s3_frequency : settings.frequency;
+        const tm = isS3 ? settings.s3_time : settings.time;
+        const dow = isS3 ? settings.s3_day_of_week : settings.day_of_week;
+        const dom = isS3 ? settings.s3_day_of_month : settings.day_of_month;
+        const moy = isS3 ? settings.s3_month_of_year : settings.month_of_year;
+
+        const timeStr = tm || '02:00';
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const monthNames = [
             'January', 'February', 'March', 'April', 'May', 'June',
@@ -315,9 +342,9 @@ export default function BackupPage() {
             return n + (s[(v - 20) % 10] || s[v] || s[0]);
         };
 
-        switch (frequency) {
+        switch (freq) {
             case 'minutely': {
-                const interval = day_of_month || 1;
+                const interval = dom || 1;
                 return interval > 1
                     ? `Backup runs automatically every ${interval} minutes.`
                     : 'Backup runs automatically every single minute.';
@@ -329,16 +356,16 @@ export default function BackupPage() {
             case 'daily':
                 return `Backup runs every day at ${timeStr} (IST).`;
             case 'weekly': {
-                const dayName = dayNames[day_of_week] || 'Sunday';
+                const dayName = dayNames[dow] || 'Sunday';
                 return `Backup runs every ${dayName} at ${timeStr} (IST).`;
             }
             case 'monthly': {
-                const ordinalDay = getOrdinal(day_of_month || 1);
+                const ordinalDay = getOrdinal(dom || 1);
                 return `Backup runs on the ${ordinalDay} of every month at ${timeStr} (IST).`;
             }
             case 'quarterly': {
-                const startMonth = month_of_year || 1;
-                const ordinalDay = getOrdinal(day_of_month || 1);
+                const startMonth = moy || 1;
+                const ordinalDay = getOrdinal(dom || 1);
                 const months = [
                     monthNames[startMonth - 1],
                     monthNames[(startMonth - 1 + 3) % 12],
@@ -348,8 +375,8 @@ export default function BackupPage() {
                 return `Backup runs on the ${ordinalDay} of: ${months.join(', ')} at ${timeStr} (IST).`;
             }
             case 'half_yearly': {
-                const startMonth = month_of_year || 1;
-                const ordinalDay = getOrdinal(day_of_month || 1);
+                const startMonth = moy || 1;
+                const ordinalDay = getOrdinal(dom || 1);
                 const months = [
                     monthNames[startMonth - 1],
                     monthNames[(startMonth - 1 + 6) % 12]
@@ -357,8 +384,8 @@ export default function BackupPage() {
                 return `Backup runs on the ${ordinalDay} of: ${months.join(', ')} at ${timeStr} (IST).`;
             }
             case 'yearly': {
-                const ordinalDay = getOrdinal(day_of_month || 1);
-                const monthName = monthNames[month_of_year - 1] || 'January';
+                const ordinalDay = getOrdinal(dom || 1);
+                const monthName = monthNames[moy - 1] || 'January';
                 return `Backup runs on the ${ordinalDay} of ${monthName} every year at ${timeStr} (IST).`;
             }
             default:
@@ -496,8 +523,26 @@ export default function BackupPage() {
                         </div>
                         <h2 className="text-base font-bold text-slate-800">Auto Backup Settings</h2>
                         <p className="text-xs text-slate-400 font-semibold mt-1 leading-relaxed">
-                            Configure automatic scheduled backups. Database is backed up automatically and stored on the server.
+                            Configure automatic scheduled backups. Database is backed up automatically.
                         </p>
+
+                        {/* Segment Tab Selector */}
+                        <div className="flex bg-slate-100 p-0.5 rounded-xl mt-3 border border-slate-200/50">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('local')}
+                                className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer focus:outline-none border ${activeTab === 'local' ? 'bg-white text-amber-800 shadow-sm border-slate-200/40' : 'text-slate-550 hover:text-slate-800 border-transparent'}`}
+                            >
+                                Local Server
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('s3')}
+                                className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer focus:outline-none border ${activeTab === 's3' ? 'bg-white text-indigo-800 shadow-sm border-slate-200/40' : 'text-slate-550 hover:text-slate-800 border-transparent'}`}
+                            >
+                                S3 Spaces
+                            </button>
+                        </div>
 
                         {loadingSettings ? (
                             <div className="flex items-center justify-center py-6">
@@ -505,198 +550,397 @@ export default function BackupPage() {
                             </div>
                         ) : (
                             <form onSubmit={handleSaveSettings} className="mt-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-655">Enable Auto Backup</span>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={settings.auto_backup_enabled}
-                                            onChange={(e) => setSettings({...settings, auto_backup_enabled: e.target.checked})}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1F5C99]"></div>
-                                    </label>
-                                </div>
-
-                                 {settings.auto_backup_enabled && (
-                                     <div className="space-y-3 mt-4 border-t border-slate-100 pt-3">
-                                         <div className="space-y-0.5">
-                                             <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Frequency</label>
-                                             <select
-                                                 value={settings.frequency}
-                                                 onChange={(e) => setSettings({...settings, frequency: e.target.value})}
-                                                 className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                             >
-                                                 <option value="minutely">Every Minute</option>
-                                                 <option value="hourly">Hourly</option>
-                                                 <option value="daily">Daily</option>
-                                                 <option value="weekly">Weekly</option>
-                                                 <option value="monthly">Monthly</option>
-                                                 <option value="quarterly">Quarterly</option>
-                                                 <option value="half_yearly">Half Yearly</option>
-                                                 <option value="yearly">Yearly</option>
-                                             </select>
-                                         </div>
-
-                                         {settings.frequency === 'minutely' && (
-                                             <div className="space-y-0.5">
-                                                 <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Minute Interval (1-59)</label>
-                                                 <input
-                                                     type="number"
-                                                     min="1"
-                                                     max="59"
-                                                     value={settings.day_of_month ?? ''}
-                                                     onChange={(e) => {
-                                                         const raw = e.target.value;
-                                                         if (raw === '') {
-                                                             setSettings({...settings, day_of_month: ''});
-                                                         } else {
-                                                             const parsed = parseInt(raw);
-                                                             if (!isNaN(parsed)) {
-                                                                 const val = Math.max(1, Math.min(59, parsed));
-                                                                 setSettings({...settings, day_of_month: val});
-                                                             }
-                                                         }
-                                                     }}
-                                                     className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                     placeholder="e.g. 5 minutes"
-                                                 />
-                                             </div>
-                                         )}
-
-                                         {settings.frequency !== 'minutely' && (
-                                             <div className="grid grid-cols-2 gap-2">
-                                                 {/* Day of Week for Weekly */}
-                                                 {settings.frequency === 'weekly' && (
-                                                     <div className="space-y-0.5">
-                                                         <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Week</label>
-                                                         <select
-                                                             value={settings.day_of_week}
-                                                             onChange={(e) => setSettings({...settings, day_of_week: parseInt(e.target.value)})}
-                                                             className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                         >
-                                                             <option value={0}>Sunday</option>
-                                                             <option value={1}>Monday</option>
-                                                             <option value={2}>Tuesday</option>
-                                                             <option value={3}>Wednesday</option>
-                                                             <option value={4}>Thursday</option>
-                                                             <option value={5}>Friday</option>
-                                                             <option value={6}>Saturday</option>
-                                                         </select>
-                                                     </div>
-                                                 )}
-
-                                                 {/* Day of Month for Monthly / Quarterly / Half-Yearly / Yearly */}
-                                                 {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) && (
-                                                     <div className="space-y-0.5">
-                                                         <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Month</label>
-                                                         <input
-                                                             type="number"
-                                                             min="1"
-                                                             max="31"
-                                                             value={settings.day_of_month}
-                                                             onChange={(e) => {
-                                                                 const val = Math.max(1, Math.min(31, parseInt(e.target.value) || 1));
-                                                                 setSettings({...settings, day_of_month: val});
-                                                             }}
-                                                             className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                         />
-                                                     </div>
-                                                 )}
-
-                                                 {/* Month Choice for Quarterly / Half-Yearly / Yearly */}
-                                                 {['quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) && (
-                                                     <div className="space-y-0.5">
-                                                         <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                                                             {settings.frequency === 'yearly' ? 'Month of Year' : 'Start Month'}
-                                                         </label>
-                                                         <select
-                                                             value={settings.month_of_year}
-                                                             onChange={(e) => setSettings({...settings, month_of_year: parseInt(e.target.value)})}
-                                                             className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                         >
-                                                             <option value={1}>January</option>
-                                                             <option value={2}>February</option>
-                                                             <option value={3}>March</option>
-                                                             {settings.frequency !== 'quarterly' && (
-                                                                 <>
-                                                                     <option value={4}>April</option>
-                                                                     <option value={5}>May</option>
-                                                                     <option value={6}>June</option>
-                                                                 </>
-                                                             )}
-                                                             {settings.frequency === 'yearly' && (
-                                                                 <>
-                                                                     <option value={7}>July</option>
-                                                                     <option value={8}>August</option>
-                                                                     <option value={9}>September</option>
-                                                                     <option value={10}>October</option>
-                                                                     <option value={11}>November</option>
-                                                                     <option value={12}>December</option>
-                                                                 </>
-                                                             )}
-                                                         </select>
-                                                     </div>
-                                                 )}
-
-                                                 {/* Minute Input for Hourly */}
-                                                 {settings.frequency === 'hourly' && (
-                                                     <div className="col-span-2 space-y-0.5">
-                                                         <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Minute (0-59)</label>
-                                                         <input
-                                                             type="number"
-                                                             min="0"
-                                                             max="59"
-                                                             value={parseInt(settings.time.split(':')[1]) || 0}
-                                                             onChange={(e) => {
-                                                                 const val = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
-                                                                 const formattedMinute = String(val).padStart(2, '0');
-                                                                 setSettings({...settings, time: `00:${formattedMinute}`});
-                                                             }}
-                                                             className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                         />
-                                                     </div>
-                                                 )}
-
-                                                 {/* Time Input for Daily / Weekly / Monthly / Quarterly / Half-Yearly / Yearly */}
-                                                 {settings.frequency !== 'hourly' && (
-                                                     <div className={['daily', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) ? "col-span-2 space-y-0.5" : "space-y-0.5"}>
-                                                         <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Time</label>
-                                                         <input
-                                                             type="time"
-                                                             value={settings.time}
-                                                             onChange={(e) => setSettings({...settings, time: e.target.value})}
-                                                             className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                         />
-                                                     </div>
-                                                 )}
-                                             </div>
-                                         )}
-                                        {getScheduleDescription() && (
-                                            <p className="text-[9px] text-[#1F5C99] font-bold mt-1">
-                                                * {getScheduleDescription()}
-                                            </p>
-                                        )}
-
-                                        <div className="space-y-0.5">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                                                {['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency)
-                                                    ? 'Retention (Backups to Keep)'
-                                                    : 'Retention Period (Days)'}
+                                {activeTab === 'local' ? (
+                                    <>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-655">Enable Local Backup</span>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={settings.auto_backup_enabled}
+                                                    onChange={(e) => setSettings({...settings, auto_backup_enabled: e.target.checked})}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1F5C99]"></div>
                                             </label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={settings.keep_backups_days}
-                                                onChange={(e) => setSettings({...settings, keep_backups_days: parseInt(e.target.value) || 7})}
-                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
-                                                placeholder={['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency)
-                                                     ? 'e.g. 3 backups'
-                                                     : 'e.g. 7 days'}
-                                            />
                                         </div>
-                                     </div>
-                                 )}
+
+                                        {settings.auto_backup_enabled && (
+                                            <div className="space-y-3 mt-4 border-t border-slate-100 pt-3">
+                                                <div className="space-y-0.5">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Frequency</label>
+                                                    <select
+                                                        value={settings.frequency}
+                                                        onChange={(e) => setSettings({...settings, frequency: e.target.value})}
+                                                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                    >
+                                                        <option value="minutely">Every Minute</option>
+                                                        <option value="hourly">Hourly</option>
+                                                        <option value="daily">Daily</option>
+                                                        <option value="weekly">Weekly</option>
+                                                        <option value="monthly">Monthly</option>
+                                                        <option value="quarterly">Quarterly</option>
+                                                        <option value="half_yearly">Half Yearly</option>
+                                                        <option value="yearly">Yearly</option>
+                                                    </select>
+                                                </div>
+
+                                                {settings.frequency === 'minutely' && (
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Minute Interval (1-59)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="59"
+                                                            value={settings.day_of_month ?? ''}
+                                                            onChange={(e) => {
+                                                                const raw = e.target.value;
+                                                                if (raw === '') {
+                                                                    setSettings({...settings, day_of_month: ''});
+                                                                } else {
+                                                                    const parsed = parseInt(raw);
+                                                                    if (!isNaN(parsed)) {
+                                                                        const val = Math.max(1, Math.min(59, parsed));
+                                                                        setSettings({...settings, day_of_month: val});
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                            placeholder="e.g. 5 minutes"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {settings.frequency !== 'minutely' && (
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {/* Day of Week for Weekly */}
+                                                        {settings.frequency === 'weekly' && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Week</label>
+                                                                <select
+                                                                    value={settings.day_of_week}
+                                                                    onChange={(e) => setSettings({...settings, day_of_week: parseInt(e.target.value)})}
+                                                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                >
+                                                                    <option value={0}>Sunday</option>
+                                                                    <option value={1}>Monday</option>
+                                                                    <option value={2}>Tuesday</option>
+                                                                    <option value={3}>Wednesday</option>
+                                                                    <option value={4}>Thursday</option>
+                                                                    <option value={5}>Friday</option>
+                                                                    <option value={6}>Saturday</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Day of Month for Monthly / Quarterly / Half-Yearly / Yearly */}
+                                                        {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Month</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="31"
+                                                                    value={settings.day_of_month}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(1, Math.min(31, parseInt(e.target.value) || 1));
+                                                                        setSettings({...settings, day_of_month: val});
+                                                                    }}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Month Choice for Quarterly / Half-Yearly / Yearly */}
+                                                        {['quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                                    {settings.frequency === 'yearly' ? 'Month of Year' : 'Start Month'}
+                                                                </label>
+                                                                <select
+                                                                    value={settings.month_of_year}
+                                                                    onChange={(e) => setSettings({...settings, month_of_year: parseInt(e.target.value)})}
+                                                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                >
+                                                                    <option value={1}>January</option>
+                                                                    <option value={2}>February</option>
+                                                                    <option value={3}>March</option>
+                                                                    {settings.frequency !== 'quarterly' && (
+                                                                        <>
+                                                                            <option value={4}>April</option>
+                                                                            <option value={5}>May</option>
+                                                                            <option value={6}>June</option>
+                                                                        </>
+                                                                    )}
+                                                                    {settings.frequency === 'yearly' && (
+                                                                        <>
+                                                                            <option value={7}>July</option>
+                                                                            <option value={8}>August</option>
+                                                                            <option value={9}>September</option>
+                                                                            <option value={10}>October</option>
+                                                                            <option value={11}>November</option>
+                                                                            <option value={12}>December</option>
+                                                                        </>
+                                                                    )}
+                                                                </select>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Minute Input for Hourly */}
+                                                        {settings.frequency === 'hourly' && (
+                                                            <div className="col-span-2 space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Minute (0-59)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="59"
+                                                                    value={parseInt(settings.time.split(':')[1]) || 0}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
+                                                                        const formattedMinute = String(val).padStart(2, '0');
+                                                                        setSettings({...settings, time: `00:${formattedMinute}`});
+                                                                    }}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Time Input for Daily / Weekly / Monthly / Quarterly / Half-Yearly / Yearly */}
+                                                        {settings.frequency !== 'hourly' && (
+                                                            <div className={['daily', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency) ? "col-span-2 space-y-0.5" : "space-y-0.5"}>
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Time</label>
+                                                                <input
+                                                                    type="time"
+                                                                    value={settings.time}
+                                                                    onChange={(e) => setSettings({...settings, time: e.target.value})}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {getScheduleDescription('local') && (
+                                                    <p className="text-[9px] text-[#1F5C99] font-bold mt-1">
+                                                        * {getScheduleDescription('local')}
+                                                    </p>
+                                                )}
+
+                                                <div className="space-y-0.5">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                        {['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency)
+                                                            ? 'Retention (Backups to Keep)'
+                                                            : 'Retention Period (Days)'}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={settings.keep_backups_days}
+                                                        onChange={(e) => setSettings({...settings, keep_backups_days: parseInt(e.target.value) || 7})}
+                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                        placeholder={['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.frequency)
+                                                            ? 'e.g. 3 backups'
+                                                            : 'e.g. 7 days'}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-655">Enable S3 Backup</span>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={settings.s3_backup_enabled}
+                                                    onChange={(e) => setSettings({...settings, s3_backup_enabled: e.target.checked})}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1F5C99]"></div>
+                                            </label>
+                                        </div>
+
+                                        {settings.s3_backup_enabled && (
+                                            <div className="space-y-3 mt-4 border-t border-slate-100 pt-3">
+                                                <div className="space-y-0.5">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">S3 Frequency</label>
+                                                    <select
+                                                        value={settings.s3_frequency}
+                                                        onChange={(e) => setSettings({...settings, s3_frequency: e.target.value})}
+                                                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                    >
+                                                        <option value="minutely">Every Minute</option>
+                                                        <option value="hourly">Hourly</option>
+                                                        <option value="daily">Daily</option>
+                                                        <option value="weekly">Weekly</option>
+                                                        <option value="monthly">Monthly</option>
+                                                        <option value="quarterly">Quarterly</option>
+                                                        <option value="half_yearly">Half Yearly</option>
+                                                        <option value="yearly">Yearly</option>
+                                                    </select>
+                                                </div>
+
+                                                {settings.s3_frequency === 'minutely' && (
+                                                    <div className="space-y-0.5">
+                                                        <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Minute Interval (1-59)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max="59"
+                                                            value={settings.s3_day_of_month ?? ''}
+                                                            onChange={(e) => {
+                                                                const raw = e.target.value;
+                                                                if (raw === '') {
+                                                                    setSettings({...settings, s3_day_of_month: ''});
+                                                                } else {
+                                                                    const parsed = parseInt(raw);
+                                                                    if (!isNaN(parsed)) {
+                                                                        const val = Math.max(1, Math.min(59, parsed));
+                                                                        setSettings({...settings, s3_day_of_month: val});
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                            placeholder="e.g. 5 minutes"
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {settings.s3_frequency !== 'minutely' && (
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {/* Day of Week for Weekly */}
+                                                        {settings.s3_frequency === 'weekly' && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Week</label>
+                                                                <select
+                                                                    value={settings.s3_day_of_week}
+                                                                    onChange={(e) => setSettings({...settings, s3_day_of_week: parseInt(e.target.value)})}
+                                                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                >
+                                                                    <option value={0}>Sunday</option>
+                                                                    <option value={1}>Monday</option>
+                                                                    <option value={2}>Tuesday</option>
+                                                                    <option value={3}>Wednesday</option>
+                                                                    <option value={4}>Thursday</option>
+                                                                    <option value={5}>Friday</option>
+                                                                    <option value={6}>Saturday</option>
+                                                                </select>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Day of Month for Monthly / Quarterly / Half-Yearly / Yearly */}
+                                                        {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.s3_frequency) && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Day of Month</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="31"
+                                                                    value={settings.s3_day_of_month}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(1, Math.min(31, parseInt(e.target.value) || 1));
+                                                                        setSettings({...settings, s3_day_of_month: val});
+                                                                    }}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Month Choice for Quarterly / Half-Yearly / Yearly */}
+                                                        {['quarterly', 'half_yearly', 'yearly'].includes(settings.s3_frequency) && (
+                                                            <div className="space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                                    {settings.s3_frequency === 'yearly' ? 'Month of Year' : 'Start Month'}
+                                                                </label>
+                                                                <select
+                                                                    value={settings.s3_month_of_year}
+                                                                    onChange={(e) => setSettings({...settings, s3_month_of_year: parseInt(e.target.value)})}
+                                                                    className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                >
+                                                                    <option value={1}>January</option>
+                                                                    <option value={2}>February</option>
+                                                                    <option value={3}>March</option>
+                                                                    {settings.s3_frequency !== 'quarterly' && (
+                                                                        <>
+                                                                            <option value={4}>April</option>
+                                                                            <option value={5}>May</option>
+                                                                            <option value={6}>June</option>
+                                                                        </>
+                                                                    )}
+                                                                    {settings.s3_frequency === 'yearly' && (
+                                                                        <>
+                                                                            <option value={7}>July</option>
+                                                                            <option value={8}>August</option>
+                                                                            <option value={9}>September</option>
+                                                                            <option value={10}>October</option>
+                                                                            <option value={11}>November</option>
+                                                                            <option value={12}>December</option>
+                                                                        </>
+                                                                    )}
+                                                                </select>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Minute Input for Hourly */}
+                                                        {settings.s3_frequency === 'hourly' && (
+                                                            <div className="col-span-2 space-y-0.5">
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Minute (0-59)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max="59"
+                                                                    value={parseInt(settings.s3_time.split(':')[1]) || 0}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(0, Math.min(59, parseInt(e.target.value) || 0));
+                                                                        const formattedMinute = String(val).padStart(2, '0');
+                                                                        setSettings({...settings, s3_time: `00:${formattedMinute}`});
+                                                                    }}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Time Input for Daily / Weekly / Monthly / Quarterly / Half-Yearly / Yearly */}
+                                                        {settings.s3_frequency !== 'hourly' && (
+                                                            <div className={['daily', 'quarterly', 'half_yearly', 'yearly'].includes(settings.s3_frequency) ? "col-span-2 space-y-0.5" : "space-y-0.5"}>
+                                                                <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Backup Time</label>
+                                                                <input
+                                                                    type="time"
+                                                                    value={settings.s3_time}
+                                                                    onChange={(e) => setSettings({...settings, s3_time: e.target.value})}
+                                                                    className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {getScheduleDescription('s3') && (
+                                                    <p className="text-[9px] text-[#1F5C99] font-bold mt-1">
+                                                        * {getScheduleDescription('s3')}
+                                                    </p>
+                                                )}
+
+                                                <div className="space-y-0.5">
+                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                                                        {['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.s3_frequency)
+                                                            ? 'Retention (Backups to Keep)'
+                                                            : 'Retention Period (Days)'}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={settings.s3_keep_backups_days}
+                                                        onChange={(e) => setSettings({...settings, s3_keep_backups_days: parseInt(e.target.value) || 7})}
+                                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-gray-800 focus:outline-none"
+                                                        placeholder={['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly'].includes(settings.s3_frequency)
+                                                            ? 'e.g. 3 backups'
+                                                            : 'e.g. 7 days'}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </form>
                         )}
                     </div>
@@ -704,7 +948,7 @@ export default function BackupPage() {
                     <button
                         onClick={handleSaveSettings}
                         disabled={savingSettings || loadingSettings}
-                        className="mt-6 flex items-center justify-center gap-2 w-full bg-amber-600 hover:bg-amber-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold text-xs py-3 px-4 rounded-xl transition duration-150 active:scale-98 shadow-sm cursor-pointer"
+                        className={`mt-6 flex items-center justify-center gap-2 w-full text-white font-bold text-xs py-3 px-4 rounded-xl transition duration-150 active:scale-98 shadow-sm cursor-pointer disabled:bg-slate-100 disabled:text-slate-400 ${activeTab === 'local' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#1F5C99] hover:bg-[#154673]'}`}
                     >
                         {savingSettings ? (
                             <>

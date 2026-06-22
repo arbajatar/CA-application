@@ -28,15 +28,15 @@ class SubTaskResource extends JsonResource
             'is_verified' => (bool)$this->is_verified,
             'screenshot_url' => $this->screenshot_url,
             'attachments' => $this->attachments,
-            'task' => [
+            'task' => $this->relationLoaded('task') ? [
                 'id' => $this->task->id,
                 'form_name' => $this->task->form_name,
                 'client' => $this->task->client?->name,
                 'work_type' => $this->task->workType?->name,
                 'allow_attachments' => (bool)$this->task->allow_attachments,
                 'dynamic_fields' => $this->task->dynamic_fields,
-            ],
-            'user_permissions' => $this->task ? (new TaskResource($this->task))->getUserPermissions($request->user()) : [
+            ] : null,
+            'user_permissions' => $this->relationLoaded('task') ? (new TaskResource($this->task))->getUserPermissions($request->user()) : [
                 'can_read' => true,
                 'can_write' => true,
                 'can_delete' => true,

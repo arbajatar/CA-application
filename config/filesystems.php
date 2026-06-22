@@ -63,6 +63,22 @@ return [
             ],
         ],
 
+        's3_backup' => [
+            'driver' => 's3',
+            'key' => env('AWS_BACKUP_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('AWS_BACKUP_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('AWS_BACKUP_DEFAULT_REGION', env('AWS_DEFAULT_REGION')),
+            'bucket' => env('AWS_BACKUP_BUCKET', env('AWS_BUCKET')),
+            'url' => env('AWS_BACKUP_URL', env('AWS_URL')),
+            'endpoint' => env('AWS_BACKUP_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => env('AWS_BACKUP_USE_PATH_STYLE_ENDPOINT', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+            'throw' => false,
+            'report' => false,
+            'http' => [
+                'verify' => env('AWS_SSL_VERIFY', true),
+            ],
+        ],
+
     ],
 
     /*

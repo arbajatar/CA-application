@@ -22,7 +22,18 @@ class TaskController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Task::with(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])
+        $columns = [
+            'id', 'work_type_id', 'form_name', 'date_inward', 'allocated_to',
+            'created_by', 'date_allocated', 'date_completed', 'status', 'priority',
+            'due_date', 'remarks', 'created_at', 'updated_at', 'deleted_at',
+            'task_particular', 'sub_status', 'feedback', 'entry_date',
+            'allow_attachments', 'allow_checklist', 'allow_notes',
+            'is_billable', 'is_after_sales', 'allow_duplicate_clients'
+        ];
+
+        $query = Task::select($columns)
+            ->selectRaw("JSON_REMOVE(dynamic_fields, '$.multi_rows') as dynamic_fields")
+            ->with(['client', 'workType', 'assignedTo', 'createdBy', 'permissions.role'])
             ->when($request->filled('staff_id'), function ($q) use ($request) {
                 $staffId = $request->staff_id;
                 $q->where(function ($sub) use ($staffId) {

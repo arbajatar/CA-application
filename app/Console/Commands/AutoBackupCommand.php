@@ -35,104 +35,286 @@ class AutoBackupCommand extends Command
                 return 1;
             }
 
-            if (!$this->option('force')) {
-                if (!$settings->auto_backup_enabled) {
-                    $this->info('Auto backup is disabled.');
-                    return 0;
-                }
+            $isForce = $this->option('force');
+            $runLocal = $isForce || $this->isScheduled($settings, 'local');
+            $runS3 = $isForce || $this->isScheduled($settings, 's3');
 
-                // Parse configured time
-                $timeParts = explode(':', $settings->time ?: '02:00');
-                $targetHour = isset($timeParts[0]) ? $timeParts[0] : '02';
-                $targetMinute = isset($timeParts[1]) ? $timeParts[1] : '00';
-
-                $currentTime = now()->timezone('Asia/Kolkata');
-                $currentHour = $currentTime->format('H');
-                $currentMinute = $currentTime->format('i');
-
-                // Check time based on frequency
-                if ($settings->frequency === 'minutely') {
-                    $interval = isset($settings->day_of_month) ? intval($settings->day_of_month) : 1;
-                    if ($interval <= 0) {
-                        $interval = 1;
-                    }
-                    if (intval($currentMinute) % $interval !== 0) {
-                        $this->info("Not the configured backup minute interval (Current minute: {$currentMinute}, Interval: {$interval}).");
-                        return 0;
-                    }
-                } elseif ($settings->frequency === 'hourly') {
-                    if ($currentMinute !== $targetMinute) {
-                        $this->info('Not the configured backup minute (Current minute: ' . $currentMinute . ', Target minute: ' . $targetMinute . ').');
-                        return 0;
-                    }
-                } else {
-                    if ($currentHour !== $targetHour || $currentMinute !== $targetMinute) {
-                        $this->info('Not the configured backup time (Current: ' . $currentHour . ':' . $currentMinute . ', Target: ' . $targetHour . ':' . $targetMinute . ').');
-                        return 0;
-                    }
-                }
-
-                // Check frequency
-                $dayOfWeek = $currentTime->dayOfWeek; // 0 (Sunday) to 6 (Saturday)
-                $dayOfMonth = $currentTime->day;
-                $month = $currentTime->month; // 1 to 12
-
-                $targetDayOfWeek = isset($settings->day_of_week) ? intval($settings->day_of_week) : 0;
-                $targetDayOfMonth = isset($settings->day_of_month) ? intval($settings->day_of_month) : 1;
-                $targetStartMonth = isset($settings->month_of_year) ? intval($settings->month_of_year) : 1;
-
-                if ($settings->frequency === 'weekly' && $dayOfWeek !== $targetDayOfWeek) {
-                    $this->info("Weekly backup scheduled for day index {$targetDayOfWeek}. Today is day index " . $dayOfWeek);
-                    return 0;
-                }
-
-                if ($settings->frequency === 'monthly' && $dayOfMonth !== $targetDayOfMonth) {
-                    $this->info("Monthly backup scheduled for day {$targetDayOfMonth} of the month. Today is day " . $dayOfMonth);
-                    return 0;
-                }
-
-                if ($settings->frequency === 'quarterly') {
-                    $monthDiff = $month - $targetStartMonth;
-                    if ($dayOfMonth !== $targetDayOfMonth || $monthDiff < 0 || $monthDiff % 3 !== 0) {
-                        $this->info("Quarterly backup scheduled on day {$targetDayOfMonth} starting in month {$targetStartMonth}. Today is month {$month}, day {$dayOfMonth}");
-                        return 0;
-                    }
-                }
-
-                if ($settings->frequency === 'half_yearly') {
-                    $monthDiff = $month - $targetStartMonth;
-                    if ($dayOfMonth !== $targetDayOfMonth || $monthDiff < 0 || $monthDiff % 6 !== 0) {
-                        $this->info("Half-yearly backup scheduled on day {$targetDayOfMonth} starting in month {$targetStartMonth}. Today is month {$month}, day {$dayOfMonth}");
-                        return 0;
-                    }
-                }
-
-                if ($settings->frequency === 'yearly' && ($dayOfMonth !== $targetDayOfMonth || $month !== $targetStartMonth)) {
-                    $this->info("Yearly backup scheduled on day {$targetDayOfMonth} of month {$targetStartMonth}. Today is month {$month}, day {$dayOfMonth}");
-                    return 0;
-                }
+            if (!$runLocal && !$runS3) {
+                $this->info('No automated backups are scheduled to run at this time.');
+                return 0;
             }
-
-            $filename = 'CA_Application_Backup_Auto_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.sql';
-            $backupsDir = storage_path('app/backups');
-
-            // Programmatically ensure the backup folder exists
-            if (!file_exists($backupsDir)) {
-                mkdir($backupsDir, 0755, true);
-            }
-
-            $tempPath = $backupsDir . '/' . $filename;
 
             // Set memory limit and execution time to prevent timeouts for large databases
             @ini_set('memory_limit', '512M');
             @set_time_limit(0);
 
+            // 1. Run Local Backup Routine
+            if ($runLocal) {
+                $this->info('Starting scheduled local server backup...');
+                $filename = 'CA_Application_Backup_Auto_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.sql';
+                $tempPath = $this->generateBackup($filename);
+                $fileSize = filesize($tempPath);
+                $formattedSize = $this->formatBytes($fileSize);
+
+                // Insert local backup log entry
+                DB::table('backup_logs')->insert([
+                    'filename' => 'backups/' . $filename,
+                    'backup_by' => 'System (Auto)',
+                    'action' => 'backup',
+                    'file_size' => $formattedSize,
+                    'created_by' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $this->info("Local backup created successfully: {$filename} ({$formattedSize})");
+
+                // Local Cleanup based on local retention policy
+                $keepLimit = intval($settings->keep_backups_days);
+                if ($keepLimit > 0) {
+                    $isCountBased = in_array($settings->frequency, ['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly']);
+                    if ($isCountBased) {
+                        $oldBackups = DB::table('backup_logs')
+                            ->where('action', 'backup')
+                            ->where('filename', 'like', 'backups/%')
+                            ->orderBy('created_at', 'desc')
+                            ->get()
+                            ->slice($keepLimit);
+
+                        foreach ($oldBackups as $oldBackup) {
+                            $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                            if (file_exists($oldFilePath)) {
+                                @unlink($oldFilePath);
+                            }
+                            $this->info("Deleted old local backup file (count limit exceeded): {$oldBackup->filename}");
+                        }
+                    } else {
+                        $cutoffDate = now()->subDays($keepLimit);
+                        $oldBackups = DB::table('backup_logs')
+                            ->where('action', 'backup')
+                            ->where('filename', 'like', 'backups/%')
+                            ->where('created_at', '<', $cutoffDate)
+                            ->get();
+
+                        foreach ($oldBackups as $oldBackup) {
+                            $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                            if (file_exists($oldFilePath)) {
+                                @unlink($oldFilePath);
+                            }
+                            $this->info("Deleted old local backup file (days limit exceeded): {$oldBackup->filename}");
+                        }
+                    }
+                }
+            }
+
+            // 2. Run S3 Backup Routine
+            if ($runS3) {
+                $this->info('Starting scheduled S3 Space backup...');
+                $filename = 'CA_Application_Backup_S3_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.sql';
+                $tempPath = $this->generateBackup($filename);
+                $fileSize = filesize($tempPath);
+                $formattedSize = $this->formatBytes($fileSize);
+
+                $s3Path = "ca_application/db_backup/" . $filename;
+                Storage::disk('s3_backup')->put($s3Path, file_get_contents($tempPath), [
+                    'visibility'  => 'public',
+                ]);
+                @unlink($tempPath);
+
+                // Insert S3 backup log entry
+                DB::table('backup_logs')->insert([
+                    'filename' => $s3Path,
+                    'backup_by' => 'System (S3 Auto)',
+                    'action' => 'backup',
+                    'file_size' => $formattedSize,
+                    'created_by' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $this->info("S3 backup created successfully: {$filename} ({$formattedSize})");
+
+                // S3 Cleanup based on S3 retention policy
+                $keepLimitS3 = intval($settings->s3_keep_backups_days);
+                if ($keepLimitS3 > 0) {
+                    $isCountBasedS3 = in_array($settings->s3_frequency, ['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly']);
+                    if ($isCountBasedS3) {
+                        $oldBackupsS3 = DB::table('backup_logs')
+                            ->where('action', 'backup')
+                            ->where('filename', 'like', 'ca_application/db_backup/%')
+                            ->orderBy('created_at', 'desc')
+                            ->get()
+                            ->slice($keepLimitS3);
+
+                        foreach ($oldBackupsS3 as $oldBackup) {
+                            if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
+                                Storage::disk('s3_backup')->delete($oldBackup->filename);
+                            }
+                            $this->info("Deleted old S3 backup file (count limit exceeded): {$oldBackup->filename}");
+                        }
+                    } else {
+                        $cutoffDateS3 = now()->subDays($keepLimitS3);
+                        $oldBackupsS3 = DB::table('backup_logs')
+                            ->where('action', 'backup')
+                            ->where('filename', 'like', 'ca_application/db_backup/%')
+                            ->where('created_at', '<', $cutoffDateS3)
+                            ->get();
+
+                        foreach ($oldBackupsS3 as $oldBackup) {
+                            if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
+                                Storage::disk('s3_backup')->delete($oldBackup->filename);
+                            }
+                            $this->info("Deleted old S3 backup file (days limit exceeded): {$oldBackup->filename}");
+                        }
+                    }
+                }
+            }
+
+            return 0;
+        } catch (\Exception $e) {
+            Log::error('Auto Backup Command Failed: ' . $e->getMessage());
+            $this->error('Auto backup failed: ' . $e->getMessage());
+            return 1;
+        }
+    }
+
+    /**
+     * Determine if a backup routine (local or S3) is scheduled to run now.
+     */
+    private function isScheduled(object $settings, string $prefix): bool
+    {
+        $enabledField = $prefix === 's3' ? 's3_backup_enabled' : 'auto_backup_enabled';
+        if (!$settings->$enabledField) {
+            return false;
+        }
+
+        $frequencyField = $prefix === 's3' ? 's3_frequency' : 'frequency';
+        $timeField = $prefix === 's3' ? 's3_time' : 'time';
+        $dayOfWeekField = $prefix === 's3' ? 's3_day_of_week' : 'day_of_week';
+        $dayOfMonthField = $prefix === 's3' ? 's3_day_of_month' : 'day_of_month';
+        $monthOfYearField = $prefix === 's3' ? 's3_month_of_year' : 'month_of_year';
+
+        $frequency = $settings->$frequencyField;
+        $timeParts = explode(':', $settings->$timeField ?: '02:00');
+        $targetHour = $timeParts[0] ?? '02';
+        $targetMinute = $timeParts[1] ?? '00';
+
+        $currentTime = now()->timezone('Asia/Kolkata');
+        $currentHour = $currentTime->format('H');
+        $currentMinute = $currentTime->format('i');
+
+        if ($frequency === 'minutely') {
+            $interval = isset($settings->$dayOfMonthField) ? intval($settings->$dayOfMonthField) : 1;
+            if ($interval <= 0) {
+                $interval = 1;
+            }
+            return (intval($currentMinute) % $interval === 0);
+        }
+
+        if ($frequency === 'hourly') {
+            return ($currentMinute === $targetMinute);
+        }
+
+        // Hour & Minute must match for other frequencies
+        if ($currentHour !== $targetHour || $currentMinute !== $targetMinute) {
+            return false;
+        }
+
+        $dayOfWeek = $currentTime->dayOfWeek; // 0 (Sunday) to 6 (Saturday)
+        $dayOfMonth = $currentTime->day;
+        $month = $currentTime->month;
+
+        $targetDayOfWeek = isset($settings->$dayOfWeekField) ? intval($settings->$dayOfWeekField) : 0;
+        $targetDayOfMonth = isset($settings->$dayOfMonthField) ? intval($settings->$dayOfMonthField) : 1;
+        $targetStartMonth = isset($settings->$monthOfYearField) ? intval($settings->$monthOfYearField) : 1;
+
+        if ($frequency === 'weekly') {
+            return ($dayOfWeek === $targetDayOfWeek);
+        }
+
+        if ($frequency === 'monthly') {
+            return ($dayOfMonth === $targetDayOfMonth);
+        }
+
+        if ($frequency === 'quarterly') {
+            $monthDiff = $month - $targetStartMonth;
+            return ($dayOfMonth === $targetDayOfMonth && $monthDiff >= 0 && $monthDiff % 3 === 0);
+        }
+
+        if ($frequency === 'half_yearly') {
+            $monthDiff = $month - $targetStartMonth;
+            return ($dayOfMonth === $targetDayOfMonth && $monthDiff >= 0 && $monthDiff % 6 === 0);
+        }
+
+        if ($frequency === 'yearly') {
+            return ($dayOfMonth === $targetDayOfMonth && $month === $targetStartMonth);
+        }
+
+        return false;
+    }
+
+    /**
+     * Generate database SQL file and return its temporary path.
+     */
+    private function generateBackup(string $filename): string
+    {
+        $backupsDir = storage_path('app/backups');
+        if (!file_exists($backupsDir)) {
+            mkdir($backupsDir, 0755, true);
+        }
+
+        $tempPath = $backupsDir . '/' . $filename;
+        $out = fopen($tempPath, 'w');
+        $dbHost = config('database.connections.mysql.host');
+        $dbPort = config('database.connections.mysql.port', '3306');
+        $dbName = config('database.connections.mysql.database');
+        $dbUser = config('database.connections.mysql.username');
+        $dbPass = config('database.connections.mysql.password');
+
+        $success = false;
+
+        // Try mysqldump command first
+        if (function_exists('exec') && !in_array('exec', explode(',', ini_get('disable_functions')))) {
+            try {
+                $escapedHost = escapeshellarg($dbHost);
+                $escapedPort = escapeshellarg($dbPort);
+                $escapedUser = escapeshellarg($dbUser);
+                $escapedPass = $dbPass !== '' ? '-p' . escapeshellarg($dbPass) : '';
+                $escapedName = escapeshellarg($dbName);
+                $escapedPath = escapeshellarg($tempPath);
+
+                $command = "mysqldump --host={$escapedHost} --port={$escapedPort} --user={$escapedUser} {$escapedPass} {$escapedName} > {$escapedPath} 2>&1";
+                $output = [];
+                $returnVar = -1;
+                exec($command, $output, $returnVar);
+
+                if ($returnVar === 0 && file_exists($tempPath) && filesize($tempPath) > 0) {
+                    $success = true;
+                } else {
+                    Log::warning('mysqldump failed: ' . implode("\n", $output) . '. Falling back to PHP backup routine.');
+                    if (file_exists($tempPath)) {
+                        @unlink($tempPath);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('mysqldump execution failed: ' . $e->getMessage() . '. Falling back to PHP backup routine.');
+                if (file_exists($tempPath)) {
+                    @unlink($tempPath);
+                }
+            }
+        }
+
+        // Fallback PHP backup routine
+        if (!$success) {
             $out = fopen($tempPath, 'w');
             if (!$out) {
                 throw new \Exception("Could not open file for writing: " . $tempPath);
             }
 
             $pdo = DB::connection()->getPdo();
+            // Disable query buffering to prevent memory exhaustion on large tables
+            $pdo->setAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+
             $tables = [];
             $result = $pdo->query('SHOW TABLES');
             while ($row = $result->fetch(\PDO::FETCH_NUM)) {
@@ -144,15 +326,13 @@ class AutoBackupCommand extends Command
             fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
 
             foreach ($tables as $table) {
-                // Drop table statement
                 fwrite($out, "DROP TABLE IF EXISTS `" . $table . "`;\n");
 
-                // Show Create Table statement
                 $createTableResult = $pdo->query("SHOW CREATE TABLE `" . $table . "`");
                 $createTableRow = $createTableResult->fetch(\PDO::FETCH_ASSOC);
                 fwrite($out, $createTableRow['Create Table'] . ";\n\n");
+                $createTableResult->closeCursor();
 
-                // Insert statements
                 $rowsResult = $pdo->query("SELECT * FROM `" . $table . "`");
                 $hasRows = false;
                 $columnsStr = '';
@@ -179,110 +359,18 @@ class AutoBackupCommand extends Command
                     }
                     fwrite($out, "INSERT INTO `" . $table . "` (" . $columnsStr . ") VALUES (" . implode(', ', $values) . ");\n");
                 }
+                $rowsResult->closeCursor();
                 fwrite($out, "\n");
             }
 
+            // Restore query buffering
+            $pdo->setAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+
             fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
             fclose($out);
-
-            $fileSize = filesize($tempPath);
-            $formattedSize = $this->formatBytes($fileSize);
-
-            $disk = env('FILESYSTEM_DISK', 'public');
-            if ($disk === 's3') {
-                $s3Path = "ca_application/db_backup/" . $filename;
-                Storage::disk('s3')->put($s3Path, file_get_contents($tempPath), [
-                    'visibility'  => 'public',
-                ]);
-                @unlink($tempPath);
-                $filenameForLog = $s3Path;
-            } else {
-                $filenameForLog = 'backups/' . $filename;
-            }
-
-            // Insert backup log entry
-            DB::table('backup_logs')->insert([
-                'filename' => $filenameForLog,
-                'backup_by' => 'System (Auto)',
-                'action' => 'backup',
-                'file_size' => $formattedSize,
-                'created_by' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            $this->info("Backup created successfully: {$filename} ({$formattedSize})");
-
-            // Cleanup based on retention policy
-            $keepLimit = intval($settings->keep_backups_days);
-            if ($keepLimit > 0) {
-                $isCountBased = in_array($settings->frequency, ['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly']);
-
-                if ($isCountBased) {
-                    // Find all automated backups, ordered by created_at desc
-                    $allAutoBackups = DB::table('backup_logs')
-                        ->where('action', 'backup')
-                        ->where(function($q) {
-                            $q->where('filename', 'like', 'backups/%')
-                              ->orWhere('filename', 'like', 'ca_application/db_backup/%');
-                        })
-                        ->orderBy('created_at', 'desc')
-                        ->get();
-
-                    if ($allAutoBackups->count() > $keepLimit) {
-                        $oldBackups = $allAutoBackups->slice($keepLimit);
-                        foreach ($oldBackups as $oldBackup) {
-                            if ($disk === 's3') {
-                                if (Storage::disk('s3')->exists($oldBackup->filename)) {
-                                    Storage::disk('s3')->delete($oldBackup->filename);
-                                }
-                            } else {
-                                $oldFilePath = storage_path('app/' . $oldBackup->filename);
-                                if (file_exists($oldFilePath)) {
-                                    @unlink($oldFilePath);
-                                }
-                            }
-                            $this->info("Deleted old backup file (count limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
-                        }
-                    }
-                } else {
-                    // Days-based cleanup for daily and weekly
-                    $cutoffDate = now()->subDays($keepLimit);
-
-                    $oldBackups = DB::table('backup_logs')
-                        ->where('action', 'backup')
-                        ->where(function($q) {
-                            $q->where('filename', 'like', 'backups/%')
-                              ->orWhere('filename', 'like', 'ca_application/db_backup/%');
-                        })
-                        ->where('created_at', '<', $cutoffDate)
-                        ->get();
-
-                    foreach ($oldBackups as $oldBackup) {
-                        if ($disk === 's3') {
-                            if (Storage::disk('s3')->exists($oldBackup->filename)) {
-                                Storage::disk('s3')->delete($oldBackup->filename);
-                            }
-                        } else {
-                            $oldFilePath = storage_path('app/' . $oldBackup->filename);
-                            if (file_exists($oldFilePath)) {
-                                @unlink($oldFilePath);
-                            }
-                        }
-                        $this->info("Deleted old backup file (days limit exceeded): {$oldBackup->filename} (created at: {$oldBackup->created_at})");
-                    }
-                }
-            }
-
-            return 0;
-        } catch (\Exception $e) {
-            if (isset($tempPath) && file_exists($tempPath)) {
-                @unlink($tempPath);
-            }
-            Log::error('Auto Backup Command Failed: ' . $e->getMessage());
-            $this->error('Auto backup failed: ' . $e->getMessage());
-            return 1;
         }
+
+        return $tempPath;
     }
 
     private function formatBytes($bytes, $precision = 2)

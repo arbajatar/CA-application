@@ -90,33 +90,122 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $tasksQuery = Task::with(['client', 'workType', 'assignedTo', 'permissions.role'])
-            ->where(function ($query) use ($user) {
-                $roleIds = $user->roles()->pluck('roles.id')->toArray();
-                $query->where('allocated_to', $user->id)
-                      ->orWhereNotNull('dynamic_fields')
-                      ->orWhereHas('subTasks', fn($q) => $q->where('assigned_to', $user->id))
-                      ->orWhereHas('permissions', function ($pq) use ($roleIds) {
-                          if (!empty($roleIds)) {
-                              $pq->whereIn('role_id', $roleIds)
-                                 ->where('can_read', true);
-                          } else {
-                              $pq->whereRaw('1 = 0');
-                          }
-                      });
-            })
-            ->where(function ($query) use ($user) {
-                $query->whereDoesntHave('permissions')
-                    ->orWhereHas('permissions', function ($pq) use ($user) {
-                        $roleIds = $user->roles()->pluck('roles.id')->toArray();
-                        if (!empty($roleIds)) {
-                            $pq->whereIn('role_id', $roleIds)
-                               ->where('can_read', true);
-                        } else {
-                            $pq->whereRaw('1 = 0');
+        $roleIds = $user->roles()->pluck('roles.id')->toArray();
+        $roleIdsStr = array_map('strval', $roleIds);
+        $userIdStr = (string)$user->id;
+
+        // 1. Get task IDs where user is assigned to subtasks
+        $taskIdsWithSubtasks = \App\Models\SubTask::where('assigned_to', $user->id)
+            ->pluck('task_id')
+            ->unique()
+            ->toArray();
+
+        // 2. Get task IDs with read permission for user's roles
+        $taskIdsWithRolePermission = \App\Models\SheetPermission::whereIn('role_id', $roleIds)
+            ->where('can_read', true)
+            ->pluck('task_id')
+            ->unique()
+            ->toArray();
+
+        // 3. Get task IDs without permissions
+        $taskIdsWithoutPermissions = Task::whereDoesntHave('permissions')
+            ->pluck('id')
+            ->toArray();
+
+        // 4. Fetch lightweight JSON allocation arrays for all tasks
+        $rawAccessData = Task::select(['id', 'allocated_to'])
+            ->selectRaw("JSON_EXTRACT(dynamic_fields, '$.multi_rows[*].allocated_to') as row_allocated_tos")
+            ->selectRaw("JSON_EXTRACT(dynamic_fields, '$.multi_rows[*].allocated_type') as row_allocated_types")
+            ->get();
+
+        $allowedTaskIds = [];
+        foreach ($rawAccessData as $item) {
+            $taskId = $item->id;
+
+            // Direct assignment of sheet
+            if ((string)$item->allocated_to === $userIdStr) {
+                $allowedTaskIds[] = $taskId;
+                continue;
+            }
+
+            // Subtask assignment
+            if (in_array($taskId, $taskIdsWithSubtasks)) {
+                $allowedTaskIds[] = $taskId;
+                continue;
+            }
+
+            // Sheet permissions check (must have permission if any permissions exist)
+            $hasPermissions = !in_array($taskId, $taskIdsWithoutPermissions);
+            if ($hasPermissions && !in_array($taskId, $taskIdsWithRolePermission)) {
+                // Denied at sheet permission level
+                continue;
+            }
+
+            // Row-level assignment check
+            $tos = json_decode($item->row_allocated_tos, true) ?: [];
+            $types = json_decode($item->row_allocated_types, true) ?: [];
+
+            $hasRowAccess = false;
+            for ($i = 0; $i < count($tos); $i++) {
+                $rowVal = $tos[$i] ?? null;
+                $rowType = $types[$i] ?? 'user';
+
+                if (empty($rowVal) || (is_array($rowVal) && count($rowVal) === 0)) {
+                    $hasRowAccess = true;
+                    break;
+                }
+
+                if (is_array($rowVal) && $rowType === 'user') {
+                    $rowType = 'users';
+                }
+
+                if ($rowType === 'user') {
+                    if (!is_array($rowVal) && (string)$rowVal === $userIdStr) {
+                        $hasRowAccess = true;
+                        break;
+                    }
+                } elseif ($rowType === 'users') {
+                    if (is_array($rowVal)) {
+                        $rowValStr = array_map('strval', $rowVal);
+                        if (in_array($userIdStr, $rowValStr)) {
+                            $hasRowAccess = true;
+                            break;
                         }
-                    });
-            })
+                    }
+                } elseif ($rowType === 'role') {
+                    if (is_array($rowVal)) {
+                        $rowValStr = array_map('strval', $rowVal);
+                        if (count(array_intersect($roleIdsStr, $rowValStr)) > 0) {
+                            $hasRowAccess = true;
+                            break;
+                        }
+                    } else {
+                        if (in_array((string)$rowVal, $roleIdsStr)) {
+                            $hasRowAccess = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if ($hasRowAccess) {
+                $allowedTaskIds[] = $taskId;
+            }
+        }
+
+        $columns = [
+            'id', 'work_type_id', 'form_name', 'date_inward', 'allocated_to',
+            'created_by', 'date_allocated', 'date_completed', 'status', 'priority',
+            'due_date', 'remarks', 'created_at', 'updated_at', 'deleted_at',
+            'task_particular', 'sub_status', 'feedback', 'entry_date',
+            'allow_attachments', 'allow_checklist', 'allow_notes',
+            'is_billable', 'is_after_sales', 'allow_duplicate_clients'
+        ];
+
+        $tasksQuery = Task::select($columns)
+            ->selectRaw("JSON_REMOVE(dynamic_fields, '$.multi_rows') as dynamic_fields")
+            ->with(['client', 'workType', 'assignedTo', 'permissions.role'])
+            ->whereIn('id', $allowedTaskIds)
             ->when(
                 $request->filled('status'),
                 fn($q) =>
@@ -153,30 +242,16 @@ class TaskController extends Controller
             )
             ->latest();
 
-        $allTasks = $tasksQuery->get();
-
-        $filteredTasks = $allTasks->filter(function ($task) use ($user) {
-            return self::doesUserHaveAccessToTask($task, $user);
-        });
-
         $perPage = $request->get('per_page', 15);
         if ($perPage === 'all') {
-            return TaskResource::collection($filteredTasks);
+            $tasks = $tasksQuery->get();
+            return TaskResource::collection($tasks);
         }
 
         $perPage = min((int)$perPage, 1000);
-        $page = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
-        $paginatedItems = $filteredTasks->forPage($page, $perPage)->values();
-        
-        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedItems,
-            $filteredTasks->count(),
-            $perPage,
-            $page,
-            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
-        );
+        $tasks = $tasksQuery->paginate($perPage);
 
-        return TaskResource::collection($paginated);
+        return TaskResource::collection($tasks);
     }
 
     public function show(Request $request, Task $task): JsonResponse

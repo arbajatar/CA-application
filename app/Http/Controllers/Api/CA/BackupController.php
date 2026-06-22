@@ -17,23 +17,31 @@ class BackupController extends Controller
                 ->leftJoin('users', 'backup_logs.created_by', '=', 'users.id')
                 ->select('backup_logs.*', 'users.name as user_name')
                 ->orderBy('backup_logs.created_at', 'desc')
-                ->get()
-                ->map(function ($log) {
-                    $exists = false;
-                    if ($log->filename) {
+                ->limit(50)
+                ->get();
+
+            $mappedLogs = $logs->map(function ($log, $index) {
+                $exists = false;
+                // Only verify S3/local file existence for the latest 15 logs to prevent memory exhaustion / timeout
+                if ($log->filename && $index < 15) {
+                    try {
                         $disk = env('FILESYSTEM_DISK', 'public');
                         if ($disk === 's3') {
-                            $exists = Storage::disk('s3')->exists($log->filename);
+                            $exists = Storage::disk('s3_backup')->exists($log->filename);
                         } else {
                             $filePath = storage_path('app/' . $log->filename);
                             $exists = file_exists($filePath);
                         }
+                    } catch (\Exception $e) {
+                        Log::warning('Backup file existence check failed: ' . $e->getMessage());
+                        $exists = false;
                     }
-                    $log->file_exists = $exists;
-                    return $log;
-                });
+                }
+                $log->file_exists = $exists;
+                return $log;
+            });
 
-            return response()->json(['data' => $logs]);
+            return response()->json(['data' => $mappedLogs]);
         } catch (\Exception $e) {
             Log::error('Backup Logs Fetch Failed: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to load backup logs.'], 500);
@@ -50,74 +58,128 @@ class BackupController extends Controller
             @ini_set('memory_limit', '512M');
             @set_time_limit(0);
 
-            $out = fopen($tempPath, 'w');
-            if (!$out) {
-                throw new \Exception("Could not open file for writing: " . $tempPath);
-            }
+            $dbHost = config('database.connections.mysql.host');
+            $dbPort = config('database.connections.mysql.port', '3306');
+            $dbName = config('database.connections.mysql.database');
+            $dbUser = config('database.connections.mysql.username');
+            $dbPass = config('database.connections.mysql.password');
 
-            $pdo = DB::connection()->getPdo();
-            $tables = [];
-            $result = $pdo->query('SHOW TABLES');
-            while ($row = $result->fetch(\PDO::FETCH_NUM)) {
-                $tables[] = $row[0];
-            }
+            $success = false;
 
-            fwrite($out, "-- Database Backup\n");
-            fwrite($out, "-- Generated at: " . date('Y-m-d H:i:s') . "\n");
-            fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+            // Try mysqldump command first
+            if (function_exists('exec') && !in_array('exec', explode(',', ini_get('disable_functions')))) {
+                try {
+                    $escapedHost = escapeshellarg($dbHost);
+                    $escapedPort = escapeshellarg($dbPort);
+                    $escapedUser = escapeshellarg($dbUser);
+                    $escapedPass = $dbPass !== '' ? '-p' . escapeshellarg($dbPass) : '';
+                    $escapedName = escapeshellarg($dbName);
+                    $escapedPath = escapeshellarg($tempPath);
 
-            foreach ($tables as $table) {
-                // Drop table statement
-                fwrite($out, "DROP TABLE IF EXISTS `" . $table . "`;\n");
+                    $command = "mysqldump --host={$escapedHost} --port={$escapedPort} --user={$escapedUser} {$escapedPass} {$escapedName} > {$escapedPath} 2>&1";
+                    $output = [];
+                    $returnVar = -1;
+                    exec($command, $output, $returnVar);
 
-                // Show Create Table statement
-                $createTableResult = $pdo->query("SHOW CREATE TABLE `" . $table . "`");
-                $createTableRow = $createTableResult->fetch(\PDO::FETCH_ASSOC);
-                fwrite($out, $createTableRow['Create Table'] . ";\n\n");
-
-                // Insert statements using bulk insertion
-                $rowsResult = $pdo->query("SELECT * FROM `" . $table . "`");
-                $hasRows = false;
-                $batchValues = [];
-                $batchSize = 250; // Write up to 250 rows in a single INSERT statement
-                $columnsStr = '';
-
-                while ($row = $rowsResult->fetch(\PDO::FETCH_NUM)) {
-                    if (!$hasRows) {
-                        $hasRows = true;
-                        $columnCount = $rowsResult->columnCount();
-                        $columns = [];
-                        for ($i = 0; $i < $columnCount; $i++) {
-                            $meta = $rowsResult->getColumnMeta($i);
-                            $columns[] = "`" . $meta['name'] . "`";
-                        }
-                        $columnsStr = implode(', ', $columns);
-                    }
-
-                    $values = [];
-                    foreach ($row as $val) {
-                        if (is_null($val)) {
-                            $values[] = "NULL";
-                        } else {
-                            $values[] = $pdo->quote($val);
+                    if ($returnVar === 0 && file_exists($tempPath) && filesize($tempPath) > 0) {
+                        $success = true;
+                    } else {
+                        Log::warning('mysqldump failed: ' . implode("\n", $output) . '. Falling back to PHP backup routine.');
+                        if (file_exists($tempPath)) {
+                            @unlink($tempPath);
                         }
                     }
-                    fwrite($out, "INSERT INTO `" . $table . "` (" . $columnsStr . ") VALUES (" . implode(', ', $values) . ");\n");
+                } catch (\Exception $e) {
+                    Log::warning('mysqldump execution failed: ' . $e->getMessage() . '. Falling back to PHP backup routine.');
+                    if (file_exists($tempPath)) {
+                        @unlink($tempPath);
+                    }
                 }
-                fwrite($out, "\n");
             }
 
-            fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
-            fclose($out);
+            // Fallback PHP backup routine
+            if (!$success) {
+                $out = fopen($tempPath, 'w');
+                if (!$out) {
+                    throw new \Exception("Could not open file for writing: " . $tempPath);
+                }
+
+                $pdo = DB::connection()->getPdo();
+                // Disable query buffering to prevent memory exhaustion on large tables
+                $pdo->setAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+
+                $tables = [];
+                $result = $pdo->query('SHOW TABLES');
+                while ($row = $result->fetch(\PDO::FETCH_NUM)) {
+                    $tables[] = $row[0];
+                }
+
+                fwrite($out, "-- Database Backup\n");
+                fwrite($out, "-- Generated at: " . date('Y-m-d H:i:s') . "\n");
+                fwrite($out, "SET FOREIGN_KEY_CHECKS=0;\n\n");
+
+                foreach ($tables as $table) {
+                    // Drop table statement
+                    fwrite($out, "DROP TABLE IF EXISTS `" . $table . "`;\n");
+
+                    // Show Create Table statement
+                    $createTableResult = $pdo->query("SHOW CREATE TABLE `" . $table . "`");
+                    $createTableRow = $createTableResult->fetch(\PDO::FETCH_ASSOC);
+                    fwrite($out, $createTableRow['Create Table'] . ";\n\n");
+                    $createTableResult->closeCursor();
+
+                    // Insert statements using bulk insertion
+                    $rowsResult = $pdo->query("SELECT * FROM `" . $table . "`");
+                    $hasRows = false;
+                    $batchValues = [];
+                    $batchSize = 250; // Write up to 250 rows in a single INSERT statement
+                    $columnsStr = '';
+
+                    while ($row = $rowsResult->fetch(\PDO::FETCH_NUM)) {
+                        if (!$hasRows) {
+                            $hasRows = true;
+                            $columnCount = $rowsResult->columnCount();
+                            $columns = [];
+                            for ($i = 0; $i < $columnCount; $i++) {
+                                $meta = $rowsResult->getColumnMeta($i);
+                                $columns[] = "`" . $meta['name'] . "`";
+                            }
+                            $columnsStr = implode(', ', $columns);
+                        }
+
+                        $values = [];
+                        foreach ($row as $val) {
+                            if (is_null($val)) {
+                                $values[] = "NULL";
+                            } else {
+                                $values[] = $pdo->quote($val);
+                            }
+                        }
+                        fwrite($out, "INSERT INTO `" . $table . "` (" . $columnsStr . ") VALUES (" . implode(', ', $values) . ");\n");
+                    }
+                    $rowsResult->closeCursor();
+                    fwrite($out, "\n");
+                }
+
+                // Restore query buffering
+                $pdo->setAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, true);
+
+                fwrite($out, "SET FOREIGN_KEY_CHECKS=1;\n");
+                fclose($out);
+            }
 
             $fileSize = filesize($tempPath);
 
             $disk = env('FILESYSTEM_DISK', 'public');
             if ($disk === 's3') {
                 $s3Path = "ca_application/db_backup/" . $filename;
-                Storage::disk('s3')->put($s3Path, file_get_contents($tempPath), [
+                $stream = fopen($tempPath, 'r');
+                Storage::disk('s3_backup')->putStream($s3Path, $stream, [
                     'visibility'  => 'public',
                 ]);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
                 $filenameForLog = $s3Path;
             } else {
                 $filenameForLog = $filename;
@@ -282,6 +344,14 @@ class BackupController extends Controller
             'day_of_week' => 'nullable|integer|between:0,6',
             'day_of_month' => 'nullable|integer|between:1,59',
             'month_of_year' => 'nullable|integer|between:1,12',
+
+            's3_backup_enabled' => 'required|boolean',
+            's3_frequency' => 'required|string|in:minutely,hourly,daily,weekly,monthly,quarterly,half_yearly,yearly',
+            's3_time' => 'required|string|regex:/^\d{2}:\d{2}$/',
+            's3_keep_backups_days' => 'required|integer|min:1',
+            's3_day_of_week' => 'nullable|integer|between:0,6',
+            's3_day_of_month' => 'nullable|integer|between:1,59',
+            's3_month_of_year' => 'nullable|integer|between:1,12',
         ]);
 
         try {
@@ -295,6 +365,14 @@ class BackupController extends Controller
                     'day_of_week' => $request->input('day_of_week', 0),
                     'day_of_month' => $request->input('day_of_month', 1),
                     'month_of_year' => $request->input('month_of_year', 1),
+
+                    's3_backup_enabled' => $request->s3_backup_enabled,
+                    's3_frequency' => $request->s3_frequency,
+                    's3_time' => $request->s3_time,
+                    's3_keep_backups_days' => $request->s3_keep_backups_days,
+                    's3_day_of_week' => $request->input('s3_day_of_week', 0),
+                    's3_day_of_month' => $request->input('s3_day_of_month', 1),
+                    's3_month_of_year' => $request->input('s3_month_of_year', 1),
                     'updated_at' => now(),
                 ]
             );
@@ -318,11 +396,19 @@ class BackupController extends Controller
 
             $disk = env('FILESYSTEM_DISK', 'public');
             if ($disk === 's3') {
-                if (!Storage::disk('s3')->exists($log->filename)) {
+                if (!Storage::disk('s3_backup')->exists($log->filename)) {
                     return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
                 }
                 $tempPath = storage_path('app/temp_preview_' . time() . '.sql');
-                file_put_contents($tempPath, Storage::disk('s3')->get($log->filename));
+                $stream = Storage::disk('s3_backup')->readStream($log->filename);
+                $localFile = fopen($tempPath, 'w');
+                if ($stream && $localFile) {
+                    stream_copy_to_stream($stream, $localFile);
+                    fclose($localFile);
+                    fclose($stream);
+                } else {
+                    throw new \Exception("Failed to stream backup file from S3.");
+                }
                 $filePath = $tempPath;
                 $isTemp = true;
             } else {
@@ -402,10 +488,10 @@ class BackupController extends Controller
 
             $disk = env('FILESYSTEM_DISK', 'public');
             if ($disk === 's3') {
-                if (!Storage::disk('s3')->exists($log->filename)) {
+                if (!Storage::disk('s3_backup')->exists($log->filename)) {
                     return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
                 }
-                return Storage::disk('s3')->download($log->filename, basename($log->filename));
+                return Storage::disk('s3_backup')->download($log->filename, basename($log->filename));
             } else {
                 $filePath = storage_path('app/' . $log->filename);
                 if (!file_exists($filePath)) {
@@ -436,11 +522,19 @@ class BackupController extends Controller
 
             $disk = env('FILESYSTEM_DISK', 'public');
             if ($disk === 's3') {
-                if (!Storage::disk('s3')->exists($log->filename)) {
+                if (!Storage::disk('s3_backup')->exists($log->filename)) {
                     return response()->json(['message' => 'Backup file does not exist on S3.'], 404);
                 }
                 $tempPath = storage_path('app/temp_restore_download_' . time() . '.sql');
-                file_put_contents($tempPath, Storage::disk('s3')->get($log->filename));
+                $stream = Storage::disk('s3_backup')->readStream($log->filename);
+                $localFile = fopen($tempPath, 'w');
+                if ($stream && $localFile) {
+                    stream_copy_to_stream($stream, $localFile);
+                    fclose($localFile);
+                    fclose($stream);
+                } else {
+                    throw new \Exception("Failed to stream backup file from S3.");
+                }
                 $filePath = $tempPath;
                 $isTemp = true;
             } else {

@@ -19,10 +19,14 @@ class UploadHelper
     {
         $disk = env('FILESYSTEM_DISK', 'public');
 
+        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $originalName);
+        $safeName = substr($safeName, 0, 100);
+        $extension = strtolower($file->getClientOriginalExtension());
+        $fileName = time() . '-' . $safeName . '.' . $extension;
+
         if ($disk === 's3') {
-            $extension = strtolower($file->getClientOriginalExtension());
             $cleanFolder = trim(preg_replace('#/+#', '/', $folder), '/');
-            $fileName = time() . '-' . Str::random(12) . '.' . $extension;
             
             // Prefix all CA application attachments under ca_application/attachments
             $s3Path = "ca_application/attachments/{$cleanFolder}/{$fileName}";
@@ -38,15 +42,14 @@ class UploadHelper
 
         $uploadPath = env('UPLOAD_PATH');
         if ($uploadPath) {
-            $filename = time() . '-' . uniqid() . '.' . $file->getClientOriginalExtension();
             // Resolve custom target path relative to public_path
             $destinationPath = public_path(rtrim($uploadPath, '/') . '/storage/' . $folder);
-            $file->move($destinationPath, $filename);
-            return $folder . '/' . $filename;
+            $file->move($destinationPath, $fileName);
+            return $folder . '/' . $fileName;
         }
 
-        // Fallback to standard Laravel public disk storage locally
-        return $file->store($folder, 'public');
+        // Fallback to standard Laravel public disk storage locally, preserving original name
+        return $file->storeAs($folder, $fileName, 'public');
     }
 
     /**
