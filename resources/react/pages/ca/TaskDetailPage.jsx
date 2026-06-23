@@ -233,6 +233,7 @@ const doesStaffMatchRow = (row, currentUser) => {
 export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const { user } = useAuth();
     const fetchCounterRef = useRef(0);
+    const tableContainerRef = useRef(null);
     const isAdmin = user?.role === 'ca';
     const isStaff = user?.role === 'staff';
     const { id: paramId } = useParams();
@@ -489,7 +490,10 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [showColumnFilters, setShowColumnFilters] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [rowsPerPage, setRowsPerPage] = useState(() => {
+        const saved = localStorage.getItem('task_detail_rows_per_page');
+        return saved ? Number(saved) : 50;
+    });
     const [totalRows, setTotalRows] = useState(0);
     const [statusCounts, setStatusCounts] = useState(null);
     const [subStatusCounts, setSubStatusCounts] = useState(null);
@@ -2535,6 +2539,28 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const safeCurrentPage = Math.min(currentPage, totalPages || 1);
     const paginatedRows = rows;
 
+    const handleDragOver = (e, targetIdx) => {
+        e.preventDefault();
+        setDragOverColumnIndex(targetIdx);
+
+        if (tableContainerRef.current) {
+            const container = tableContainerRef.current;
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX;
+            
+            const scrollThreshold = 125; // px from edge
+            const maxScrollSpeed = 24; // px per tick
+            
+            if (mouseX > rect.right - scrollThreshold) {
+                const intensity = (mouseX - (rect.right - scrollThreshold)) / scrollThreshold;
+                container.scrollLeft += Math.ceil(intensity * maxScrollSpeed);
+            } else if (mouseX < rect.left + scrollThreshold) {
+                const intensity = ((rect.left + scrollThreshold) - mouseX) / scrollThreshold;
+                container.scrollLeft -= Math.ceil(intensity * maxScrollSpeed);
+            }
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-[100vw] pb-12 relative">
             <style dangerouslySetInnerHTML={{__html: `
@@ -3331,7 +3357,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     </div>
                 )}
 
-                <div className="overflow-x-auto border border-slate-350 rounded-2xl shadow-sm relative min-h-[200px]">
+                <div ref={tableContainerRef} className="overflow-x-auto border border-slate-350 rounded-2xl shadow-sm relative min-h-[200px]">
                     {isSearching && (
                         <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex flex-col items-center justify-center z-40 transition-all duration-200">
                             <Spinner className="w-8 h-8 text-[#1F5C99]" />
@@ -3367,16 +3393,47 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     </div>
                                 </th>
                                 {activeColumns.map((col, idx) => {
-                                    const handleColumnDrop = (targetIdx) => {
+                                    const handleColumnDrop = async (targetIdx) => {
                                         if (draggedColumnIndex === null || draggedColumnIndex === targetIdx) return;
                                         const copy = [...activeColumns.map(c => c.id)];
                                         const draggedItem = copy[draggedColumnIndex];
                                         copy.splice(draggedColumnIndex, 1);
                                         copy.splice(targetIdx, 0, draggedItem);
+                                        
+                                        // Map new column order to the schema fields
+                                        const reorderedSchema = [];
+                                        const matchedSet = new Set();
+                                        copy.forEach(colId => {
+                                            let field = schema.find(f => f.id === colId || `dynamic_${f.label}` === colId);
+                                            if (!field) {
+                                                if (colId === 'client') field = schema.find(f => f.id === 'static_client_name');
+                                                else if (colId === 'date_allocated') field = schema.find(f => f.id === 'static_created_date');
+                                                else if (colId === 'remarks') field = schema.find(f => f.id === 'static_remarks');
+                                                else if (colId === 'status') field = schema.find(f => f.id === 'static_sheet_status');
+                                                else if (colId === 'assigned_to') field = schema.find(f => f.id === 'static_assignee');
+                                                else if (colId === 'sub_status') field = schema.find(f => f.id === 'static_sub_status');
+                                            }
+                                            if (field) {
+                                                reorderedSchema.push(field);
+                                                matchedSet.add(field.id);
+                                            }
+                                        });
+                                        schema.forEach(field => {
+                                            if (!matchedSet.has(field.id)) {
+                                                reorderedSchema.push(field);
+                                            }
+                                        });
+
+                                        setSchema(reorderedSchema);
                                         setCustomColumnOrder(copy);
                                         setDraggedColumnIndex(null);
                                         setDragOverColumnIndex(null);
-                                        toast.success(`Positioned "${col.label}" column!`);
+                                        
+                                        try {
+                                            await handleSaveRows(rows, `Positioned "${col.label}" column and saved template order!`, [], null, reorderedSchema);
+                                        } catch (err) {
+                                            console.error("Failed to save reordered column schema", err);
+                                        }
                                     };
                                     
                                     const isDragging = draggedColumnIndex === idx;
@@ -3388,10 +3445,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             key={col.id}
                                             draggable
                                             onDragStart={() => setDraggedColumnIndex(idx)}
-                                            onDragOver={(e) => {
-                                                e.preventDefault();
-                                                setDragOverColumnIndex(idx);
-                                            }}
+                                            onDragOver={(e) => handleDragOver(e, idx)}
                                             onDragEnd={() => {
                                                 setDraggedColumnIndex(null);
                                                 setDragOverColumnIndex(null);
@@ -3484,7 +3538,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 transition cursor-pointer"
                                                     />
                                                     <span>
-                                                        {String(globalIndex + 1).padStart(2, '0')}
+                                                        {String(row.db_original_index !== undefined ? row.db_original_index + 1 : globalIndex + 1).padStart(2, '0')}
                                                     </span>
                                                 </div>
                                             </td>
@@ -4436,16 +4490,16 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 <select
                                     value={rowsPerPage}
                                     onChange={(e) => {
-                                        setRowsPerPage(Number(e.target.value));
+                                        const val = Number(e.target.value);
+                                        setRowsPerPage(val);
+                                        localStorage.setItem('task_detail_rows_per_page', val);
                                         setCurrentPage(1);
                                     }}
                                     className="bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-sm"
                                 >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
                                     <option value={50}>50</option>
                                     <option value={100}>100</option>
+                                    <option value={150}>150</option>
                                 </select>
                             </div>
 
@@ -5019,8 +5073,38 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{field.type === 'dropdown' ? 'Dropdown Options' : 'Checkbox Options'}</label>
                                                         <div className="space-y-2">
                                                             {field.options?.map((opt, i) => (
-                                                                <div key={i} className="flex gap-2 group/opt">
+                                                                <div key={i} className="flex items-center gap-2 group/opt">
                                                                     <input type="text" value={opt} onChange={e => { const newOpts = [...field.options]; newOpts[i] = e.target.value; updateField(field.id, 'options', newOpts); }} className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 focus:bg-white focus:border-indigo-500 outline-none transition-all" />
+                                                                    <div className="flex gap-0.5 opacity-0 group-hover/opt:opacity-100 transition-opacity">
+                                                                        <button 
+                                                                            disabled={i === 0}
+                                                                            onClick={() => {
+                                                                                const newOpts = [...field.options];
+                                                                                const temp = newOpts[i];
+                                                                                newOpts[i] = newOpts[i-1];
+                                                                                newOpts[i-1] = temp;
+                                                                                updateField(field.id, 'options', newOpts);
+                                                                            }}
+                                                                            className="p-1 text-slate-400 hover:text-indigo-650 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
+                                                                            title="Move Option Up"
+                                                                        >
+                                                                            <ArrowUp size={12} />
+                                                                        </button>
+                                                                        <button 
+                                                                            disabled={i === field.options.length - 1}
+                                                                            onClick={() => {
+                                                                                const newOpts = [...field.options];
+                                                                                const temp = newOpts[i];
+                                                                                newOpts[i] = newOpts[i+1];
+                                                                                newOpts[i+1] = temp;
+                                                                                updateField(field.id, 'options', newOpts);
+                                                                            }}
+                                                                            className="p-1 text-slate-400 hover:text-indigo-650 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
+                                                                            title="Move Option Down"
+                                                                        >
+                                                                            <ArrowDown size={12} />
+                                                                        </button>
+                                                                    </div>
                                                                     <button onClick={() => { const newOpts = field.options.filter((_, idx) => idx !== i); updateField(field.id, 'options', newOpts); }} className="p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover/opt:opacity-100"><Trash2 size={14} /></button>
                                                                 </div>
                                                             ))}
@@ -5033,9 +5117,22 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                             <div className="p-6 bg-slate-50 border-t border-slate-100 mt-auto">
                                                 <div className="flex gap-3">
                                                     {!draftField && (
-                                                        <button onClick={() => removeField(field.id)} className="flex-1 flex items-center justify-center gap-2 p-3 bg-white border border-rose-200 text-rose-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm">
-                                                            <Trash2 size={16} /> Delete
-                                                        </button>
+                                                        <>
+                                                            <button onClick={() => removeField(field.id)} className="flex-1 flex items-center justify-center gap-2 p-3 bg-white border border-rose-200 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-sm">
+                                                                <Trash2 size={14} /> Delete
+                                                            </button>
+                                                            <button onClick={async () => {
+                                                                try {
+                                                                    await handleSaveRows(rows, `Saved column settings and options for "${field.label}"!`, [], null, schema);
+                                                                    setIsSidebarOpen(false);
+                                                                    setActiveFieldId(null);
+                                                                } catch (err) {
+                                                                    console.error(err);
+                                                                }
+                                                            }} className="flex-1 flex items-center justify-center gap-2 p-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
+                                                                <Save size={14} /> Save
+                                                            </button>
+                                                        </>
                                                     )}
                                                     {draftField && (
                                                         <button
@@ -5925,7 +6022,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     const newRows = [...rows];
                                     newRows[assigningRowIndex].allocated_type = assigningType;
                                     newRows[assigningRowIndex].allocated_to = assigningTo;
-                                    newRows[assigningRowIndex].date_allocated = new Date().toISOString().split('T')[0];
+                                    newRows[assigningRowIndex].date_allocated = newRows[assigningRowIndex].date_allocated || new Date().toISOString().split('T')[0];
                                     setRows(newRows);
                                     setAssigningRowIndex(null);
                                     await handleSaveRows(newRows, 'Row allocation updated successfully');

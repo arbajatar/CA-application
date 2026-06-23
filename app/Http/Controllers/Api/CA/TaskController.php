@@ -180,10 +180,15 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
-        $task->load(['client', 'workType', 'assignedTo', 'createdBy', 'logs.changedBy', 'subTasks.assignedTo', 'permissions.role', 'notes.author']);
+        $task->load(['client', 'workType', 'assignedTo', 'createdBy', 'subTasks.assignedTo', 'permissions.role']);
 
         $dynamicFields = $task->dynamic_fields;
         $multiRows = $dynamicFields['multi_rows'] ?? [];
+
+        foreach ($multiRows as $idx => &$row) {
+            $row['db_original_index'] = $idx;
+        }
+        unset($row);
 
         // Calculate status counts on the full dataset before filtering
         $statusCounts = [
@@ -314,28 +319,56 @@ class TaskController extends Controller
 
                 $staffIdsForFilter = array_values(array_unique(array_filter(array_column($multiRows, 'allocated_to'))));
                 $staffFilterMap = count($staffIdsForFilter) ? \App\Models\User::whereIn('id', $staffIdsForFilter)->pluck('name', 'id')->toArray() : [];
+                $matchesFilter = function($value, $query) {
+                    $query = strtolower(trim($query));
+                    if ($query === '') return true;
+                    
+                    $queryNormalized = str_replace('-', '/', $query);
+                    $valueStr = strtolower(trim((string)$value));
+                    
+                    if (preg_match('/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/', $valueStr, $matches)) {
+                        $formattedDate = "{$matches[3]}/{$matches[2]}/{$matches[1]}";
+                        if (strpos($formattedDate, $queryNormalized) !== false) {
+                            return true;
+                        }
+                    }
+                    
+                    if (preg_match('/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/', $valueStr, $matches)) {
+                        $formattedDate = "{$matches[1]}/{$matches[2]}/{$matches[3]}";
+                        if (strpos($formattedDate, $queryNormalized) !== false) {
+                            return true;
+                        }
+                    }
+
+                    $valueNormalized = str_replace('-', '/', $valueStr);
+                    if (strpos($valueNormalized, $queryNormalized) !== false) {
+                        return true;
+                    }
+                    
+                    return strpos($valueStr, $query) !== false;
+                };
+
 
                 foreach ($colFilters as $colKey => $colVal) {
                     $colVal = trim($colVal);
                     if ($colVal === '') {
                         continue;
                     }
-                    $colValLower = strtolower($colVal);
-                    $multiRows = array_filter($multiRows, function($row) use ($colKey, $colValLower, $clientsFilterMap, $clientsPanFilterMap, $workTypesFilterMap, $staffFilterMap) {
+                    $multiRows = array_filter($multiRows, function($row) use ($colKey, $colVal, $clientsFilterMap, $clientsPanFilterMap, $workTypesFilterMap, $staffFilterMap, $matchesFilter) {
                         if ($colKey === 'client_id') {
                             $cid = $row['client_id'] ?? null;
                             $name = $cid ? ($clientsFilterMap[$cid] ?? '') : '';
-                            return strpos(strtolower($name), $colValLower) !== false;
+                            return $matchesFilter($name, $colVal);
                         }
                         if ($colKey === 'client_pan') {
                             $cid = $row['client_id'] ?? null;
                             $pan = $cid ? ($clientsPanFilterMap[$cid] ?? '') : '';
-                            return strpos(strtolower($pan), $colValLower) !== false;
+                            return $matchesFilter($pan, $colVal);
                         }
                         if ($colKey === 'work_type_id') {
                             $wtid = $row['work_type_id'] ?? null;
                             $name = $wtid ? ($workTypesFilterMap[$wtid] ?? '') : '';
-                            return strpos(strtolower($name), $colValLower) !== false;
+                            return $matchesFilter($name, $colVal);
                         }
                         if ($colKey === 'allocated_to') {
                             $allocType = $row['allocated_type'] ?? 'user';
@@ -352,35 +385,35 @@ class TaskController extends Controller
                                 }
                                 $namesStr = implode(', ', $names);
                             }
-                            return strpos(strtolower($namesStr), $colValLower) !== false;
+                            return $matchesFilter($namesStr, $colVal);
                         }
                         if ($colKey === 'date_allocated') {
                             $val = $row['date_allocated'] ?? '';
-                            return strpos(strtolower($val), $colValLower) !== false;
+                            return $matchesFilter($val, $colVal);
                         }
                         if ($colKey === 'status') {
                             $val = $row['status'] ?? '';
-                            return strpos(strtolower($val), $colValLower) !== false;
+                            return $matchesFilter($val, $colVal);
                         }
                         if ($colKey === 'sub_status') {
                             $val = $row['sub_status'] ?? $row['dynamic_data']['Sub Status'] ?? $row['dynamic_data']['static_sub_status'] ?? '';
-                            return strpos(strtolower($val), $colValLower) !== false;
+                            return $matchesFilter($val, $colVal);
                         }
                         if ($colKey === 'remarks') {
                             $val = $row['remarks'] ?? '';
-                            return strpos(strtolower($val), $colValLower) !== false;
+                            return $matchesFilter($val, $colVal);
                         }
 
                         $dynVal = $row['dynamic_data'][$colKey] ?? '';
                         if (is_array($dynVal)) {
                             foreach ($dynVal as $subVal) {
-                                if (strpos(strtolower((string)$subVal), $colValLower) !== false) {
+                                if ($matchesFilter($subVal, $colVal)) {
                                     return true;
                                 }
                             }
                             return false;
                         }
-                        return strpos(strtolower((string)$dynVal), $colValLower) !== false;
+                        return $matchesFilter($dynVal, $colVal);
                     });
                 }
             }
