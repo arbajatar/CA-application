@@ -1572,10 +1572,7 @@ export default function TaskBuilderPage() {
             })
             .map(f => {
               const existing = prev.find(p => p.id === f.id);
-              let value = f.value || '';
-              if ((!f.static || f.id.startsWith('dynamic_')) && data.dynamic_fields && data.dynamic_fields[f.label] !== undefined) {
-                value = data.dynamic_fields[f.label];
-              }
+              let value = '';
             
             // Normalize value based on type to avoid crashes
             if (f.type === 'labels') {
@@ -1622,11 +1619,11 @@ export default function TaskBuilderPage() {
             // Map the primary static values from data
             if (f.id === 'static_form_name') value = data.form_name || '';
             else if (f.id === 'static_work_type') value = data.work_type_id || '';
-            else if (f.id === 'static_assignee') value = data.allocated_to || '';
-            else if (f.id === 'static_remarks') value = data.remarks || '';
-            else if (f.id === 'static_subtasks') value = data.subtasks || [];
-            else if (f.id === 'static_sheet_status') value = data.status || 'pending';
-            else if (f.id === 'static_created_date') value = data.created_at ? data.created_at.substring(0, 10) : new Date().toISOString().split('T')[0];
+            else if (f.id === 'static_assignee') value = '';
+            else if (f.id === 'static_remarks') value = '';
+            else if (f.id === 'static_subtasks') value = [];
+            else if (f.id === 'static_sheet_status') value = 'pending';
+            else if (f.id === 'static_created_date') value = new Date().toISOString().split('T')[0];
 
             let resolvedSection = f.section;
             if (resolvedSection === undefined || resolvedSection === null) {
@@ -1662,9 +1659,9 @@ export default function TaskBuilderPage() {
         let updated = staticOnly.map(field => {
           if (field.id === 'static_form_name') return { ...field, value: data.form_name || '' };
           if (field.id === 'static_work_type') return { ...field, value: data.work_type_id || '' };
-          if (field.id === 'static_assignee') return { ...field, value: data.allocated_to || '' };
-          if (field.id === 'static_remarks') return { ...field, value: data.remarks || '' };
-          if (field.id === 'static_subtasks') return { ...field, value: data.subtasks || [] };
+          if (field.id === 'static_assignee') return { ...field, value: '' };
+          if (field.id === 'static_remarks') return { ...field, value: '' };
+          if (field.id === 'static_subtasks') return { ...field, value: [] };
           return field;
         });
 
@@ -1687,7 +1684,7 @@ export default function TaskBuilderPage() {
                 color,
                 label,
                 placeholder: `Enter ${label}...`,
-                value: val,
+                value: '',
                 required: false,
                 labelTouched: true,
                 placeholderTouched: true

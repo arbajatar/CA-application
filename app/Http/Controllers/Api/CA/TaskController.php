@@ -190,6 +190,44 @@ class TaskController extends Controller
         }
         unset($row);
 
+        // 1. Filtering by allocated_staff_ids before calculating status/sub-status counts
+        if ($request->filled('allocated_staff_ids')) {
+            $staffIds = is_array($request->allocated_staff_ids) 
+                ? array_map('intval', $request->allocated_staff_ids) 
+                : array_map('intval', explode(',', $request->allocated_staff_ids));
+
+            if (count($staffIds) > 0) {
+                $multiRows = array_filter($multiRows, function($row) use ($staffIds) {
+                    $allocType = $row['allocated_type'] ?? 'user';
+                    $allocTo = $row['allocated_to'] ?? null;
+
+                    if (empty($allocTo)) {
+                        return false;
+                    }
+
+                    if ($allocType === 'user' || $allocType === 'users') {
+                        if (is_array($allocTo)) {
+                            return count(array_intersect(array_map('intval', $allocTo), $staffIds)) > 0;
+                        }
+                        return in_array((int)$allocTo, $staffIds);
+                    }
+                    if ($allocType === 'role') {
+                        if (is_array($allocTo)) {
+                            $allocToRoles = array_map('intval', $allocTo);
+                        } else {
+                            $allocToRoles = [(int)$allocTo];
+                        }
+                        return \App\Models\User::whereIn('id', $staffIds)
+                            ->whereHas('roles', function($q) use ($allocToRoles) {
+                                $q->whereIn('roles.id', $allocToRoles);
+                            })
+                            ->exists();
+                    }
+                    return false;
+                });
+            }
+        }
+
         // Calculate status counts on the full dataset before filtering
         $statusCounts = [
             'pending' => 0,
@@ -223,7 +261,7 @@ class TaskController extends Controller
             }
         }
 
-        // 1. Filtering
+
         $statusFilter = $request->get('status') ?: $request->get('selectedStatusFilter');
         if ($statusFilter) {
             $statusFilter = strtolower($statusFilter);

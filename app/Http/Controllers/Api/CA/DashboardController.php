@@ -59,7 +59,7 @@ class DashboardController extends Controller
         $users = \App\Models\User::all()->keyBy('id');
         $roles = \App\Models\Role::all()->keyBy('id');
 
-        $staffUser = $allocatedTo ? User::with('roles')->find($allocatedTo) : null;
+        $staffUser = ($allocatedTo && $allocatedTo !== 'unassigned') ? User::with('roles')->find($allocatedTo) : null;
 
         $total = 0;
         $pending = 0;
@@ -94,7 +94,16 @@ class DashboardController extends Controller
                 }
 
                 // Apply Allocated To Filter
-                if ($staffUser) {
+                if ($allocatedTo === 'unassigned') {
+                    $rowToCheck = $row ?? [
+                        'allocated_to' => $allocatedToVal,
+                        'allocated_type' => $allocType
+                    ];
+                    $val = $rowToCheck['allocated_to'] ?? null;
+                    if (!empty($val) && (!is_array($val) || count($val) > 0)) {
+                        continue;
+                    }
+                } elseif ($staffUser) {
                     $rowToCheck = $row ?? [
                         'allocated_to' => $allocatedToVal,
                         'allocated_type' => $allocType
@@ -230,7 +239,7 @@ class DashboardController extends Controller
         $users = \App\Models\User::all()->keyBy('id');
         $roles = \App\Models\Role::all()->keyBy('id');
 
-        $filterUser = $allocatedToFilter ? \App\Models\User::find($allocatedToFilter) : null;
+        $filterUser = ($allocatedToFilter && $allocatedToFilter !== 'unassigned') ? \App\Models\User::find($allocatedToFilter) : null;
 
         $extracted = [];
 
@@ -273,7 +282,16 @@ class DashboardController extends Controller
                 }
 
                 // 3. Allocated To Filter
-                if ($filterUser) {
+                if ($allocatedToFilter === 'unassigned') {
+                    $rowToCheck = $row ?? [
+                        'allocated_to' => $allocatedToVal,
+                        'allocated_type' => $allocType
+                    ];
+                    $val = $rowToCheck['allocated_to'] ?? null;
+                    if (!empty($val) && (!is_array($val) || count($val) > 0)) {
+                        continue;
+                    }
+                } elseif ($filterUser) {
                     $rowToCheck = $row ?? [
                         'allocated_to' => $allocatedToVal,
                         'allocated_type' => $allocType

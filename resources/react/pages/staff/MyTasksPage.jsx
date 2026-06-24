@@ -349,7 +349,7 @@ export default function MyTasksPage() {
 
     const openView = (item) => {
         const taskId = item.task_id || item.id;
-        navigate(`/staff/tasks/${taskId}`);
+        navigate(`/staff/tasks/${taskId}`, { state: { filterStaffName: user?.name } });
     };
 
     const handleUpdateStatus = async () => {
@@ -457,7 +457,7 @@ export default function MyTasksPage() {
     const SheetSmallCard = ({ task }) => (
         <Tooltip content={`${task.form_name || 'Unnamed Sheet'} — ${task.client?.name || 'No Client'}`}>
             <div 
-                onClick={() => navigate(`/staff/tasks/${task.id}`)}
+                onClick={() => navigate(`/staff/tasks/${task.id}`, { state: { filterStaffName: user?.name } })}
                 className="group cursor-pointer bg-white rounded-xl p-3 border border-slate-200 hover:border-[#1F5C99] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 select-none w-full"
             >
                 <div className="p-2 rounded-lg bg-[#E8F1FC] text-[#1F5C99] group-hover:scale-105 transition-transform duration-200">

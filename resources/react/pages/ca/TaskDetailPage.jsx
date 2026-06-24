@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
@@ -239,6 +239,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const { id: paramId } = useParams();
     const id = propId || paramId;
     const navigate = useNavigate();
+    const location = useLocation();
     const [task, setTask] = useState(null);
     
     // Computed write access based on backend-supplied permissions
@@ -488,6 +489,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [sortDirection, setSortDirection] = useState('default'); // 'default' | 'asc' | 'desc'
     const [dynamicFilters, setDynamicFilters] = useState({});
     const [showColumnFilters, setShowColumnFilters] = useState(false);
+    const [selectedStaffFilters, setSelectedStaffFilters] = useState([]);
+    const [showStaffFilterDropdown, setShowStaffFilterDropdown] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(() => {
@@ -517,7 +520,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedStatusFilter, selectedSubStatusFilter, debouncedSearch, sheetStatusFilter, sheetWorkTypeFilter, debouncedFilters]);
+    }, [selectedStatusFilter, selectedSubStatusFilter, debouncedSearch, sheetStatusFilter, sheetWorkTypeFilter, debouncedFilters, selectedStaffFilters]);
 
     const handleSort = (fieldId) => {
         if (sortField !== fieldId) {
@@ -551,7 +554,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 work_type_id: sheetWorkTypeFilter || undefined,
                 sort_field: sortField || undefined,
                 sort_direction: sortDirection || undefined,
-                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined
+                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined,
+                allocated_staff_ids: selectedStaffFilters.length > 0 ? selectedStaffFilters.join(',') : undefined
             };
  
             const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
@@ -790,6 +794,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         setSortField(null);
         setSortDirection('default');
         setSelectedRowIds([]);
+        setSelectedStaffFilters([]);
+        setShowStaffFilterDropdown(false);
 
         const fetchInitialAllData = async () => {
             setLoading(true);
@@ -892,7 +898,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     setAvailableRoles(rolesData);
                 }
                 
-                await fetchTaskData(false);
+                // Auto-select staff filter from dashboard redirect state if present
+                if (location.state?.filterStaffName && staffData) {
+                    const matched = staffData.find(s => s.name.toLowerCase() === location.state.filterStaffName.toLowerCase());
+                    if (matched) {
+                        setSelectedStaffFilters([matched.id]);
+                        setShowStaffFilterDropdown(true);
+                    }
+                }
                 setStaticDataLoaded(true);
             } catch (err) {
                 console.error("Failed to load initial data", err);
@@ -921,6 +934,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         sortField,
         sortDirection,
         debouncedFilters,
+        selectedStaffFilters,
         staticDataLoaded
     ]);
 
@@ -1756,7 +1770,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 work_type_id: sheetWorkTypeFilter || undefined,
                 sort_field: sortField || undefined,
                 sort_direction: sortDirection || undefined,
-                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined
+                column_filters: Object.keys(debouncedFilters).length > 0 ? JSON.stringify(debouncedFilters) : undefined,
+                allocated_staff_ids: selectedStaffFilters.length > 0 ? selectedStaffFilters.join(',') : undefined
             };
             const taskRes = await api.get(`${apiPrefix}/tasks/${id}`, { params });
             const exportRows = taskRes.data.data.dynamic_fields?.multi_rows || [];
@@ -2694,6 +2709,15 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                     <Plus size={10} className={`transition-transform duration-200 ${showSubStatusFilters ? 'rotate-45' : ''}`} />
                                 </div>
                             </button>
+                            <button
+                                onClick={() => setShowStaffFilterDropdown(!showStaffFilterDropdown)}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition duration-200 border cursor-pointer active:scale-95 shadow-sm shrink-0 ${showStaffFilterDropdown ? 'bg-[#1F5C99] border-[#1F5C99] text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                            >
+                                <span>Staff ({selectedStaffFilters.length})</span>
+                                <div className="w-4 h-4 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-[#1F5C99] rounded">
+                                    <Plus size={10} className={`transition-transform duration-200 ${showStaffFilterDropdown ? 'rotate-45' : ''}`} />
+                                </div>
+                            </button>
 
                             {(!isStaff || user?.special_permissions?.import_export_sheet || user?.special_permissions?.edit_sheet) && (
                                 <>
@@ -3090,6 +3114,54 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 {saving ? 'Saving...' : 'Save Settings'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {showStaffFilterDropdown && (
+                <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm animate-fade-in space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-5 bg-indigo-500 rounded-full"></div>
+                            <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Filter by Staff Member</span>
+                        </div>
+                        {selectedStaffFilters.length > 0 && (
+                            <button
+                                onClick={() => setSelectedStaffFilters([])}
+                                className="text-xs font-bold text-red-500 hover:text-red-700 transition"
+                            >
+                                Clear Staff Selection
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {staff.length === 0 ? (
+                            <span className="text-xs text-slate-400 italic">No staff members found.</span>
+                        ) : (
+                            staff.map(s => {
+                                const isSelected = selectedStaffFilters.includes(s.id);
+                                return (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => {
+                                            setSelectedStaffFilters(prev => 
+                                                prev.includes(s.id) 
+                                                    ? prev.filter(id => id !== s.id) 
+                                                    : [...prev, s.id]
+                                            );
+                                        }}
+                                        className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${
+                                            isSelected 
+                                                ? 'bg-[#1F5C99] text-white border-[#1F5C99] shadow-sm' 
+                                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        <span>{s.name}</span>
+                                        {isSelected && <Check size={12} />}
+                                    </button>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             )}

@@ -933,7 +933,16 @@ function CalendarView({ staffData = [] }) {
                                         <tr 
                                             key={idx} 
                                             className="hover:bg-gray-100 transition cursor-pointer" 
-                                            onClick={() => navigate(isStaff ? `/staff/tasks/${item.id}` : `/ca/tasks/${item.id}`)}
+                                            onClick={() => {
+                                                let filterStaffName = '';
+                                                if (isStaff) {
+                                                    filterStaffName = user?.name || '';
+                                                } else if (filterAllocatedTo) {
+                                                    const matchedStaff = staffData.find(s => String(s.id) === String(filterAllocatedTo));
+                                                    if (matchedStaff) filterStaffName = matchedStaff.name;
+                                                }
+                                                navigate(isStaff ? `/staff/tasks/${item.id}` : `/ca/tasks/${item.id}`, { state: { filterStaffName } });
+                                            }}
                                         >
                                             <td className="px-6 py-4 font-semibold text-gray-800">{item.clientName}</td>
                                             <td className="px-6 py-4 text-gray-700 font-medium">{item.formName}</td>
@@ -1239,6 +1248,7 @@ export default function DashboardPage() {
                                         onChange={e => { setFilterAllocatedTo(e.target.value); setPage(1) }}
                                         options={[
                                             { value: '', label: 'All Staff' },
+                                            { value: 'unassigned', label: 'Unassigned' },
                                             ...staffData.map(s => ({ value: s.id, label: s.name }))
                                         ]}
                                         widthClass="w-full sm:w-36"
@@ -1279,7 +1289,16 @@ export default function DashboardPage() {
                                         {tasks?.length === 0 ? (
                                             <tr><td colSpan={7} className="text-center py-12 text-gray-400">No tasks found</td></tr>
                                         ) : tasks?.map((t, i) => (
-                                            <tr key={t.unique_id || t.id} className="hover:bg-gray-100 transition" onClick={() => navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                                            <tr key={t.unique_id || t.id} className="hover:bg-gray-100 transition" onClick={() => {
+                                                let filterStaffName = '';
+                                                if (isStaff) {
+                                                    filterStaffName = user?.name || '';
+                                                } else if (filterAllocatedTo) {
+                                                    const matchedStaff = staffData.find(s => String(s.id) === String(filterAllocatedTo));
+                                                    if (matchedStaff) filterStaffName = matchedStaff.name;
+                                                }
+                                                navigate(isStaff ? `/staff/tasks/${t.id}` : `/ca/tasks/${t.id}`, { state: { filterStaffName } });
+                                            }} style={{ cursor: 'pointer' }}>
                                                 <td className="px-6 py-4 text-gray-400">{String((page - 1) * 15 + (i + 1)).padStart(2, '0')}</td>
                                                 <td className="px-6 py-4 font-semibold text-gray-800">{t.client?.name || '—'}</td>
                                                 <td className="px-6 py-4 text-gray-600">{t.work_type?.name || '—'}</td>
