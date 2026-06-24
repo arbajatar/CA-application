@@ -20,8 +20,8 @@ class StaffController extends Controller
     public function index(Request $request)
     {
         if ($request->boolean('simple')) {
-            $staff = User::staff()
-                ->where('is_active', true)
+            $staff = User::where('is_active', true)
+                ->whereIn('role', [\App\Enums\UserRole::Staff, \App\Enums\UserRole::CA])
                 ->orderBy('name')
                 ->get(['id', 'name']);
             return response()->json(['data' => $staff]);

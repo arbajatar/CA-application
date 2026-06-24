@@ -81,6 +81,11 @@ class DashboardController extends Controller
             return true;
         }
 
+        // 5. Creator of the sheet
+        if ($task->created_by == $user->id) {
+            return true;
+        }
+
         return false;
     }
 

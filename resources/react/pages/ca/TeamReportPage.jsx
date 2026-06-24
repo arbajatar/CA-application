@@ -1568,7 +1568,7 @@ export default function TeamReportPage() {
                         </div>
 
                         {/* Staff Cards */}
-                        {staff.map((member, idx) => {
+                        {staff.filter(s => s.is_active).map((member, idx) => {
                             const colors = [
                                 { bg: 'bg-blue-50', text: 'text-blue-500' },
                                 { bg: 'bg-orange-50', text: 'text-orange-500' },
@@ -1767,7 +1767,7 @@ export default function TeamReportPage() {
                                     ? [
                                         { value: '', label: 'All Team Members' },
                                         ...(user ? [{ value: user.id, label: `${user.name} (Admin / Me)` }] : []),
-                                        ...staff.filter(s => s.id !== user?.id).map(s => ({ value: s.id, label: s.name }))
+                                        ...staff.filter(s => s.id !== user?.id).map(s => ({ value: s.id, label: s.is_active ? s.name : `${s.name} (Inactive)` }))
                                     ]
                                     : [
                                         ...(user ? [{ value: user.id, label: `${user.name} (Me)` }] : [])
@@ -1971,7 +1971,7 @@ export default function TeamReportPage() {
                                                                 className="px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white"
                                                             >
                                                                 <option value={user?.id}>{user?.role === 'ca' ? `${user?.name} (Admin / Me)` : `${user?.name} (Me)`}</option>
-                                                                {user?.role === 'ca' && staff.filter(s => s.id !== user?.id).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                {user?.role === 'ca' && staff.filter(s => s.id !== user?.id).map(s => <option key={s.id} value={s.id}>{s.is_active ? s.name : `${s.name} (Inactive)`}</option>)}
                                                             </select>
                                                         </td>
                                                     )}
@@ -2555,7 +2555,7 @@ export default function TeamReportPage() {
                                 >
                                     <option value={user?.id}>{user?.role === 'ca' ? `${user?.name} (Admin / Me)` : `${user?.name} (Me)`}</option>
                                     {user?.role === 'ca' && staff.filter(s => s.id !== user?.id).map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                        <option key={s.id} value={s.id}>{s.is_active ? s.name : `${s.name} (Inactive)`}</option>
                                     ))}
                                 </select>
                             ) : (

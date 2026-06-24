@@ -821,9 +821,26 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
                 }
 
-                // 2. Load other static resources (using cache where available)
+                // 2. Fetch staff fresh from API to ensure newly updated/deactivated staff are always correct
                 try {
-                    staffData = JSON.parse(sessionStorage.getItem('cached_staff'));
+                    const staffRes = await api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } });
+                    staffData = staffRes.data.data || staffRes.data || [];
+                    try {
+                        sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
+                    } catch (cacheErr) {
+                        console.error("Failed to write staff to session storage", cacheErr);
+                    }
+                } catch (staffErr) {
+                    console.error("Failed to fetch staff fresh, falling back to cache", staffErr);
+                    try {
+                        staffData = JSON.parse(sessionStorage.getItem('cached_staff')) || [];
+                    } catch (_) {
+                        staffData = [];
+                    }
+                }
+
+                // 3. Load other static resources (using cache where available)
+                try {
                     workTypesData = JSON.parse(sessionStorage.getItem('cached_work_types'));
                     clientTypesData = JSON.parse(sessionStorage.getItem('cached_client_types'));
                     clientGroupsData = JSON.parse(sessionStorage.getItem('cached_client_groups'));
@@ -832,7 +849,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     console.error("Session storage parse failed", e);
                 }
 
-                if (staffData && workTypesData && clientTypesData && clientGroupsData && rolesData) {
+                if (workTypesData && clientTypesData && clientGroupsData && rolesData) {
                     setClients(clientsData);
                     setStaff(staffData);
                     setWorkTypes(workTypesData);
@@ -840,14 +857,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     setClientGroups(clientGroupsData);
                     setAvailableRoles(rolesData);
                 } else {
-                    const [staffRes, workTypesRes, typesRes, groupsRes] = await Promise.all([
-                        api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } }),
+                    const [workTypesRes, typesRes, groupsRes] = await Promise.all([
                         api.get(isStaff ? '/daily-reports/work-types' : '/ca/work-types', { params: { simple: 1 } }),
                         api.get('/ca/client-types'),
                         api.get('/ca/client-groups')
                     ]);
 
-                    staffData = staffRes.data.data || staffRes.data || [];
                     workTypesData = workTypesRes.data.data || workTypesRes.data || [];
                     clientTypesData = typesRes.data.data || [];
                     clientGroupsData = groupsRes.data.data || [];
@@ -861,7 +876,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
 
                     try {
-                        sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
                         sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
                         sessionStorage.setItem('cached_client_types', JSON.stringify(clientTypesData));
                         sessionStorage.setItem('cached_client_groups', JSON.stringify(clientGroupsData));

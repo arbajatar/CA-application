@@ -84,6 +84,11 @@ class TaskController extends Controller
             return true;
         }
 
+        // 5. Creator of the sheet
+        if ($task->created_by == $user->id) {
+            return true;
+        }
+
         return false;
     }
 
@@ -113,7 +118,7 @@ class TaskController extends Controller
             ->toArray();
 
         // 4. Fetch lightweight JSON allocation arrays for all tasks
-        $rawAccessData = Task::select(['id', 'allocated_to'])
+        $rawAccessData = Task::select(['id', 'allocated_to', 'created_by'])
             ->selectRaw("JSON_EXTRACT(dynamic_fields, '$.multi_rows[*].allocated_to') as row_allocated_tos")
             ->selectRaw("JSON_EXTRACT(dynamic_fields, '$.multi_rows[*].allocated_type') as row_allocated_types")
             ->get();
@@ -124,6 +129,12 @@ class TaskController extends Controller
 
             // Direct assignment of sheet
             if ((string)$item->allocated_to === $userIdStr) {
+                $allowedTaskIds[] = $taskId;
+                continue;
+            }
+
+            // Creator of the sheet
+            if ((string)$item->created_by === $userIdStr) {
                 $allowedTaskIds[] = $taskId;
                 continue;
             }
