@@ -975,13 +975,14 @@ export default function DashboardPage() {
 
     const fetchSummary = async () => {
         if (isStaff) {
-            const [s, st] = await Promise.all([
+            const [s, st, wt] = await Promise.all([
                 api.get('/staff/dashboard/summary'),
                 api.get('/staff/dashboard/staff-summary'),
+                api.get('/daily-reports/work-types'),
             ])
             setSummary(s.data)
             setStaffData(st.data.data)
-            setWorkTypes(s.data.work_types || [])
+            setWorkTypes(wt.data.data || [])
         } else {
             const [s, st, wt] = await Promise.all([
                 api.get('/ca/dashboard/summary'),

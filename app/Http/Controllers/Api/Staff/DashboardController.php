@@ -69,7 +69,7 @@ class DashboardController extends Controller
         // 4. Sheet level permissions
         $hasPermissions = $task->permissions()->exists();
         if (!$hasPermissions) {
-            return true;
+            return false;
         }
 
         $roleIds = $user->roles()->pluck('roles.id')->toArray();
@@ -291,11 +291,14 @@ class DashboardController extends Controller
         $users = User::all()->keyBy('id');
         $roles = \App\Models\Role::all()->keyBy('id');
 
-        $filterUser = $allocatedToFilter ? User::find($allocatedToFilter) : null;
+        $filterUser = $allocatedToFilter ? User::find($allocatedToFilter) : $request->user();
 
         $extracted = [];
 
         foreach ($tasks as $task) {
+            if ($filterUser && !self::doesUserHaveAccessToTask($task, $filterUser)) {
+                continue;
+            }
             $multiRows = isset($task->dynamic_fields['multi_rows']) && is_array($task->dynamic_fields['multi_rows'])
                 ? $task->dynamic_fields['multi_rows']
                 : [null];

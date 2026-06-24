@@ -21,7 +21,7 @@ class TaskController extends Controller
         $val = $row['allocated_to'] ?? null;
 
         if (empty($val) || (is_array($val) && count($val) === 0)) {
-            return true;
+            return false;
         }
 
         // If data is array but type is user, treat it as users
@@ -72,7 +72,7 @@ class TaskController extends Controller
         // 4. Sheet level permissions
         $hasPermissions = $task->permissions()->exists();
         if (!$hasPermissions) {
-            return true;
+            return false;
         }
 
         $roleIds = $user->roles()->pluck('roles.id')->toArray();
@@ -151,8 +151,7 @@ class TaskController extends Controller
                 $rowType = $types[$i] ?? 'user';
 
                 if (empty($rowVal) || (is_array($rowVal) && count($rowVal) === 0)) {
-                    $hasRowAccess = true;
-                    break;
+                    continue;
                 }
 
                 if (is_array($rowVal) && $rowType === 'user') {

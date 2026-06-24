@@ -278,7 +278,7 @@ class DashboardController extends Controller
                         'allocated_to' => $allocatedToVal,
                         'allocated_type' => $allocType
                     ];
-                    if (!\App\Http\Controllers\Api\Staff\TaskController::doesUserMatchRowAllocation($rowToCheck, $filterUser)) {
+                    if (!self::doesUserMatchRowAllocation($rowToCheck, $filterUser)) {
                         continue;
                     }
                 }
