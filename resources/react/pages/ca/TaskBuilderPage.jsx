@@ -790,6 +790,7 @@ export default function TaskBuilderPage() {
   const [toastState, setToastState] = useState({ show: false, message: '' });
   const [saving, setSaving] = useState(false);
   const [deletedFields, setDeletedFields] = useState([]);
+  const [multiRows, setMultiRows] = useState([]);
 
   // Predefined Billing Fields synchronization
   useEffect(() => {
@@ -1073,9 +1074,9 @@ export default function TaskBuilderPage() {
     const fieldToRemove = formSchema.find(f => f.id === id);
     if (!fieldToRemove) return;
 
+    const label = fieldToRemove.label;
     if (location.state?.isEditing && location.state?.duplicateData) {
       const data = location.state.duplicateData;
-      const label = fieldToRemove.label;
       let hasData = false;
 
       if (data.dynamic_fields) {
@@ -1088,9 +1089,9 @@ export default function TaskBuilderPage() {
           }
         }
 
-        if (!hasData && Array.isArray(data.dynamic_fields.multi_rows)) {
-          for (const row of data.dynamic_fields.multi_rows) {
-            const rowVal = row[label];
+        if (!hasData && Array.isArray(multiRows)) {
+          for (const row of multiRows) {
+            const rowVal = row.dynamic_data ? row.dynamic_data[label] : row[label];
             if (rowVal !== undefined && rowVal !== null && rowVal !== '') {
               if (Array.isArray(rowVal)) {
                 if (rowVal.length > 0) { hasData = true; break; }
@@ -1110,6 +1111,14 @@ export default function TaskBuilderPage() {
     }
 
     setFormSchema(prev => prev.filter(f => f.id !== id));
+    setMultiRows(prevRows => prevRows.map(r => {
+      const newRow = { ...r };
+      if (newRow.dynamic_data) {
+        delete newRow.dynamic_data[label];
+      }
+      delete newRow[label];
+      return newRow;
+    }));
     setDeletedFields(prev => [...prev, fieldToRemove]);
     if (activeFieldId === id) setActiveFieldId(null);
     setSelectedFields(prev => prev.filter(fid => fid !== id));
@@ -1194,6 +1203,20 @@ export default function TaskBuilderPage() {
   const updateField = (id, key, val) => {
     setFormSchema(prev => prev.map(f => {
       if (f.id === id) {
+        if (key === 'label' && f.label !== val) {
+          const oldLabel = f.label;
+          setMultiRows(prevRows => prevRows.map(r => {
+            const newRow = { ...r };
+            if (newRow.dynamic_data && oldLabel in newRow.dynamic_data) {
+              newRow.dynamic_data[val] = newRow.dynamic_data[oldLabel];
+              delete newRow.dynamic_data[oldLabel];
+            } else if (oldLabel in newRow) {
+              newRow[val] = newRow[oldLabel];
+              delete newRow[oldLabel];
+            }
+            return newRow;
+          }));
+        }
         const updated = { ...f, [key]: val };
         if (key === 'required' || key === 'value') validateField(updated);
         return updated;
@@ -1265,7 +1288,8 @@ export default function TaskBuilderPage() {
   const submitForm = async () => {
     let allValid = true;
     const validatedSchema = formSchema.map(f => {
-      const isValid = validateField(f);
+      const shouldValidate = f.section === 1;
+      const isValid = shouldValidate ? validateField(f) : true;
       if (!isValid) allValid = false;
       return { ...f };
     });
@@ -1304,6 +1328,7 @@ export default function TaskBuilderPage() {
       ...originalDynamicFields,
       is_billable: !!isBillableEnabled,
       is_after_sales: !!isAfterSalesEnabled,
+      multi_rows: multiRows,
       schema: formSchema.map(f => ({
         id: f.id,
         type: f.type,
@@ -1548,6 +1573,9 @@ export default function TaskBuilderPage() {
     if (location.state?.duplicateData && !hasInitializedRef.current) {
       hasInitializedRef.current = true;
       const data = location.state.duplicateData;
+      if (data.dynamic_fields?.multi_rows) {
+        setMultiRows(data.dynamic_fields.multi_rows);
+      }
       setFormSchema(prev => {
         // If the task has a structured schema, reconstruct from it directly
         if (data.dynamic_fields && Array.isArray(data.dynamic_fields.schema)) {

@@ -1051,7 +1051,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setIsSidebarOpen(false);
             setActiveFieldId(null);
         }
-    };    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = [], overridePage = null) => {
+    };    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = [], overridePage = null, newSchema = null) => {
         // Validate for duplicate clients within the same sheet
         if (!allowDuplicateClients) {
             // Check if this is a deletion (no new client added/modified)
@@ -1120,7 +1120,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             // Preserve special keys from current task.dynamic_fields
             const cleanDynamicFields = {};
             ['schema', 'field_names', 'field_types'].forEach(k => {
-                if (task.dynamic_fields?.[k] !== undefined) {
+                if (k === 'schema' && newSchema) {
+                    cleanDynamicFields[k] = newSchema;
+                } else if (task.dynamic_fields?.[k] !== undefined) {
                     cleanDynamicFields[k] = task.dynamic_fields[k];
                 }
             });
