@@ -185,6 +185,19 @@ class TaskController extends Controller
         $dynamicFields = $task->dynamic_fields;
         $multiRows = $dynamicFields['multi_rows'] ?? [];
 
+        usort($multiRows, function ($a, $b) {
+            $dateA = $a['date_allocated'] ?? '';
+            $dateB = $b['date_allocated'] ?? '';
+            if ($dateA === $dateB) {
+                $idA = $a['row_id'] ?? $a['id'] ?? '';
+                $idB = $b['row_id'] ?? $b['id'] ?? '';
+                return strcmp($idA, $idB);
+            }
+            if (empty($dateA)) return 1;
+            if (empty($dateB)) return -1;
+            return strcmp($dateA, $dateB);
+        });
+
         foreach ($multiRows as $idx => &$row) {
             $row['db_original_index'] = $idx;
         }
@@ -674,8 +687,21 @@ class TaskController extends Controller
                     }
                 }
 
-                $currentDynamicFields['multi_rows'] = $newMasterRows;
-                $dynamicFields = $currentDynamicFields;
+                // Sort the master rows in ascending order using their created date before saving
+                usort($newMasterRows, function ($a, $b) {
+                    $dateA = $a['date_allocated'] ?? '';
+                    $dateB = $b['date_allocated'] ?? '';
+                    if ($dateA === $dateB) {
+                        $idA = $a['row_id'] ?? $a['id'] ?? '';
+                        $idB = $b['row_id'] ?? $b['id'] ?? '';
+                        return strcmp($idA, $idB);
+                    }
+                    if (empty($dateA)) return 1;
+                    if (empty($dateB)) return -1;
+                    return strcmp($dateA, $dateB);
+                });
+
+                $dynamicFields['multi_rows'] = $newMasterRows;
             }
 
             $validated['dynamic_fields'] = $dynamicFields;
@@ -692,6 +718,25 @@ class TaskController extends Controller
         $dynamicFields = $task->dynamic_fields;
         if (is_array($dynamicFields) && isset($dynamicFields['multi_rows'])) {
             $multiRows = $dynamicFields['multi_rows'];
+
+            // Sort and assign db_original_index
+            usort($multiRows, function ($a, $b) {
+                $dateA = $a['date_allocated'] ?? '';
+                $dateB = $b['date_allocated'] ?? '';
+                if ($dateA === $dateB) {
+                    $idA = $a['row_id'] ?? $a['id'] ?? '';
+                    $idB = $b['row_id'] ?? $b['id'] ?? '';
+                    return strcmp($idA, $idB);
+                }
+                if (empty($dateA)) return 1;
+                if (empty($dateB)) return -1;
+                return strcmp($dateA, $dateB);
+            });
+
+            foreach ($multiRows as $idx => &$row) {
+                $row['db_original_index'] = $idx;
+            }
+            unset($row);
             $page = (int)$request->get('page', 1);
             $perPage = $request->get('per_page', 10);
             if ($perPage !== 'all' && $perPage !== 'All') {

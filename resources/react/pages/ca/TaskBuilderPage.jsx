@@ -1747,7 +1747,10 @@ export default function TaskBuilderPage() {
         group: { name: 'fields', pull: 'clone', put: false },
         draggable: '.field-btn',
         sort: false,
-        animation: 150
+        animation: 150,
+        scroll: true,
+        scrollSensitivity: 150,
+        scrollSpeed: 25
       });
 
       const canvasSortable1 = new Sortable(fieldsContainerRef.current, {
@@ -1756,6 +1759,9 @@ export default function TaskBuilderPage() {
         handle: '.drag-handle',
         ghostClass: 'sortable-ghost',
         chosenClass: 'sortable-chosen',
+        scroll: true,
+        scrollSensitivity: 150,
+        scrollSpeed: 25,
         onAdd: (evt) => {
           const typeId = evt.item.getAttribute('data-type');
           const newIndex = evt.newIndex;
@@ -1776,6 +1782,9 @@ export default function TaskBuilderPage() {
           handle: '.drag-handle',
           ghostClass: 'sortable-ghost',
           chosenClass: 'sortable-chosen',
+          scroll: true,
+          scrollSensitivity: 150,
+          scrollSpeed: 25,
           onAdd: (evt) => {
             const typeId = evt.item.getAttribute('data-type');
             const newIndex = evt.newIndex;
@@ -1797,6 +1806,9 @@ export default function TaskBuilderPage() {
           handle: '.drag-handle',
           ghostClass: 'sortable-ghost',
           chosenClass: 'sortable-chosen',
+          scroll: true,
+          scrollSensitivity: 150,
+          scrollSpeed: 25,
           onAdd: (evt) => {
             const typeId = evt.item.getAttribute('data-type');
             const newIndex = evt.newIndex;
@@ -1818,6 +1830,9 @@ export default function TaskBuilderPage() {
           handle: '.drag-handle',
           ghostClass: 'sortable-ghost',
           chosenClass: 'sortable-chosen',
+          scroll: true,
+          scrollSensitivity: 150,
+          scrollSpeed: 25,
           onAdd: (evt) => {
             const typeId = evt.item.getAttribute('data-type');
             const newIndex = evt.newIndex;
