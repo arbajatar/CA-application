@@ -5,6 +5,12 @@ import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './routes/ProtectedRoute'
 import RoleRoute from './routes/RoleRoute'
 import { Toaster } from 'react-hot-toast'
+import useRealtimeSync from './hooks/useRealtimeSync'
+
+function RealtimeSyncWrapper() {
+  useRealtimeSync();
+  return null;
+}
 
 import LoginPage from './pages/auth/LoginPage'
 import DashboardPage from './pages/ca/DashboardPage'
@@ -122,6 +128,7 @@ function StaffLayout({ children }) {
 export default function App() {
   return (
     <AuthProvider>
+      <RealtimeSyncWrapper />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />

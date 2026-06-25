@@ -90,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/client-groups', [ClientController::class, 'storeGroup']);
         Route::put('/client-groups/{group}', [ClientController::class, 'updateGroup']);
         Route::post('/work-types', [WorkTypeController::class, 'store']);
+        Route::get('/updates/check', [\App\Http\Controllers\Api\CA\RealtimeController::class, 'check']);
     });
 
     // ── Super Admin routes ────────────────────────────────────────

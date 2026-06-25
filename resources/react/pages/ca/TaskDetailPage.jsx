@@ -938,6 +938,43 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         staticDataLoaded
     ]);
 
+    // Real-time synchronization listeners
+    useEffect(() => {
+        const handleTasksChanged = (e) => {
+            if (staticDataLoaded) {
+                fetchTaskData(false);
+            }
+        };
+        const handleClientsChanged = async () => {
+            try {
+                const clientsRes = await api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } });
+                const clientsData = clientsRes.data.data || clientsRes.data || [];
+                setClients(clientsData);
+            } catch (err) {
+                console.error("Silent clients reload failed", err);
+            }
+        };
+        const handleStaffChanged = async () => {
+            try {
+                const staffRes = await api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } });
+                const staffData = staffRes.data.data || staffRes.data || [];
+                setStaff(staffData);
+            } catch (err) {
+                console.error("Silent staff reload failed", err);
+            }
+        };
+
+        window.addEventListener('tasks_changed', handleTasksChanged);
+        window.addEventListener('clients_changed', handleClientsChanged);
+        window.addEventListener('staff_changed', handleStaffChanged);
+
+        return () => {
+            window.removeEventListener('tasks_changed', handleTasksChanged);
+            window.removeEventListener('clients_changed', handleClientsChanged);
+            window.removeEventListener('staff_changed', handleStaffChanged);
+        };
+    }, [id, isStaff, staticDataLoaded]);
+
     const renderCurrencyCell = (row, originalIndex, field, isRowEditable) => {
         let finalVal = row.dynamic_data?.[field.label] ?? '';
         const isReadOnly = field.readOnly;

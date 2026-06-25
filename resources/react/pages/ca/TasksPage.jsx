@@ -308,8 +308,8 @@ export default function TasksPage() {
         }
     }
 
-    const fetchTasks = useCallback(async () => {
-        setLoading(true)
+    const fetchTasks = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         setSelectedSheetIds([]) // reset selection on new fetch
         try {
             const res = await api.get('/ca/tasks', {
@@ -321,9 +321,29 @@ export default function TasksPage() {
             toast.error('Failed to fetch tasks')
             setTasks([])
         } finally {
-            setLoading(false)
+            if (!silent) setLoading(false)
         }
     }, [search, status, staffId, clientId, workTypeId, page, perPage])
+
+    // Listen for real-time changes
+    useEffect(() => {
+        const handleTasksChanged = () => {
+            fetchTasks(true)
+            fetchSummary()
+            fetchDropdowns()
+        }
+        const handleClientsOrStaffChanged = () => {
+            fetchDropdowns()
+        }
+        window.addEventListener('tasks_changed', handleTasksChanged)
+        window.addEventListener('clients_changed', handleClientsOrStaffChanged)
+        window.addEventListener('staff_changed', handleClientsOrStaffChanged)
+        return () => {
+            window.removeEventListener('tasks_changed', handleTasksChanged)
+            window.removeEventListener('clients_changed', handleClientsOrStaffChanged)
+            window.removeEventListener('staff_changed', handleClientsOrStaffChanged)
+        }
+    }, [fetchTasks, fetchSummary])
 
     const fetchSummary = useCallback(async () => {
         setSummaryLoading(true)

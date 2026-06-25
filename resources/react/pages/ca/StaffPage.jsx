@@ -104,8 +104,8 @@ export default function StaffPage() {
         }
     }
 
-    const fetchStaff = useCallback(async () => {
-        setLoading(true)
+    const fetchStaff = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         try {
             const params = { search, page, per_page: 15 }
             if (filterRoleId) params.role_id = filterRoleId
@@ -114,10 +114,22 @@ export default function StaffPage() {
             const res = await api.get('/ca/staff', { params })
             setStaff(res.data.data)
             setMeta(res.data.meta)
-        } finally { setLoading(false) }
+        } finally { if (!silent) setLoading(false) }
     }, [search, page, filterRoleId, filterStatus])
 
     useEffect(() => { fetchStaff(); fetchRoles() }, [fetchStaff, fetchRoles])
+
+    // Listen for real-time staff changes
+    useEffect(() => {
+        const handleStaffChanged = () => {
+            fetchStaff(true)
+            fetchRoles()
+        }
+        window.addEventListener('staff_changed', handleStaffChanged)
+        return () => {
+            window.removeEventListener('staff_changed', handleStaffChanged)
+        }
+    }, [fetchStaff, fetchRoles])
 
     const validateForm = (isEdit = false) => {
         const tempErrors = {}

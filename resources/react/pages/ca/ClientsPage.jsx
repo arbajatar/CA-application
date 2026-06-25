@@ -94,8 +94,8 @@ export default function ClientsPage() {
         }
     }
 
-    const fetchClients = useCallback(async () => {
-        setLoading(true)
+    const fetchClients = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true)
         try {
             const res = await api.get('/ca/clients', {
                 params: {
@@ -110,7 +110,7 @@ export default function ClientsPage() {
             setClients(res.data.data)
             setMeta(res.data.meta)
         } finally {
-            setLoading(false)
+            if (!silent) setLoading(false)
         }
     }, [search, status, filterGroup, filterType, page, perPage])
 
@@ -120,6 +120,18 @@ export default function ClientsPage() {
 
     useEffect(() => {
         fetchClients()
+    }, [fetchClients])
+
+    // Listen for real-time client changes
+    useEffect(() => {
+        const handleClientsChanged = () => {
+            fetchClients(true)
+            fetchLookups()
+        }
+        window.addEventListener('clients_changed', handleClientsChanged)
+        return () => {
+            window.removeEventListener('clients_changed', handleClientsChanged)
+        }
     }, [fetchClients])
 
     // Generate AIS & TIS password dynamically in real-time

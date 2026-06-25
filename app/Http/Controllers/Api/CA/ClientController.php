@@ -8,6 +8,7 @@ use App\Http\Requests\CA\StoreClientRequest;
 use App\Http\Requests\CA\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Helpers\RealtimeHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -44,6 +45,8 @@ class ClientController extends Controller
     {
         $client = Client::create($request->validated());
 
+        RealtimeHelper::trigger('clients_changed');
+
         return response()->json(['message' => 'Client created successfully.', 'data' => new ClientResource($client)], 201);
     }
 
@@ -56,6 +59,8 @@ class ClientController extends Controller
     {
         $client->update($request->validated());
 
+        RealtimeHelper::trigger('clients_changed');
+
         return response()->json(['message' => 'Client updated successfully.', 'data' => new ClientResource($client)]);
     }
 
@@ -63,6 +68,8 @@ class ClientController extends Controller
     {
         $client->update(['status' => ClientStatus::Inactive->value]);
         $client->delete();
+
+        RealtimeHelper::trigger('clients_changed');
 
         return response()->json(['message' => 'Client archived successfully.']);
     }
@@ -78,6 +85,8 @@ class ClientController extends Controller
         
         Client::whereIn('id', $ids)->update(['status' => ClientStatus::Inactive->value]);
         Client::whereIn('id', $ids)->delete();
+
+        RealtimeHelper::trigger('clients_changed');
 
         return response()->json(['message' => count($ids) . ' clients archived successfully.']);
     }
@@ -95,6 +104,7 @@ class ClientController extends Controller
         ]);
 
         $type = \App\Models\ClientType::create($validated);
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Type created successfully.', 'data' => $type], 201);
     }
 
@@ -110,6 +120,7 @@ class ClientController extends Controller
         ]);
 
         $group = \App\Models\ClientGroup::create($validated);
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Group created successfully.', 'data' => $group], 201);
     }
 
@@ -122,6 +133,7 @@ class ClientController extends Controller
         ]);
 
         $type->update($validated);
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Type updated successfully.', 'data' => $type]);
     }
 
@@ -129,6 +141,7 @@ class ClientController extends Controller
     {
         $type = \App\Models\ClientType::findOrFail($id);
         $type->delete();
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Type deleted successfully.']);
     }
 
@@ -140,6 +153,7 @@ class ClientController extends Controller
         ]);
 
         $group->update($validated);
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Group updated successfully.', 'data' => $group]);
     }
 
@@ -147,6 +161,7 @@ class ClientController extends Controller
     {
         $group = \App\Models\ClientGroup::findOrFail($id);
         $group->delete();
+        RealtimeHelper::trigger('clients_changed');
         return response()->json(['message' => 'Client Group deleted successfully.']);
     }
 
@@ -231,6 +246,8 @@ class ClientController extends Controller
             }
             $imported++;
         }
+
+        RealtimeHelper::trigger('clients_changed');
 
         return response()->json([
             'message' => "Successfully imported {$imported} clients.",

@@ -9,6 +9,7 @@ use App\Http\Requests\CA\StoreStaffRequest;
 use App\Http\Requests\CA\UpdateStaffRequest;
 use App\Http\Resources\StaffResource;
 use App\Models\User;
+use App\Helpers\RealtimeHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -64,6 +65,8 @@ class StaffController extends Controller
             'import_export_sheet',
         ]));
 
+        RealtimeHelper::trigger('staff_changed');
+
         return response()->json(['message' => 'Staff member created successfully.', 'data' => new StaffResource($staff->load(['roles', 'specialPermissions']))], 201);
     }
 
@@ -81,6 +84,8 @@ class StaffController extends Controller
             ])
         );
 
+        RealtimeHelper::trigger('staff_changed');
+
         return response()->json(['message' => 'Staff member updated successfully.', 'data' => new StaffResource($staff->load(['roles', 'specialPermissions']))]);
     }
 
@@ -89,12 +94,16 @@ class StaffController extends Controller
         $staff->update(['is_active' => false]);
         $staff->tokens()->delete();
 
+        RealtimeHelper::trigger('staff_changed');
+
         return response()->json(['message' => 'Staff member deactivated successfully.']);
     }
 
     public function activate(User $staff): JsonResponse
     {
         $staff->update(['is_active' => true]);
+
+        RealtimeHelper::trigger('staff_changed');
 
         return response()->json(['message' => 'Staff member activated successfully.']);
     }
@@ -103,6 +112,8 @@ class StaffController extends Controller
     {
         $staff->update(['password' => Hash::make($request->password)]);
         $staff->tokens()->delete();
+
+        RealtimeHelper::trigger('staff_changed');
 
         return response()->json(['message' => 'Password reset successfully.']);
     }
