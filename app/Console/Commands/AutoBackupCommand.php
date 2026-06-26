@@ -21,7 +21,7 @@ class AutoBackupCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Perform scheduled automated database backup and clean up older files based on settings';
+    protected $description = 'Perform scheduled automated database and attachment backups and clean up older files based on settings';
 
     /**
      * Execute the console command.
@@ -38,8 +38,10 @@ class AutoBackupCommand extends Command
             $isForce = $this->option('force');
             $runLocal = $isForce || $this->isScheduled($settings, 'local');
             $runS3 = $isForce || $this->isScheduled($settings, 's3');
+            $runAttLocal = $isForce || $this->isScheduled($settings, 'att_local');
+            $runAttS3 = $isForce || $this->isScheduled($settings, 'att_s3');
 
-            if (!$runLocal && !$runS3) {
+            if (!$runLocal && !$runS3 && !$runAttLocal && !$runAttS3) {
                 $this->info('No automated backups are scheduled to run at this time.');
                 return 0;
             }
@@ -48,9 +50,9 @@ class AutoBackupCommand extends Command
             @ini_set('memory_limit', '512M');
             @set_time_limit(0);
 
-            // 1. Run Local Backup Routine
+            // 1. Run Local Database Backup Routine
             if ($runLocal) {
-                $this->info('Starting scheduled local server backup...');
+                $this->info('Starting scheduled local server database backup...');
                 $filename = 'CA_Application_Backup_Auto_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.sql';
                 $tempPath = $this->generateBackup($filename);
                 $fileSize = filesize($tempPath);
@@ -67,7 +69,7 @@ class AutoBackupCommand extends Command
                     'updated_at' => now(),
                 ]);
 
-                $this->info("Local backup created successfully: {$filename} ({$formattedSize})");
+                $this->info("Local database backup created successfully: {$filename} ({$formattedSize})");
 
                 // Local Cleanup based on local retention policy
                 $keepLimit = intval($settings->keep_backups_days);
@@ -107,9 +109,71 @@ class AutoBackupCommand extends Command
                 }
             }
 
-            // 2. Run S3 Backup Routine
+            // 1b. Run Local Attachment Backup Routine
+            if ($runAttLocal) {
+                try {
+                    $this->info('Starting scheduled local attachment backup...');
+                    $attFilename = 'CA_Attachment_Backup_Auto_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.zip';
+                    $attTempPath = $this->generateAttachmentBackup($attFilename);
+                    $attFileSize = filesize($attTempPath);
+                    $attFormattedSize = $this->formatBytes($attFileSize);
+
+                    DB::table('attachment_backup_logs')->insert([
+                        'filename' => 'backups/' . $attFilename,
+                        'backup_by' => 'System (Auto)',
+                        'action' => 'backup',
+                        'file_size' => $attFormattedSize,
+                        'created_by' => null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $this->info("Local attachment backup created successfully: {$attFilename} ({$attFormattedSize})");
+
+                    // Local Attachment Cleanup based on retention policy
+                    $keepLimitAtt = intval($settings->att_keep_backups_days);
+                    if ($keepLimitAtt > 0) {
+                        $isCountBasedAtt = in_array($settings->att_frequency, ['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly']);
+                        if ($isCountBasedAtt) {
+                            $oldAttBackups = DB::table('attachment_backup_logs')
+                                ->where('action', 'backup')
+                                ->where('filename', 'like', 'backups/%')
+                                ->orderBy('created_at', 'desc')
+                                ->get()
+                                ->slice($keepLimitAtt);
+
+                            foreach ($oldAttBackups as $oldBackup) {
+                                $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                                if (file_exists($oldFilePath)) {
+                                    @unlink($oldFilePath);
+                                }
+                                $this->info("Deleted old local attachment backup file (count limit exceeded): {$oldBackup->filename}");
+                            }
+                        } else {
+                            $cutoffDateAtt = now()->subDays($keepLimitAtt);
+                            $oldAttBackups = DB::table('attachment_backup_logs')
+                                ->where('action', 'backup')
+                                ->where('filename', 'like', 'backups/%')
+                                ->where('created_at', '<', $cutoffDateAtt)
+                                ->get();
+
+                            foreach ($oldAttBackups as $oldBackup) {
+                                $oldFilePath = storage_path('app/' . $oldBackup->filename);
+                                if (file_exists($oldFilePath)) {
+                                    @unlink($oldFilePath);
+                                }
+                                $this->info("Deleted old local attachment backup file (days limit exceeded): {$oldBackup->filename}");
+                            }
+                        }
+                    }
+                } catch (\Exception $attEx) {
+                    Log::error('Auto Attachment Local Backup Failed: ' . $attEx->getMessage());
+                    $this->error('Auto attachment local backup failed: ' . $attEx->getMessage());
+                }
+            }
+
+            // 2. Run S3 Database Backup Routine
             if ($runS3) {
-                $this->info('Starting scheduled S3 Space backup...');
+                $this->info('Starting scheduled S3 Space database backup...');
                 $filename = 'CA_Application_Backup_S3_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.sql';
                 $tempPath = $this->generateBackup($filename);
                 $fileSize = filesize($tempPath);
@@ -132,7 +196,7 @@ class AutoBackupCommand extends Command
                     'updated_at' => now(),
                 ]);
 
-                $this->info("S3 backup created successfully: {$filename} ({$formattedSize})");
+                $this->info("S3 database backup created successfully: {$filename} ({$formattedSize})");
 
                 // S3 Cleanup based on S3 retention policy
                 $keepLimitS3 = intval($settings->s3_keep_backups_days);
@@ -150,7 +214,7 @@ class AutoBackupCommand extends Command
                             if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
                                 Storage::disk('s3_backup')->delete($oldBackup->filename);
                             }
-                            $this->info("Deleted old S3 backup file (count limit exceeded): {$oldBackup->filename}");
+                            $this->info("Deleted old S3 database backup file (count limit exceeded): {$oldBackup->filename}");
                         }
                     } else {
                         $cutoffDateS3 = now()->subDays($keepLimitS3);
@@ -164,9 +228,75 @@ class AutoBackupCommand extends Command
                             if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
                                 Storage::disk('s3_backup')->delete($oldBackup->filename);
                             }
-                            $this->info("Deleted old S3 backup file (days limit exceeded): {$oldBackup->filename}");
+                            $this->info("Deleted old S3 database backup file (days limit exceeded): {$oldBackup->filename}");
                         }
                     }
+                }
+            }
+
+            // 2b. Run S3 Attachment Backup Routine
+            if ($runAttS3) {
+                try {
+                    $this->info('Starting scheduled S3 Space attachment backup...');
+                    $attFilename = 'CA_Attachment_Backup_S3_' . now()->timezone('Asia/Kolkata')->format('Y-m-d_H-i-s') . '.zip';
+                    $attTempPath = $this->generateAttachmentBackup($attFilename);
+                    $attFileSize = filesize($attTempPath);
+                    $attFormattedSize = $this->formatBytes($attFileSize);
+
+                    $attS3Path = "ca_application/attachments_backup/" . $attFilename;
+                    Storage::disk('s3_backup')->put($attS3Path, file_get_contents($attTempPath), [
+                        'visibility'  => 'private', // Store securely with private visibility
+                    ]);
+                    @unlink($attTempPath);
+
+                    DB::table('attachment_backup_logs')->insert([
+                        'filename' => $attS3Path,
+                        'backup_by' => 'System (S3 Auto)',
+                        'action' => 'backup',
+                        'file_size' => $attFormattedSize,
+                        'created_by' => null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $this->info("S3 attachment backup created successfully: {$attFilename} ({$attFormattedSize})");
+
+                    // S3 Attachment Cleanup based on S3 retention policy
+                    $keepLimitAttS3 = intval($settings->att_s3_keep_backups_days);
+                    if ($keepLimitAttS3 > 0) {
+                        $isCountBasedAttS3 = in_array($settings->att_s3_frequency, ['minutely', 'hourly', 'monthly', 'quarterly', 'half_yearly', 'yearly']);
+                        if ($isCountBasedAttS3) {
+                            $oldAttBackupsS3 = DB::table('attachment_backup_logs')
+                                ->where('action', 'backup')
+                                ->where('filename', 'like', 'ca_application/attachments_backup/%')
+                                ->orderBy('created_at', 'desc')
+                                ->get()
+                                ->slice($keepLimitAttS3);
+
+                            foreach ($oldAttBackupsS3 as $oldBackup) {
+                                if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
+                                    Storage::disk('s3_backup')->delete($oldBackup->filename);
+                                }
+                                $this->info("Deleted old S3 attachment backup file (count limit exceeded): {$oldBackup->filename}");
+                            }
+                        } else {
+                            $cutoffDateAttS3 = now()->subDays($keepLimitAttS3);
+                            $oldAttBackupsS3 = DB::table('attachment_backup_logs')
+                                ->where('action', 'backup')
+                                ->where('filename', 'like', 'ca_application/attachments_backup/%')
+                                ->where('created_at', '<', $cutoffDateAttS3)
+                                ->get();
+
+                            foreach ($oldAttBackupsS3 as $oldBackup) {
+                                if (Storage::disk('s3_backup')->exists($oldBackup->filename)) {
+                                    Storage::disk('s3_backup')->delete($oldBackup->filename);
+                                }
+                                $this->info("Deleted old S3 attachment backup file (days limit exceeded): {$oldBackup->filename}");
+                            }
+                        }
+                    }
+                } catch (\Exception $attEx) {
+                    Log::error('Auto Attachment S3 Backup Failed: ' . $attEx->getMessage());
+                    $this->error('Auto attachment S3 backup failed: ' . $attEx->getMessage());
                 }
             }
 
@@ -183,16 +313,39 @@ class AutoBackupCommand extends Command
      */
     private function isScheduled(object $settings, string $prefix): bool
     {
-        $enabledField = $prefix === 's3' ? 's3_backup_enabled' : 'auto_backup_enabled';
+        $enabledField = 'auto_backup_enabled';
+        $frequencyField = 'frequency';
+        $timeField = 'time';
+        $dayOfWeekField = 'day_of_week';
+        $dayOfMonthField = 'day_of_month';
+        $monthOfYearField = 'month_of_year';
+
+        if ($prefix === 's3') {
+            $enabledField = 's3_backup_enabled';
+            $frequencyField = 's3_frequency';
+            $timeField = 's3_time';
+            $dayOfWeekField = 's3_day_of_week';
+            $dayOfMonthField = 's3_day_of_month';
+            $monthOfYearField = 's3_month_of_year';
+        } elseif ($prefix === 'att_local') {
+            $enabledField = 'att_auto_backup_enabled';
+            $frequencyField = 'att_frequency';
+            $timeField = 'att_time';
+            $dayOfWeekField = 'att_day_of_week';
+            $dayOfMonthField = 'att_day_of_month';
+            $monthOfYearField = 'att_month_of_year';
+        } elseif ($prefix === 'att_s3') {
+            $enabledField = 'att_s3_backup_enabled';
+            $frequencyField = 'att_s3_frequency';
+            $timeField = 'att_s3_time';
+            $dayOfWeekField = 'att_s3_day_of_week';
+            $dayOfMonthField = 'att_s3_day_of_month';
+            $monthOfYearField = 'att_s3_month_of_year';
+        }
+
         if (!$settings->$enabledField) {
             return false;
         }
-
-        $frequencyField = $prefix === 's3' ? 's3_frequency' : 'frequency';
-        $timeField = $prefix === 's3' ? 's3_time' : 'time';
-        $dayOfWeekField = $prefix === 's3' ? 's3_day_of_week' : 'day_of_week';
-        $dayOfMonthField = $prefix === 's3' ? 's3_day_of_month' : 'day_of_month';
-        $monthOfYearField = $prefix === 's3' ? 's3_month_of_year' : 'month_of_year';
 
         $frequency = $settings->$frequencyField;
         $timeParts = explode(':', $settings->$timeField ?: '02:00');
@@ -264,7 +417,6 @@ class AutoBackupCommand extends Command
         }
 
         $tempPath = $backupsDir . '/' . $filename;
-        $out = fopen($tempPath, 'w');
         $dbHost = config('database.connections.mysql.host');
         $dbPort = config('database.connections.mysql.port', '3306');
         $dbName = config('database.connections.mysql.database');
@@ -381,5 +533,65 @@ class AutoBackupCommand extends Command
         $pow = min($pow, count($units) - 1);
         $bytes /= pow(1024, $pow);
         return round($bytes, $precision) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Generate attachments ZIP archive and return its temporary path.
+     */
+    private function generateAttachmentBackup(string $filename): string
+    {
+        $backupsDir = storage_path('app/backups');
+        if (!file_exists($backupsDir)) {
+            mkdir($backupsDir, 0755, true);
+        }
+
+        $tempPath = $backupsDir . '/' . $filename;
+        $disk = env('FILESYSTEM_DISK', 'public');
+        $zip = new \ZipArchive();
+
+        if ($zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new \Exception("Could not create zip archive: " . $tempPath);
+        }
+
+        $hasFiles = false;
+
+        if ($disk === 's3') {
+            $files = Storage::disk('s3')->allFiles('ca_application/attachments');
+            foreach ($files as $file) {
+                try {
+                    $fileContent = Storage::disk('s3')->get($file);
+                    $relativeName = str_replace('ca_application/attachments/', '', $file);
+                    $zip->addFromString($relativeName, $fileContent);
+                    $hasFiles = true;
+                } catch (\Exception $fileEx) {
+                    Log::warning("Auto Backup failed to add S3 file {$file} to zip: " . $fileEx->getMessage());
+                }
+            }
+        } else {
+            $publicPath = storage_path('app/public');
+            if (is_dir($publicPath)) {
+                $files = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($publicPath, \RecursiveDirectoryIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::LEAVES_ONLY
+                );
+
+                foreach ($files as $name => $file) {
+                    if (!$file->isDir()) {
+                        $filePath = $file->getRealPath();
+                        $relativeName = substr($filePath, strlen($publicPath) + 1);
+                        $zip->addFile($filePath, $relativeName);
+                        $hasFiles = true;
+                    }
+                }
+            }
+        }
+
+        if (!$hasFiles) {
+            $zip->addFromString('readme.txt', 'No attachments were found in the system at the time of this automated backup.');
+        }
+
+        $zip->close();
+
+        return $tempPath;
     }
 }

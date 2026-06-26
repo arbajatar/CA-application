@@ -33,7 +33,10 @@ export default function CASidebar({ isOpen = true, setIsOpen, isMobileOpen, setI
 
     const isSuperAdmin = user?.role === 'super_admin'
     const activeNavItems = isSuperAdmin
-        ? [{ to: '/backup', icon: Database, label: 'Backup & Restore' }]
+        ? [
+            { to: '/backup', icon: Database, label: 'DB Backup & Restore' },
+            { to: '/attachment-backup', icon: Database, label: 'Attachment Backup' }
+          ]
         : navItems
 
     const handleLogout = async () => {

@@ -27,6 +27,7 @@ import TeamReportPage from './pages/ca/TeamReportPage'
 import RecycleBinPage from './pages/ca/RecycleBinPage'
 import SheetLogsPage from './pages/ca/SheetLogsPage'
 import BackupPage from './pages/ca/BackupPage'
+import AttachmentBackupPage from './pages/ca/AttachmentBackupPage'
 
 function RealtimeSyncWrapper() {
   useRealtimeSync();
@@ -208,6 +209,11 @@ export default function App() {
           <Route path="/backup" element={
             <ProtectedRoute><RoleRoute role="super_admin">
               <CALayout><BackupPage /></CALayout>
+            </RoleRoute></ProtectedRoute>
+          } />
+          <Route path="/attachment-backup" element={
+            <ProtectedRoute><RoleRoute role="super_admin">
+              <CALayout><AttachmentBackupPage /></CALayout>
             </RoleRoute></ProtectedRoute>
           } />
 

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\CA\TaskController;
 use App\Http\Controllers\Api\CA\SubTaskController as CASubTaskController;
 use App\Http\Controllers\Api\CA\WorkTypeController;
 use App\Http\Controllers\Api\CA\BackupController;
+use App\Http\Controllers\Api\CA\AttachmentBackupController;
 use Illuminate\Support\Facades\Route;
 
 // ── Public routes ──────────────────────────────────────────────────────────
@@ -103,6 +104,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/backup/download/{id}', [BackupController::class, 'downloadSaved']);
         Route::get('/backup/preview-saved/{id}', [BackupController::class, 'previewSaved']);
         Route::post('/backup/restore-saved/{id}', [BackupController::class, 'restoreSaved']);
+
+        // Attachment Backup routes
+        Route::get('/attachment-backup/logs', [AttachmentBackupController::class, 'logs']);
+        Route::get('/attachment-backup/export', [AttachmentBackupController::class, 'export']);
+        Route::get('/attachment-backup/download/{id}', [AttachmentBackupController::class, 'downloadSaved']);
+        Route::delete('/attachment-backup/{id}', [AttachmentBackupController::class, 'destroy']);
+        Route::get('/attachment-backup/settings', [AttachmentBackupController::class, 'getSettings']);
+        Route::post('/attachment-backup/settings', [AttachmentBackupController::class, 'updateSettings']);
     });
 
     // ── CA / Admin routes ────────────────────────────────────────
