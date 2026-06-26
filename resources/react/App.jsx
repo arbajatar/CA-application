@@ -7,11 +7,6 @@ import RoleRoute from './routes/RoleRoute'
 import { Toaster } from 'react-hot-toast'
 import useRealtimeSync from './hooks/useRealtimeSync'
 
-function RealtimeSyncWrapper() {
-  useRealtimeSync();
-  return null;
-}
-
 import LoginPage from './pages/auth/LoginPage'
 import DashboardPage from './pages/ca/DashboardPage'
 import TasksPage from './pages/ca/TasksPage'
@@ -32,6 +27,11 @@ import TeamReportPage from './pages/ca/TeamReportPage'
 import RecycleBinPage from './pages/ca/RecycleBinPage'
 import SheetLogsPage from './pages/ca/SheetLogsPage'
 import BackupPage from './pages/ca/BackupPage'
+
+function RealtimeSyncWrapper() {
+  useRealtimeSync();
+  return null;
+}
 
 function CALayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)

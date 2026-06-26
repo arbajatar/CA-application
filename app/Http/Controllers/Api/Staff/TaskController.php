@@ -266,7 +266,7 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
-        $task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo']);
+        $task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo', 'notes.author']);
 
         $dynamicFields = $task->dynamic_fields;
         $multiRows = $dynamicFields['multi_rows'] ?? [];

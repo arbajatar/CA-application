@@ -3,14 +3,15 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
 export default function useRealtimeSync() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const lastIdRef = useRef(null);
     const intervalRef = useRef(null);
     const isFetchingRef = useRef(false);
 
     useEffect(() => {
-        if (!token) {
-            // Clear interval if user logs out
+        const role = user?.role;
+        if (!token || !user || (role !== 'ca' && role !== 'staff')) {
+            // Clear interval if user logs out or role is not ca/staff
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
@@ -89,7 +90,7 @@ export default function useRealtimeSync() {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleVisibilityChange);
         };
-    }, [token]);
+    }, [token, user]);
 
     return null;
 }

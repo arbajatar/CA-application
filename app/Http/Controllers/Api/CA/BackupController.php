@@ -174,7 +174,7 @@ class BackupController extends Controller
             if ($disk === 's3') {
                 $s3Path = "ca_application/db_backup/" . $filename;
                 $stream = fopen($tempPath, 'r');
-                Storage::disk('s3_backup')->putStream($s3Path, $stream, [
+                Storage::disk('s3_backup')->writeStream($s3Path, $stream, [
                     'visibility'  => 'public',
                 ]);
                 if (is_resource($stream)) {

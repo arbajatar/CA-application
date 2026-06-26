@@ -48,6 +48,15 @@ class TaskResource extends JsonResource
             'allow_duplicate_clients' => (bool)$this->allow_duplicate_clients,
             'sub_tasks' => SubTaskResource::collection($this->whenLoaded('subTasks')),
             'logs' => TaskLogResource::collection($this->whenLoaded('logs')),
+            'notes' => $this->relationLoaded('notes') ? $this->notes->map(function ($note) {
+                return [
+                    'id' => $note->id,
+                    'text' => $note->text,
+                    'user_id' => $note->user_id,
+                    'author_name' => $note->author?->name,
+                    'timestamp' => $note->created_at->format('d/m/Y h:i A'),
+                ];
+            }) : [],
             'created_at' => $this->created_at->toDateTimeString(),
             'updated_at' => $this->updated_at->toDateTimeString(),
             'permissions' => $this->permissions ? $this->permissions->map(function ($perm) {

@@ -49,5 +49,8 @@ class AppServiceProvider extends ServiceProvider
 
         \App\Models\WorkType::saved(fn() => \App\Helpers\RealtimeHelper::trigger('tasks_changed'));
         \App\Models\WorkType::deleted(fn() => \App\Helpers\RealtimeHelper::trigger('tasks_changed'));
+
+        \App\Models\TaskNote::saved(fn() => \App\Helpers\RealtimeHelper::trigger('tasks_changed'));
+        \App\Models\TaskNote::deleted(fn() => \App\Helpers\RealtimeHelper::trigger('tasks_changed'));
     }
 }

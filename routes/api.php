@@ -210,6 +210,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'update']);
         Route::patch('/tasks/{task}/status', [App\Http\Controllers\Api\Staff\TaskController::class, 'updateStatus']);
         Route::delete('/tasks/{task}', [App\Http\Controllers\Api\Staff\TaskController::class, 'destroy']);
+
+        // Task Notes
+        Route::post('/tasks/{task}/notes', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'store']);
+        Route::patch('/task-notes/{taskNote}', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'update']);
+        Route::delete('/task-notes/{taskNote}', [\App\Http\Controllers\Api\CA\TaskNoteController::class, 'destroy']);
         Route::get('/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'index']);
         Route::post('/tasks/{task}/sub-tasks', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'store']);
         Route::patch('/tasks/{task}/sub-tasks/{sub_task}', [App\Http\Controllers\Api\Staff\SubTaskController::class, 'update']);

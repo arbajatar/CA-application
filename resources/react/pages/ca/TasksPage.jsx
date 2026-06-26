@@ -43,7 +43,10 @@ export default function TasksPage() {
     const [status, setStatus] = useState('')
     const [staffId, setStaffId] = useState(() => new URLSearchParams(location.search).get('staff_id') || '')
     const [clientId, setClientId] = useState('')
-    const [workTypeId, setWorkTypeId] = useState(() => new URLSearchParams(location.search).get('work_type_id') || '')
+    const [workTypeId, setWorkTypeId] = useState(() => {
+        const wId = new URLSearchParams(location.search).get('work_type_id');
+        return wId === 'all' ? '' : (wId || '');
+    })
     const [page, setPage] = useState(1)
     const [perPage, setPerPage] = useState(50)
     const [selectedSheetIds, setSelectedSheetIds] = useState([])
@@ -309,6 +312,12 @@ export default function TasksPage() {
     }
 
     const fetchTasks = useCallback(async (silent = false) => {
+        if (!currentFolder) {
+            setTasks([])
+            setMeta(null)
+            setLoading(false)
+            return
+        }
         if (!silent) setLoading(true)
         setSelectedSheetIds([]) // reset selection on new fetch
         try {
@@ -323,7 +332,21 @@ export default function TasksPage() {
         } finally {
             if (!silent) setLoading(false)
         }
-    }, [search, status, staffId, clientId, workTypeId, page, perPage])
+    }, [currentFolder, search, status, staffId, clientId, workTypeId, page, perPage])
+
+    const fetchSummary = useCallback(async () => {
+        setSummaryLoading(true)
+        try {
+            const res = await api.get('/ca/dashboard/summary', {
+                params: { work_type_id: workTypeId, allocated_to: staffId }
+            })
+            setSummary(res.data)
+        } catch (e) {
+            console.error('Failed to fetch summary counts')
+        } finally {
+            setSummaryLoading(false)
+        }
+    }, [workTypeId, staffId])
 
     // Listen for real-time changes
     useEffect(() => {
@@ -345,20 +368,6 @@ export default function TasksPage() {
         }
     }, [fetchTasks, fetchSummary])
 
-    const fetchSummary = useCallback(async () => {
-        setSummaryLoading(true)
-        try {
-            const res = await api.get('/ca/dashboard/summary', {
-                params: { work_type_id: workTypeId, allocated_to: staffId }
-            })
-            setSummary(res.data)
-        } catch (e) {
-            console.error('Failed to fetch summary counts')
-        } finally {
-            setSummaryLoading(false)
-        }
-    }, [workTypeId, staffId])
-
     useEffect(() => {
         if (currentFolder) {
             fetchSummary()
@@ -373,7 +382,7 @@ export default function TasksPage() {
         setStaffId(sId || '')
         
         // Sync states if URL changes (e.g. clicking different quick links)
-        setWorkTypeId(wId || '')
+        setWorkTypeId(wId === 'all' ? '' : (wId || ''))
         setCurrentFolder(wId || (sId ? 'all' : null))
         setDynamicFilters({})
         
@@ -1160,9 +1169,8 @@ export default function TasksPage() {
                                 iconBg="bg-slate-50"
                                 iconColor="text-slate-500"
                                 onClick={() => {
-                                    setWorkTypeId('');
                                     setPage(1);
-                                    setCurrentFolder('all');
+                                    navigate('/ca/tasks?work_type_id=all');
                                 }}
                             />
                             {workTypes.map((wt, i) => {
@@ -1185,9 +1193,8 @@ export default function TasksPage() {
                                         iconBg={color.bg}
                                         iconColor={color.text}
                                         onClick={() => {
-                                            setWorkTypeId(wt.id);
                                             setPage(1);
-                                            setCurrentFolder(wt.id);
+                                            navigate(`/ca/tasks?work_type_id=${wt.id}`);
                                         }}
                                     />
                                 );
@@ -1303,9 +1310,8 @@ export default function TasksPage() {
                             <div className="flex flex-col lg:flex-row lg:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100">
                                 <button
                                     onClick={() => {
-                                        setCurrentFolder(null);
-                                        setWorkTypeId('');
                                         setPage(1);
+                                        navigate('/ca/tasks');
                                     }}
                                     className="flex items-center gap-1.5 px-3 py-2 text-gray-500 hover:text-[#1F5C99] font-bold text-sm transition group"
                                 >

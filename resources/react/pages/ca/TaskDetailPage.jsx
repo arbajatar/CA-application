@@ -263,17 +263,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [isImportPreviewOpen, setIsImportPreviewOpen] = useState(false);
     const [previewRows, setPreviewRows] = useState([]);
     const [notesList, setNotesList] = useState([]);
-    const notesKey = `task_notes_sheet_${id}`;
-
-    useEffect(() => {
-        const saved = localStorage.getItem(notesKey);
-        try {
-            const parsed = saved ? JSON.parse(saved) : [];
-            setNotesList(parsed.length > 0 ? parsed : [{ id: 'init', text: '', timestamp: new Date().toLocaleString() }]);
-        } catch {
-            setNotesList([{ id: 'init', text: '', timestamp: new Date().toLocaleString() }]);
-        }
-    }, [notesKey]);
 
     const handleCopy = (text) => {
         if (!text) {
@@ -564,6 +553,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             }
             const data = taskRes.data.data;
             setTask(data);
+            setNotesList(data.notes || []);
             setTotalRows(taskRes.data.meta?.total || 0);
             setStatusCounts(taskRes.data.meta?.status_counts || null);
             setSubStatusCounts(taskRes.data.meta?.sub_status_counts || null);
@@ -973,7 +963,22 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             window.removeEventListener('clients_changed', handleClientsChanged);
             window.removeEventListener('staff_changed', handleStaffChanged);
         };
-    }, [id, isStaff, staticDataLoaded]);
+    }, [
+        id,
+        isStaff,
+        staticDataLoaded,
+        currentPage,
+        rowsPerPage,
+        debouncedSearch,
+        sheetStatusFilter,
+        sheetWorkTypeFilter,
+        selectedStatusFilter,
+        selectedSubStatusFilter,
+        sortField,
+        sortDirection,
+        debouncedFilters,
+        selectedStaffFilters
+    ]);
 
     const renderCurrencyCell = (row, originalIndex, field, isRowEditable) => {
         let finalVal = row.dynamic_data?.[field.label] ?? '';
@@ -1450,38 +1455,75 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         }
     };
 
-    const handleSaveNotesList = (newList) => {
-        setNotesList(newList);
-        localStorage.setItem(notesKey, JSON.stringify(newList));
+    const handleUpdateNoteText = async (noteId, text) => {
+        try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const res = await api.patch(`${apiPrefix}/task-notes/${noteId}`, { text });
+            const updatedNote = res.data;
+            setTask(prev => ({
+                ...prev,
+                notes: (prev.notes || []).map(n => n.id === noteId ? updatedNote : n)
+            }));
+            setNotesList(prev => prev.map(n => n.id === noteId ? {
+                id: updatedNote.id,
+                text: updatedNote.text,
+                user_id: updatedNote.user_id,
+                author_name: updatedNote.author?.name,
+                timestamp: new Date(updatedNote.created_at).toLocaleDateString() + ' ' + new Date(updatedNote.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            } : n));
+        } catch (e) {
+            toast.error('Failed to update note');
+        }
     };
 
-    const handleUpdateNoteText = (noteId, text) => {
-        const updated = notesList.map(n => n.id === noteId ? { ...n, text } : n);
-        handleSaveNotesList(updated);
-    };
-
-    const handleAddNoteAfter = (noteId) => {
-        const idx = notesList.findIndex(n => n.id === noteId);
-        const newNote = {
-            id: `note-${Date.now()}`,
-            text: '',
-            timestamp: new Date().toLocaleString()
-        };
-        const updated = [...notesList];
-        if (noteId === 'init' || notesList.length === 0) {
-            handleSaveNotesList([newNote]);
-        } else {
-            updated.splice(idx + 1, 0, newNote);
-            handleSaveNotesList(updated);
+    const handleAddNoteAfter = async () => {
+        try {
+            const apiPrefix = isStaff ? '/staff' : '/ca';
+            const res = await api.post(`${apiPrefix}/tasks/${id}/notes`, { text: 'New Note' });
+            const newNote = res.data;
+            const formattedNote = {
+                id: newNote.id,
+                text: newNote.text,
+                user_id: newNote.user_id,
+                author_name: newNote.author?.name,
+                timestamp: new Date(newNote.created_at).toLocaleDateString() + ' ' + new Date(newNote.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            };
+            setTask(prev => ({
+                ...prev,
+                notes: [...(prev.notes || []), newNote]
+            }));
+            setNotesList(prev => [...prev, formattedNote]);
+            toast.success('Note added');
+        } catch (e) {
+            toast.error('Failed to add note');
         }
     };
 
     const handleDeleteNote = (noteId) => {
-        let updated = notesList.filter(n => n.id !== noteId);
-        if (updated.length === 0) {
-            updated = [{ id: `note-${Date.now()}`, text: '', timestamp: new Date().toLocaleString() }];
-        }
-        handleSaveNotesList(updated);
+        setConfirmState({
+            open: true,
+            title: 'Delete Note',
+            message: 'Are you sure you want to delete this note? This action cannot be undone.',
+            confirmLabel: 'Delete Note',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    const apiPrefix = isStaff ? '/staff' : '/ca';
+                    await api.delete(`${apiPrefix}/task-notes/${noteId}`);
+                    setTask(prev => ({
+                        ...prev,
+                        notes: (prev.notes || []).filter(n => n.id !== noteId)
+                    }));
+                    setNotesList(prev => prev.filter(n => n.id !== noteId));
+                    toast.success('Deleted successfully');
+                } catch (e) {
+                    toast.error('Failed to delete note');
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
     };
 
     const handleAddSubTask = async () => {
@@ -4991,61 +5033,60 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                 <p className="text-[10px] text-slate-400 font-bold tracking-wide mt-0.5">Collaborative notes for this task sheet</p>
                             </div>
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleAddNoteAfter}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1F5C99] hover:bg-[#154673] text-white rounded-xl text-xs font-bold transition active:scale-95 duration-150 shadow-sm cursor-pointer"
+                        >
+                            <Plus size={14} />
+                            <span>Add Note</span>
+                        </button>
                     </div>
                     
                     <div className="p-6">
                         <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto pr-1">
-                            {notesList.map((note, idx) => (
-                                <div key={note.id} className="flex flex-col md:flex-row md:items-start gap-4 py-4 first:pt-0 last:pb-0">
-                                    {/* Date/Time badge */}
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-gray-50 px-2.5 py-1.5 rounded-xl select-none w-fit">
-                                        <Calendar size={13} className="text-[#1F5C99]" />
-                                        <span>{note.timestamp}</span>
-                                    </div>
+                            {notesList.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400 text-xs italic font-bold">
+                                    No notes added yet. Click "+ Add Note" to collaborate.
+                                </div>
+                            ) : (
+                                notesList.map((note, idx) => (
+                                    <div key={note.id} className="flex flex-col md:flex-row md:items-start gap-4 py-4 first:pt-0 last:pb-0">
+                                        {/* Date/Time/Author badge */}
+                                        <div className="flex flex-col gap-1 shrink-0 select-none w-[160px]">
+                                            <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-500 bg-gray-50 px-2.5 py-1.5 rounded-xl border border-slate-150 w-full">
+                                                <Calendar size={12} className="text-[#1F5C99]" />
+                                                <span>{note.timestamp}</span>
+                                            </div>
+                                            {note.author_name && (
+                                                <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-xl w-full truncate" title={note.author_name}>
+                                                    By: {note.author_name}
+                                                </span>
+                                            )}
+                                        </div>
 
-                                    {/* Auto-growing Textarea to wrap text naturally */}
-                                    <textarea
-                                        value={note.text}
-                                        onChange={e => {
-                                            handleUpdateNoteText(note.id, e.target.value);
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = e.target.scrollHeight + 'px';
-                                        }}
-                                        placeholder="Write your observation/note here... (Saved automatically)"
-                                        rows={1}
-                                        className="flex-1 bg-gray-50 border border-slate-200 focus:border-[#1F5C99] outline-none focus:ring-2 focus:ring-[#1F5C99]/15 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-slate-450 font-semibold resize-none h-auto min-h-[38px] transition"
-                                        style={{ height: 'auto' }}
-                                        ref={el => {
-                                            if (el) {
-                                                el.style.height = 'auto';
-                                                el.style.height = el.scrollHeight + 'px';
-                                            }
-                                        }}
-                                    />
-                                    
-                                    {/* Always visible action buttons */}
-                                    <div className="flex items-center gap-2 select-none self-end md:self-start">
-                                        {idx === notesList.length - 1 && (
+                                        {/* Auto-growing Buffered Textarea to save on blur */}
+                                        <BufferedTextarea
+                                            value={note.text}
+                                            onChange={val => handleUpdateNoteText(note.id, val)}
+                                            placeholder="Write your observation/note here... (Saved on blur)"
+                                            className="flex-1 bg-gray-50 border border-slate-200 focus:border-[#1F5C99] outline-none focus:ring-2 focus:ring-[#1F5C99]/15 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-slate-450 font-semibold resize-none h-auto min-h-[38px] transition"
+                                        />
+                                        
+                                        {/* Delete button */}
+                                        <div className="flex items-center gap-2 select-none self-end md:self-start">
                                             <button
                                                 type="button"
-                                                onClick={() => handleAddNoteAfter(note.id)}
-                                                className="p-2 text-white bg-[#1F5C99] hover:bg-[#154673] rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center"
-                                                title="Add Note Row"
+                                                onClick={() => handleDeleteNote(note.id)}
+                                                className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
+                                                title="Delete Note"
                                             >
-                                                <Plus size={14} />
+                                                <Trash2 size={14} />
                                             </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteNote(note.id)}
-                                            className="p-2 text-rose-600 bg-rose-50 border border-rose-100/40 hover:bg-rose-100 rounded-xl transition cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 shadow-sm"
-                                            title="Delete Note"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
