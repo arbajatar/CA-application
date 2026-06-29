@@ -2,6 +2,11 @@ import { useEffect, useRef } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
+// Initialize a unique client token once per tab session
+if (typeof window !== 'undefined' && !window.myClientToken) {
+    window.myClientToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
 export default function useRealtimeSync() {
     const { token, user } = useAuth();
     const lastIdRef = useRef(null);
@@ -40,7 +45,14 @@ export default function useRealtimeSync() {
 
                 if (events && events.length > 0) {
                     events.forEach(evt => {
-                        const eventName = evt.event;
+                        const parts = evt.event.split(':');
+                        const eventName = parts[0];
+                        const eventToken = parts[1];
+
+                        // Skip event if it was triggered by this specific browser tab session
+                        if (eventToken && eventToken === window.myClientToken) {
+                            return;
+                        }
 
                         // 1. Invalidate corresponding sessionStorage caches
                         if (eventName === 'clients_changed') {

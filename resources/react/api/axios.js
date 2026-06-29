@@ -14,6 +14,9 @@ api.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`
     }
+    if (window.myClientToken) {
+        config.headers['X-Client-Token'] = window.myClientToken
+    }
     return config
 })
 

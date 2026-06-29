@@ -148,12 +148,39 @@ export default function MyTasksPage() {
 
     const fetchMetadataForCreation = async () => {
         try {
+            let clientsData = [];
+            let workTypesData = [];
+
+            const cachedClients = sessionStorage.getItem('cached_clients');
+            const cachedWorkTypes = sessionStorage.getItem('cached_work_types');
+
+            if (cachedClients && cachedWorkTypes) {
+                setClients(JSON.parse(cachedClients));
+                setWorkTypes(JSON.parse(cachedWorkTypes));
+                return;
+            }
+
             const [cRes, wRes] = await Promise.all([
-                api.get('/daily-reports/clients'),
-                api.get('/daily-reports/work-types')
-            ])
-            setClients(cRes.data.data || cRes.data || [])
-            setWorkTypes(wRes.data.data || wRes.data || [])
+                cachedClients ? null : api.get('/daily-reports/clients'),
+                cachedWorkTypes ? null : api.get('/daily-reports/work-types')
+            ]);
+
+            if (cachedClients) {
+                clientsData = JSON.parse(cachedClients);
+            } else {
+                clientsData = cRes.data.data || cRes.data || [];
+                sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+            }
+
+            if (cachedWorkTypes) {
+                workTypesData = JSON.parse(cachedWorkTypes);
+            } else {
+                workTypesData = wRes.data.data || wRes.data || [];
+                sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+            }
+
+            setClients(clientsData);
+            setWorkTypes(workTypesData);
         } catch (e) {
             console.error("Failed to fetch clients/worktypes for creation", e)
         }
@@ -543,13 +570,6 @@ export default function MyTasksPage() {
                                 />
                             </div>
                         </div>
-                        <CustomSelect
-                            value={statusFilter}
-                            onChange={e => setStatusFilter(e.target.value)}
-                            options={statusFilters}
-                            widthClass="w-full sm:w-auto min-w-[125px]"
-                            className="flex-1 sm:flex-none"
-                        />
                     </div>
 
                         {/* Table */}

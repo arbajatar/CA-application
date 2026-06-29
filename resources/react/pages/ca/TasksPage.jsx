@@ -298,14 +298,51 @@ export default function TasksPage() {
 
     const fetchDropdowns = async () => {
         try {
+            let clientsData = [];
+            let staffData = [];
+            let workTypesData = [];
+
+            const cachedClients = sessionStorage.getItem('cached_clients');
+            const cachedStaff = sessionStorage.getItem('cached_staff');
+            const cachedWorkTypes = sessionStorage.getItem('cached_work_types');
+
+            if (cachedClients && cachedStaff && cachedWorkTypes) {
+                setClients(JSON.parse(cachedClients));
+                setStaff(JSON.parse(cachedStaff));
+                setWorkTypes(JSON.parse(cachedWorkTypes));
+                return;
+            }
+
             const [c, w, s] = await Promise.all([
-                api.get('/ca/clients', { params: { per_page: 100 } }),
-                api.get('/ca/work-types'),
-                api.get('/ca/staff', { params: { per_page: 100 } }),
-            ])
-            setClients(c.data.data)
-            setWorkTypes(w.data.data)
-            setStaff(s.data.data)
+                cachedClients ? null : api.get('/ca/clients', { params: { per_page: -1 } }),
+                cachedWorkTypes ? null : api.get('/ca/work-types'),
+                cachedStaff ? null : api.get('/ca/staff', { params: { per_page: -1 } }),
+            ]);
+
+            if (cachedClients) {
+                clientsData = JSON.parse(cachedClients);
+            } else {
+                clientsData = c.data.data || [];
+                sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+            }
+
+            if (cachedStaff) {
+                staffData = JSON.parse(cachedStaff);
+            } else {
+                staffData = s.data.data || [];
+                sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
+            }
+
+            if (cachedWorkTypes) {
+                workTypesData = JSON.parse(cachedWorkTypes);
+            } else {
+                workTypesData = w.data.data || [];
+                sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+            }
+
+            setClients(clientsData);
+            setWorkTypes(workTypesData);
+            setStaff(staffData);
         } catch (e) {
             toast.error('Failed to load dropdown data')
         }
@@ -1326,12 +1363,6 @@ export default function TasksPage() {
                                         className="pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1F5C99]/20 focus:border-[#1F5C99] w-full transition" />
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 pb-1 lg:pb-0 w-full lg:w-auto">
-                                    <CustomSelect
-                                        value={status}
-                                        onChange={e => { setStatus(e.target.value); setPage(1) }}
-                                        options={statuses}
-                                        widthClass="min-w-[125px] shrink-0"
-                                    />
                                     {currentFolder === 'all' && (
                                         <CustomSelect
                                             value={workTypeId}

@@ -798,39 +798,32 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 let clientTypesData = null;
                 let clientGroupsData = null;
                 let rolesData = null;
-
-                // 1. Fetch clients fresh from API to ensure newly added clients from the registry are always searchable
-                try {
-                    const clientsRes = await api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } });
-                    clientsData = clientsRes.data.data || clientsRes.data || [];
+                // 1. Load clients from cache if available
+                const cachedClients = sessionStorage.getItem('cached_clients');
+                if (cachedClients) {
+                    clientsData = JSON.parse(cachedClients);
+                } else {
                     try {
+                        const clientsRes = await api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } });
+                        clientsData = clientsRes.data.data || clientsRes.data || [];
                         sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
-                    } catch (cacheErr) {
-                        console.error("Failed to write clients to session storage", cacheErr);
-                    }
-                } catch (clientsErr) {
-                    console.error("Failed to fetch clients fresh, falling back to cache", clientsErr);
-                    try {
-                        clientsData = JSON.parse(sessionStorage.getItem('cached_clients')) || [];
-                    } catch (_) {
+                    } catch (clientsErr) {
+                        console.error("Failed to fetch clients fresh", clientsErr);
                         clientsData = [];
                     }
                 }
 
-                // 2. Fetch staff fresh from API to ensure newly updated/deactivated staff are always correct
-                try {
-                    const staffRes = await api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } });
-                    staffData = staffRes.data.data || staffRes.data || [];
+                // 2. Load staff from cache if available
+                const cachedStaff = sessionStorage.getItem('cached_staff');
+                if (cachedStaff) {
+                    staffData = JSON.parse(cachedStaff);
+                } else {
                     try {
+                        const staffRes = await api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } });
+                        staffData = staffRes.data.data || staffRes.data || [];
                         sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
-                    } catch (cacheErr) {
-                        console.error("Failed to write staff to session storage", cacheErr);
-                    }
-                } catch (staffErr) {
-                    console.error("Failed to fetch staff fresh, falling back to cache", staffErr);
-                    try {
-                        staffData = JSON.parse(sessionStorage.getItem('cached_staff')) || [];
-                    } catch (_) {
+                    } catch (staffErr) {
+                        console.error("Failed to fetch staff fresh", staffErr);
                         staffData = [];
                     }
                 }
@@ -3402,18 +3395,6 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                         {/* Dropdowns & Buttons */}
                         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto shrink-0">
-                            <select
-                                value={sheetStatusFilter}
-                                onChange={e => setSheetStatusFilter(e.target.value)}
-                                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-755 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-655 focus:outline-none w-full sm:w-[130px] h-[36px] shadow-sm cursor-pointer"
-                            >
-                                <option value="">All Status</option>
-                                <option value="complete">Complete</option>
-                                <option value="work_in_progress">Work In Progress</option>
-                                <option value="pending">Pending</option>
-                                <option value="not_to_be_done">Not To Be Done</option>
-                                <option value="other">Other</option>
-                            </select>
                             <select
                                 value={sheetWorkTypeFilter}
                                 onChange={e => setSheetWorkTypeFilter(e.target.value)}
