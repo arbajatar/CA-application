@@ -51,8 +51,13 @@ class BackupController extends Controller
     public function export(Request $request)
     {
         try {
-            $filename = 'CA_Application_Backup_' . date('Y-m-d') . '.sql';
-            $tempPath = storage_path('app/' . $filename);
+            $filename = 'CA_Application_Backup_' . date('Y-m-d_H-i-s') . '.sql';
+            
+            $backupsDir = storage_path('app/backups');
+            if (!file_exists($backupsDir)) {
+                mkdir($backupsDir, 0755, true);
+            }
+            $tempPath = $backupsDir . '/' . $filename;
 
             // Set memory limit and execution time to prevent timeouts for large databases
             @ini_set('memory_limit', '512M');
@@ -131,8 +136,6 @@ class BackupController extends Controller
                     // Insert statements using bulk insertion
                     $rowsResult = $pdo->query("SELECT * FROM `" . $table . "`");
                     $hasRows = false;
-                    $batchValues = [];
-                    $batchSize = 250; // Write up to 250 rows in a single INSERT statement
                     $columnsStr = '';
 
                     while ($row = $rowsResult->fetch(\PDO::FETCH_NUM)) {
@@ -180,9 +183,10 @@ class BackupController extends Controller
                 if (is_resource($stream)) {
                     fclose($stream);
                 }
+                @unlink($tempPath);
                 $filenameForLog = $s3Path;
             } else {
-                $filenameForLog = $filename;
+                $filenameForLog = 'backups/' . $filename;
             }
 
             // Insert backup log entry
@@ -196,7 +200,7 @@ class BackupController extends Controller
                 'updated_at' => now(),
             ]);
 
-            return response()->download($tempPath, $filename)->deleteFileAfterSend(true);
+            return response()->download($tempPath, $filename);
         } catch (\Exception $e) {
             if (isset($tempPath) && file_exists($tempPath)) {
                 @unlink($tempPath);
