@@ -151,8 +151,8 @@ export default function MyTasksPage() {
             let clientsData = [];
             let workTypesData = [];
 
-            const cachedClients = sessionStorage.getItem('cached_clients');
-            const cachedWorkTypes = sessionStorage.getItem('cached_work_types');
+            const cachedClients = sessionStorage.getItem('cached_clients_v2');
+            const cachedWorkTypes = sessionStorage.getItem('cached_work_types_v2');
 
             if (cachedClients && cachedWorkTypes) {
                 setClients(JSON.parse(cachedClients));
@@ -161,7 +161,7 @@ export default function MyTasksPage() {
             }
 
             const [cRes, wRes] = await Promise.all([
-                cachedClients ? null : api.get('/daily-reports/clients'),
+                cachedClients ? null : api.get('/daily-reports/clients?per_page=-1'),
                 cachedWorkTypes ? null : api.get('/daily-reports/work-types')
             ]);
 
@@ -169,14 +169,14 @@ export default function MyTasksPage() {
                 clientsData = JSON.parse(cachedClients);
             } else {
                 clientsData = cRes.data.data || cRes.data || [];
-                sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+                sessionStorage.setItem('cached_clients_v2', JSON.stringify(clientsData));
             }
 
             if (cachedWorkTypes) {
                 workTypesData = JSON.parse(cachedWorkTypes);
             } else {
                 workTypesData = wRes.data.data || wRes.data || [];
-                sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+                sessionStorage.setItem('cached_work_types_v2', JSON.stringify(workTypesData));
             }
 
             setClients(clientsData);

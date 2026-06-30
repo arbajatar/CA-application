@@ -289,6 +289,65 @@ class TaskController extends Controller
         }
         unset($row);
 
+        // 0. Enforce staff row-level restriction if they don't have sheet-level read permission
+        $user = $request->user();
+        $roleIds = $user->roles()->pluck('roles.id')->toArray();
+        $canReadSheet = $task->permissions()
+            ->whereIn('role_id', $roleIds)
+            ->where('can_read', true)
+            ->exists();
+
+        // If no permissions exist on the task, default is true
+        $hasPermissions = $task->permissions()->exists();
+        if (!$hasPermissions) {
+            $canReadSheet = true;
+        }
+
+        // Creator of the task can read all rows
+        if ($task->created_by === $user->id) {
+            $canReadSheet = true;
+        }
+
+        // Direct sheet assignee can read all rows
+        if ($task->allocated_to === $user->id) {
+            $canReadSheet = true;
+        }
+
+        // Subtask assignee can read all rows
+        if (!$canReadSheet) {
+            $hasSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
+            if ($hasSubtask) {
+                $canReadSheet = true;
+            }
+        }
+
+        if (!$canReadSheet) {
+            $multiRows = array_filter($multiRows, function($row) use ($user) {
+                $allocType = $row['allocated_type'] ?? 'user';
+                $allocTo = $row['allocated_to'] ?? null;
+
+                if (empty($allocTo)) {
+                    return false;
+                }
+
+                if ($allocType === 'user' || $allocType === 'users') {
+                    if (is_array($allocTo)) {
+                        return in_array((string)$user->id, array_map('strval', $allocTo));
+                    }
+                    return (string)$allocTo === (string)$user->id;
+                }
+                if ($allocType === 'role') {
+                    $roleIds = $user->roles()->pluck('roles.id')->toArray();
+                    $roleIdsStr = array_map('strval', $roleIds);
+                    if (is_array($allocTo)) {
+                        return count(array_intersect(array_map('strval', $allocTo), $roleIdsStr)) > 0;
+                    }
+                    return in_array((string)$allocTo, $roleIdsStr);
+                }
+                return false;
+            });
+        }
+
         // 1. Filtering by allocated_staff_ids before calculating status/sub-status counts
         if ($request->filled('allocated_staff_ids')) {
             $staffIds = is_array($request->allocated_staff_ids) 

@@ -302,9 +302,9 @@ export default function TasksPage() {
             let staffData = [];
             let workTypesData = [];
 
-            const cachedClients = sessionStorage.getItem('cached_clients');
-            const cachedStaff = sessionStorage.getItem('cached_staff');
-            const cachedWorkTypes = sessionStorage.getItem('cached_work_types');
+            const cachedClients = sessionStorage.getItem('cached_clients_v2');
+            const cachedStaff = sessionStorage.getItem('cached_staff_v2');
+            const cachedWorkTypes = sessionStorage.getItem('cached_work_types_v2');
 
             if (cachedClients && cachedStaff && cachedWorkTypes) {
                 setClients(JSON.parse(cachedClients));
@@ -323,21 +323,21 @@ export default function TasksPage() {
                 clientsData = JSON.parse(cachedClients);
             } else {
                 clientsData = c.data.data || [];
-                sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+                sessionStorage.setItem('cached_clients_v2', JSON.stringify(clientsData));
             }
 
             if (cachedStaff) {
                 staffData = JSON.parse(cachedStaff);
             } else {
                 staffData = s.data.data || [];
-                sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
+                sessionStorage.setItem('cached_staff_v2', JSON.stringify(staffData));
             }
 
             if (cachedWorkTypes) {
                 workTypesData = JSON.parse(cachedWorkTypes);
             } else {
                 workTypesData = w.data.data || [];
-                sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+                sessionStorage.setItem('cached_work_types_v2', JSON.stringify(workTypesData));
             }
 
             setClients(clientsData);

@@ -799,14 +799,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 let clientGroupsData = null;
                 let rolesData = null;
                 // 1. Load clients from cache if available
-                const cachedClients = sessionStorage.getItem('cached_clients');
+                const cachedClients = sessionStorage.getItem('cached_clients_v2');
                 if (cachedClients) {
                     clientsData = JSON.parse(cachedClients);
                 } else {
                     try {
                         const clientsRes = await api.get(isStaff ? '/daily-reports/clients' : '/ca/clients', { params: { simple: 1 } });
                         clientsData = clientsRes.data.data || clientsRes.data || [];
-                        sessionStorage.setItem('cached_clients', JSON.stringify(clientsData));
+                        sessionStorage.setItem('cached_clients_v2', JSON.stringify(clientsData));
                     } catch (clientsErr) {
                         console.error("Failed to fetch clients fresh", clientsErr);
                         clientsData = [];
@@ -814,14 +814,14 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 }
 
                 // 2. Load staff from cache if available
-                const cachedStaff = sessionStorage.getItem('cached_staff');
+                const cachedStaff = sessionStorage.getItem('cached_staff_v2');
                 if (cachedStaff) {
                     staffData = JSON.parse(cachedStaff);
                 } else {
                     try {
                         const staffRes = await api.get(isStaff ? '/staff/staff-members' : '/ca/staff', { params: { simple: 1 } });
                         staffData = staffRes.data.data || staffRes.data || [];
-                        sessionStorage.setItem('cached_staff', JSON.stringify(staffData));
+                        sessionStorage.setItem('cached_staff_v2', JSON.stringify(staffData));
                     } catch (staffErr) {
                         console.error("Failed to fetch staff fresh", staffErr);
                         staffData = [];
@@ -830,7 +830,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                 // 3. Load other static resources (using cache where available)
                 try {
-                    workTypesData = JSON.parse(sessionStorage.getItem('cached_work_types'));
+                    workTypesData = JSON.parse(sessionStorage.getItem('cached_work_types_v2'));
                     clientTypesData = JSON.parse(sessionStorage.getItem('cached_client_types'));
                     clientGroupsData = JSON.parse(sessionStorage.getItem('cached_client_groups'));
                     rolesData = JSON.parse(sessionStorage.getItem('cached_roles'));
@@ -865,7 +865,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     }
 
                     try {
-                        sessionStorage.setItem('cached_work_types', JSON.stringify(workTypesData));
+                        sessionStorage.setItem('cached_work_types_v2', JSON.stringify(workTypesData));
                         sessionStorage.setItem('cached_client_types', JSON.stringify(clientTypesData));
                         sessionStorage.setItem('cached_client_groups', JSON.stringify(clientGroupsData));
                         sessionStorage.setItem('cached_roles', JSON.stringify(rolesData));
@@ -2395,7 +2395,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setClients(prev => {
                 const next = [...prev, newClient];
                 try {
-                    sessionStorage.setItem('cached_clients', JSON.stringify(next));
+                    sessionStorage.setItem('cached_clients_v2', JSON.stringify(next));
                 } catch (e) {}
                 return next;
             });

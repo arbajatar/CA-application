@@ -56,14 +56,14 @@ export default function useRealtimeSync() {
 
                         // 1. Invalidate corresponding sessionStorage caches
                         if (eventName === 'clients_changed') {
-                            sessionStorage.removeItem('cached_clients');
+                            sessionStorage.removeItem('cached_clients_v2');
                             sessionStorage.removeItem('cached_client_types');
                             sessionStorage.removeItem('cached_client_groups');
                         } else if (eventName === 'staff_changed') {
-                            sessionStorage.removeItem('cached_staff');
+                            sessionStorage.removeItem('cached_staff_v2');
                             sessionStorage.removeItem('cached_roles');
                         } else if (eventName === 'tasks_changed') {
-                            sessionStorage.removeItem('cached_work_types');
+                            sessionStorage.removeItem('cached_work_types_v2');
                         }
 
                         // 2. Dispatch a clean custom event globally
