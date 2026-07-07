@@ -3729,7 +3729,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                                                 if (col.id === 'client_pan') {
                                                     const clientObj = clients.find(c => String(c.id) === String(row.client_id));
-                                                    const panNo = clientObj?.pan_no || '—';
+                                                    const panNo = row.client_pan || row.parsed_client_pan || clientObj?.pan_no || '—';
                                                     return (
                                                         <td key={col.id} className="px-6 py-4 border-r border-b border-slate-350 font-mono font-bold text-slate-700 min-w-[140px]">
                                                             {panNo}
