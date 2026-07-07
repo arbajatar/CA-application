@@ -70,6 +70,7 @@ export default function StaffPage() {
                 await api.post('/ca/roles', { name: roleNameInput })
                 toast.success('Role created successfully')
             }
+            sessionStorage.removeItem('cached_roles');
             setRoleNameInput('')
             setEditingRole(null)
             fetchRoles()
@@ -93,6 +94,7 @@ export default function StaffPage() {
         try {
             await api.delete(`/ca/roles/${roleToDelete.id}`)
             toast.success('Role deleted successfully')
+            sessionStorage.removeItem('cached_roles');
             setDeleteRoleOpen(false)
             setRoleToDelete(null)
             fetchRoles()
@@ -173,6 +175,7 @@ export default function StaffPage() {
         try {
             await api.post('/ca/staff', { ...form, role_ids: form.role_ids || [] })
             toast.success('Staff member added successfully')
+            sessionStorage.removeItem('cached_staff_v2');
             setAddOpen(false); setForm(EMPTY_FORM); fetchStaff()
         } catch (e) {
             setErrors(e.response?.data?.errors ?? {})
@@ -203,6 +206,7 @@ export default function StaffPage() {
                 import_export_sheet: form.import_export_sheet,
             })
             toast.success('Staff member updated successfully')
+            sessionStorage.removeItem('cached_staff_v2');
             setEditOpen(false); fetchStaff()
         } catch (e) {
             setErrors(e.response?.data?.errors ?? {})
@@ -244,6 +248,7 @@ export default function StaffPage() {
         try {
             await api.patch(`/ca/staff/${selected.id}/deactivate`)
             toast.success('Staff member deactivated successfully')
+            sessionStorage.removeItem('cached_staff_v2');
             setDeactivateOpen(false)
             fetchStaff()
         } catch (e) {
@@ -258,6 +263,7 @@ export default function StaffPage() {
         try {
             await api.patch(`/ca/staff/${selected.id}/activate`)
             toast.success('Staff member activated successfully')
+            sessionStorage.removeItem('cached_staff_v2');
             setActivateOpen(false)
             fetchStaff()
         } catch (e) {

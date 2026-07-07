@@ -241,6 +241,7 @@ export default function ClientsPage() {
                 await api.post('/ca/clients', payload)
                 toast.success('Client registered successfully')
             }
+            sessionStorage.removeItem('cached_clients_v2');
             setAddOpen(false)
             setEditOpen(false)
             fetchClients()
@@ -257,6 +258,7 @@ export default function ClientsPage() {
         try {
             await api.delete(`/ca/clients/${selected.id}`)
             toast.success('Client archived successfully.')
+            sessionStorage.removeItem('cached_clients_v2');
             setDeleteOpen(false)
             fetchClients()
         } catch (error) {
@@ -271,6 +273,7 @@ export default function ClientsPage() {
         try {
             const res = await api.post('/ca/clients/bulk-delete', { client_ids: selectedClients })
             toast.success(res.data.message || 'Clients archived successfully.')
+            sessionStorage.removeItem('cached_clients_v2');
             setBulkDeleteOpen(false)
             setSelectedClients([])
             fetchClients()
@@ -327,6 +330,7 @@ export default function ClientsPage() {
                 name: newTypeName,
                 pan_char: newTypePanChar
             })
+            sessionStorage.removeItem('cached_client_types');
             setTypes(prev => [...prev, res.data.data])
             setForm(prev => ({ ...prev, type: res.data.data.name }))
             setNewTypeName('')
@@ -347,6 +351,7 @@ export default function ClientsPage() {
             const res = await api.post('/ca/client-groups', {
                 name: newGroupName
             })
+            sessionStorage.removeItem('cached_client_groups');
             setGroups(prev => [...prev, res.data.data])
             setForm(prev => ({ ...prev, group: res.data.data.name }))
             setNewGroupName('')
@@ -793,6 +798,7 @@ export default function ClientsPage() {
         try {
             const res = await api.post('/ca/clients/bulk-store', { clients: validRows })
             toast.success(res.data.message || `Import completed successfully.`)
+            sessionStorage.removeItem('cached_clients_v2');
             setImportOpen(false)
             fetchClients()
         } catch (e) {

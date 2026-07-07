@@ -49,11 +49,6 @@ export default function useRealtimeSync() {
                         const eventName = parts[0];
                         const eventToken = parts[1];
 
-                        // Skip event if it was triggered by this specific browser tab session
-                        if (eventToken && eventToken === window.myClientToken) {
-                            return;
-                        }
-
                         // 1. Invalidate corresponding sessionStorage caches
                         if (eventName === 'clients_changed') {
                             sessionStorage.removeItem('cached_clients_v2');
@@ -64,6 +59,11 @@ export default function useRealtimeSync() {
                             sessionStorage.removeItem('cached_roles');
                         } else if (eventName === 'tasks_changed') {
                             sessionStorage.removeItem('cached_work_types_v2');
+                        }
+
+                        // Skip custom event dispatch if it was triggered by this specific browser tab session
+                        if (eventToken && eventToken === window.myClientToken) {
+                            return;
                         }
 
                         // 2. Dispatch a clean custom event globally
