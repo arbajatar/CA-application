@@ -38,6 +38,14 @@ const parseCurrency = (val) => {
     return parseFloat(clean) || 0;
 };
 
+const isPanField = (field) => {
+    if (!field) return false;
+    if (field.key === 'client_pan') return true;
+    const cleanKey = String(field.key || '').trim().toUpperCase();
+    const cleanLabel = String(field.label || '').trim().toUpperCase();
+    return cleanKey === 'PAN NO' || cleanKey === 'PAN_NO' || cleanKey === 'PAN' || cleanLabel === 'PAN NO' || cleanLabel === 'PAN CARD' || cleanLabel === 'PAN';
+};
+
 export default function AddTaskModal({
     isOpen,
     onClose,
@@ -152,11 +160,12 @@ export default function AddTaskModal({
                     <label className="text-xs font-bold text-slate-700">{field.label}</label>
                     <input
                         type="text"
+                        maxLength={10}
                         value={newTaskData.client_pan !== undefined ? newTaskData.client_pan : (selectedClient?.pan_no || '')}
                         onChange={(e) => {
                             setNewTaskData({
                                 ...newTaskData,
-                                client_pan: e.target.value
+                                client_pan: e.target.value.toUpperCase()
                             });
                         }}
                         disabled={!isCurrentlyEditable}
@@ -610,18 +619,20 @@ export default function AddTaskModal({
                 ) : (
                     <input
                         type="text"
+                        maxLength={isPanField(field) ? 10 : undefined}
                         value={
                             field.isStatic 
                             ? (newTaskData[field.key] || '') 
                             : (newTaskData.dynamic_data?.[field.key] || '')
                         }
                         onChange={(e) => {
+                            const val = isPanField(field) ? e.target.value.toUpperCase() : e.target.value;
                             if (field.isStatic) {
-                                setNewTaskData({ ...newTaskData, [field.key]: e.target.value });
+                                setNewTaskData({ ...newTaskData, [field.key]: val });
                             } else {
                                 setNewTaskData({
                                     ...newTaskData, 
-                                    dynamic_data: { ...(newTaskData.dynamic_data || {}), [field.key]: e.target.value }
+                                    dynamic_data: { ...(newTaskData.dynamic_data || {}), [field.key]: val }
                                 });
                             }
                         }}
@@ -744,12 +755,25 @@ export default function AddTaskModal({
                                     return;
                                 }
                                 for (const field of uniqueFields) {
-                                    if (field.isStatic) continue;
-                                    if (field.required) {
+                                    if (!field.isStatic && field.required) {
                                         const val = newTaskData.dynamic_data?.[field.key];
                                         if (val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
                                             toast.error(`"${field.label}" is mandatory!`);
                                             return;
+                                        }
+                                    }
+                                    if (isPanField(field)) {
+                                        const selectedClient = clients?.find(c => String(c.id) === String(newTaskData.client_id));
+                                        const val = field.key === 'client_pan'
+                                            ? (newTaskData.client_pan !== undefined ? newTaskData.client_pan : (selectedClient?.pan_no || ''))
+                                            : (field.isStatic ? newTaskData[field.key] : newTaskData.dynamic_data?.[field.key]);
+                                        if (val) {
+                                            const trimmedVal = String(val).trim().toUpperCase();
+                                            const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+                                            if (!panRegex.test(trimmedVal)) {
+                                                toast.error(`"${field.label}" must be a valid PAN card format (e.g., ABCDE1234F)`);
+                                                return;
+                                            }
                                         }
                                     }
                                 }
