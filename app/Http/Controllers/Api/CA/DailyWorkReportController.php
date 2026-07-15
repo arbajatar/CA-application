@@ -66,7 +66,9 @@ class DailyWorkReportController extends Controller
                       $uq->where('name', 'like', "%{$search}%");
                   })
                   ->orWhereHas('client', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
+                      $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('contact', 'like', "%{$search}%")
+                        ->orWhere('pan_no', 'like', "%{$search}%");
                   });
             });
         }

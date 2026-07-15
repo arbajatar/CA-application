@@ -31,7 +31,8 @@ class ClientController extends Controller
             ->when($request->filled('type'), fn($q) => $q->where('type', $request->input('type')))
             ->when($request->filled('search'), fn($q) => $q->where(function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->search . '%')
-                    ->orWhere('contact', 'like', '%' . $request->search . '%');
+                    ->orWhere('contact', 'like', '%' . $request->search . '%')
+                    ->orWhere('pan_no', 'like', '%' . $request->search . '%');
             }))
             ->latest();
 

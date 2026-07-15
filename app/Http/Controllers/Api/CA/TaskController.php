@@ -68,6 +68,7 @@ class TaskController extends Controller
                     // Resolve matching client IDs
                     $matchingClientIds = \App\Models\Client::where('name', 'like', '%' . $search . '%')
                         ->orWhere('contact', 'like', '%' . $search . '%')
+                        ->orWhere('pan_no', 'like', '%' . $search . '%')
                         ->pluck('id')
                         ->toArray();
 
@@ -311,6 +312,7 @@ class TaskController extends Controller
 
             $matchingClientIds = \App\Models\Client::where('name', 'like', '%' . $search . '%')
                 ->orWhere('contact', 'like', '%' . $search . '%')
+                ->orWhere('pan_no', 'like', '%' . $search . '%')
                 ->pluck('id')
                 ->toArray();
 
