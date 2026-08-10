@@ -414,4 +414,32 @@ class SheetPermissionTest extends TestCase
             ->assertJsonPath('data.role_id', $this->roleAccountant->id)
             ->assertJsonPath('data.role_label', 'Accountant');
     }
+
+    public function test_staff_can_read_sheet_via_team_role_permission_without_direct_allocation()
+    {
+        $task = Task::create([
+            'client_id' => $this->client->id,
+            'work_type_id' => $this->workType->id,
+            'form_name' => 'Team Permission Sheet',
+            'allocated_to' => null,
+            'created_by' => $this->admin->id,
+            'status' => TaskStatus::Pending,
+            'date_allocated' => now()->toDateString(),
+        ]);
+
+        // Grant Accountant read access via team permission
+        SheetPermission::create([
+            'task_id' => $task->id,
+            'role_id' => $this->roleAccountant->id,
+            'can_read' => true,
+            'can_write' => false,
+        ]);
+
+        // Accountant gets the task in list even without direct allocation or row allocation
+        $responseList = $this->actingAs($this->staffAccountant)
+            ->getJson('/api/staff/tasks');
+
+        $responseList->assertStatus(200);
+        $this->assertCount(1, $responseList->json('data'));
+    }
 }

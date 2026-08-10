@@ -2856,6 +2856,12 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                         is_billable: task.is_billable,
                                                         is_after_sales: task.is_after_sales,
                                                         allow_duplicate_clients: task.allow_duplicate_clients,
+                                                        permissions: (task.permissions || []).map(p => ({
+                                                            role_id: p.role_id,
+                                                            can_read: !!p.can_read,
+                                                            can_write: !!p.can_write,
+                                                            can_delete: !!p.can_delete,
+                                                        })),
                                                         subtasks: (task.sub_tasks || []).map(st => ({
                                                             title: st.title,
                                                             assigned_to: st.assigned_to?.id,

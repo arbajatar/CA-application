@@ -942,6 +942,17 @@ export default function TasksPage() {
                 created_at: fullTask.created_at,
                 status: fullTask.status,
                 allow_attachments: fullTask.allow_attachments,
+                allow_checklist: fullTask.allow_checklist,
+                allow_notes: fullTask.allow_notes,
+                is_billable: fullTask.is_billable,
+                is_after_sales: fullTask.is_after_sales,
+                allow_duplicate_clients: fullTask.allow_duplicate_clients,
+                permissions: (fullTask.permissions || []).map(p => ({
+                    role_id: p.role_id,
+                    can_read: !!p.can_read,
+                    can_write: !!p.can_write,
+                    can_delete: !!p.can_delete,
+                })),
                 subtasks: (fullTask.sub_tasks || []).map(st => ({
                     title: st.title,
                     assigned_to: st.assigned_to?.id,

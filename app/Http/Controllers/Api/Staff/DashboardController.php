@@ -50,13 +50,28 @@ class DashboardController extends Controller
             return true;
         }
 
-        // 2. Subtask assignment
+        // 2. Creator of the sheet
+        if ($task->created_by == $user->id) {
+            return true;
+        }
+
+        // 3. Subtask assignment
         $hasSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
         if ($hasSubtask) {
             return true;
         }
 
-        // 3. Row assignment (in dynamic_fields->multi_rows)
+        // 4. Sheet level permissions
+        $hasPermissions = $task->permissions()->exists();
+        if ($hasPermissions) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            return $task->permissions()
+                ->whereIn('role_id', $roleIds)
+                ->where('can_read', true)
+                ->exists();
+        }
+
+        // 5. Row assignment (in dynamic_fields->multi_rows)
         $multiRows = $task->dynamic_fields['multi_rows'] ?? [];
         if (is_array($multiRows)) {
             foreach ($multiRows as $row) {
@@ -64,26 +79,6 @@ class DashboardController extends Controller
                     return true;
                 }
             }
-        }
-
-        // 4. Sheet level permissions
-        $hasPermissions = $task->permissions()->exists();
-        if (!$hasPermissions) {
-            return false;
-        }
-
-        $roleIds = $user->roles()->pluck('roles.id')->toArray();
-        $canRead = $task->permissions()
-            ->whereIn('role_id', $roleIds)
-            ->where('can_read', true)
-            ->exists();
-        if ($canRead) {
-            return true;
-        }
-
-        // 5. Creator of the sheet
-        if ($task->created_by == $user->id) {
-            return true;
         }
 
         return false;
@@ -469,6 +464,10 @@ class DashboardController extends Controller
             ->get();
 
         $filtered = $tasks->filter(function($task) use ($request) {
+            if (!self::doesUserHaveAccessToTask($task, $request->user())) {
+                return false;
+            }
+
             $hasTaskDueDate = $task->due_date && $task->due_date->month == $request->month && $task->due_date->year == $request->year;
             $hasSubTaskDueDate = $task->subTasks->contains(fn($st) => $st->due_date && $st->due_date->month == $request->month && $st->due_date->year == $request->year);
             

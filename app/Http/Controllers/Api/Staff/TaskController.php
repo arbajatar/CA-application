@@ -53,13 +53,28 @@ class TaskController extends Controller
             return true;
         }
 
-        // 2. Subtask assignment
+        // 2. Creator of the sheet
+        if ($task->created_by == $user->id) {
+            return true;
+        }
+
+        // 3. Subtask assignment
         $hasSubtask = $task->subTasks()->where('assigned_to', $user->id)->exists();
         if ($hasSubtask) {
             return true;
         }
 
-        // 3. Row assignment (in dynamic_fields->multi_rows)
+        // 4. Sheet level permissions
+        $hasPermissions = $task->permissions()->exists();
+        if ($hasPermissions) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            return $task->permissions()
+                ->whereIn('role_id', $roleIds)
+                ->where('can_read', true)
+                ->exists();
+        }
+
+        // 5. Row assignment (in dynamic_fields->multi_rows)
         $multiRows = $task->dynamic_fields['multi_rows'] ?? [];
         if (is_array($multiRows)) {
             foreach ($multiRows as $row) {
@@ -67,26 +82,6 @@ class TaskController extends Controller
                     return true;
                 }
             }
-        }
-
-        // 4. Sheet level permissions
-        $hasPermissions = $task->permissions()->exists();
-        if (!$hasPermissions) {
-            return false;
-        }
-
-        $roleIds = $user->roles()->pluck('roles.id')->toArray();
-        $canRead = $task->permissions()
-            ->whereIn('role_id', $roleIds)
-            ->where('can_read', true)
-            ->exists();
-        if ($canRead) {
-            return true;
-        }
-
-        // 5. Creator of the sheet
-        if ($task->created_by == $user->id) {
-            return true;
         }
 
         return false;
@@ -147,8 +142,10 @@ class TaskController extends Controller
 
             // Sheet permissions check (must have permission if any permissions exist)
             $hasPermissions = !in_array($taskId, $taskIdsWithoutPermissions);
-            if ($hasPermissions && !in_array($taskId, $taskIdsWithRolePermission)) {
-                // Denied at sheet permission level
+            if ($hasPermissions) {
+                if (in_array($taskId, $taskIdsWithRolePermission)) {
+                    $allowedTaskIds[] = $taskId;
+                }
                 continue;
             }
 
@@ -267,6 +264,11 @@ class TaskController extends Controller
 
     public function show(Request $request, Task $task): JsonResponse
     {
+        $user = $request->user();
+        if (!self::doesUserHaveAccessToTask($task, $user)) {
+            return response()->json(['message' => 'You do not have access to this task.'], 403);
+        }
+
         $task->load(['client', 'workType', 'assignedTo', 'permissions.role', 'subTasks.assignedTo', 'notes.author']);
 
         $dynamicFields = $task->dynamic_fields;
@@ -813,13 +815,12 @@ class TaskController extends Controller
 
     public function updateStatus(UpdateTaskStatusRequest $request, Task $task): JsonResponse
     {
-        // Ensure staff can only update their own task
-        if ($task->allocated_to !== $request->user()->id) {
+        $user = $request->user();
+        if (!self::doesUserHaveAccessToTask($task, $user)) {
             return response()->json(['message' => 'You do not have access to this task.'], 403);
         }
 
         // Check write permission
-        $user = $request->user();
         if ($task->permissions()->exists()) {
             $roleIds = $user->roles()->pluck('roles.id')->toArray();
             $hasWriteAccess = $task->permissions()
@@ -1263,6 +1264,17 @@ class TaskController extends Controller
 
         if (!self::doesUserHaveAccessToTask($task, $user)) {
             return response()->json(['message' => 'You do not have access to this task.'], 403);
+        }
+
+        if ($task->permissions()->exists()) {
+            $roleIds = $user->roles()->pluck('roles.id')->toArray();
+            $canDeleteAccess = $task->permissions()
+                ->whereIn('role_id', $roleIds)
+                ->where('can_delete', true)
+                ->exists();
+            if (!$canDeleteAccess) {
+                return response()->json(['message' => 'You do not have permission to delete this sheet.'], 403);
+            }
         }
 
         $task->subTasks()->delete();
