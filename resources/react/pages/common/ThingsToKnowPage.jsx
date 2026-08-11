@@ -58,59 +58,27 @@ export default function ThingsToKnowPage() {
         }
     };
 
-    const getRelativeUrl = (url) => {
+    const getResolvedUrl = (url) => {
         if (!url) return '';
-        try {
-            if (url.startsWith('http://') || url.startsWith('https://')) {
-                const parsed = new URL(url);
-                return parsed.pathname;
-            }
-        } catch (e) {
-            console.error(e);
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
         }
-        return url;
+        if (url.startsWith('/')) {
+            return url;
+        }
+        return `/${url}`;
     };
 
-    const handleDownload = async (e, url, filename) => {
-        e.preventDefault();
-        const toastId = toast.loading('Preparing download...');
-        try {
-            const relativeUrl = getRelativeUrl(url);
-            const response = await fetch(relativeUrl);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const blob = await response.blob();
-            
-            // Check if returned blob is actually HTML (which means missing file redirect)
-            if (blob.type.includes('html')) {
-                toast.error('The file could not be found on the server.', { id: toastId });
-                return;
-            }
-
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            
-            const ext = getFileExtension(url);
-            let finalFilename = filename;
-            if (ext) {
-                const dotExt = `.${ext}`;
-                if (!filename.toLowerCase().endsWith(dotExt.toLowerCase())) {
-                    finalFilename = `${filename}${dotExt}`;
-                }
-            }
-            link.download = finalFilename;
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-            toast.success('Download completed successfully!', { id: toastId });
-        } catch (error) {
-            console.error('Download failed:', error);
-            const relativeUrl = getRelativeUrl(url);
-            window.open(relativeUrl, '_blank');
-            toast.dismiss(toastId);
-        }
+    const handleDownload = (e, brochure) => {
+        if (e) e.preventDefault();
+        if (!brochure) return;
+        const downloadUrl = brochure.download_url || `/api/things-to-know/brochures/${brochure.id}/download`;
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const [activeTab, setActiveTab] = useState('videos')
@@ -770,9 +738,9 @@ export default function ThingsToKnowPage() {
                                                                 </>
                                                             )}
                                                             <a 
-                                                                href={getRelativeUrl(brochure.file_url)} 
+                                                                href={brochure.download_url || `/api/things-to-know/brochures/${brochure.id}/download`} 
                                                                 download={brochure.title}
-                                                                onClick={(e) => handleDownload(e, brochure.file_url, brochure.title)}
+                                                                onClick={(e) => handleDownload(e, brochure)}
                                                                 className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-800 transition"
                                                             >
                                                                 <Download size={13} /> Download
@@ -1031,9 +999,9 @@ export default function ThingsToKnowPage() {
                             <span>PDF Viewer</span>
                         </div>
                         <a 
-                            href={getRelativeUrl(previewBrochure?.file_url)} 
+                            href={previewBrochure?.download_url || `/api/things-to-know/brochures/${previewBrochure?.id}/download`} 
                             download={`${previewBrochure?.title}.pdf`}
-                            onClick={(e) => handleDownload(e, previewBrochure.file_url, previewBrochure.title)}
+                            onClick={(e) => handleDownload(e, previewBrochure)}
                             className="flex items-center gap-2 bg-[#1F5C99] hover:bg-[#154675] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-md shadow-blue-100"
                         >
                             <Download size={14} />
@@ -1045,7 +1013,7 @@ export default function ThingsToKnowPage() {
                     <div className="flex-1 bg-slate-100 rounded-b-xl overflow-hidden relative">
                         {previewBrochure && (
                             <iframe 
-                                src={`${getRelativeUrl(previewBrochure.file_url)}#toolbar=0`} 
+                                src={`${getResolvedUrl(previewBrochure.file_url)}#toolbar=0`} 
                                 className="w-full h-full border-none"
                                 title={previewBrochure.title}
                             />

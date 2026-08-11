@@ -12,10 +12,15 @@ class ThingsToKnowBrochure extends Model
 
     protected $fillable = ['title', 'file_path', 'group_name'];
 
-    protected $appends = ['file_url'];
+    protected $appends = ['file_url', 'download_url'];
 
     public function getFileUrlAttribute()
     {
         return $this->file_path ? \App\Helpers\UploadHelper::resolveUrl($this->file_path) : null;
+    }
+
+    public function getDownloadUrlAttribute()
+    {
+        return url("/api/things-to-know/brochures/{$this->id}/download");
     }
 }

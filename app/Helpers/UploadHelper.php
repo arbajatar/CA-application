@@ -33,8 +33,15 @@ class UploadHelper
 
             Storage::disk('s3')->put($s3Path, file_get_contents($file->getRealPath()), [
                 'visibility'  => 'public',
-                'ContentType' => $file->getMimeType(),
+                'ACL'         => 'public-read',
+                'ContentType' => $file->getMimeType() ?: 'application/octet-stream',
             ]);
+
+            try {
+                Storage::disk('s3')->setVisibility($s3Path, 'public');
+            } catch (\Throwable $e) {
+                // Ignore if setVisibility is not supported
+            }
 
             // Return the full public S3/Spaces URL
             return self::buildSpacesUrl($s3Path);
