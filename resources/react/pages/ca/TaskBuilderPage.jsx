@@ -5,7 +5,7 @@ import {
   Plus, GripVertical, Trash2, X, AlertCircle,
   CheckCircle, Clock, Check, ChevronLeft, ChevronRight,
   Search, Copy, Globe, ShieldCheck, ShieldAlert, Key, EyeOff, Eye, ArrowLeft, ExternalLink,
-  Layout, FileText, SlidersHorizontal, Sparkles
+  Layout, FileText, SlidersHorizontal, Sparkles, Eraser, AlertTriangle
 } from 'lucide-react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Sortable from 'sortablejs';
@@ -786,6 +786,7 @@ export default function TaskBuilderPage() {
   const [isAfterSalesEnabled, setIsAfterSalesEnabled] = useState(false);
   const [selectedFields, setSelectedFields] = useState([]);
   const [deleteBulkOpen, setDeleteBulkOpen] = useState(false);
+  const [deleteColumnChoiceModal, setDeleteColumnChoiceModal] = useState({ open: false, fieldId: null, label: '', field: null });
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [toastState, setToastState] = useState({ show: false, message: '' });
   const [saving, setSaving] = useState(false);
@@ -1105,7 +1106,12 @@ export default function TaskBuilderPage() {
       }
 
       if (hasData) {
-        showToast(`Cannot delete "${label}" because it contains data in this sheet.`);
+        setDeleteColumnChoiceModal({
+          open: true,
+          fieldId: id,
+          label: label,
+          field: fieldToRemove
+        });
         return;
       }
     }
@@ -1122,6 +1128,45 @@ export default function TaskBuilderPage() {
     setDeletedFields(prev => [...prev, fieldToRemove]);
     if (activeFieldId === id) setActiveFieldId(null);
     setSelectedFields(prev => prev.filter(fid => fid !== id));
+  };
+
+  const handleClearColumnDataOnly = (fieldToClear) => {
+    if (!fieldToClear) return;
+    const label = fieldToClear.label;
+    setMultiRows(prevRows => prevRows.map(r => {
+      const newRow = { ...r };
+      if (newRow.dynamic_data) {
+        const newDyn = { ...newRow.dynamic_data };
+        delete newDyn[label];
+        newRow.dynamic_data = newDyn;
+      }
+      delete newRow[label];
+      return newRow;
+    }));
+    setDeleteColumnChoiceModal({ open: false, fieldId: null, label: '', field: null });
+    showToast(`Data cleared for "${label}" across all rows`);
+  };
+
+  const handleClearAndDeleteColumnInBuilder = (fieldToRemove) => {
+    if (!fieldToRemove) return;
+    const id = fieldToRemove.id;
+    const label = fieldToRemove.label;
+    setFormSchema(prev => prev.filter(f => f.id !== id));
+    setMultiRows(prevRows => prevRows.map(r => {
+      const newRow = { ...r };
+      if (newRow.dynamic_data) {
+        const newDyn = { ...newRow.dynamic_data };
+        delete newDyn[label];
+        newRow.dynamic_data = newDyn;
+      }
+      delete newRow[label];
+      return newRow;
+    }));
+    setDeletedFields(prev => [...prev, fieldToRemove]);
+    if (activeFieldId === id) setActiveFieldId(null);
+    setSelectedFields(prev => prev.filter(fid => fid !== id));
+    setDeleteColumnChoiceModal({ open: false, fieldId: null, label: '', field: null });
+    showToast(`Column "${label}" cleared and deleted`);
   };
 
   const removeSelectedFields = () => {
@@ -3280,6 +3325,69 @@ export default function TaskBuilderPage() {
         confirmLabel={`Delete ${selectedFields.length} Fields`}
         danger
       />
+
+      {/* Delete Column Options Choice Modal */}
+      <Modal
+        open={deleteColumnChoiceModal.open}
+        onClose={() => setDeleteColumnChoiceModal({ open: false, fieldId: null, label: '', field: null })}
+        title={`Column Options: "${deleteColumnChoiceModal.label}"`}
+      >
+        <div className="space-y-5">
+          <div className="p-4 bg-amber-50 border border-amber-200/80 rounded-2xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-amber-900 uppercase tracking-wide">Data Found in Sheet</h4>
+              <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+                The column <span className="font-black">"{deleteColumnChoiceModal.label}"</span> contains existing data in this sheet. Please select how you want to proceed:
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => handleClearColumnDataOnly(deleteColumnChoiceModal.field)}
+              className="w-full p-4 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 rounded-2xl text-left transition group cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600 shrink-0 group-hover:border-indigo-300 shadow-sm">
+                  <Eraser size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider group-hover:text-indigo-600">Option 1: Clear Column Data</h4>
+                  <p className="text-[11px] font-semibold text-slate-400 mt-0.5">Wipes all stored row values for this column, but keeps the column on the sheet.</p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleClearAndDeleteColumnInBuilder(deleteColumnChoiceModal.field)}
+              className="w-full p-4 bg-rose-50/40 hover:bg-rose-50 border border-rose-100 hover:border-rose-200 rounded-2xl text-left transition group cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 shadow-sm">
+                  <Trash2 size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-rose-700 uppercase tracking-wider">Option 2: Clear & Delete Column</h4>
+                  <p className="text-[11px] font-semibold text-rose-600/80 mt-0.5">Wipes all stored row values and removes the column from the sheet (moves it to Retrieve Deleted Fields).</p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setDeleteColumnChoiceModal({ open: false, fieldId: null, label: '', field: null })}
+              className="px-4 py-2 text-xs font-bold border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

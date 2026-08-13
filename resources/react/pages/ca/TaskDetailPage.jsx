@@ -5,7 +5,7 @@ import {
     ChevronLeft, Save, Edit2, X, CheckCircle, Plus, Trash2, Layout, Search,
     ChevronDown, Type, Calendar, AlignLeft, Hash, Tags,
     CheckSquare, Zap, Mail, Phone, Sliders, Clock, AlertCircle, GripVertical, Settings,
-    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, FileDown, FileUp, Eye, Copy, ChevronRight, Globe,
+    Flag, UserPlus, CheckCircle2, Circle, MoreHorizontal, MoreVertical, Eraser, RotateCcw, FileDown, FileUp, Eye, Copy, ChevronRight, Globe,
     PlusCircle, Check, CircleDashed, FileText, SlidersHorizontal, Lock, Unlock, ArrowUpDown, ArrowUp, ArrowDown,
     Key, EyeOff, ShieldCheck, ShieldAlert, ExternalLink, AlertTriangle
 } from 'lucide-react';
@@ -480,6 +480,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
     const [showColumnFilters, setShowColumnFilters] = useState(false);
     const [selectedStaffFilters, setSelectedStaffFilters] = useState([]);
     const [showStaffFilterDropdown, setShowStaffFilterDropdown] = useState(false);
+    const [columnMenuOpen, setColumnMenuOpen] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(() => {
@@ -534,8 +535,9 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
         try {
             const apiPrefix = isStaff ? '/staff' : '/ca';
             
+            const validPage = (typeof overridePage === 'number' && !isNaN(overridePage)) ? overridePage : (typeof currentPage === 'number' && !isNaN(currentPage) ? currentPage : 1);
             const params = {
-                page: overridePage !== null ? overridePage : currentPage,
+                page: validPage,
                 per_page: rowsPerPage,
                 search: debouncedSearch || undefined,
                 status: selectedStatusFilter || sheetStatusFilter || undefined,
@@ -1086,7 +1088,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             setIsSidebarOpen(false);
             setActiveFieldId(null);
         }
-    };    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = [], overridePage = null, newSchema = null) => {
+    };    const handleSaveRows = async (updatedRows, successMessage = 'Rows saved successfully', deletedRowIds = [], overridePage = null, newSchema = null, newDeletedFields = null) => {
         // Validate for duplicate clients within the same sheet
         if (!allowDuplicateClients) {
             // Check if this is a deletion (no new client added/modified)
@@ -1154,9 +1156,11 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
  
             // Preserve special keys from current task.dynamic_fields
             const cleanDynamicFields = {};
-            ['schema', 'field_names', 'field_types'].forEach(k => {
-                if (k === 'schema' && newSchema) {
-                    cleanDynamicFields[k] = newSchema;
+            ['schema', 'field_names', 'field_types', 'deleted_fields'].forEach(k => {
+                if (k === 'schema') {
+                    cleanDynamicFields[k] = newSchema || schema;
+                } else if (k === 'deleted_fields') {
+                    cleanDynamicFields[k] = newDeletedFields || task.dynamic_fields?.deleted_fields || [];
                 } else if (task.dynamic_fields?.[k] !== undefined) {
                     cleanDynamicFields[k] = task.dynamic_fields[k];
                 }
@@ -1205,6 +1209,111 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             toast.error(msg, { id: loadingToast });
             throw e; // Rethrow to let the caller modal handle it if needed
         }
+    };
+
+    const promptClearColumnData = (col) => {
+        setConfirmState({
+            open: true,
+            title: `Clear Data for "${col.label}"`,
+            message: `Are you sure you want to clear all data in the "${col.label}" column across all rows in this sheet? This action cannot be undone.`,
+            confirmLabel: 'Clear Column Data',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    const nextRows = rows.map(r => {
+                        const updated = { ...r };
+                        if (col.static && !col.id.startsWith('dynamic_')) {
+                            if (col.id === 'date_allocated') updated.date_allocated = '';
+                            else if (col.id === 'status') updated.status = 'assigned';
+                            else if (col.id === 'sub_status') updated.sub_status = null;
+                            else if (col.id === 'remarks') updated.remarks = '';
+                            else if (col.id === 'work_type') updated.work_type_id = '';
+                        } else {
+                            if (updated.dynamic_data && col.label in updated.dynamic_data) {
+                                updated.dynamic_data = { ...updated.dynamic_data, [col.label]: '' };
+                            }
+                            if (col.label in updated) {
+                                updated[col.label] = '';
+                            }
+                        }
+                        return updated;
+                    });
+                    setRows(nextRows);
+                    await handleSaveRows(nextRows, `Data cleared for "${col.label}" successfully`);
+                } catch (err) {
+                    toast.error(`Failed to clear data for ${col.label}`);
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
+    };
+
+    const promptClearAndDeleteColumn = (col) => {
+        setConfirmState({
+            open: true,
+            title: `Delete Column "${col.label}"`,
+            message: `Are you sure you want to clear all data and delete the "${col.label}" column from this sheet?`,
+            confirmLabel: 'Clear & Delete Column',
+            danger: true,
+            onConfirm: async () => {
+                setConfirmState(prev => ({ ...prev, loading: true }));
+                try {
+                    const nextRows = rows.map(r => {
+                        const updated = { ...r };
+                        if (updated.dynamic_data) {
+                            const newDyn = { ...updated.dynamic_data };
+                            delete newDyn[col.label];
+                            updated.dynamic_data = newDyn;
+                        }
+                        delete updated[col.label];
+                        return updated;
+                    });
+
+                    // Comprehensive column filtering by ID and label
+                    const nextSchema = schema.filter(f => {
+                        if (col.field && col.field.id && String(f.id) === String(col.field.id)) return false;
+                        if (String(f.id) === String(col.id)) return false;
+                        if (f.label && col.label && f.label.trim().toLowerCase() === col.label.trim().toLowerCase()) return false;
+                        if (`dynamic_${f.label}` === col.id) return false;
+                        if (`dynamic_${f.id}` === col.id) return false;
+                        return true;
+                    });
+
+                    // Build deleted fields list for Retrieve Deleted Fields in Task Builder
+                    const fieldToRemove = col.field || schema.find(f => f.id === col.id || f.label === col.label);
+                    const cleanFieldToRemove = fieldToRemove || {
+                        id: col.id.startsWith('dynamic_') ? col.id.replace('dynamic_', '') : col.id,
+                        label: col.label,
+                        type: 'text',
+                        required: false
+                    };
+
+                    const currentDeleted = task?.dynamic_fields?.deleted_fields || [];
+                    const nextDeletedFields = Array.isArray(currentDeleted)
+                        ? [...currentDeleted.filter(f => f.label?.trim().toLowerCase() !== col.label?.trim().toLowerCase()), cleanFieldToRemove]
+                        : [cleanFieldToRemove];
+
+                    setRows(nextRows);
+                    setSchema(nextSchema);
+                    setTask(prev => ({
+                        ...prev,
+                        dynamic_fields: {
+                            ...(prev?.dynamic_fields || {}),
+                            schema: nextSchema,
+                            deleted_fields: nextDeletedFields
+                        }
+                    }));
+                    await handleSaveRows(nextRows, `Column "${col.label}" deleted successfully`, [], null, nextSchema, nextDeletedFields);
+                } catch (err) {
+                    console.error(err);
+                    toast.error(`Failed to delete column ${col.label}`);
+                } finally {
+                    setConfirmState({ open: false });
+                }
+            }
+        });
     };
 
     const addRow = () => {
@@ -3636,6 +3745,51 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                             <ArrowUpDown size={13} className="text-blue-200 group-hover/th:text-white shrink-0 opacity-0 group-hover/th:opacity-100 transition" />
                                                         )}
                                                     </div>
+                                                </div>
+
+                                                {/* 3-Dots Column Options Menu */}
+                                                <div className="relative shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setColumnMenuOpen(prev => (prev?.colId === col.id ? null : { colId: col.id, colLabel: col.label, isStatic: col.static }));
+                                                        }}
+                                                        className="p-1.5 text-blue-100 hover:text-white bg-[#154673] hover:bg-blue-600 rounded-lg transition shrink-0 cursor-pointer shadow-md flex items-center justify-center"
+                                                        title="Column Options (Clear Data / Delete)"
+                                                    >
+                                                        <MoreVertical size={14} className="text-white" />
+                                                    </button>
+
+                                                    {columnMenuOpen?.colId === col.id && (
+                                                        <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-[90] p-1.5 text-left text-slate-700 animate-in fade-in zoom-in-95 duration-100 font-normal">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setColumnMenuOpen(null);
+                                                                    promptClearColumnData(col);
+                                                                }}
+                                                                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition cursor-pointer"
+                                                            >
+                                                                <Eraser size={13} className="text-slate-400 shrink-0" />
+                                                                <span>Clear Column Data</span>
+                                                            </button>
+                                                            
+                                                            {(!col.static || col.id.startsWith('dynamic_')) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setColumnMenuOpen(null);
+                                                                        promptClearAndDeleteColumn(col);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer border-t border-slate-100 mt-1 pt-2"
+                                                                >
+                                                                    <Trash2 size={13} className="text-rose-500 shrink-0" />
+                                                                    <span>Clear & Delete Column</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </th>
