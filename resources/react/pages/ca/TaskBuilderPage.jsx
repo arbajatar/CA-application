@@ -1329,6 +1329,7 @@ export default function TaskBuilderPage() {
       is_billable: !!isBillableEnabled,
       is_after_sales: !!isAfterSalesEnabled,
       multi_rows: multiRows,
+      deleted_fields: deletedFields,
       schema: formSchema.map(f => ({
         id: f.id,
         type: f.type,
@@ -1575,6 +1576,9 @@ export default function TaskBuilderPage() {
       const data = location.state.duplicateData;
       if (data.dynamic_fields?.multi_rows) {
         setMultiRows(data.dynamic_fields.multi_rows);
+      }
+      if (data.dynamic_fields?.deleted_fields && Array.isArray(data.dynamic_fields.deleted_fields)) {
+        setDeletedFields(data.dynamic_fields.deleted_fields);
       }
       setFormSchema(prev => {
         // If the task has a structured schema, reconstruct from it directly
