@@ -1221,27 +1221,66 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             onConfirm: async () => {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 try {
+                    const colLabelLower = (col.label || '').trim().toLowerCase();
+                    const colIdLower = (col.id || '').trim().toLowerCase();
+
                     const nextRows = rows.map(r => {
                         const updated = { ...r };
-                        if (col.static && !col.id.startsWith('dynamic_')) {
-                            if (col.id === 'date_allocated') updated.date_allocated = '';
-                            else if (col.id === 'status') updated.status = 'assigned';
-                            else if (col.id === 'sub_status') updated.sub_status = null;
-                            else if (col.id === 'remarks') updated.remarks = '';
-                            else if (col.id === 'work_type') updated.work_type_id = '';
-                        } else {
-                            if (updated.dynamic_data && col.label in updated.dynamic_data) {
-                                updated.dynamic_data = { ...updated.dynamic_data, [col.label]: '' };
-                            }
-                            if (col.label in updated) {
-                                updated[col.label] = '';
-                            }
+
+                        // Clear static / built-in columns
+                        if (col.id === 'client' || col.id === 'client_id' || colLabelLower === 'client') {
+                            updated.client_id = null;
+                            updated.client_name = '';
+                        } else if (col.id === 'client_pan' || colLabelLower === 'client pan' || colLabelLower === 'pan no') {
+                            updated.client_pan = '';
+                            updated.parsed_client_pan = '';
+                        } else if (col.id === 'date_allocated' || col.id === 'static_created_date' || colLabelLower === 'create date' || colLabelLower === 'date allocated') {
+                            updated.date_allocated = '';
+                        } else if (col.id === 'status' || colLabelLower === 'status' || colLabelLower === 'sheet status') {
+                            updated.status = 'assigned';
+                        } else if (col.id === 'sub_status' || colLabelLower === 'sub status') {
+                            updated.sub_status = null;
+                        } else if (col.id === 'remarks' || colLabelLower === 'remarks') {
+                            updated.remarks = '';
+                        } else if (col.id === 'work_type' || col.id === 'work_type_id' || colLabelLower === 'work type') {
+                            updated.work_type_id = '';
+                        } else if (col.id === 'form_name' || colLabelLower === 'sheet name') {
+                            updated.form_name = '';
                         }
+
+                        // Clear from dynamic_data (covers ALL date columns, text, numbers, dropdowns, etc.)
+                        if (updated.dynamic_data && typeof updated.dynamic_data === 'object') {
+                            const newDyn = { ...updated.dynamic_data };
+                            Object.keys(newDyn).forEach(k => {
+                                const kLower = k.trim().toLowerCase();
+                                if (
+                                    k === col.label ||
+                                    k === col.id ||
+                                    kLower === colLabelLower ||
+                                    kLower === colIdLower ||
+                                    (col.field && String(col.field.id) === String(k))
+                                ) {
+                                    newDyn[k] = '';
+                                }
+                            });
+                            updated.dynamic_data = newDyn;
+                        }
+
+                        // Clear root-level row fields if present
+                        if (col.label && col.label in updated) {
+                            updated[col.label] = '';
+                        }
+                        if (col.id && col.id in updated && !['id', 'row_id'].includes(col.id)) {
+                            updated[col.id] = '';
+                        }
+
                         return updated;
                     });
+
                     setRows(nextRows);
                     await handleSaveRows(nextRows, `Data cleared for "${col.label}" successfully`);
                 } catch (err) {
+                    console.error(err);
                     toast.error(`Failed to clear data for ${col.label}`);
                 } finally {
                     setConfirmState({ open: false });
@@ -1260,14 +1299,29 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             onConfirm: async () => {
                 setConfirmState(prev => ({ ...prev, loading: true }));
                 try {
+                    const colLabelLower = (col.label || '').trim().toLowerCase();
+                    const colIdLower = (col.id || '').trim().toLowerCase();
+
                     const nextRows = rows.map(r => {
                         const updated = { ...r };
-                        if (updated.dynamic_data) {
+                        if (updated.dynamic_data && typeof updated.dynamic_data === 'object') {
                             const newDyn = { ...updated.dynamic_data };
-                            delete newDyn[col.label];
+                            Object.keys(newDyn).forEach(k => {
+                                const kLower = k.trim().toLowerCase();
+                                if (
+                                    k === col.label ||
+                                    k === col.id ||
+                                    kLower === colLabelLower ||
+                                    kLower === colIdLower ||
+                                    (col.field && String(col.field.id) === String(k))
+                                ) {
+                                    delete newDyn[k];
+                                }
+                            });
                             updated.dynamic_data = newDyn;
                         }
-                        delete updated[col.label];
+                        if (col.label) delete updated[col.label];
+                        if (col.id && !['id', 'row_id'].includes(col.id)) delete updated[col.id];
                         return updated;
                     });
 
@@ -1275,7 +1329,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                     const nextSchema = schema.filter(f => {
                         if (col.field && col.field.id && String(f.id) === String(col.field.id)) return false;
                         if (String(f.id) === String(col.id)) return false;
-                        if (f.label && col.label && f.label.trim().toLowerCase() === col.label.trim().toLowerCase()) return false;
+                        if (f.label && col.label && f.label.trim().toLowerCase() === colLabelLower) return false;
                         if (`dynamic_${f.label}` === col.id) return false;
                         if (`dynamic_${f.id}` === col.id) return false;
                         return true;
@@ -1292,7 +1346,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
 
                     const currentDeleted = task?.dynamic_fields?.deleted_fields || [];
                     const nextDeletedFields = Array.isArray(currentDeleted)
-                        ? [...currentDeleted.filter(f => f.label?.trim().toLowerCase() !== col.label?.trim().toLowerCase()), cleanFieldToRemove]
+                        ? [...currentDeleted.filter(f => f.label?.trim().toLowerCase() !== colLabelLower), cleanFieldToRemove]
                         : [cleanFieldToRemove];
 
                     setRows(nextRows);
