@@ -9,6 +9,7 @@ use App\Http\Requests\CA\StoreStaffRequest;
 use App\Http\Requests\CA\UpdateStaffRequest;
 use App\Http\Resources\StaffResource;
 use App\Models\User;
+use App\Models\Task;
 use App\Helpers\RealtimeHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -116,5 +117,48 @@ class StaffController extends Controller
         RealtimeHelper::trigger('staff_changed');
 
         return response()->json(['message' => 'Password reset successfully.']);
+    }
+
+    public function destroy(User $staff): JsonResponse
+    {
+        $staffId = $staff->id;
+        $staffIdStr = (string)$staffId;
+
+        // 1. Check direct task allocation
+        $hasAllocatedTask = Task::where('allocated_to', $staffId)->exists();
+        if ($hasAllocatedTask) {
+            return response()->json([
+                'message' => "Cannot delete staff member \"{$staff->name}\" because they are assigned to one or more tasks. Please reassign their tasks first or deactivate them."
+            ], 422);
+        }
+
+        // 2. Check row-level allocation in dynamic_fields->multi_rows
+        $allTasks = Task::select(['id', 'form_name', 'dynamic_fields'])->get();
+        foreach ($allTasks as $task) {
+            $multiRows = $task->dynamic_fields['multi_rows'] ?? [];
+            if (is_array($multiRows)) {
+                foreach ($multiRows as $row) {
+                    $allocTo = $row['allocated_to'] ?? null;
+                    if ($allocTo !== null && (string)$allocTo === $staffIdStr) {
+                        $sheetName = $task->form_name ? "\"{$task->form_name}\"" : "Sheet #{$task->id}";
+                        return response()->json([
+                            'message' => "Cannot delete staff member \"{$staff->name}\" because they are assigned to rows in {$sheetName}. Please reassign their assigned rows first or deactivate them."
+                        ], 422);
+                    }
+                }
+            }
+        }
+
+        // 3. Delete staff dependencies and user record
+        $staff->roles()->detach();
+        $staff->specialPermissions()->delete();
+        $staff->tokens()->delete();
+        $staff->delete();
+
+        RealtimeHelper::trigger('staff_changed');
+
+        return response()->json([
+            'message' => "Staff member \"{$staff->name}\" deleted successfully."
+        ]);
     }
 }

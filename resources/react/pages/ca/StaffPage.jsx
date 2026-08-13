@@ -26,6 +26,7 @@ export default function StaffPage() {
     const [deactivateOpen, setDeactivateOpen] = useState(false)
     const [activateOpen, setActivateOpen] = useState(false)
     const [selected, setSelected] = useState(null)
+    const [deleteOpen, setDeleteOpen] = useState(false)
     const [form, setForm] = useState(EMPTY_FORM)
     const [resetPass, setResetPass] = useState({ password: '', password_confirmation: '' })
     const [showPassword, setShowPassword] = useState(false)
@@ -273,6 +274,28 @@ export default function StaffPage() {
         }
     }
 
+    const handleDeleteStaff = async () => {
+        if (!selected) return
+        setSaving(true)
+        try {
+            const res = await api.delete(`/ca/staff/${selected.id}`)
+            toast.success(res.data?.message || 'Staff member deleted successfully')
+            sessionStorage.removeItem('cached_staff_v2');
+            setDeleteOpen(false)
+            setSelected(null)
+            fetchStaff()
+        } catch (e) {
+            toast.error(e.response?.data?.message || 'Failed to delete staff member')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleCloseDelete = () => {
+        setDeleteOpen(false)
+        setSelected(null)
+    }
+
     const handleCloseAdd = () => {
         setAddOpen(false)
         setForm(EMPTY_FORM)
@@ -442,6 +465,10 @@ export default function StaffPage() {
                                                              className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/40 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-800 hover:scale-110 active:scale-95 transition-all"><UserCheck size={15} /></button>
                                                      </Tooltip>
                                                  )}
+                                                 <Tooltip content="Delete Staff Member">
+                                                     <button onClick={() => { setSelected(s); setDeleteOpen(true) }}
+                                                         className="p-1.5 rounded-lg bg-red-50/70 border border-red-100/40 text-red-600 hover:bg-red-100 hover:text-red-800 hover:scale-110 active:scale-95 transition-all"><Trash2 size={15} /></button>
+                                                 </Tooltip>
                                              </div>
                                         </td>
                                     </tr>
@@ -807,6 +834,9 @@ export default function StaffPage() {
 
             <ConfirmDialog open={activateOpen} onClose={() => setActivateOpen(false)} onConfirm={handleActivate} loading={saving}
                 title="Activate Staff Member" message={`Activate "${selected?.name}"? They will regain access immediately.`} confirmLabel="Activate" />
+
+            <ConfirmDialog open={deleteOpen} onClose={handleCloseDelete} onConfirm={handleDeleteStaff} danger loading={saving}
+                title="Delete Staff Member" message={`Are you sure you want to delete staff member "${selected?.name}"? If this staff member has any tasks or rows assigned to them, deletion will be blocked.`} confirmLabel="Delete Staff" />
 
             <ConfirmDialog open={deleteRoleOpen} onClose={() => { setDeleteRoleOpen(false); setRoleToDelete(null); }} onConfirm={confirmDeleteRole} danger loading={deletingRole}
                 title="Delete Role" message={`Are you sure you want to delete the role "${roleToDelete?.name}"? Users assigned to this role will have their role cleared.`} confirmLabel="Delete" />

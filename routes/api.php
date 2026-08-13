@@ -170,7 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/staff/{staff}/deactivate', [StaffController::class, 'deactivate']);
         Route::patch('/staff/{staff}/activate', [StaffController::class, 'activate']);
         Route::patch('/staff/{staff}/reset-password', [StaffController::class, 'resetPassword']);
-        Route::apiResource('/staff', StaffController::class)->except(['destroy']);
+        Route::apiResource('/staff', StaffController::class);
 
         // Roles
         Route::apiResource('/roles', RoleController::class);
