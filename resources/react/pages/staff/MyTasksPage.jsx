@@ -300,7 +300,7 @@ export default function MyTasksPage() {
         setDuplicateOpen(false);
         setSaving(true);
         try {
-            const res = await api.get(`/staff/tasks/${selected.id}`);
+            const res = await api.get(`/staff/tasks/${selected.id}?per_page=all`);
             const fullTask = res.data.data;
 
             const newName = duplicateSheetName;
@@ -309,6 +309,39 @@ export default function MyTasksPage() {
                 toast.error("Sheet Name cannot be empty.");
                 setSaving(false);
                 return;
+            }
+
+            const rawDynamicFields = JSON.parse(JSON.stringify(fullTask.dynamic_fields || {}));
+
+            // Sync static_form_name inside dynamic_fields.schema to trimmedName
+            if (Array.isArray(rawDynamicFields.schema)) {
+                rawDynamicFields.schema = rawDynamicFields.schema.map(f => {
+                    if (f.id === 'static_form_name') {
+                        return { ...f, value: trimmedName };
+                    }
+                    return f;
+                });
+            }
+
+            let finalMultiRows = [];
+            if (withData && Array.isArray(rawDynamicFields.multi_rows)) {
+                finalMultiRows = rawDynamicFields.multi_rows.map((row, idx) => ({
+                    ...row,
+                    row_id: `row_${Date.now()}_${Math.floor(Math.random() * 10000)}_${idx}`
+                }));
+            }
+
+            const finalDynamicFields = {
+                ...rawDynamicFields,
+                multi_rows: finalMultiRows
+            };
+
+            if (!withData) {
+                Object.keys(finalDynamicFields).forEach(k => {
+                    if (!['schema', 'multi_rows', 'field_names', 'field_types', 'CA Feedback', 'CA Rating'].includes(k)) {
+                        finalDynamicFields[k] = '';
+                    }
+                });
             }
 
             const payload = {
@@ -328,28 +361,23 @@ export default function MyTasksPage() {
                 allow_attachments: !!fullTask.allow_attachments,
                 allow_checklist: !!fullTask.allow_checklist,
                 allow_notes: !!fullTask.allow_notes,
+                is_billable: !!fullTask.is_billable,
+                is_after_sales: !!fullTask.is_after_sales,
+                allow_duplicate_clients: !!fullTask.allow_duplicate_clients,
                 permissions: (fullTask.permissions || []).map(p => ({
                     role_id: Number(p.role_id),
                     can_read: !!p.can_read,
                     can_write: !!p.can_write,
                     can_delete: !!p.can_delete
                 })),
-                dynamic_fields: withData ? fullTask.dynamic_fields : {
-                    ...(fullTask.dynamic_fields || {}),
-                    multi_rows: [],
-                    ...Object.fromEntries(
-                        Object.keys(fullTask.dynamic_fields || {})
-                            .filter(k => !['schema', 'multi_rows', 'field_names', 'field_types', 'CA Feedback', 'CA Rating'].includes(k))
-                            .map(k => [k, ''])
-                    )
-                },
+                dynamic_fields: finalDynamicFields,
                 subtasks: (fullTask.sub_tasks || []).map(st => ({
                     title: st.title,
                     assigned_to: withData ? st.assigned_to?.id : null,
                     priority: withData ? st.priority : 'medium',
                     status: 'pending',
                     due_date: withData ? st.due_date : null,
-                    remarks: withData ? st.remarks : ''
+                    remarks: st.remarks
                 }))
             };
 

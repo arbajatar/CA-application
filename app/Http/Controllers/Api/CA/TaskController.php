@@ -115,6 +115,15 @@ class TaskController extends Controller
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
+
+            if (isset($dynamicFields['schema']) && is_array($dynamicFields['schema']) && $request->filled('form_name')) {
+                foreach ($dynamicFields['schema'] as &$sf) {
+                    if (isset($sf['id']) && $sf['id'] === 'static_form_name') {
+                        $sf['value'] = $request->form_name;
+                    }
+                }
+                unset($sf);
+            }
         }
 
         $task = Task::create([
@@ -172,6 +181,8 @@ class TaskController extends Controller
             'new_status' => $status->value,
             'remarks' => 'Task created with ' . count($request->subtasks ?? []) . ' assigned subtasks.',
         ]);
+
+        \App\Helpers\SheetLogger::logSheetCreated($task, $request->user());
 
         return response()->json([
             'message' => 'Task created successfully.',
@@ -584,10 +595,26 @@ class TaskController extends Controller
             $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        if (array_key_exists('remarks', $validated)) {
+            if (($validated['remarks'] === '' || $validated['remarks'] === null) && !empty($task->remarks)) {
+                unset($validated['remarks']);
+            }
+        }
+
         if (is_array($dynamicFields)) {
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
+
+            $formName = $request->input('form_name') ?? $task->form_name;
+            if (isset($dynamicFields['schema']) && is_array($dynamicFields['schema']) && $formName) {
+                foreach ($dynamicFields['schema'] as &$sf) {
+                    if (isset($sf['id']) && $sf['id'] === 'static_form_name') {
+                        $sf['value'] = $formName;
+                    }
+                }
+                unset($sf);
+            }
 
             $incomingRows = $dynamicFields['multi_rows'] ?? null;
             if (is_array($incomingRows)) {
@@ -610,7 +637,7 @@ class TaskController extends Controller
                     }
                 }
 
-                // First, ensure all incoming rows have row_id and handle attachments merge
+                // First, ensure all incoming rows have row_id and handle attachments & remarks merge
                 foreach ($incomingRows as &$ir) {
                     $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
                     if (!$rowId) {
@@ -620,6 +647,14 @@ class TaskController extends Controller
                         $existing = $masterRowsByRowId[$rowId] ?? [];
                         if ((!array_key_exists('attachments', $ir) || is_null($ir['attachments'])) && isset($existing['attachments'])) {
                             $ir['attachments'] = $existing['attachments'];
+                        }
+
+                        // Preserve existing user remarks if incoming value is empty or missing
+                        $remarkKeys = ['remarks', 'Remarks', 'REMARKS', 'FINAL REMARK', 'OTHER REMARK', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'CLIENT FEED BACK'];
+                        foreach ($remarkKeys as $rk) {
+                            if (isset($existing[$rk]) && $existing[$rk] !== '' && $existing[$rk] !== null && (!isset($ir[$rk]) || $ir[$rk] === '' || $ir[$rk] === null)) {
+                                $ir[$rk] = $existing[$rk];
+                            }
                         }
                     }
                     $masterRowsByRowId[$rowId] = $ir;
@@ -951,6 +986,7 @@ class TaskController extends Controller
 
     public function destroy(Task $task): JsonResponse
     {
+        \App\Helpers\SheetLogger::logSheetDeleted($task, request()->user());
         $task->subTasks()->delete();
         $task->delete();
 

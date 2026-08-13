@@ -65,10 +65,13 @@ class DashboardController extends Controller
         $hasPermissions = $task->permissions()->exists();
         if ($hasPermissions) {
             $roleIds = $user->roles()->pluck('roles.id')->toArray();
-            return $task->permissions()
+            $hasRoleAccess = $task->permissions()
                 ->whereIn('role_id', $roleIds)
                 ->where('can_read', true)
                 ->exists();
+            if ($hasRoleAccess) {
+                return true;
+            }
         }
 
         // 5. Row assignment (in dynamic_fields->multi_rows)

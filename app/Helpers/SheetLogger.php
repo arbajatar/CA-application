@@ -242,4 +242,52 @@ class SheetLogger
         }
         return 'None';
     }
+
+    public static function logSheetCreated($task, $user)
+    {
+        if (!$task) return;
+        SheetLog::create([
+            'task_id' => $task->id,
+            'sheet_name' => $task->form_name,
+            'user_id' => $user?->id,
+            'user_name' => $user?->name ?? 'System',
+            'action' => 'sheet_created',
+            'details' => [[
+                'type' => 'sheet_created',
+                'message' => 'Created Sheet "' . $task->form_name . '"'
+            ]],
+        ]);
+    }
+
+    public static function logSheetUpdated($task, $user, $message = 'Updated Sheet Settings / Layout')
+    {
+        if (!$task) return;
+        SheetLog::create([
+            'task_id' => $task->id,
+            'sheet_name' => $task->form_name,
+            'user_id' => $user?->id,
+            'user_name' => $user?->name ?? 'System',
+            'action' => 'sheet_updated',
+            'details' => [[
+                'type' => 'sheet_updated',
+                'message' => $message
+            ]],
+        ]);
+    }
+
+    public static function logSheetDeleted($task, $user)
+    {
+        if (!$task) return;
+        SheetLog::create([
+            'task_id' => $task->id,
+            'sheet_name' => $task->form_name,
+            'user_id' => $user?->id,
+            'user_name' => $user?->name ?? 'System',
+            'action' => 'sheet_deleted',
+            'details' => [[
+                'type' => 'sheet_deleted',
+                'message' => 'Deleted Sheet "' . $task->form_name . '"'
+            ]],
+        ]);
+    }
 }

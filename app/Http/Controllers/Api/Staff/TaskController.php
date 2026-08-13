@@ -68,10 +68,13 @@ class TaskController extends Controller
         $hasPermissions = $task->permissions()->exists();
         if ($hasPermissions) {
             $roleIds = $user->roles()->pluck('roles.id')->toArray();
-            return $task->permissions()
+            $hasRoleAccess = $task->permissions()
                 ->whereIn('role_id', $roleIds)
                 ->where('can_read', true)
                 ->exists();
+            if ($hasRoleAccess) {
+                return true;
+            }
         }
 
         // 5. Row assignment (in dynamic_fields->multi_rows)
@@ -142,10 +145,8 @@ class TaskController extends Controller
 
             // Sheet permissions check (must have permission if any permissions exist)
             $hasPermissions = !in_array($taskId, $taskIdsWithoutPermissions);
-            if ($hasPermissions) {
-                if (in_array($taskId, $taskIdsWithRolePermission)) {
-                    $allowedTaskIds[] = $taskId;
-                }
+            if ($hasPermissions && in_array($taskId, $taskIdsWithRolePermission)) {
+                $allowedTaskIds[] = $taskId;
                 continue;
             }
 
@@ -748,6 +749,16 @@ class TaskController extends Controller
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
+
+            $formName = $validated['form_name'] ?? ($request->input('form_name') ?? null);
+            if (isset($dynamicFields['schema']) && is_array($dynamicFields['schema']) && $formName) {
+                foreach ($dynamicFields['schema'] as &$sf) {
+                    if (isset($sf['id']) && $sf['id'] === 'static_form_name') {
+                        $sf['value'] = $formName;
+                    }
+                }
+                unset($sf);
+            }
         }
 
         $task = Task::create([
@@ -1044,10 +1055,27 @@ class TaskController extends Controller
         } elseif (is_array($dynamicFields) && array_key_exists('allow_duplicate_clients', $dynamicFields)) {
             $validated['allow_duplicate_clients'] = filter_var($dynamicFields['allow_duplicate_clients'], FILTER_VALIDATE_BOOLEAN);
         }
+
+        if (array_key_exists('remarks', $validated)) {
+            if (($validated['remarks'] === '' || $validated['remarks'] === null) && !empty($task->remarks)) {
+                unset($validated['remarks']);
+            }
+        }
         if (is_array($dynamicFields)) {
             unset($dynamicFields['is_billable']);
             unset($dynamicFields['is_after_sales']);
             unset($dynamicFields['allow_duplicate_clients']);
+
+            $formName = $request->input('form_name') ?? ($validated['form_name'] ?? $task->form_name);
+            if (isset($dynamicFields['schema']) && is_array($dynamicFields['schema']) && $formName) {
+                foreach ($dynamicFields['schema'] as &$sf) {
+                    if (isset($sf['id']) && $sf['id'] === 'static_form_name') {
+                        $sf['value'] = $formName;
+                    }
+                }
+                unset($sf);
+            }
+
             $incomingRows = $dynamicFields['multi_rows'] ?? null;
             if (is_array($incomingRows)) {
                 $currentDynamicFields = $task->dynamic_fields;
@@ -1069,7 +1097,7 @@ class TaskController extends Controller
                     }
                 }
 
-                // First, ensure all incoming rows have row_id and handle attachments merge
+                // First, ensure all incoming rows have row_id and handle attachments & remarks merge
                 foreach ($incomingRows as &$ir) {
                     $rowId = $ir['row_id'] ?? $ir['id'] ?? null;
                     if (!$rowId) {
@@ -1079,6 +1107,14 @@ class TaskController extends Controller
                         $existing = $masterRowsByRowId[$rowId] ?? [];
                         if ((!array_key_exists('attachments', $ir) || is_null($ir['attachments'])) && isset($existing['attachments'])) {
                             $ir['attachments'] = $existing['attachments'];
+                        }
+
+                        // Preserve existing user remarks if incoming value is empty or missing
+                        $remarkKeys = ['remarks', 'Remarks', 'REMARKS', 'FINAL REMARK', 'OTHER REMARK', 'BILLING FOLLOW UP', 'PR ACTIVE UPDATION', 'CLIENT FEED BACK'];
+                        foreach ($remarkKeys as $rk) {
+                            if (isset($existing[$rk]) && $existing[$rk] !== '' && $existing[$rk] !== null && (!isset($ir[$rk]) || $ir[$rk] === '' || $ir[$rk] === null)) {
+                                $ir[$rk] = $existing[$rk];
+                            }
                         }
                     }
                     $masterRowsByRowId[$rowId] = $ir;
@@ -1277,6 +1313,7 @@ class TaskController extends Controller
             }
         }
 
+        \App\Helpers\SheetLogger::logSheetDeleted($task, $user);
         $task->subTasks()->delete();
         $task->delete();
 

@@ -1369,7 +1369,7 @@ export default function TaskBuilderPage() {
         await api.patch(`${apiPrefix}/tasks/${taskId}`, {
           ...staticFields,
           dynamic_fields: dynamicFields,
-          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Updated via Task Builder',
+          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || location.state?.duplicateData?.remarks || '',
           permissions: formattedPermissions,
           allow_attachments: !!allowAttachments,
           allow_checklist: !!allowChecklist,
@@ -1382,7 +1382,7 @@ export default function TaskBuilderPage() {
         await api.post(`${apiPrefix}/tasks`, {
           ...staticFields,
           dynamic_fields: dynamicFields,
-          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || 'Created via Task Builder',
+          remarks: formSchema.find(f => f.id === 'static_remarks')?.value || '',
           permissions: formattedPermissions,
           allow_attachments: !!allowAttachments,
           allow_checklist: !!allowChecklist,
