@@ -176,20 +176,37 @@ function SearchableSelect({ value, options, placeholder, onChange, onAddNew, add
                 </div>
               ))
             ) : (
-              <div className="px-4 py-3 text-xs text-slate-400 text-center italic">No results found</div>
+              <div className="px-4 py-4 text-center space-y-2">
+                <div className="text-xs text-slate-400 italic">No results found {search ? `for "${search}"` : ''}</div>
+                {onAddNew && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-[#1F5C99] hover:bg-[#154673] rounded-xl shadow-md transition active:scale-95 cursor-pointer w-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddNew(search);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <PlusCircle className="w-4 h-4 text-white shrink-0" />
+                    <span>{addNewLabel || 'Add New'} {search ? `"${search}"` : ''}</span>
+                  </button>
+                )}
+              </div>
             )}
 
-            {onAddNew && (
+            {onAddNew && filteredOptions.length > 0 && (
               <div
-                className="p-2 border-t border-slate-50 bg-slate-50/50"
-                onClick={() => {
+                className="p-2 border-t border-slate-100 bg-slate-50/50 sticky bottom-0 z-10"
+                onClick={(e) => {
+                  e.stopPropagation();
                   onAddNew(search);
                   setIsOpen(false);
                 }}
               >
-                <div className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-slate-800 hover:text-slate-950 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer transition active:scale-95">
-                  <PlusCircle className="w-4 h-4 text-slate-900" />
-                  {addNewLabel} {search && <span className="text-slate-400 font-normal">"{search}"</span>}
+                <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-[#1F5C99] hover:text-[#154673] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl shadow-sm cursor-pointer transition active:scale-95">
+                  <PlusCircle className="w-4 h-4 text-[#1F5C99] shrink-0" />
+                  <span>{addNewLabel || 'Add New'} {search && <span className="text-slate-500 font-normal">"{search}"</span>}</span>
                 </div>
               </div>
             )}

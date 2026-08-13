@@ -67,7 +67,8 @@ export default function AddTaskModal({
     task = null,
     onUploadAttachment,
     onDeleteAttachment,
-    onToggleVerification
+    onToggleVerification,
+    onAddNewClient
 }) {
     // Memoize options to prevent recreating arrays of thousands of items on every render/keystroke
     const clientOptions = React.useMemo(() => {
@@ -215,6 +216,8 @@ export default function AddTaskModal({
                         }}
                         size="md"
                         disabled={!isCurrentlyEditable}
+                        onAddNew={onAddNewClient}
+                        addNewLabel="+ Add New Client"
                     />
                 ) : field.key === 'work_type_id' ? (
                     <SearchableSelect

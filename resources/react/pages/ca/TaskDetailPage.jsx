@@ -2502,24 +2502,35 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
             
             // Add new client to local list
             setClients(prev => {
-                const next = [...prev, newClient];
+                const exists = prev.some(c => String(c.id) === String(newClient.id));
+                const next = exists ? prev : [...prev, newClient];
                 try {
                     sessionStorage.setItem('cached_clients_v2', JSON.stringify(next));
                 } catch (e) {}
                 return next;
             });
+
+            // Automatically select newly created client in Add Task modal if active
+            setNewTaskData(prev => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    client_id: newClient.id,
+                    client_pan: newClient.pan_no || ''
+                };
+            });
             
-            // Map new client to matching preview rows
+            // Map new client to matching preview rows in Import Excel modal
             setPreviewRows(prev => prev.map(r => {
-                const matchesName = r.parsed_client_name && r.parsed_client_name.toLowerCase() === newClient.name.toLowerCase();
-                const matchesPan = r.parsed_client_pan && newClient.pan_no && r.parsed_client_pan.toUpperCase() === newClient.pan_no.toUpperCase();
+                const matchesName = (r.parsed_client_name && r.parsed_client_name.trim().toLowerCase() === newClient.name.trim().toLowerCase()) || (r.client_name && r.client_name.trim().toLowerCase() === newClient.name.trim().toLowerCase());
+                const matchesPan = r.parsed_client_pan && newClient.pan_no && r.parsed_client_pan.trim().toUpperCase() === newClient.pan_no.trim().toUpperCase();
                 if (matchesName || matchesPan) {
                     return {
                         ...r,
                         client_id: newClient.id,
                         client_name: newClient.name,
                         parsed_client_pan: newClient.pan_no,
-                        changedFields: r.changedFields.filter(f => f !== 'Client')
+                        changedFields: (r.changedFields || []).filter(f => f !== 'Client')
                     };
                 }
                 return r;
@@ -3869,6 +3880,8 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                                                                             newRows[originalIndex].client_id = val || null;
                                                                             setRows(newRows);
                                                                         }}
+                                                                        onAddNew={(search) => handleQuickAddClient({ parsed_client_name: search })}
+                                                                        addNewLabel="+ Add New Client"
                                                                         size="sm"
                                                                         direction={originalIndex > 3 ? 'up' : 'down'}
                                                                     />
@@ -6347,6 +6360,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 <AddTaskModal
                     isOpen={isAddTaskModalOpen}
                     onClose={() => setIsAddTaskModalOpen(false)}
+                    onAddNewClient={(search) => handleQuickAddClient({ parsed_client_name: search })}
                     allFields={allFields}
                     isBillableEnabled={isBillableEnabled}
                     isAfterSalesEnabled={isAfterSalesEnabled}
