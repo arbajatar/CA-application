@@ -686,7 +686,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         work_type_id: (data.work_type && typeof data.work_type === 'object') ? data.work_type.id : (data.work_type_id ? Number(data.work_type_id) : null),
                         allocated_to: (data.allocated_to && typeof data.allocated_to === 'object') ? data.allocated_to.id : (data.allocated_to ? Number(data.allocated_to) : null),
                         date_allocated: firstRow.date_allocated || data.date_allocated || null,
-                        form_name: firstRow.form_name || data.form_name || '',
+                        form_name: data.form_name || '',
                         status: data.status,
                         dynamic_fields: nextDynamicFields
                     };
@@ -754,7 +754,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                         work_type_id: (data.work_type && typeof data.work_type === 'object') ? data.work_type.id : (data.work_type_id ? Number(data.work_type_id) : null),
                         allocated_to: (data.allocated_to && typeof data.allocated_to === 'object') ? data.allocated_to.id : (data.allocated_to ? Number(data.allocated_to) : null),
                         date_allocated: firstRow.date_allocated || data.date_allocated || null,
-                        form_name: firstRow.form_name || data.form_name || '',
+                        form_name: data.form_name || '',
                         status: data.status,
                         dynamic_fields: nextDynamicFields
                     };
@@ -1173,7 +1173,7 @@ export default function TaskDetailPage({ id: propId, hideBackHeader = false }) {
                 work_type_id: (task.work_type && typeof task.work_type === 'object') ? task.work_type.id : (task.work_type_id ? Number(task.work_type_id) : null),
                 allocated_to: (task.allocated_to && typeof task.allocated_to === 'object') ? task.allocated_to.id : (task.allocated_to ? Number(task.allocated_to) : null),
                 date_allocated: firstRow.date_allocated || task.date_allocated || null,
-                form_name: firstRow.form_name || task.form_name || '',
+                form_name: task.form_name || '',
                 status: task.status,
                 dynamic_fields: nextDynamicFields,
                 deleted_row_ids: deletedRowIds,

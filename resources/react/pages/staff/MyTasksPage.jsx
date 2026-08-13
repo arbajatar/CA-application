@@ -325,10 +325,17 @@ export default function MyTasksPage() {
 
             let finalMultiRows = [];
             if (withData && Array.isArray(rawDynamicFields.multi_rows)) {
-                finalMultiRows = rawDynamicFields.multi_rows.map((row, idx) => ({
-                    ...row,
-                    row_id: `row_${Date.now()}_${Math.floor(Math.random() * 10000)}_${idx}`
-                }));
+                finalMultiRows = rawDynamicFields.multi_rows.map((row, idx) => {
+                    const r = {
+                        ...row,
+                        row_id: `row_${Date.now()}_${Math.floor(Math.random() * 10000)}_${idx}`
+                    };
+                    if (r.form_name) r.form_name = trimmedName;
+                    if (r.dynamic_data && r.dynamic_data.form_name) {
+                        r.dynamic_data = { ...r.dynamic_data, form_name: trimmedName };
+                    }
+                    return r;
+                });
             }
 
             const finalDynamicFields = {
@@ -364,21 +371,25 @@ export default function MyTasksPage() {
                 is_billable: !!fullTask.is_billable,
                 is_after_sales: !!fullTask.is_after_sales,
                 allow_duplicate_clients: !!fullTask.allow_duplicate_clients,
-                permissions: (fullTask.permissions || []).map(p => ({
-                    role_id: Number(p.role_id),
-                    can_read: !!p.can_read,
-                    can_write: !!p.can_write,
-                    can_delete: !!p.can_delete
-                })),
+                permissions: (fullTask.permissions || [])
+                    .filter(p => p && p.role_id)
+                    .map(p => ({
+                        role_id: Number(p.role_id),
+                        can_read: !!p.can_read,
+                        can_write: !!p.can_write,
+                        can_delete: !!p.can_delete
+                    })),
                 dynamic_fields: finalDynamicFields,
-                subtasks: (fullTask.sub_tasks || []).map(st => ({
-                    title: st.title,
-                    assigned_to: withData ? st.assigned_to?.id : null,
-                    priority: withData ? st.priority : 'medium',
-                    status: 'pending',
-                    due_date: withData ? st.due_date : null,
-                    remarks: st.remarks
-                }))
+                subtasks: (fullTask.sub_tasks || [])
+                    .filter(st => st && st.title && String(st.title).trim() !== '')
+                    .map(st => ({
+                        title: String(st.title).trim(),
+                        assigned_to: (withData && st.assigned_to?.id) ? Number(st.assigned_to.id) : null,
+                        priority: (withData && st.priority) ? st.priority : 'medium',
+                        status: 'pending',
+                        due_date: (withData && st.due_date) ? st.due_date : null,
+                        remarks: st.remarks || null
+                    }))
             };
 
             await api.post('/staff/tasks', payload);
